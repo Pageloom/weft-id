@@ -83,7 +83,7 @@ fi
 
 echo "🔑 Generating new certificate..."
 mkcert -key-file "$KEY_FILE" -cert-file "$CRT_FILE" \
-  "dev.localhost" "*.dev.localhost" 127.0.0.1 ::1
+  "pageloom.localhost" "*.pageloom.localhost" 127.0.0.1 ::1
 
 echo "🎉 Certificate created/renewed at $CERT_DIR"
 

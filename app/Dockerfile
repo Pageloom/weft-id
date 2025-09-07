@@ -8,16 +8,10 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy code
-COPY main.py .
-COPY migrate.py .
-COPY sql.py .
-COPY migrations/ ./migrations/
-COPY dev-docker-entrypoint.sh .
 
 EXPOSE 8000
 ENTRYPOINT ["./dev-docker-entrypoint.sh"]

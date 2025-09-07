@@ -34,21 +34,36 @@ services:
     image: postgres:16-alpine
     container_name: dev_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-appuser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apppass}
-      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
     volumes:
       - dbdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:5432:5432"   # bind to localhost only (safe)
-    networks:
-      - devnet
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [ devnet ]
 
+  db-setup:
+    image: postgres:16-alpine
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGHOST: db
+      PGDATABASE: appdb
+      PGUSER: migrator
+      PGPASSWORD: migratorpass
+    volumes:
+      - ./sql-migrations:/sql:ro
+      - ./devscripts/db-setup.sh:/db-setup.sh:ro
+    command: [ "sh", "/db-setup.sh" ]
+    restart: "no"
+    networks: [ devnet ]
 
 volumes:
   dbdata:

@@ -11,11 +11,14 @@ def provision_tenant(subdomain: str, name: str, retries=10) -> bool:
     logging.info('Provisioning tenant %s at %s', name, subdomain)
     try:
         sql.execute(
-           '''
-           insert into tenants (subdomain, name)
-           values (%(subdomain)s, %(name)s)
-           on conflict (subdomain) do nothing
-           ''', {'subdomain': subdomain, 'name': name}
+            sql.UNSCOPED,
+            '''
+            insert into tenants (subdomain, name)
+            values (%(subdomain)s, %(name)s)
+            on conflict (subdomain) do nothing
+            ''', {
+                'subdomain': subdomain, 'name': name
+            }
         )
         return True
     except psycopg.errors.UndefinedTable:

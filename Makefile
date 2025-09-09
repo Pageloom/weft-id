@@ -2,7 +2,7 @@ COMPOSE := docker compose
 WAIT_TIMEOUT ?= 60
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down reset prune ps restart-% logs logs-% up-% exec-% sh-% wait-%
+.PHONY: help status sql-migrations up down reset prune ps restart-% logs logs-% up-% exec-% sh-% wait-%
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -17,6 +17,9 @@ status: ## Show up/down for all services
 	    printf "%-16s %s\n" "$$s" "❌"; \
 	  fi; \
 	done
+
+sql-migrations: ## Run pending SQL migrations
+	$(COMPOSE) up db-setup
 
 up: ## Build and start all services (detached)
 	$(COMPOSE) up --build -d

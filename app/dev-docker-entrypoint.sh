@@ -10,8 +10,8 @@ do
  sleep 1
 done
 
-echo "Ensuring default tenant (Acme Inc.)..."
-./dev/tenants.py acme-inc 'Acme Incorporated'
+echo "Ensuring default tenant"
+./dev/tenants.py dev 'Development'
 
 echo "Starting app..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload --app-dir /app --reload-dir /app

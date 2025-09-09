@@ -30,6 +30,15 @@ services:
     networks:
       - devnet
 
+  maildev:
+    image: maildev/maildev:2.0.5
+    container_name: dev_maildev
+    env_file: .env
+    ports:
+      - "127.0.0.1:1080:1080"   # Web UI
+      - "127.0.0.1:1025:1025"   # SMTP
+    networks: [ devnet ]
+
   db:
     image: postgres:16-alpine
     container_name: dev_db

@@ -3,8 +3,7 @@
 1. Clone the repo
 2. Generate dev-env certificates
    ```bash
-   mkdir -p .devcerts
-   sh devscripts/mkdevcerts.sh
+   ./devscripts/mkdevcerts.sh
    ```
 3. Generate an .env-file
    ```bash
@@ -14,4 +13,4 @@
     ```bash
     make up
     ```
-5. Open your browser at https://acme-inc.pageloom.localhost. (Acme Incorporated is the default tenant)
+5. Open your browser at https://dev.pageloom.localhost. (A dev tenant has been automatically provisioned for you)

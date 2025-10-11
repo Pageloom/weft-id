@@ -24,3 +24,6 @@ SMTP_PASS = os.environ.get('SMTP_PASS', '')
 SMTP_TLS = _parse_bool(os.environ.get('SMTP_TLS'))
 
 FROM_EMAIL = os.environ.get('FROM_EMAIL', 'no-reply@pageloom.localhost')
+
+DEV_SUPERUSER_EMAIL = os.environ.get('DEV_SUPERUSER_EMAIL', 'admin@dev.pageloom.localhost')
+DEV_SUPERUSER_PASSWORD = os.environ.get('DEV_SUPERUSER_PASSWORD', 'devpass123')

@@ -6,8 +6,11 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+import database
 from dependencies import get_tenant_id_from_request
 from utils.auth import get_current_user, verify_login
+from utils.email import send_mfa_code_email
+from utils.mfa import create_email_otp
 
 router = APIRouter(prefix='', tags=['auth'])
 templates = Jinja2Templates(directory='templates')
@@ -39,10 +42,25 @@ def login(
             'login.html', {'request': request, 'error': 'Invalid email or password'}
         )
 
-    # Store user_id in session
-    request.session['user_id'] = str(user['id'])
+    # MFA is now mandatory for all users
+    # Store pending MFA info in session
+    request.session['pending_mfa_user_id'] = str(user['id'])
+    request.session['pending_mfa_method'] = user.get('mfa_method', 'email')
 
-    return RedirectResponse(url='/dashboard', status_code=303)
+    # If email MFA, send code immediately
+    if user.get('mfa_method') == 'email':
+        code = create_email_otp(tenant_id, user['id'])
+        # Get user's email
+        email_row = database.fetchone(
+            tenant_id,
+            'select email from user_emails where user_id = :user_id and is_primary = true',
+            {'user_id': user['id']},
+        )
+        if email_row:
+            send_mfa_code_email(email_row['email'], code)
+
+    # Redirect to MFA verification
+    return RedirectResponse(url='/mfa/verify', status_code=303)
 
 
 @router.post('/logout')

@@ -45,11 +45,12 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
         {'user_id': user_id},
     )
 
-    # Fetch and return full user record
+    # Fetch and return full user record (including MFA fields)
     user = database.fetchone(
         tenant_id,
         '''
-        select id, tenant_id, first_name, last_name, role, created_at, last_login
+        select id, tenant_id, first_name, last_name, role, created_at, last_login,
+               mfa_enabled, mfa_method
         from users
         where id = :user_id
         ''',

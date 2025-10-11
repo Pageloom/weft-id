@@ -1,8 +1,9 @@
 COMPOSE := docker compose
 WAIT_TIMEOUT ?= 60
+POETRY := poetry
 
 .DEFAULT_GOAL := help
-.PHONY: help status sql-migrations up down reset prune ps restart-% logs logs-% up-% exec-% sh-% wait-%
+.PHONY: help status sql-migrations up down reset prune ps restart-% logs logs-% up-% exec-% sh-% wait-% test lint format
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -50,4 +51,17 @@ up-%: ## Rebuild+start just one service (no deps). Example: make up-app
 
 sh-%: ## Open a shell to a service. Example: make sh-app
 	-$(COMPOSE) exec $* bash || $(COMPOSE) exec $* sh
+
+test: ## Run tests with pytest
+	$(POETRY) run pytest
+
+lint: ## Run linting with ruff
+	$(POETRY) run ruff check app/ tests/
+
+format: ## Format code with black and ruff
+	$(POETRY) run black app/ tests/
+	$(POETRY) run ruff check --fix app/ tests/
+
+typecheck: ## Run type checking with mypy
+	$(POETRY) run mypy app/
 

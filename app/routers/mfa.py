@@ -154,6 +154,7 @@ def mfa_setup_page(request: Request, tenant_id: Annotated[str, Depends(get_tenan
     return templates.TemplateResponse('mfa_setup.html', {'request': request, 'user': user})
 
 
+@router.get('/setup/passcode', response_class=HTMLResponse)
 @router.post('/setup/passcode')
 def mfa_setup_passcode(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
     """Start passcode setup process."""
@@ -197,6 +198,7 @@ def mfa_setup_passcode(request: Request, tenant_id: Annotated[str, Depends(get_t
     )
 
 
+@router.get('/setup/totp', response_class=HTMLResponse)
 @router.post('/setup/totp')
 def mfa_setup_totp(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
     """Start TOTP (authenticator app) setup process."""
@@ -379,3 +381,66 @@ def mfa_disable(request: Request, tenant_id: Annotated[str, Depends(get_tenant_i
     )
 
     return RedirectResponse(url='/mfa/manage?disabled=1', status_code=303)
+
+
+@router.post('/regenerate-backup-codes')
+def mfa_regenerate_backup_codes(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+    """Regenerate backup codes for the current user."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url='/login', status_code=303)
+
+    # Delete existing backup codes
+    database.execute(
+        tenant_id, 'delete from mfa_backup_codes where user_id = :user_id', {'user_id': user['id']}
+    )
+
+    # Generate new backup codes
+    backup_codes = generate_backup_codes()
+
+    # Store hashed backup codes
+    for code_str in backup_codes:
+        code_hash = hash_code(code_str.replace('-', ''))
+        database.execute(
+            tenant_id,
+            '''
+            insert into mfa_backup_codes (tenant_id, user_id, code_hash)
+            values (:tenant_id, :user_id, :code_hash)
+            ''',
+            {'tenant_id': tenant_id, 'user_id': user['id'], 'code_hash': code_hash},
+        )
+
+    # Show backup codes
+    return templates.TemplateResponse(
+        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+    )
+
+
+@router.post('/generate-backup-codes')
+def mfa_generate_backup_codes(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+    """Generate initial backup codes for users who don't have any."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url='/login', status_code=303)
+
+    # Generate new backup codes
+    backup_codes = generate_backup_codes()
+
+    # Store hashed backup codes
+    for code_str in backup_codes:
+        code_hash = hash_code(code_str.replace('-', ''))
+        database.execute(
+            tenant_id,
+            '''
+            insert into mfa_backup_codes (tenant_id, user_id, code_hash)
+            values (:tenant_id, :user_id, :code_hash)
+            ''',
+            {'tenant_id': tenant_id, 'user_id': user['id'], 'code_hash': code_hash},
+        )
+
+    # Show backup codes
+    return templates.TemplateResponse(
+        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+    )

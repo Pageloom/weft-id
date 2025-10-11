@@ -80,6 +80,7 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
 
     # Fetch user's primary email for display
     import database
+    from utils.template_context import get_template_context
 
     email_row = database.fetchone(
         tenant_id, 'select email from user_emails where user_id = :user_id and is_primary = true', {'user_id': user['id']}
@@ -87,4 +88,4 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
 
     user['email'] = email_row['email'] if email_row else 'N/A'
 
-    return templates.TemplateResponse('dashboard.html', {'request': request, 'user': user})
+    return templates.TemplateResponse('dashboard.html', get_template_context(request, tenant_id, user=user))

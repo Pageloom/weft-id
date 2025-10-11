@@ -74,7 +74,8 @@ def get_current_user(
     user = database.fetchone(
         tenant_id,
         '''
-        select id, tenant_id, first_name, last_name, role, created_at, last_login
+        select id, tenant_id, first_name, last_name, role, created_at, last_login,
+               mfa_enabled, mfa_method
         from users
         where id = :user_id
         ''',

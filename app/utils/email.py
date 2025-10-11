@@ -89,3 +89,46 @@ If you did not request this code, please ignore this email.
 '''
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_email_verification(to_email: str, verification_url: str) -> bool:
+    """Send email address verification link."""
+    subject = 'Verify your email address'
+
+    text_body = f'''
+Please verify your email address by clicking the link below:
+
+{verification_url}
+
+If you did not add this email address to your account, please ignore this email.
+'''
+
+    html_body = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verify Your Email Address</h1>
+        <p>Please verify your email address by clicking the button below:</p>
+        <a href="{verification_url}" class="button">Verify Email Address</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{verification_url}</p>
+        <p>If you did not add this email address to your account, please ignore this email.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+'''
+
+    return send_email(to_email, subject, html_body, text_body)

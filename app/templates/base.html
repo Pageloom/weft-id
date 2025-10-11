@@ -5,80 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Loom{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Always show scrollbar gutter to prevent layout shift */
+        html {
+            overflow-y: scroll;
+        }
+    </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-50">
     {% if user %}
+    <!-- Top-level navigation -->
     <nav class="bg-white border-b border-gray-200">
         <div class="container mx-auto px-4 max-w-7xl">
             <div class="flex justify-between items-center h-16">
                 <!-- Main navigation items -->
                 <div class="flex items-center space-x-8">
                     <span class="text-xl font-bold text-gray-900">Loom</span>
-                    {% for page in nav_items %}
-                        {% if not page.children %}
-                            <a href="{{ page.path }}" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                                {{ page.title }}
-                            </a>
-                        {% endif %}
+                    {% for page in nav.top_level_items %}
+                        <a href="{{ page.path }}"
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if nav.active_top_level and nav.active_top_level.path == page.path %}bg-gray-100 text-gray-900{% else %}text-gray-700 hover:text-gray-900{% endif %}">
+                            {{ page.title }}
+                        </a>
                     {% endfor %}
                 </div>
 
-                <!-- User menu on the right -->
+                <!-- User info and sign out -->
                 <div class="flex items-center space-x-4">
                     <span class="text-sm text-gray-700">{{ user.first_name }} {{ user.last_name }}</span>
-                    <div class="relative">
-                        <button id="settings-menu-btn" class="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                            Settings
+                    <form method="post" action="/logout">
+                        <button type="submit" class="text-sm text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md">
+                            Sign Out
                         </button>
-                        <div id="settings-menu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden z-10">
-                            {% for page in nav_items %}
-                                {% if page.path == '/settings' and page.children %}
-                                    {% for child in page.children %}
-                                        {% if child.show_in_nav %}
-                                            <a href="{{ child.path }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                                {{ child.title }}
-                                            </a>
-                                        {% endif %}
-                                    {% endfor %}
-                                {% endif %}
-                            {% endfor %}
-                            <hr class="my-1">
-                            <form method="post" action="/logout">
-                                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                    Sign Out
-                                </button>
-                            </form>
-                        </div>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Sub-navigation (second level) -->
+    {% if nav.sub_nav_items %}
+    <nav class="bg-gray-50 border-b border-gray-200">
+        <div class="container mx-auto px-4 max-w-7xl">
+            <div class="flex items-center space-x-1 h-12">
+                {% for page in nav.sub_nav_items %}
+                    <a href="{{ page.path }}"
+                       class="px-4 py-2 rounded-md text-sm {% if nav.active_sub_level and nav.active_sub_level.path == page.path %}bg-white text-gray-900 font-semibold{% else %}text-gray-600 hover:text-gray-900 font-semibold{% endif %}">
+                        {{ page.title }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Sub-sub-navigation (third level) -->
+    {% if nav.sub_sub_nav_items %}
+    <nav class="bg-gray-100 border-b border-gray-200">
+        <div class="container mx-auto px-4 max-w-7xl">
+            <div class="flex items-center space-x-1 h-10">
+                {% for page in nav.sub_sub_nav_items %}
+                    <a href="{{ page.path }}"
+                       class="px-3 py-1 rounded-md text-xs font-medium {% if nav.current_page and nav.current_page.path == page.path %}bg-white text-gray-900{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                        {{ page.title }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </nav>
+    {% endif %}
     {% endif %}
 
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         {% block content %}{% endblock %}
     </div>
     {% block extra_scripts %}{% endblock %}
-    {% if user %}
-    <script>
-        // Toggle settings dropdown menu
-        const menuBtn = document.getElementById('settings-menu-btn');
-        const menu = document.getElementById('settings-menu');
-
-        menuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            menu.classList.toggle('hidden');
-        });
-
-        // Close menu when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!menu.contains(e.target) && e.target !== menuBtn) {
-                menu.classList.add('hidden');
-            }
-        });
-    </script>
-    {% endif %}
 </body>
 </html>

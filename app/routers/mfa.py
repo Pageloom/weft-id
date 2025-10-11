@@ -24,6 +24,7 @@ from utils.mfa import (
     verify_email_otp,
     verify_totp_code,
 )
+from utils.template_context import get_template_context
 
 router = APIRouter(prefix='/mfa', tags=['mfa'])
 templates = Jinja2Templates(directory='templates')
@@ -53,7 +54,7 @@ def mfa_verify_page(request: Request, tenant_id: Annotated[str, Depends(get_tena
 
     return templates.TemplateResponse(
         'mfa_verify.html',
-        {'request': request, 'method': pending_method, 'user': user},
+        {'request': request, 'method': pending_method, 'user': user, 'nav': {}},
     )
 
 
@@ -100,7 +101,7 @@ def mfa_verify(
         )
         return templates.TemplateResponse(
             'mfa_verify.html',
-            {'request': request, 'method': pending_method, 'user': user, 'error': 'Invalid or expired code'},
+            {'request': request, 'method': pending_method, 'user': user, 'error': 'Invalid or expired code', 'nav': {}},
         )
 
     # MFA verified - complete login
@@ -151,7 +152,7 @@ def mfa_setup_page(request: Request, tenant_id: Annotated[str, Depends(get_tenan
     if user.get('mfa_enabled'):
         return RedirectResponse(url='/mfa/manage', status_code=303)
 
-    return templates.TemplateResponse('mfa_setup.html', {'request': request, 'user': user})
+    return templates.TemplateResponse('mfa_setup.html', get_template_context(request, tenant_id))
 
 
 @router.get('/setup/passcode', response_class=HTMLResponse)
@@ -194,7 +195,7 @@ def mfa_setup_passcode(request: Request, tenant_id: Annotated[str, Depends(get_t
 
     return templates.TemplateResponse(
         'mfa_setup_passcode.html',
-        {'request': request, 'user': user, 'uri': uri, 'secret': secret_display},
+        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
     )
 
 
@@ -238,7 +239,7 @@ def mfa_setup_totp(request: Request, tenant_id: Annotated[str, Depends(get_tenan
 
     return templates.TemplateResponse(
         'mfa_setup_totp.html',
-        {'request': request, 'user': user, 'uri': uri, 'secret': secret_display},
+        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
     )
 
 
@@ -306,7 +307,7 @@ def mfa_setup_verify(
         template = 'mfa_setup_passcode.html' if method == 'passcode' else 'mfa_setup_totp.html'
         return templates.TemplateResponse(
             template,
-            {'request': request, 'user': user, 'uri': uri, 'secret': secret_display, 'error': 'Invalid code'},
+            get_template_context(request, tenant_id, uri=uri, secret=secret_display, error='Invalid code'),
         )
 
     # Mark as verified
@@ -340,7 +341,8 @@ def mfa_setup_verify(
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )
 
 
@@ -352,7 +354,7 @@ def mfa_manage(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
     if not user:
         return RedirectResponse(url='/login', status_code=303)
 
-    return templates.TemplateResponse('mfa_manage.html', {'request': request, 'user': user})
+    return templates.TemplateResponse('mfa_manage.html', get_template_context(request, tenant_id))
 
 
 @router.post('/disable')
@@ -413,7 +415,8 @@ def mfa_regenerate_backup_codes(request: Request, tenant_id: Annotated[str, Depe
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )
 
 
@@ -442,5 +445,6 @@ def mfa_generate_backup_codes(request: Request, tenant_id: Annotated[str, Depend
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )

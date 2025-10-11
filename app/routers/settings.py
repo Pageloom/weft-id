@@ -22,9 +22,28 @@ from utils.mfa import (
     verify_totp_code,
 )
 from utils.template_context import get_template_context
+from pages import get_first_accessible_child
 
 router = APIRouter(prefix='/settings', tags=['settings'])
 templates = Jinja2Templates(directory='templates')
+
+
+@router.get('/', response_class=HTMLResponse)
+def settings_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+    """Redirect to first accessible settings page."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url='/login', status_code=303)
+
+    # Get first accessible child page
+    first_child = get_first_accessible_child('/settings', user.get('role'))
+
+    if first_child:
+        return RedirectResponse(url=first_child, status_code=303)
+
+    # Fallback if no accessible children (shouldn't happen)
+    return RedirectResponse(url='/dashboard', status_code=303)
 
 
 @router.get('/profile', response_class=HTMLResponse)
@@ -339,7 +358,7 @@ def mfa_setup_passcode(request: Request, tenant_id: Annotated[str, Depends(get_t
 
     return templates.TemplateResponse(
         'mfa_setup_passcode.html',
-        {'request': request, 'user': user, 'uri': uri, 'secret': secret_display},
+        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
     )
 
 
@@ -383,7 +402,7 @@ def mfa_setup_totp(request: Request, tenant_id: Annotated[str, Depends(get_tenan
 
     return templates.TemplateResponse(
         'mfa_setup_totp.html',
-        {'request': request, 'user': user, 'uri': uri, 'secret': secret_display},
+        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
     )
 
 
@@ -476,7 +495,7 @@ def mfa_setup_verify(
         template = 'mfa_setup_passcode.html' if method == 'passcode' else 'mfa_setup_totp.html'
         return templates.TemplateResponse(
             template,
-            {'request': request, 'user': user, 'uri': uri, 'secret': secret_display, 'error': 'Invalid code'},
+            get_template_context(request, tenant_id, uri=uri, secret=secret_display, error='Invalid code'),
         )
 
     # Mark as verified
@@ -510,7 +529,8 @@ def mfa_setup_verify(
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )
 
 
@@ -544,7 +564,8 @@ def mfa_regenerate_backup_codes(request: Request, tenant_id: Annotated[str, Depe
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )
 
 
@@ -573,7 +594,8 @@ def mfa_generate_backup_codes(request: Request, tenant_id: Annotated[str, Depend
 
     # Show backup codes
     return templates.TemplateResponse(
-        'mfa_backup_codes.html', {'request': request, 'user': user, 'backup_codes': backup_codes}
+        'mfa_backup_codes.html',
+        get_template_context(request, tenant_id, backup_codes=backup_codes)
     )
 
 

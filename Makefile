@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 POETRY := poetry
 
 .DEFAULT_GOAL := help
-.PHONY: help status sql-migrations up down reset prune ps restart-% logs logs-% up-% exec-% sh-% wait-% test lint format
+.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% wait-% test lint format typecheck
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -19,17 +19,16 @@ status: ## Show up/down for all services
 	  fi; \
 	done
 
-sql-migrations: ## Run pending SQL migrations
-	$(COMPOSE) up db-setup
-
 up: ## Build and start all services (detached)
 	$(COMPOSE) up --build -d
 
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans
 
-reset: ## Stop and remove containers + volumes (DB wiped)
+db-reset: ## Wipe DB volume to force bootstrap rerun
 	$(COMPOSE) down -v
+
+db-init: db-reset up ## Wipe DB and restart (full reinit)
 
 prune: ## Docker prune (containers/images/networks not in use)
 	docker system prune -f

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+
+        <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6" role="alert">
+            You are signed in as <strong>{{ user.first_name }} {{ user.last_name }}</strong> ({{ user.email }})
+        </div>
+
+        <dl class="space-y-3">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <dt class="font-medium text-gray-700">Role</dt>
+                <dd class="sm:col-span-3 text-gray-900">{{ user.role }}</dd>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <dt class="font-medium text-gray-700">User ID</dt>
+                <dd class="sm:col-span-3"><code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ user.id }}</code></dd>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <dt class="font-medium text-gray-700">Tenant ID</dt>
+                <dd class="sm:col-span-3"><code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ user.tenant_id }}</code></dd>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <dt class="font-medium text-gray-700">Last Login</dt>
+                <dd class="sm:col-span-3 text-gray-900">{{ user.last_login }}</dd>
+            </div>
+        </dl>
+
+        <form method="post" action="/logout" class="mt-6">
+            <button type="submit" class="border border-red-600 text-red-600 hover:bg-red-50 font-medium py-2 px-4 rounded-md transition duration-150">Sign Out</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

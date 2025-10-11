@@ -1,14 +1,20 @@
 """Tenant-related API endpoints."""
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 
 from dependencies import get_tenant_id_from_request
+from utils.auth import get_current_user
 
 router = APIRouter(prefix='', tags=['tenants'])
 
 
 @router.get('/')
 def tenant_root(request: Request, tenant_id: str = Depends(get_tenant_id_from_request)):
-    """Root endpoint for tenant requests."""
-    host = request.headers.get('x-forwarded-host') or request.headers.get('host')
-    return {'ok': True, 'host': host, 'tenant_id': tenant_id}
+    """Root endpoint for tenant requests - redirects based on auth state."""
+    user = get_current_user(request, tenant_id)
+
+    if user:
+        return RedirectResponse(url='/dashboard', status_code=303)
+    else:
+        return RedirectResponse(url='/login', status_code=303)

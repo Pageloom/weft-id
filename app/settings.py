@@ -29,3 +29,4 @@ DEV_SUPERUSER_EMAIL = os.environ.get('DEV_SUPERUSER_EMAIL', 'admin@dev.pageloom.
 DEV_SUPERUSER_PASSWORD = os.environ.get('DEV_SUPERUSER_PASSWORD', 'devpass123')
 
 SESSION_SECRET_KEY = os.environ.get('SESSION_SECRET_KEY', 'dev-secret-key-change-in-production')
+MFA_ENCRYPTION_KEY = os.environ.get('MFA_ENCRYPTION_KEY', 'dev-mfa-key-change-in-production-must-be-base64')

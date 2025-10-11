@@ -1,5 +1,6 @@
 """Multi-factor authentication utilities."""
 
+import base64
 import hashlib
 import secrets
 from datetime import datetime, timedelta
@@ -8,11 +9,26 @@ import pyotp
 from cryptography.fernet import Fernet
 
 import database
+import settings
 
-# In production, load this from environment variable or secure key management
-# For now, we'll generate a key - in production this must be persistent
-_ENCRYPTION_KEY = Fernet.generate_key()
-_cipher = Fernet(_ENCRYPTION_KEY)
+
+def _get_encryption_key() -> bytes:
+    """Get or generate encryption key from settings."""
+    key_str = settings.MFA_ENCRYPTION_KEY
+    # Ensure the key is valid base64 and correct length for Fernet
+    try:
+        key_bytes = base64.urlsafe_b64decode(key_str)
+        if len(key_bytes) == 32:
+            return base64.urlsafe_b64encode(key_bytes)
+    except Exception:
+        pass
+    # Fallback: derive from the string (not ideal but better than random)
+    # Use first 32 bytes of SHA256 hash
+    key_hash = hashlib.sha256(key_str.encode()).digest()
+    return base64.urlsafe_b64encode(key_hash)
+
+
+_cipher = Fernet(_get_encryption_key())
 
 
 def generate_totp_secret() -> str:

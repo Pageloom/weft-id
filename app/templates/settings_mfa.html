@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}MFA Settings - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-6">Multi-Factor Authentication</h1>
+
+        <div class="mb-8">
+            <h2 class="text-lg font-medium mb-4">Current MFA Method</h2>
+            <div class="bg-gray-50 border border-gray-200 rounded-md p-4">
+                <p class="text-sm font-medium text-gray-900">
+                    {% if mfa_method == 'totp' %}
+                    Authenticator App (TOTP)
+                    {% elif mfa_method == 'passcode' %}
+                    Passcode
+                    {% else %}
+                    Email-based OTP
+                    {% endif %}
+                </p>
+                <p class="text-xs text-gray-500 mt-1">This method will be used when signing in.</p>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-lg font-medium mb-4">Change MFA Method</h2>
+            <div class="space-y-3">
+                <a href="/mfa/setup/email" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
+                    <h3 class="font-medium text-gray-900">Email OTP</h3>
+                    <p class="text-sm text-gray-500 mt-1">Receive one-time codes via email</p>
+                </a>
+
+                <a href="/mfa/setup/totp" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
+                    <h3 class="font-medium text-gray-900">Authenticator App</h3>
+                    <p class="text-sm text-gray-500 mt-1">Use an app like Google Authenticator or Authy</p>
+                </a>
+
+                <a href="/mfa/setup/passcode" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
+                    <h3 class="font-medium text-gray-900">Passcode</h3>
+                    <p class="text-sm text-gray-500 mt-1">Use a 6-digit passcode</p>
+                </a>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 pt-6">
+            <h2 class="text-lg font-medium mb-4">Backup Codes</h2>
+            {% if backup_codes %}
+            <p class="text-sm text-gray-600 mb-4">
+                You have {{ backup_codes|length }} backup codes. Each can be used once to sign in if you lose access to your primary MFA method.
+            </p>
+            <div class="space-y-2">
+                {% for code in backup_codes %}
+                <div class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-4 py-2">
+                    <code class="text-sm font-mono">{{ code.code }}</code>
+                    {% if code.used_at %}
+                    <span class="text-xs text-gray-500">Used on {{ code.used_at }}</span>
+                    {% else %}
+                    <span class="text-xs text-green-600">Available</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <form method="post" action="/mfa/regenerate-backup-codes" class="mt-4">
+                <button type="submit" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Regenerate Backup Codes
+                </button>
+            </form>
+            {% else %}
+            <p class="text-sm text-gray-600 mb-4">You don't have any backup codes yet.</p>
+            <form method="post" action="/mfa/generate-backup-codes">
+                <button type="submit" class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Generate Backup Codes
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

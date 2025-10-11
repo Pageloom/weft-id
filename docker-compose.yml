@@ -18,7 +18,8 @@ services:
 
   app:
     build:
-      context: ./app
+      context: .
+      dockerfile: ./app/Dockerfile
     image: app:dev-latest
     container_name: dev_app
     env_file: .env

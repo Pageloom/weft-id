@@ -2,4 +2,11 @@
 .idea/
 .devcerts/
 venv/
-app/__pychache__/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

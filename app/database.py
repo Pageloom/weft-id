@@ -1,30 +1,55 @@
 import uuid
 from contextlib import contextmanager
-from typing import Any, Optional
-from decimal import Decimal
 from datetime import date, datetime, time, timedelta
-from psycopg.types.json import Json
-import config
-from psycopg_pool import ConnectionPool
-from psycopg.rows import dict_row
+from decimal import Decimal
+from typing import Any
 
-pool = ConnectionPool(conninfo=config.DATABASE_URL, min_size=1, max_size=10, open=True)
+from psycopg.rows import dict_row
+from psycopg.types.json import Json
+from psycopg_pool import ConnectionPool
+
+import settings
+
+_pool: ConnectionPool | None = None
+
+
+def get_pool() -> ConnectionPool:
+    """Get or create the connection pool (lazy initialization)."""
+    global _pool
+    if _pool is None:
+        _pool = ConnectionPool(conninfo=settings.DATABASE_URL, min_size=1, max_size=10, open=False)
+        _pool.open()
+    return _pool
 
 
 class _Unscoped:
     __slots__ = ()
 
-    def __repr__(self) -> str: return "UNSCOPED"
+    def __repr__(self) -> str:
+        return "UNSCOPED"
 
 
-Params = Optional[dict[str, Any]]
+Params = dict[str, Any] | None
 
 UNSCOPED = _Unscoped()
 TenantArg = uuid.UUID | str | _Unscoped
 
 _PG_SCALARS = (
-    type(None), bool, int, float, Decimal, str, bytes, bytearray, memoryview,
-    uuid.UUID, date, datetime, time, timedelta, Json,
+    type(None),
+    bool,
+    int,
+    float,
+    Decimal,
+    str,
+    bytes,
+    bytearray,
+    memoryview,
+    uuid.UUID,
+    date,
+    datetime,
+    time,
+    timedelta,
+    Json,
 )
 
 
@@ -33,7 +58,7 @@ def _is_pg_value(value: Any) -> bool:
     if isinstance(value, _PG_SCALARS):
         return True
     # Arrays: lists/tuples of valid scalars (homogeneous not enforced here)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return all(_is_pg_value(v) for v in value)
     # NOTE: plain dict is NOT accepted; wrap JSON with psycopg.types.json.Json
     return False
@@ -54,7 +79,7 @@ def _validate_params(params: Params) -> Params:
     return params
 
 
-def _normalize_tenant_id(tenant_id: TenantArg) -> Optional[str]:
+def _normalize_tenant_id(tenant_id: TenantArg) -> str | None:
     """Return UUID string if scoped, None if UNSCOPED; raise on bad value."""
     if tenant_id is UNSCOPED:
         return None
@@ -81,6 +106,7 @@ def session(*, tenant_id: TenantArg):
     If tenant_id is UNSCOPED, no tenant guard is set.
     Commits on success; rolls back on exception.
     """
+    pool = get_pool()
     with pool.connection() as conn, conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
         tid = _normalize_tenant_id(tenant_id)
         if tid is not None:
@@ -89,20 +115,28 @@ def session(*, tenant_id: TenantArg):
 
 
 def execute(tenant_id: TenantArg, query: str, params: Params = None) -> int:
-    """ Executes a statement and returns the number of affected rows. """
+    """Executes a statement and returns the number of affected rows."""
     with session(tenant_id=tenant_id) as cur:
         return cur.execute(query, _validate_params(params))
 
 
-def fetchone(tenant_id: TenantArg, query: str, params: Params = None) -> Optional[dict]:
-    """ Return a single row (dict) or None. """
+def fetchone(tenant_id: TenantArg, query: str, params: Params = None) -> dict | None:
+    """Return a single row (dict) or None."""
     with session(tenant_id=tenant_id) as cur:
         cur.execute(query, _validate_params(params))
         return cur.fetchone()
 
 
 def fetchall(tenant_id: TenantArg, query: str, params: Params = None) -> list[dict]:
-    """ Return all rows (list[dict]). """
+    """Return all rows (list[dict])."""
     with session(tenant_id=tenant_id) as cur:
         cur.execute(query, _validate_params(params))
         return cur.fetchall()
+
+
+def close_pool() -> None:
+    """Close the connection pool if it exists. Useful for cleanup in tests."""
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Email Settings - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-6">Email Addresses</h1>
+
+        <div class="mb-6">
+            <h2 class="text-lg font-medium mb-4">Your Email Addresses</h2>
+
+            <div class="space-y-3">
+                {% for email in emails %}
+                <div class="flex items-center justify-between border border-gray-200 rounded-md p-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-gray-900">{{ email.email }}</span>
+                            {% if email.is_primary %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Primary</span>
+                            {% endif %}
+                            {% if email.is_verified %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Verified</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Unverified</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Added {{ email.created_at }}</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        {% if not email.is_verified %}
+                        <form method="post" action="/settings/emails/resend-verification/{{ email.id }}">
+                            <button type="submit" class="text-sm text-blue-600 hover:text-blue-800">Resend Verification</button>
+                        </form>
+                        {% endif %}
+                        {% if not email.is_primary %}
+                        <form method="post" action="/settings/emails/set-primary/{{ email.id }}">
+                            <button type="submit" class="text-sm text-blue-600 hover:text-blue-800">Set as Primary</button>
+                        </form>
+                        <form method="post" action="/settings/emails/delete/{{ email.id }}">
+                            <button type="submit" class="text-sm text-red-600 hover:text-red-800">Remove</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 pt-6">
+            <h2 class="text-lg font-medium mb-4">Add New Email Address</h2>
+            <form method="post" action="/settings/emails/add" class="flex gap-3">
+                <input type="email" name="email" placeholder="new.email@example.com"
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required>
+                <button type="submit"
+                    class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Add Email
+                </button>
+            </form>
+            <p class="text-sm text-gray-500 mt-2">A verification email will be sent to the new address.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

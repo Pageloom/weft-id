@@ -23,10 +23,6 @@ def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
     if not user:
         return RedirectResponse(url='/login', status_code=303)
 
-    # Only admins can view user list
-    if user.get('role') != 'admin':
-        return RedirectResponse(url='/dashboard', status_code=303)
-
     # Fetch all users in tenant with their primary email
     users = database.fetchall(
         tenant_id,

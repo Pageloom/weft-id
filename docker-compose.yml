@@ -59,22 +59,6 @@ services:
       retries: 20
     networks: [ devnet ]
 
-  db-setup:
-    image: postgres:16-alpine
-    depends_on:
-      db: { condition: service_healthy }
-    environment:
-      PGHOST: db
-      PGDATABASE: appdb
-      PGUSER: migrator
-      PGPASSWORD: migratorpass
-    volumes:
-      - ./sql-migrations:/sql:ro
-      - ./devscripts/db-setup.sh:/db-setup.sh:ro
-    command: [ "sh", "/db-setup.sh" ]
-    restart: "no"
-    networks: [ devnet ]
-
 volumes:
   dbdata:
 

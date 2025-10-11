@@ -32,7 +32,7 @@ def cleanup_database_pool():
 @pytest.fixture
 def test_subdomain():
     """Provide a test subdomain for testing."""
-    return "dev"
+    return 'dev'
 
 
 @pytest.fixture

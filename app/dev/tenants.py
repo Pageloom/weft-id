@@ -11,16 +11,16 @@ import utils.validate
 
 def provision_tenant(subdomain: str, name: str, retries=10) -> bool:
     utils.validate.subdomain(subdomain)
-    logging.info("Provisioning tenant %s at %s", name, subdomain)
+    logging.info('Provisioning tenant %s at %s', name, subdomain)
     try:
         database.execute(
             database.UNSCOPED,
-            """
+            '''
             insert into tenants (subdomain, name)
-            values (%(subdomain)s, %(name)s)
+            values (:subdomain, :name)
             on conflict (subdomain) do nothing
-            """,
-            {"subdomain": subdomain, "name": name},
+            ''',
+            {'subdomain': subdomain, 'name': name},
         )
         return True
     except psycopg.errors.UndefinedTable:
@@ -31,5 +31,5 @@ def provision_tenant(subdomain: str, name: str, retries=10) -> bool:
             raise
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     argh.dispatch_command(provision_tenant)

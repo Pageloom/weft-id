@@ -26,7 +26,7 @@ class _Unscoped:
     __slots__ = ()
 
     def __repr__(self) -> str:
-        return "UNSCOPED"
+        return 'UNSCOPED'
 
 
 Params = dict[str, Any] | None
@@ -72,10 +72,10 @@ def _validate_params(params: Params) -> Params:
         assert isinstance(k, str)
         if not _is_pg_value(v):
             t = type(v).__name__
-            hint = ""
+            hint = ''
             if isinstance(v, dict):
-                hint = " (wrap JSON with psycopg.types.json.Json(value))"
-            raise RuntimeError(f"param '{k}' has unsupported type {t}{hint}")
+                hint = ' (wrap JSON with psycopg.types.json.Json(value))'
+            raise RuntimeError(f'param \'{k}\' has unsupported type {t}{hint}')
     return params
 
 
@@ -88,14 +88,14 @@ def _normalize_tenant_id(tenant_id: TenantArg) -> str | None:
     try:
         return str(uuid.UUID(str(tenant_id)))
     except Exception as e:
-        raise ValueError("tenant_id must be a UUID/uuid-like string or UNSCOPED") from e
+        raise ValueError('tenant_id must be a UUID/uuid-like string or UNSCOPED') from e
 
 
 def _maybe_set_local(cur, tenant_id: TenantArg) -> None:
     tid = _normalize_tenant_id(tenant_id)
     if tid is not None:
         # Transaction-scoped so it auto-clears at the end of this block
-        cur.execute("set local app.tenant_id = %s", (tid,))
+        cur.execute('set local app.tenant_id = %s', (tid,))
 
 
 @contextmanager
@@ -110,7 +110,7 @@ def session(*, tenant_id: TenantArg):
     with pool.connection() as conn, conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
         tid = _normalize_tenant_id(tenant_id)
         if tid is not None:
-            cur.execute("set local app.tenant_id = %s", (tid,))
+            cur.execute('set local app.tenant_id = %s', (tid,))
         yield cur
 
 

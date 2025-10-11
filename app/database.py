@@ -1,3 +1,4 @@
+import re
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
@@ -79,6 +80,14 @@ def _validate_params(params: Params) -> Params:
     return params
 
 
+def _convert_query(query: str) -> str:
+    """Convert :param style placeholders to %(param)s style for psycopg3."""
+    # Only convert if the query contains :param style placeholders
+    if ':' not in query:
+        return query
+    return re.sub(r':(\w+)', r'%(\1)s', query)
+
+
 def _normalize_tenant_id(tenant_id: TenantArg) -> str | None:
     """Return UUID string if scoped, None if UNSCOPED; raise on bad value."""
     if tenant_id is UNSCOPED:
@@ -95,7 +104,8 @@ def _maybe_set_local(cur, tenant_id: TenantArg) -> None:
     tid = _normalize_tenant_id(tenant_id)
     if tid is not None:
         # Transaction-scoped so it auto-clears at the end of this block
-        cur.execute('set local app.tenant_id = %s', (tid,))
+        # SET LOCAL doesn't support parameters, but tid is a validated UUID string
+        cur.execute(f"set local app.tenant_id = '{tid}'")
 
 
 @contextmanager
@@ -110,27 +120,28 @@ def session(*, tenant_id: TenantArg):
     with pool.connection() as conn, conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
         tid = _normalize_tenant_id(tenant_id)
         if tid is not None:
-            cur.execute('set local app.tenant_id = %s', (tid,))
+            # SET LOCAL doesn't support parameters, but tid is a validated UUID string
+            cur.execute(f"set local app.tenant_id = '{tid}'")
         yield cur
 
 
 def execute(tenant_id: TenantArg, query: str, params: Params = None) -> int:
     """Executes a statement and returns the number of affected rows."""
     with session(tenant_id=tenant_id) as cur:
-        return cur.execute(query, _validate_params(params))
+        return cur.execute(_convert_query(query), _validate_params(params))
 
 
 def fetchone(tenant_id: TenantArg, query: str, params: Params = None) -> dict | None:
     """Return a single row (dict) or None."""
     with session(tenant_id=tenant_id) as cur:
-        cur.execute(query, _validate_params(params))
+        cur.execute(_convert_query(query), _validate_params(params))
         return cur.fetchone()
 
 
 def fetchall(tenant_id: TenantArg, query: str, params: Params = None) -> list[dict]:
     """Return all rows (list[dict])."""
     with session(tenant_id=tenant_id) as cur:
-        cur.execute(query, _validate_params(params))
+        cur.execute(_convert_query(query), _validate_params(params))
         return cur.fetchall()
 
 

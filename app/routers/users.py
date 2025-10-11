@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 import database
 from dependencies import get_tenant_id_from_request
 from utils.auth import get_current_user
+from utils.template_context import get_template_context
 
 router = APIRouter(prefix='/users', tags=['users'])
 templates = Jinja2Templates(directory='templates')
@@ -38,4 +39,4 @@ def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
         ''',
     )
 
-    return templates.TemplateResponse('users_list.html', {'request': request, 'user': user, 'users': users})
+    return templates.TemplateResponse('users_list.html', get_template_context(request, tenant_id, users=users))

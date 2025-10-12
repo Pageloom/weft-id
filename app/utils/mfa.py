@@ -55,7 +55,7 @@ def verify_totp_code(secret: str, code: str) -> bool:
     return totp.verify(code, valid_window=1)  # Allow 1 step window (30 sec before/after)
 
 
-def generate_totp_uri(secret: str, email: str, issuer: str = 'PageLoom') -> str:
+def generate_totp_uri(secret: str, email: str, issuer: str = "PageLoom") -> str:
     """
     Generate otpauth:// URI for TOTP setup.
     Can be used for QR codes or direct password manager import.
@@ -69,7 +69,7 @@ def format_secret_for_display(secret: str) -> str:
     Format secret for display (add dashes for readability).
     Example: ABCDEFGHIJKLMNOP -> ABCD-EFGH-IJKL-MNOP
     """
-    return '-'.join([secret[i : i + 4] for i in range(0, len(secret), 4)])
+    return "-".join([secret[i : i + 4] for i in range(0, len(secret), 4)])
 
 
 def generate_backup_codes(count: int = 10) -> list[str]:
@@ -82,7 +82,7 @@ def generate_backup_codes(count: int = 10) -> list[str]:
         # Generate 8-character alphanumeric code
         code = secrets.token_hex(4).upper()
         # Format as XXXX-XXXX
-        formatted = f'{code[:4]}-{code[4:]}'
+        formatted = f"{code[:4]}-{code[4:]}"
         codes.append(formatted)
     return codes
 
@@ -100,18 +100,18 @@ def verify_backup_code(tenant_id: str, user_id: str, code: str) -> bool:
     Verify a backup code and mark it as used.
     Returns True if valid, False otherwise.
     """
-    code_hash = hash_code(code.upper().replace('-', ''))
+    code_hash = hash_code(code.upper().replace("-", ""))
 
     # Find unused backup code
     backup_code = database.fetchone(
         tenant_id,
-        '''
+        """
         select id from mfa_backup_codes
         where user_id = :user_id
           and code_hash = :code_hash
           and used_at is null
-        ''',
-        {'user_id': user_id, 'code_hash': code_hash},
+        """,
+        {"user_id": user_id, "code_hash": code_hash},
     )
 
     if not backup_code:
@@ -120,8 +120,8 @@ def verify_backup_code(tenant_id: str, user_id: str, code: str) -> bool:
     # Mark as used
     database.execute(
         tenant_id,
-        'update mfa_backup_codes set used_at = now() where id = :id',
-        {'id': backup_code['id']},
+        "update mfa_backup_codes set used_at = now() where id = :id",
+        {"id": backup_code["id"]},
     )
 
     return True
@@ -143,15 +143,15 @@ def create_email_otp(tenant_id: str, user_id: str, expiry_minutes: int = 10) -> 
 
     database.execute(
         tenant_id,
-        '''
+        """
         insert into mfa_email_codes (tenant_id, user_id, code_hash, expires_at)
         values (:tenant_id, :user_id, :code_hash, :expires_at)
-        ''',
+        """,
         {
-            'tenant_id': tenant_id,
-            'user_id': user_id,
-            'code_hash': code_hash,
-            'expires_at': expires_at,
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "code_hash": code_hash,
+            "expires_at": expires_at,
         },
     )
 
@@ -168,7 +168,7 @@ def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
     # Find valid, unused, non-expired code
     email_code = database.fetchone(
         tenant_id,
-        '''
+        """
         select id from mfa_email_codes
         where user_id = :user_id
           and code_hash = :code_hash
@@ -176,8 +176,8 @@ def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
           and expires_at > now()
         order by created_at desc
         limit 1
-        ''',
-        {'user_id': user_id, 'code_hash': code_hash},
+        """,
+        {"user_id": user_id, "code_hash": code_hash},
     )
 
     if not email_code:
@@ -186,8 +186,8 @@ def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
     # Mark as used
     database.execute(
         tenant_id,
-        'update mfa_email_codes set used_at = now() where id = :id',
-        {'id': email_code['id']},
+        "update mfa_email_codes set used_at = now() where id = :id",
+        {"id": email_code["id"]},
     )
 
     return True
@@ -200,8 +200,8 @@ def get_user_mfa_method(tenant_id: str, user_id: str) -> dict | None:
     """
     return database.fetchone(
         tenant_id,
-        'select mfa_enabled, mfa_method from users where id = :user_id',
-        {'user_id': user_id},
+        "select mfa_enabled, mfa_method from users where id = :user_id",
+        {"user_id": user_id},
     )
 
 
@@ -212,14 +212,14 @@ def get_totp_secret(tenant_id: str, user_id: str, method: str) -> str | None:
     """
     row = database.fetchone(
         tenant_id,
-        '''
+        """
         select secret_encrypted from mfa_totp
         where user_id = :user_id and method = :method and verified_at is not null
-        ''',
-        {'user_id': user_id, 'method': method},
+        """,
+        {"user_id": user_id, "method": method},
     )
 
     if not row:
         return None
 
-    return decrypt_secret(row['secret_encrypted'])
+    return decrypt_secret(row["secret_encrypted"])

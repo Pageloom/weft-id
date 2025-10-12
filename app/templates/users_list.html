@@ -34,10 +34,10 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ u.last_login if u.last_login else 'Never' }}
+                            {{ fmt_datetime(u.last_login) if u.last_login else 'Never' }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ u.created_at }}
+                            {{ fmt_datetime(u.created_at) }}
                         </td>
                     </tr>
                     {% endfor %}

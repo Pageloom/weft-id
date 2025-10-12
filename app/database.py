@@ -3,7 +3,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
@@ -27,7 +27,7 @@ class _Unscoped:
     __slots__ = ()
 
     def __repr__(self) -> str:
-        return 'UNSCOPED'
+        return "UNSCOPED"
 
 
 Params = dict[str, Any] | None
@@ -73,19 +73,19 @@ def _validate_params(params: Params) -> Params:
         assert isinstance(k, str)
         if not _is_pg_value(v):
             t = type(v).__name__
-            hint = ''
+            hint = ""
             if isinstance(v, dict):
-                hint = ' (wrap JSON with psycopg.types.json.Json(value))'
-            raise RuntimeError(f'param \'{k}\' has unsupported type {t}{hint}')
+                hint = " (wrap JSON with psycopg.types.json.Json(value))"
+            raise RuntimeError(f"param '{k}' has unsupported type {t}{hint}")
     return params
 
 
 def _convert_query(query: str) -> str:
     """Convert :param style placeholders to %(param)s style for psycopg3."""
     # Only convert if the query contains :param style placeholders
-    if ':' not in query:
+    if ":" not in query:
         return query
-    return re.sub(r':(\w+)', r'%(\1)s', query)
+    return re.sub(r":(\w+)", r"%(\1)s", query)
 
 
 def _normalize_tenant_id(tenant_id: TenantArg) -> str | None:
@@ -97,7 +97,7 @@ def _normalize_tenant_id(tenant_id: TenantArg) -> str | None:
     try:
         return str(uuid.UUID(str(tenant_id)))
     except Exception as e:
-        raise ValueError('tenant_id must be a UUID/uuid-like string or UNSCOPED') from e
+        raise ValueError("tenant_id must be a UUID/uuid-like string or UNSCOPED") from e
 
 
 def _maybe_set_local(cur, tenant_id: TenantArg) -> None:
@@ -128,21 +128,24 @@ def session(*, tenant_id: TenantArg):
 def execute(tenant_id: TenantArg, query: str, params: Params = None) -> int:
     """Executes a statement and returns the number of affected rows."""
     with session(tenant_id=tenant_id) as cur:
-        return cur.execute(_convert_query(query), _validate_params(params))
+        result = cur.execute(_convert_query(query), _validate_params(params))
+        return cast(int, result)
 
 
 def fetchone(tenant_id: TenantArg, query: str, params: Params = None) -> dict | None:
     """Return a single row (dict) or None."""
     with session(tenant_id=tenant_id) as cur:
         cur.execute(_convert_query(query), _validate_params(params))
-        return cur.fetchone()
+        result = cur.fetchone()
+        return cast(dict | None, result)
 
 
 def fetchall(tenant_id: TenantArg, query: str, params: Params = None) -> list[dict]:
     """Return all rows (list[dict])."""
     with session(tenant_id=tenant_id) as cur:
         cur.execute(_convert_query(query), _validate_params(params))
-        return cur.fetchall()
+        result = cur.fetchall()
+        return cast(list[dict], result)
 
 
 def close_pool() -> None:

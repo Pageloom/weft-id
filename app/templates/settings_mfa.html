@@ -69,7 +69,7 @@
                 <div class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-4 py-2">
                     <code class="text-sm font-mono">{{ code.code }}</code>
                     {% if code.used_at %}
-                    <span class="text-xs text-gray-500">Used on {{ code.used_at }}</span>
+                    <span class="text-xs text-gray-500">Used on {{ fmt_datetime(code.used_at) }}</span>
                     {% else %}
                     <span class="text-xs text-green-600">Available</span>
                     {% endif %}

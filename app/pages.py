@@ -11,10 +11,10 @@ from enum import Enum
 class PagePermission(str, Enum):
     """Permission levels for pages."""
 
-    PUBLIC = 'public'  # Accessible to everyone
-    AUTHENTICATED = 'authenticated'  # Requires login
-    ADMIN = 'admin'  # Requires admin role
-    SUPER_ADMIN = 'super_admin'  # Requires super admin role
+    PUBLIC = "public"  # Accessible to everyone
+    AUTHENTICATED = "authenticated"  # Requires login
+    ADMIN = "admin"  # Requires admin role
+    SUPER_ADMIN = "super_admin"  # Requires super admin role
 
 
 @dataclass
@@ -27,7 +27,7 @@ class Page:
     icon: str | None = None
     show_in_nav: bool = True
     creates_nav_level: bool = True
-    children: list['Page'] | None = None
+    children: list["Page"] | None = None
 
     def get_all_paths(self) -> list[str]:
         """Get all paths including children."""
@@ -41,42 +41,42 @@ class Page:
 # Define the page hierarchy
 PAGES = [
     Page(
-        path='/users',
-        title='Users',
+        path="/users",
+        title="Users",
         permission=PagePermission.AUTHENTICATED,
-        icon='users',
+        icon="users",
         show_in_nav=True,
         children=[
             Page(
-                path='/users',
-                title='User List',
+                path="/users",
+                title="User List",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
             ),
         ],
     ),
     Page(
-        path='/settings',
-        title='Settings',
+        path="/settings",
+        title="Settings",
         permission=PagePermission.AUTHENTICATED,
-        icon='settings',
+        icon="settings",
         show_in_nav=True,
         children=[
             Page(
-                path='/settings/profile',
-                title='Profile',
+                path="/settings/profile",
+                title="Profile",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
             ),
             Page(
-                path='/settings/emails',
-                title='Email Addresses',
+                path="/settings/emails",
+                title="Email Addresses",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 children=[
                     Page(
-                        path='/settings/emails/verify',
-                        title='Verify Email',
+                        path="/settings/emails/verify",
+                        title="Verify Email",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
@@ -84,28 +84,28 @@ PAGES = [
                 ],
             ),
             Page(
-                path='/settings/mfa',
-                title='MFA Settings',
+                path="/settings/mfa",
+                title="MFA Settings",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 children=[
                     Page(
-                        path='/settings/mfa/setup/passcode',
-                        title='Setup Passcode',
+                        path="/settings/mfa/setup/passcode",
+                        title="Setup Passcode",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
                     ),
                     Page(
-                        path='/settings/mfa/setup/totp',
-                        title='Setup Authenticator',
+                        path="/settings/mfa/setup/totp",
+                        title="Setup Authenticator",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
                     ),
                     Page(
-                        path='/settings/mfa/downgrade-verify',
-                        title='Verify MFA Downgrade',
+                        path="/settings/mfa/downgrade-verify",
+                        title="Verify MFA Downgrade",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
@@ -116,28 +116,28 @@ PAGES = [
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages
     Page(
-        path='/mfa',
-        title='MFA',
+        path="/mfa",
+        title="MFA",
         permission=PagePermission.PUBLIC,
         show_in_nav=False,
         children=[
             Page(
-                path='/mfa/verify',
-                title='MFA Verification',
+                path="/mfa/verify",
+                title="MFA Verification",
                 permission=PagePermission.PUBLIC,
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
             Page(
-                path='/mfa/setup',
-                title='MFA Setup',
+                path="/mfa/setup",
+                title="MFA Setup",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
             Page(
-                path='/mfa/manage',
-                title='Manage MFA',
+                path="/mfa/manage",
+                title="Manage MFA",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=False,
                 creates_nav_level=False,
@@ -191,7 +191,9 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     - sub_sub_nav_items: Sub-sub-navigation items (if any)
     """
 
-    def find_page_with_ancestors(pages: list[Page], target_path: str, ancestors: list[Page] = None) -> tuple[Page | None, list[Page]]:
+    def find_page_with_ancestors(
+        pages: list[Page], target_path: str, ancestors: list[Page] | None = None
+    ) -> tuple[Page | None, list[Page]]:
         """Find a page and return it with its ancestors."""
         if ancestors is None:
             ancestors = []
@@ -202,14 +204,12 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
                 return page, ancestors
 
             # Check if target is under this page's path (prefix match for child routes)
-            if target_path.startswith(page.path + '/') or (page.children and any(
-                target_path.startswith(child.path) for child in page.children
-            )):
+            if target_path.startswith(page.path + "/") or (
+                page.children and any(target_path.startswith(child.path) for child in page.children)
+            ):
                 if page.children:
                     result, chain = find_page_with_ancestors(
-                        page.children,
-                        target_path,
-                        ancestors + [page]
+                        page.children, target_path, ancestors + [page]
                     )
                     if result:
                         return result, chain
@@ -242,7 +242,8 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     if active_top_level and active_top_level.children:
         # Filter children by permission and show_in_nav
         sub_nav_items = [
-            child for child in active_top_level.children
+            child
+            for child in active_top_level.children
             if child.show_in_nav and _has_permission(child, user_role)
         ]
 
@@ -253,18 +254,19 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
             # Get sub-sub-navigation items if available
             if active_sub_level and active_sub_level.children:
                 sub_sub_nav_items = [
-                    child for child in active_sub_level.children
+                    child
+                    for child in active_sub_level.children
                     if child.show_in_nav and _has_permission(child, user_role)
                 ]
 
     return {
-        'current_page': current_page,
-        'nav_chain': nav_chain,
-        'top_level_items': top_level_items,
-        'active_top_level': active_top_level,
-        'sub_nav_items': sub_nav_items,
-        'active_sub_level': active_sub_level,
-        'sub_sub_nav_items': sub_sub_nav_items,
+        "current_page": current_page,
+        "nav_chain": nav_chain,
+        "top_level_items": top_level_items,
+        "active_top_level": active_top_level,
+        "sub_nav_items": sub_nav_items,
+        "active_sub_level": active_sub_level,
+        "sub_sub_nav_items": sub_sub_nav_items,
     }
 
 
@@ -281,9 +283,9 @@ def _has_permission(page: Page, user_role: str | None) -> bool:
         return True
     elif page.permission == PagePermission.AUTHENTICATED and user_role:
         return True
-    elif page.permission == PagePermission.ADMIN and user_role in ('admin', 'super_admin'):
+    elif page.permission == PagePermission.ADMIN and user_role in ("admin", "super_admin"):
         return True
-    elif page.permission == PagePermission.SUPER_ADMIN and user_role == 'super_admin':
+    elif page.permission == PagePermission.SUPER_ADMIN and user_role == "super_admin":
         return True
     return False
 

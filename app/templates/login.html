@@ -16,6 +16,7 @@
 
             <form method="post" action="/login" id="loginForm">
                 <input type="hidden" id="timezone" name="timezone" value="">
+                <input type="hidden" id="locale" name="locale" value="">
                 <div class="mb-4">
                     <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
                     <input type="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="email" name="email" required autofocus>
@@ -35,7 +36,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const locale = navigator.language || navigator.userLanguage || 'en-US';
     document.getElementById('timezone').value = tz;
+    document.getElementById('locale').value = locale.replace('-', '_');
 });
 </script>
 {% endblock %}

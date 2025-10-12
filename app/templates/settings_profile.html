@@ -79,7 +79,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
                 <dt class="font-medium text-gray-700">Last Login</dt>
-                <dd class="sm:col-span-3 text-gray-900">{{ user.last_login }}</dd>
+                <dd class="sm:col-span-3 text-gray-900">{{ fmt_datetime(user.last_login) if user.last_login else 'Never' }}</dd>
             </div>
         </dl>
     </div>
@@ -90,7 +90,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const locale = navigator.language || navigator.userLanguage || 'en-US';
+    const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
     document.getElementById('timezone').value = tz;
     document.getElementById('locale').value = locale.replace('-', '_');
 });

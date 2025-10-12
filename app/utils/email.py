@@ -14,23 +14,23 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
     In production: configure with AWS SES, SendGrid, Mailgun, etc.
     """
     # SMTP configuration
-    smtp_host = os.getenv('SMTP_HOST', 'maildev')  # maildev is the container name
-    smtp_port = int(os.getenv('SMTP_PORT', '1025'))
-    smtp_user = os.getenv('SMTP_USER', '')
-    smtp_pass = os.getenv('SMTP_PASS', '')
-    from_email = os.getenv('SMTP_FROM', 'noreply@pageloom.localhost')
+    smtp_host = os.getenv("SMTP_HOST", "maildev")  # maildev is the container name
+    smtp_port = int(os.getenv("SMTP_PORT", "1025"))
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASS", "")
+    from_email = os.getenv("SMTP_FROM", "noreply@pageloom.localhost")
 
     try:
         # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = from_email
-        msg['To'] = to_email
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = from_email
+        msg["To"] = to_email
 
         # Attach text and HTML parts
         if text_body:
-            msg.attach(MIMEText(text_body, 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))
+            msg.attach(MIMEText(text_body, "plain"))
+        msg.attach(MIMEText(html_body, "html"))
 
         # Send via SMTP
         with smtplib.SMTP(smtp_host, smtp_port) as server:
@@ -41,27 +41,29 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
 
             server.send_message(msg)
 
-        print(f'✓ Email sent to {to_email}: {subject}')
+        print(f"✓ Email sent to {to_email}: {subject}")
         return True
 
     except Exception as e:
-        print(f'✗ Failed to send email to {to_email}: {e}')
+        print(f"✗ Failed to send email to {to_email}: {e}")
         return False
 
 
 def send_mfa_code_email(to_email: str, code: str) -> bool:
     """Send MFA verification code via email."""
-    subject = 'Your verification code'
+    # ruff: noqa: E501
+    subject = "Your verification code"
 
-    text_body = f'''
+    text_body = f"""
 Your verification code is: {code}
 
 This code will expire in 10 minutes.
 
 If you did not request this code, please ignore this email.
-'''
+"""
 
-    html_body = f'''
+    # fmt: off
+    html_body = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -86,24 +88,27 @@ If you did not request this code, please ignore this email.
     </div>
 </body>
 </html>
-'''
+"""
+    # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
 
 
 def send_email_verification(to_email: str, verification_url: str) -> bool:
     """Send email address verification link."""
-    subject = 'Verify your email address'
+    # ruff: noqa: E501
+    subject = "Verify your email address"
 
-    text_body = f'''
+    text_body = f"""
 Please verify your email address by clicking the link below:
 
 {verification_url}
 
 If you did not add this email address to your account, please ignore this email.
-'''
+"""
 
-    html_body = f'''
+    # fmt: off
+    html_body = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -129,6 +134,7 @@ If you did not add this email address to your account, please ignore this email.
     </div>
 </body>
 </html>
-'''
+"""
+    # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)

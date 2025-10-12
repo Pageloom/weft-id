@@ -116,9 +116,15 @@ def mfa_verify(
 def mfa_send_email_code(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
     """Send email OTP code as fallback."""
     pending_user_id = request.session.get('pending_mfa_user_id')
+    pending_method = request.session.get('pending_mfa_method')
 
     if not pending_user_id:
         return RedirectResponse(url='/login', status_code=303)
+
+    # Only allow email codes for users with email-only MFA
+    # Users with TOTP/passcode should use their configured method or backup codes
+    if pending_method in ('passcode', 'totp'):
+        return RedirectResponse(url='/mfa/verify', status_code=303)
 
     # Generate and send email code
     code = create_email_otp(tenant_id, pending_user_id)

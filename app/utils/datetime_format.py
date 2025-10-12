@@ -3,26 +3,28 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from babel.dates import format_datetime as babel_format_datetime
 
-def format_datetime(dt: datetime, timezone: str | None = None, locale: str = "en_US") -> str:
+
+def format_datetime(dt: datetime, timezone: str | None = None, locale: str = 'en_US') -> str:
     """
     Format a datetime object to a localized string with timezone conversion.
 
     Args:
         dt: datetime object (should be timezone-aware, typically UTC from database)
-        timezone: IANA timezone string (e.g., 'America/New_York', 'Europe/London')
+        timezone: IANA timezone string (e.g., 'America/New_York', 'Europe/Stockholm')
                  If None, uses UTC
-        locale: locale string (e.g., 'en_US', 'sv_SE') - currently unused, reserved for future
+        locale: locale string (e.g., 'en_US', 'sv_SE', 'en_SE')
 
     Returns:
-        Formatted datetime string with seconds precision (no microseconds)
+        Formatted datetime string according to locale conventions
     """
     if dt is None:
-        return ""
+        return ''
 
     # Ensure datetime is timezone-aware (assume UTC if naive)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        dt = dt.replace(tzinfo=ZoneInfo('UTC'))
 
     # Convert to user's timezone if provided
     if timezone:
@@ -33,10 +35,13 @@ def format_datetime(dt: datetime, timezone: str | None = None, locale: str = "en
             # If timezone is invalid, fall back to UTC
             pass
 
-    # Format with seconds precision (no microseconds)
-    # Using ISO-like format: YYYY-MM-DD HH:MM:SS
-    # For future locale support, this can be replaced with locale-specific formatting
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+    # Format using babel for locale-aware formatting
+    # 'medium' format includes date and time with seconds
+    try:
+        return babel_format_datetime(dt, format='medium', locale=locale)
+    except Exception:
+        # Fallback to ISO format if locale is invalid
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 
 def create_datetime_formatter(user_timezone: str | None = None, user_locale: str = "en_US"):

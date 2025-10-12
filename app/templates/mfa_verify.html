@@ -57,7 +57,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const locale = navigator.language || navigator.userLanguage || 'en-US';
+    const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
     document.getElementById('timezone').value = tz;
     document.getElementById('locale').value = locale.replace('-', '_');
 });

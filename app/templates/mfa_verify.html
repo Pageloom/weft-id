@@ -38,12 +38,14 @@
                 <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">Verify</button>
             </form>
 
+            {% if method == 'email' %}
             <div class="mt-6 pt-6 border-t border-gray-200">
                 <p class="text-sm text-gray-600 text-center mb-3">Having trouble?</p>
                 <form method="post" action="/mfa/verify/send-email">
                     <button type="submit" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition duration-150 text-sm">Send code to my email</button>
                 </form>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>

@@ -40,13 +40,6 @@ class Page:
 # Define the page hierarchy
 PAGES = [
     Page(
-        path='/dashboard',
-        title='Dashboard',
-        permission=PagePermission.AUTHENTICATED,
-        icon='home',
-        show_in_nav=True,
-    ),
-    Page(
         path='/users',
         title='Users',
         permission=PagePermission.AUTHENTICATED,

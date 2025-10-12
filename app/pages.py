@@ -14,6 +14,7 @@ class PagePermission(str, Enum):
     PUBLIC = 'public'  # Accessible to everyone
     AUTHENTICATED = 'authenticated'  # Requires login
     ADMIN = 'admin'  # Requires admin role
+    SUPER_ADMIN = 'super_admin'  # Requires super admin role
 
 
 @dataclass
@@ -171,11 +172,7 @@ def get_nav_items(user_role: str | None = None) -> list[Page]:
             continue
 
         # Filter by permission
-        if page.permission == PagePermission.PUBLIC:
-            nav_items.append(page)
-        elif page.permission == PagePermission.AUTHENTICATED and user_role:
-            nav_items.append(page)
-        elif page.permission == PagePermission.ADMIN and user_role == 'admin':
+        if _has_permission(page, user_role):
             nav_items.append(page)
 
     return nav_items
@@ -272,12 +269,21 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
 
 
 def _has_permission(page: Page, user_role: str | None) -> bool:
-    """Check if user has permission to access page."""
+    """Check if user has permission to access page.
+
+    Permission hierarchy (higher roles can access lower level pages):
+    - super_admin: can access super_admin, admin, authenticated, and public pages
+    - admin: can access admin, authenticated, and public pages
+    - authenticated: can access authenticated and public pages
+    - None (not logged in): can only access public pages
+    """
     if page.permission == PagePermission.PUBLIC:
         return True
     elif page.permission == PagePermission.AUTHENTICATED and user_role:
         return True
-    elif page.permission == PagePermission.ADMIN and user_role == 'admin':
+    elif page.permission == PagePermission.ADMIN and user_role in ('admin', 'super_admin'):
+        return True
+    elif page.permission == PagePermission.SUPER_ADMIN and user_role == 'super_admin':
         return True
     return False
 

@@ -32,6 +32,26 @@
 
     </div>
     <div class="bg-white rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-6">Timezone</h1>
+        <p class="text-sm text-gray-600 mb-4">Your timezone is automatically detected when you sign in and is used to display dates and times in your local timezone.</p>
+
+        <div class="mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-4">
+                <dt class="font-medium text-gray-700">Current Timezone</dt>
+                <dd class="sm:col-span-3">
+                    <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{ user.tz or 'Not set' }}</code>
+                </dd>
+            </div>
+        </div>
+
+        <form method="post" action="/settings/profile/update-timezone" id="updateTimezoneForm">
+            <input type="hidden" id="timezone" name="timezone" value="">
+            <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                Re-detect Timezone
+            </button>
+        </form>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6">Account info</h1>
         <dl class="space-y-3">
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -57,4 +77,13 @@
         </dl>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.getElementById('timezone').value = tz;
+});
+</script>
 {% endblock %}

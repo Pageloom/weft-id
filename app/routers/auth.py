@@ -33,6 +33,7 @@ def login(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     email: Annotated[str, Form()],
     password: Annotated[str, Form()],
+    timezone: Annotated[str, Form()] = '',
 ):
     """Handle login form submission."""
     user = verify_login(tenant_id, email, password)
@@ -46,6 +47,9 @@ def login(
     # Store pending MFA info in session
     request.session['pending_mfa_user_id'] = str(user['id'])
     request.session['pending_mfa_method'] = user.get('mfa_method', 'email')
+    # Store timezone for later update (after MFA verification)
+    if timezone:
+        request.session['pending_timezone'] = timezone
 
     # If email MFA, send code immediately
     if user.get('mfa_method') == 'email':

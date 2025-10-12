@@ -21,7 +21,8 @@
             </div>
             {% endif %}
 
-            <form method="post" action="/mfa/verify">
+            <form method="post" action="/mfa/verify" id="mfaVerifyForm">
+                <input type="hidden" id="timezone" name="timezone" value="">
                 <div class="mb-6">
                     <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
                         {% if method == 'passcode' %}
@@ -49,4 +50,13 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.getElementById('timezone').value = tz;
+});
+</script>
 {% endblock %}

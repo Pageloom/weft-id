@@ -50,7 +50,7 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
         tenant_id,
         '''
         select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method
+               mfa_enabled, mfa_method, tz
         from users
         where id = :user_id
         ''',
@@ -75,7 +75,7 @@ def get_current_user(
         tenant_id,
         '''
         select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method
+               mfa_enabled, mfa_method, tz
         from users
         where id = :user_id
         ''',

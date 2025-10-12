@@ -63,6 +63,7 @@ def mfa_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     code: Annotated[str, Form()],
+    timezone: Annotated[str, Form()] = '',
 ):
     """Handle MFA verification form submission."""
     pending_user_id = request.session.get('pending_mfa_user_id')
@@ -106,8 +107,40 @@ def mfa_verify(
 
     # MFA verified - complete login
     request.session['user_id'] = pending_user_id
+
+    # Update timezone if provided (prefer from this form, fallback to session from login)
+    tz_to_update = timezone or request.session.get('pending_timezone', '')
+    if tz_to_update:
+        # Only update if timezone has changed
+        current_tz = database.fetchone(
+            tenant_id,
+            'select tz from users where id = :user_id',
+            {'user_id': pending_user_id}
+        )
+        if not current_tz or current_tz.get('tz') != tz_to_update:
+            database.execute(
+                tenant_id,
+                'update users set tz = :tz, last_login = now() where id = :user_id',
+                {'tz': tz_to_update, 'user_id': pending_user_id}
+            )
+        else:
+            # Just update last_login
+            database.execute(
+                tenant_id,
+                'update users set last_login = now() where id = :user_id',
+                {'user_id': pending_user_id}
+            )
+    else:
+        # No timezone provided, just update last_login
+        database.execute(
+            tenant_id,
+            'update users set last_login = now() where id = :user_id',
+            {'user_id': pending_user_id}
+        )
+
     request.session.pop('pending_mfa_user_id', None)
     request.session.pop('pending_mfa_method', None)
+    request.session.pop('pending_timezone', None)
 
     return RedirectResponse(url='/dashboard', status_code=303)
 

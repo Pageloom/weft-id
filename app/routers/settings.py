@@ -84,6 +84,38 @@ def update_profile(
     return RedirectResponse(url='/settings/profile', status_code=303)
 
 
+@router.post('/profile/update-timezone')
+def update_timezone(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    timezone: Annotated[str, Form()],
+):
+    """Update user's timezone."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url='/login', status_code=303)
+
+    # Validate timezone using zoneinfo
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        # This will raise ZoneInfoNotFoundError if invalid
+        ZoneInfo(timezone)
+
+        # Update user's timezone
+        database.execute(
+            tenant_id,
+            'update users set tz = :tz where id = :user_id',
+            {'tz': timezone, 'user_id': user['id']},
+        )
+    except ZoneInfoNotFoundError:
+        # Invalid timezone, skip update
+        pass
+
+    return RedirectResponse(url='/settings/profile', status_code=303)
+
+
 @router.get('/emails', response_class=HTMLResponse)
 def email_settings(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
     """Display and manage user email addresses."""

@@ -112,6 +112,12 @@ PAGES = [
                     ),
                 ],
             ),
+            Page(
+                path="/settings/privileged-domains",
+                title="Privileged Domains",
+                permission=PagePermission.SUPER_ADMIN,
+                show_in_nav=True,
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

@@ -177,7 +177,8 @@ def tenant_security(
     settings_row = database.fetchone(
         tenant_id,
         """
-        select session_timeout_seconds, persistent_sessions
+        select session_timeout_seconds, persistent_sessions,
+               allow_users_edit_profile, allow_users_add_emails
         from tenant_security_settings
         where tenant_id = :tenant_id
         """,
@@ -186,6 +187,8 @@ def tenant_security(
 
     current_timeout = settings_row["session_timeout_seconds"] if settings_row else None
     persistent_sessions = settings_row["persistent_sessions"] if settings_row else True
+    allow_users_edit_profile = settings_row["allow_users_edit_profile"] if settings_row else True
+    allow_users_add_emails = settings_row["allow_users_add_emails"] if settings_row else True
     success = request.query_params.get("success")
     error = request.query_params.get("error")
 
@@ -196,6 +199,8 @@ def tenant_security(
             tenant_id,
             current_timeout=current_timeout,
             persistent_sessions=persistent_sessions,
+            allow_users_edit_profile=allow_users_edit_profile,
+            allow_users_add_emails=allow_users_add_emails,
             success=success,
             error=error,
         ),
@@ -208,6 +213,8 @@ def update_tenant_security(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     session_timeout: Annotated[str, Form()] = "",
     persistent_sessions: Annotated[str, Form()] = "",
+    allow_users_edit_profile: Annotated[str, Form()] = "",
+    allow_users_add_emails: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
     user = get_current_user(request, tenant_id)
@@ -236,16 +243,24 @@ def update_tenant_security(
     # Parse persistent_sessions checkbox (checked = "true", unchecked = "")
     persistent = persistent_sessions == "true"
 
+    # Parse user permission checkboxes (checked = "true", unchecked = "")
+    allow_edit_profile = allow_users_edit_profile == "true"
+    allow_add_emails = allow_users_add_emails == "true"
+
     # Upsert the security settings
     database.execute(
         tenant_id,
         """
-        insert into tenant_security_settings (tenant_id, session_timeout_seconds, persistent_sessions, updated_by)
-        values (:tenant_id, :timeout_seconds, :persistent_sessions, :updated_by)
+        insert into tenant_security_settings (tenant_id, session_timeout_seconds, persistent_sessions,
+                                               allow_users_edit_profile, allow_users_add_emails, updated_by)
+        values (:tenant_id, :timeout_seconds, :persistent_sessions,
+                :allow_users_edit_profile, :allow_users_add_emails, :updated_by)
         on conflict (tenant_id)
         do update set
             session_timeout_seconds = :timeout_seconds,
             persistent_sessions = :persistent_sessions,
+            allow_users_edit_profile = :allow_users_edit_profile,
+            allow_users_add_emails = :allow_users_add_emails,
             updated_at = now(),
             updated_by = :updated_by
         """,
@@ -253,6 +268,8 @@ def update_tenant_security(
             "tenant_id": tenant_id,
             "timeout_seconds": timeout_seconds,
             "persistent_sessions": persistent,
+            "allow_users_edit_profile": allow_edit_profile,
+            "allow_users_add_emails": allow_add_emails,
             "updated_by": user["id"],
         },
     )

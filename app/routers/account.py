@@ -76,6 +76,19 @@ def update_profile(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
+    # Check if user is allowed to edit their profile
+    # Super admins are always allowed, otherwise check tenant security setting
+    if user.get("role") != "super_admin":
+        security_settings = database.fetchone(
+            tenant_id,
+            "select allow_users_edit_profile from tenant_security_settings where tenant_id = :tenant_id",
+            {"tenant_id": tenant_id},
+        )
+
+        # If setting exists and is False, deny access
+        if security_settings and not security_settings.get("allow_users_edit_profile"):
+            return RedirectResponse(url="/account/profile", status_code=303)
+
     # Update user's name
     database.execute(
         tenant_id,
@@ -238,6 +251,19 @@ def add_email(
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+
+    # Check if user is allowed to add emails
+    # Super admins are always allowed, otherwise check tenant security setting
+    if user.get("role") != "super_admin":
+        security_settings = database.fetchone(
+            tenant_id,
+            "select allow_users_add_emails from tenant_security_settings where tenant_id = :tenant_id",
+            {"tenant_id": tenant_id},
+        )
+
+        # If setting exists and is False, deny access
+        if security_settings and not security_settings.get("allow_users_add_emails"):
+            return RedirectResponse(url="/account/emails", status_code=303)
 
     # Check if email already exists for this tenant
     existing = database.fetchone(

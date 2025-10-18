@@ -40,6 +40,22 @@ class Page:
 
 # Define the page hierarchy
 PAGES = [
+    # Authentication pages
+    Page(
+        path="/login",
+        title="Login",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/dashboard",
+        title="Dashboard",
+        permission=PagePermission.AUTHENTICATED,
+        icon="home",
+        show_in_nav=True,
+    ),
+    # User management
     Page(
         path="/users",
         title="Users",
@@ -73,15 +89,6 @@ PAGES = [
                 title="Email Addresses",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
-                children=[
-                    Page(
-                        path="/account/emails/verify",
-                        title="Verify Email",
-                        permission=PagePermission.AUTHENTICATED,
-                        show_in_nav=False,
-                        creates_nav_level=False,
-                    ),
-                ],
             ),
             Page(
                 path="/account/mfa",
@@ -133,20 +140,6 @@ PAGES = [
                 path="/mfa/verify",
                 title="MFA Verification",
                 permission=PagePermission.PUBLIC,
-                show_in_nav=False,
-                creates_nav_level=False,
-            ),
-            Page(
-                path="/mfa/setup",
-                title="MFA Setup",
-                permission=PagePermission.AUTHENTICATED,
-                show_in_nav=False,
-                creates_nav_level=False,
-            ),
-            Page(
-                path="/mfa/manage",
-                title="Manage MFA",
-                permission=PagePermission.AUTHENTICATED,
                 show_in_nav=False,
                 creates_nav_level=False,
             ),

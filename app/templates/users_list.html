@@ -3,46 +3,182 @@
 {% block title %}Users - Loom{% endblock %}
 
 {% block content %}
+<!-- Pagination Controls Macro -->
+{% macro pagination_controls(border_class="border-t") %}
+{% if pagination.total_count > 0 %}
+<div class="flex items-center justify-between {{ border_class }} border-gray-200 py-4">
+    <!-- Results info -->
+    <div class="flex items-center gap-4">
+        <div class="text-sm text-gray-700">
+            Showing <span class="font-medium">{{ pagination.start_index }}</span> to
+            <span class="font-medium">{{ pagination.end_index }}</span> of
+            <span class="font-medium">{{ pagination.total_count }}</span> result{{ 's' if pagination.total_count != 1 else '' }}
+        </div>
+
+        <!-- Page size selector -->
+        <div class="flex items-center gap-2">
+            <label for="page-size" class="text-sm text-gray-700">Per page:</label>
+            <select
+                id="page-size"
+                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}'"
+                class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+                <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Page navigation -->
+    <div class="flex items-center gap-2">
+        <a
+            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}"
+            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_previous %}onclick="return false;"{% endif %}
+        >
+            Previous
+        </a>
+
+        <span class="text-sm text-gray-700">
+            Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
+        </span>
+
+        <a
+            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}"
+            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_next %}onclick="return false;"{% endif %}
+        >
+            Next
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
 <div class="max-w-6xl">
     <div class="bg-white rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6">Users</h1>
+
+        <!-- Search Form -->
+        <div class="mb-6">
+            <form method="get" action="/users/list" class="flex gap-2">
+                <input type="hidden" name="sort" value="{{ sort_field }}">
+                <input type="hidden" name="order" value="{{ sort_order }}">
+                <input type="hidden" name="size" value="{{ pagination.page_size }}">
+
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ search }}"
+                    placeholder="Search by name or email..."
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                <button
+                    type="submit"
+                    class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    Search
+                </button>
+                {% if search %}
+                <a
+                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}"
+                    class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                >
+                    Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Results count -->
+        {% if search %}
+        <div class="mb-4 text-sm text-gray-600">
+            Found {{ pagination.total_count }} result{{ 's' if pagination.total_count != 1 else '' }} for "{{ search }}"
+        </div>
+        {% endif %}
+
+        <!-- Pagination Controls - Top -->
+        {{ pagination_controls(border_class="border-b") }}
 
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        {% macro sort_header(field, label) %}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
+                               class="group inline-flex items-center space-x-1 hover:text-gray-700">
+                                <span>{{ label }}</span>
+                                {% if sort_field == field %}
+                                    {% if sort_order == 'asc' %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+                                    </svg>
+                                    {% else %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    {% endif %}
+                                {% else %}
+                                <svg class="w-4 h-4 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                </svg>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% endmacro %}
+
+                        {{ sort_header('name', 'Name') }}
+                        {{ sort_header('email', 'Email') }}
+                        {{ sort_header('role', 'Role') }}
+                        {{ sort_header('last_login', 'Last Login') }}
+                        {{ sort_header('created_at', 'Created') }}
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for u in users %}
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">{{ u.first_name }} {{ u.last_name }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">{{ u.email }}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                {% if u.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ u.role }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ fmt_datetime(u.last_login) if u.last_login else 'Never' }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ fmt_datetime(u.created_at) }}
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    {% if users %}
+                        {% for u in users %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">{{ u.last_name }}, {{ u.first_name }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ u.email }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    {% if u.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ u.role }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ fmt_datetime(u.last_login) if u.last_login else 'Never' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ fmt_datetime(u.created_at) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+                                {% if search %}
+                                    No users found matching "{{ search }}"
+                                {% else %}
+                                    No users found
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
+        </div>
+
+        <!-- Pagination Controls - Bottom -->
+        <div class="mt-6">
+            {{ pagination_controls(border_class="border-t") }}
         </div>
     </div>
 </div>

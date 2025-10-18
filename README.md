@@ -5,6 +5,14 @@
 ### Prerequisites
 - Docker & Docker Compose
 - Poetry (for local development)
+- mkcert (for local TLS certificates)
+  ```bash
+  brew install mkcert
+  ```
+  **Firefox users**: Also install NSS tools for Firefox support, then re-run the cert generation script:
+  ```bash
+  brew install nss
+  ```
 
 ### Setup Steps
 
@@ -23,8 +31,9 @@
 
 4. Generate dev-env certificates
    ```bash
-   ./devscripts/mkdevcerts.sh
+   ./devscripts/mkcert.sh
    ```
+   **Note**: This will prompt for your password to install the local certificate authority.
 
 5. Generate an .env file
    ```bash

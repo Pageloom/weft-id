@@ -2,29 +2,19 @@
 
 from typing import Annotated
 
+import database
+from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-import database
-from dependencies import get_tenant_id_from_request
-from utils.auth import get_current_user
 from utils.email import send_mfa_code_email
 from utils.mfa import (
     create_email_otp,
-    decrypt_secret,
-    encrypt_secret,
-    format_secret_for_display,
-    generate_backup_codes,
-    generate_totp_secret,
-    generate_totp_uri,
     get_totp_secret,
-    hash_code,
     verify_backup_code,
     verify_email_otp,
     verify_totp_code,
 )
-from utils.template_context import get_template_context
 
 router = APIRouter(prefix="/mfa", tags=["mfa"])
 templates = Jinja2Templates(directory="templates")

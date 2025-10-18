@@ -2,11 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Request
-from fastapi.responses import RedirectResponse
-
 import database
 from dependencies import get_tenant_id_from_request
+from fastapi import Depends, Request
+from fastapi.responses import RedirectResponse
 from utils.password import verify_password
 
 

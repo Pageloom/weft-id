@@ -2,7 +2,6 @@
 import logging
 
 import argh
-
 import database
 import utils.password
 import utils.validate
@@ -33,7 +32,7 @@ def add_user(
     if role not in valid_roles:
         raise ValueError(f"Invalid role: {role}. Must be one of {valid_roles}")
 
-    # Set default names based on role if not provided
+    # Set default names based on a role if not provided
     if first_name is None or last_name is None:
         role_defaults = {
             "super_admin": ("Super", "Admin"),

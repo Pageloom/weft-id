@@ -1,7 +1,6 @@
 """Template context helpers for adding common data to templates."""
 
 from fastapi import Request
-
 from pages import get_navigation_context
 from utils.auth import get_current_user
 from utils.datetime_format import create_datetime_formatter

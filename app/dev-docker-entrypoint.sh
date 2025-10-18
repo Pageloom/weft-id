@@ -11,10 +11,12 @@ do
 done
 
 echo "Ensuring default tenant"
-python ./dev/tenants.py dev 'Development'
+python ./dev/tenants.py "$DEV_SUBDOMAIN" 'Development'
 
-echo "Ensuring super admin user"
-python ./dev/users.py dev "$DEV_SUPERUSER_EMAIL" "$DEV_SUPERUSER_PASSWORD"
+echo "Ensuring admin users"
+python ./dev/users.py "$DEV_SUBDOMAIN" super@"$DEV_SUBDOMAIN".pageloom.localhost "$DEV_PASSWORD" --role=super_admin --first-name=Super --last-name=Admin
+python ./dev/users.py "$DEV_SUBDOMAIN" admin@"$DEV_SUBDOMAIN".pageloom.localhost "$DEV_PASSWORD" --role=admin --first-name=Admin --last-name=User
+python ./dev/users.py "$DEV_SUBDOMAIN" member@"$DEV_SUBDOMAIN".pageloom.com.com "$DEV_PASSWORD" --role=member --first-name=Normal --last-name=Member
 
 echo "Starting app..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload --app-dir /app --reload-dir /app

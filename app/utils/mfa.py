@@ -5,11 +5,10 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-import pyotp
-from cryptography.fernet import Fernet
-
 import database
+import pyotp
 import settings
+from cryptography.fernet import Fernet
 
 
 def _get_encryption_key() -> bytes:

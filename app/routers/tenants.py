@@ -1,9 +1,8 @@
 """Tenant-related API endpoints."""
 
+from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-
-from dependencies import get_tenant_id_from_request
 from utils.auth import get_current_user
 
 router = APIRouter(prefix="", tags=["tenants"])

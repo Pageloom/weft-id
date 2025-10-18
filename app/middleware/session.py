@@ -1,7 +1,7 @@
 """Custom session middleware to support per-tenant session configuration."""
 
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from starlette.types import Message, Receive, Scope, Send
 
 
 class DynamicSessionMiddleware(SessionMiddleware):
@@ -45,7 +45,10 @@ class DynamicSessionMiddleware(SessionMiddleware):
                                 # Keep all parts except Max-Age and Expires
                                 for part in parts:
                                     lower_part = part.lower()
-                                    if not (lower_part.startswith("max-age=") or lower_part.startswith("expires=")):
+                                    if not (
+                                        lower_part.startswith("max-age=")
+                                        or lower_part.startswith("expires=")
+                                    ):
                                         new_parts.append(part)
 
                                 # Add Max-Age if specified (persistent session)

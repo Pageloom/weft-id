@@ -2,12 +2,11 @@
 
 from typing import Annotated
 
+import database
+from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-import database
-from dependencies import get_tenant_id_from_request
 from pages import get_first_accessible_child, has_page_access
 from utils.auth import get_current_user
 from utils.template_context import get_template_context
@@ -251,10 +250,14 @@ def update_tenant_security(
     database.execute(
         tenant_id,
         """
-        insert into tenant_security_settings (tenant_id, session_timeout_seconds, persistent_sessions,
-                                               allow_users_edit_profile, allow_users_add_emails, updated_by)
-        values (:tenant_id, :timeout_seconds, :persistent_sessions,
-                :allow_users_edit_profile, :allow_users_add_emails, :updated_by)
+        insert into tenant_security_settings (
+            tenant_id, session_timeout_seconds, persistent_sessions,
+            allow_users_edit_profile, allow_users_add_emails, updated_by
+        )
+        values (
+            :tenant_id, :timeout_seconds, :persistent_sessions,
+            :allow_users_edit_profile, :allow_users_add_emails, :updated_by
+        )
         on conflict (tenant_id)
         do update set
             session_timeout_seconds = :timeout_seconds,

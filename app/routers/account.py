@@ -2,12 +2,11 @@
 
 from typing import Annotated
 
+import database
+from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-import database
-from dependencies import get_tenant_id_from_request
 from pages import get_first_accessible_child
 from utils.auth import get_current_user
 from utils.email import send_email_verification
@@ -29,9 +28,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)
-def account_index(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
-):
+def account_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
     """Redirect to first accessible account page."""
     user = get_current_user(request, tenant_id)
 
@@ -81,7 +78,11 @@ def update_profile(
     if user.get("role") != "super_admin":
         security_settings = database.fetchone(
             tenant_id,
-            "select allow_users_edit_profile from tenant_security_settings where tenant_id = :tenant_id",
+            """
+            select allow_users_edit_profile
+            from tenant_security_settings
+            where tenant_id = :tenant_id
+            """,
             {"tenant_id": tenant_id},
         )
 
@@ -257,7 +258,11 @@ def add_email(
     if user.get("role") != "super_admin":
         security_settings = database.fetchone(
             tenant_id,
-            "select allow_users_add_emails from tenant_security_settings where tenant_id = :tenant_id",
+            """
+            select allow_users_add_emails
+            from tenant_security_settings
+            where tenant_id = :tenant_id
+            """,
             {"tenant_id": tenant_id},
         )
 

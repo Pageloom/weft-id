@@ -7,7 +7,7 @@
     <div class="bg-white rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6">Profile Settings</h1>
 
-        <form method="post" action="/settings/profile" class="space-y-6">
+        <form method="post" action="/account/profile" class="space-y-6">
             <div>
                 <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                 <input type="text" id="first_name" name="first_name" value="{{ user.first_name }}"
@@ -50,7 +50,7 @@
             </div>
         </div>
 
-        <form method="post" action="/settings/profile/update-regional" id="updateRegionalForm">
+        <form method="post" action="/account/profile/update-regional" id="updateRegionalForm">
             <input type="hidden" id="timezone" name="timezone" value="">
             <input type="hidden" id="locale" name="locale" value="">
             <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition duration-150">

@@ -8,7 +8,8 @@
         <h1 class="text-2xl font-semibold mb-6">Privileged Domains</h1>
 
         <p class="text-sm text-gray-600 mb-6">
-            Privileged domains are email domains that your organization controls (e.g., @company.com, @company.org).
+            Privileged domains are domains that your organization has an increased interest in (e.g., @company.com,
+            @company.org).
             Users with email addresses from these domains can be granted additional privileges or access rights.
         </p>
 
@@ -68,13 +69,13 @@
             <form method="post" action="/settings/privileged-domains/add" class="flex gap-3">
                 <div class="flex-1">
                     <input type="text" name="domain" placeholder="company.com"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                        pattern="[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}|[a-zA-Z0-9-]{2,}\.[a-zA-Z]{2,})"
-                        title="Enter a valid domain name (e.g., company.com)">
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           required
+                           pattern="[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.([a-zA-Z]{2,}|[a-zA-Z0-9-]{2,}\.[a-zA-Z]{2,})"
+                           title="Enter a valid domain name (e.g., company.com)">
                 </div>
                 <button type="submit"
-                    class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150 whitespace-nowrap">
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150 whitespace-nowrap">
                     Add Domain
                 </button>
             </form>

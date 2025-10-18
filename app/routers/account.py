@@ -422,52 +422,6 @@ def verify_email(
     return RedirectResponse(url="/account/emails", status_code=303)
 
 
-@router.get("/mfa/setup/passcode", response_class=HTMLResponse)
-@router.post("/mfa/setup/passcode")
-def mfa_setup_passcode(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
-):
-    """Start passcode setup process."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Generate TOTP secret
-    secret = generate_totp_secret()
-    secret_encrypted = encrypt_secret(secret)
-
-    # Get user email for URI
-    email_row = database.fetchone(
-        tenant_id,
-        "select email from user_emails where user_id = :user_id and is_primary = true",
-        {"user_id": user["id"]},
-    )
-    email = email_row["email"] if email_row else "user@example.com"
-
-    # Generate URI for password managers
-    uri = generate_totp_uri(secret, email)
-    secret_display = format_secret_for_display(secret)
-
-    # Store unverified secret
-    database.execute(
-        tenant_id,
-        """
-        insert into mfa_totp (tenant_id, user_id, secret_encrypted, method)
-        values (:tenant_id, :user_id, :secret_encrypted, 'passcode')
-        on conflict (user_id, method) do update
-        set secret_encrypted = excluded.secret_encrypted,
-            verified_at = null
-        """,
-        {"tenant_id": tenant_id, "user_id": user["id"], "secret_encrypted": secret_encrypted},
-    )
-
-    return templates.TemplateResponse(
-        "mfa_setup_passcode.html",
-        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
-    )
-
-
 @router.get("/mfa/setup/totp", response_class=HTMLResponse)
 @router.post("/mfa/setup/totp")
 def mfa_setup_totp(
@@ -524,9 +478,9 @@ def mfa_setup_email(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    # Check if user is downgrading from TOTP/Passcode to email
+    # Check if user is downgrading from TOTP to email
     current_method = user.get("mfa_method")
-    if current_method in ("totp", "passcode"):
+    if current_method == "totp":
         # This is a downgrade - require email re-verification
         # Store pending downgrade in session
         request.session["pending_mfa_downgrade"] = "email"
@@ -566,13 +520,13 @@ def mfa_setup_verify(
     code: Annotated[str, Form()],
     method: Annotated[str, Form()],
 ):
-    """Verify TOTP/Passcode setup and enable MFA."""
+    """Verify TOTP setup and enable MFA."""
     user = get_current_user(request, tenant_id)
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    if method not in ("passcode", "totp"):
+    if method != "totp":
         return RedirectResponse(url="/account/mfa", status_code=303)
 
     # Get unverified secret
@@ -602,9 +556,8 @@ def mfa_setup_verify(
         uri = generate_totp_uri(secret, email)
         secret_display = format_secret_for_display(secret)
 
-        template = "mfa_setup_passcode.html" if method == "passcode" else "mfa_setup_totp.html"
         return templates.TemplateResponse(
-            template,
+            "mfa_setup_totp.html",
             get_template_context(
                 request, tenant_id, uri=uri, secret=secret_display, error="Invalid code"
             ),

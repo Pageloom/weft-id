@@ -26,9 +26,7 @@
                 <input type="hidden" id="locale" name="locale" value="">
                 <div class="mb-6">
                     <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
-                        {% if method == 'passcode' %}
-                        Passcode from your password manager
-                        {% elif method == 'totp' %}
+                        {% if method == 'totp' %}
                         Code from your authenticator app
                         {% else %}
                         Code from your email

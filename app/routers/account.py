@@ -433,6 +433,11 @@ def mfa_setup_totp(
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
+    # Prevent TOTP setup if TOTP is already active
+    # Users must downgrade to email OTP first, then re-enable TOTP
+    if user.get("mfa_method") == "totp":
+        return RedirectResponse(url="/account/mfa", status_code=303)
+
     # Generate TOTP secret
     secret = generate_totp_secret()
     secret_encrypted = encrypt_secret(secret)

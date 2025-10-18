@@ -9,7 +9,7 @@ import database
 import utils.validate
 
 
-def provision_tenant(subdomain: str, name: str, retries=10) -> bool:
+def provision_tenant(subdomain: str, name: str, retries=10):
     utils.validate.subdomain(subdomain)
     logging.info("Provisioning tenant %s at %s", name, subdomain)
     try:
@@ -22,11 +22,10 @@ def provision_tenant(subdomain: str, name: str, retries=10) -> bool:
             """,
             {"subdomain": subdomain, "name": name},
         )
-        return True
     except psycopg.errors.UndefinedTable:
         if retries > 0:
             time.sleep(1)
-            return provision_tenant(subdomain, name, retries - 1)
+            provision_tenant(subdomain, name, retries - 1)
         else:
             raise
 

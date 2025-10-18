@@ -8,9 +8,41 @@ import utils.password
 import utils.validate
 
 
-def add_super_admin(subdomain: str, email: str, password: str):
-    """Create a super admin user with email and password for a tenant."""
+def add_user(
+    subdomain: str,
+    email: str,
+    password: str,
+    role: str = "member",
+    first_name: str = None,
+    last_name: str = None,
+):
+    """Create a user with a specified role, email, and password for a tenant.
+
+    Args:
+        subdomain: Tenant subdomain
+        email: User email address
+        password: User password
+        role: User role ('super_admin', 'admin', or 'member'). Defaults to 'member'.
+        first_name: User's first name (optional, defaults based on role)
+        last_name: User's last name (optional, defaults based on role)
+    """
     utils.validate.subdomain(subdomain)
+
+    # Validate role
+    valid_roles = ["super_admin", "admin", "member"]
+    if role not in valid_roles:
+        raise ValueError(f"Invalid role: {role}. Must be one of {valid_roles}")
+
+    # Set default names based on role if not provided
+    if first_name is None or last_name is None:
+        role_defaults = {
+            "super_admin": ("Super", "Admin"),
+            "admin": ("Admin", "User"),
+            "member": ("Member", "User"),
+        }
+        default_first, default_last = role_defaults[role]
+        first_name = first_name or default_first
+        last_name = last_name or default_last
 
     # Get tenant ID from subdomain
     tenant = database.fetchone(
@@ -32,7 +64,7 @@ def add_super_admin(subdomain: str, email: str, password: str):
     )
 
     if existing:
-        logging.info("Super admin user %s already exists for tenant %s", email, subdomain)
+        logging.info("User %s already exists for tenant %s", email, subdomain)
         return
 
     password_hash = utils.password.hash_password(password)
@@ -42,10 +74,16 @@ def add_super_admin(subdomain: str, email: str, password: str):
         tenant_id,
         """
         insert into users (tenant_id, first_name, last_name, role, password_hash)
-        values (:tenant_id, 'Super', 'Admin', 'super_admin', :password_hash)
+        values (:tenant_id, :first_name, :last_name, :role, :password_hash)
         returning id
         """,
-        {"tenant_id": tenant_id, "password_hash": password_hash},
+        {
+            "tenant_id": tenant_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": role,
+            "password_hash": password_hash,
+        },
     )
 
     if not user:
@@ -63,8 +101,8 @@ def add_super_admin(subdomain: str, email: str, password: str):
         {"tenant_id": tenant_id, "user_id": user_id, "email": email},
     )
 
-    logging.info("Created super admin user %s for tenant %s", email, subdomain)
+    logging.info("Created %s user %s for tenant %s", role, email, subdomain)
 
 
 if __name__ == "__main__":
-    argh.dispatch_command(add_super_admin)
+    argh.dispatch_command(add_user)

@@ -39,19 +39,19 @@
             </div>
             {% endif %}
             <div class="space-y-3">
-                <form method="post" action="/settings/mfa/setup/email" {% if mfa_method in ['totp', 'passcode'] %}onsubmit="return confirm('Are you sure you want to disable multi-factor authentication? This will make your account significantly less secure.')"{% endif %}>
+                <form method="post" action="/account/mfa/setup/email" {% if mfa_method in ['totp', 'passcode'] %}onsubmit="return confirm('Are you sure you want to disable multi-factor authentication? This will make your account significantly less secure.')"{% endif %}>
                     <button type="submit" class="w-full text-left border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
                         <h3 class="font-medium text-gray-900">Email OTP {% if mfa_method in ['totp', 'passcode'] %}<span class="text-red-600 text-xs">(Not Recommended)</span>{% endif %}</h3>
                         <p class="text-sm text-gray-500 mt-1">Receive one-time codes via email{% if mfa_method in ['totp', 'passcode'] %} - requires email verification{% endif %}</p>
                     </button>
                 </form>
 
-                <a href="/settings/mfa/setup/totp" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
+                <a href="/account/mfa/setup/totp" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
                     <h3 class="font-medium text-gray-900">Authenticator App (TOTP)</h3>
                     <p class="text-sm text-gray-500 mt-1">Use an app like Google Authenticator or Authy to generate time-based codes</p>
                 </a>
 
-                <a href="/settings/mfa/setup/passcode" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
+                <a href="/account/mfa/setup/passcode" class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
                     <h3 class="font-medium text-gray-900">Password Manager (TOTP)</h3>
                     <p class="text-sm text-gray-500 mt-1">Use 1Password, Bitwarden, or similar to generate time-based codes</p>
                 </a>
@@ -76,14 +76,14 @@
                 </div>
                 {% endfor %}
             </div>
-            <form method="post" action="/settings/mfa/regenerate-backup-codes" class="mt-4">
+            <form method="post" action="/account/mfa/regenerate-backup-codes" class="mt-4">
                 <button type="submit" class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-md transition duration-150">
                     Regenerate Backup Codes
                 </button>
             </form>
             {% else %}
             <p class="text-sm text-gray-600 mb-4">You don't have any backup codes yet.</p>
-            <form method="post" action="/settings/mfa/generate-backup-codes">
+            <form method="post" action="/account/mfa/generate-backup-codes">
                 <button type="submit" class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
                     Generate Backup Codes
                 </button>

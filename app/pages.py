@@ -122,15 +122,15 @@ PAGES = [
         show_in_nav=True,
         children=[
             Page(
-                path="/settings/privileged-domains",
-                title="Privileged Domains",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-            ),
-            Page(
                 path="/settings/tenant-security",
                 title="Security",
                 permission=PagePermission.SUPER_ADMIN,
+                show_in_nav=True,
+            ),
+            Page(
+                path="/settings/privileged-domains",
+                title="Privileged Domains",
+                permission=PagePermission.ADMIN,
                 show_in_nav=True,
             ),
         ],

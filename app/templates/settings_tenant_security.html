@@ -27,10 +27,9 @@
         </div>
         {% endif %}
 
-        <div class="border-t border-gray-200 pt-6">
-            <h2 class="text-lg font-medium mb-4">Session Configuration</h2>
-
-            <form method="post" action="/settings/tenant-security/update">
+        <form method="post" action="/settings/tenant-security/update">
+            <div class="border-t border-gray-200 pt-6">
+                <h2 class="text-lg font-medium mb-4">Session Configuration</h2>
                 <div class="mb-6">
                     <label for="session_timeout" class="block text-sm font-medium text-gray-700 mb-2">
                         Maximum Session Length
@@ -78,21 +77,72 @@
                         </span>
                     </label>
                 </div>
+            </div>
 
+            <div class="border-t border-gray-200 pt-6 mt-6">
+                <h2 class="text-lg font-medium mb-4">User Permissions</h2>
+                <p class="text-sm text-gray-500 mb-4">
+                    Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.
+                </p>
+
+                <div class="mb-6">
+                    <label class="flex items-start">
+                        <input
+                            type="checkbox"
+                            name="allow_users_edit_profile"
+                            value="true"
+                            {% if allow_users_edit_profile %}checked{% endif %}
+                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        >
+                        <span class="ml-2">
+                            <span class="block text-sm font-medium text-gray-700">
+                                Allow users to edit their own profile details
+                            </span>
+                            <span class="block text-sm text-gray-500 mt-1">
+                                When enabled, users can change their name on the profile page.
+                                When disabled, only super admins can edit their own profile.
+                            </span>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex items-start">
+                        <input
+                            type="checkbox"
+                            name="allow_users_add_emails"
+                            value="true"
+                            {% if allow_users_add_emails %}checked{% endif %}
+                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        >
+                        <span class="ml-2">
+                            <span class="block text-sm font-medium text-gray-700">
+                                Allow users to add alternative email addresses
+                            </span>
+                            <span class="block text-sm text-gray-500 mt-1">
+                                When enabled, users can add and verify additional email addresses to their account.
+                                When disabled, only super admins can add emails to their account.
+                            </span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 pt-6 mt-6">
                 <div class="flex gap-3">
                     <button type="submit"
                             class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
                         Save Changes
                     </button>
                 </div>
-            </form>
-
-            <div class="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
-                <p class="text-sm text-blue-800">
-                    <strong>Note:</strong> Changes to session timeout will apply to new login sessions.
-                    Existing sessions will continue until they naturally expire or the user logs out.
-                </p>
             </div>
+        </form>
+
+        <div class="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
+            <p class="text-sm text-blue-800">
+                <strong>Note:</strong> Changes to session timeout will apply to new login sessions.
+                Existing sessions will continue until they naturally expire or the user logs out.
+            </p>
         </div>
     </div>
 </div>

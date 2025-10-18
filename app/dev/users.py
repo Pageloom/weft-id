@@ -12,8 +12,8 @@ def add_user(
     email: str,
     password: str,
     role: str = "member",
-    first_name: str = None,
-    last_name: str = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
 ):
     """Create a user with a specified role, email, and password for a tenant.
 

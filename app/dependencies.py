@@ -2,10 +2,9 @@
 
 from typing import cast
 
-from fastapi import HTTPException, Request
-
 import database
 import settings
+from fastapi import HTTPException, Request
 
 
 def normalize_host(h: str | None) -> str:

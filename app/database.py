@@ -5,11 +5,10 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
+import settings
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 from psycopg_pool import ConnectionPool
-
-import settings
 
 _pool: ConnectionPool | None = None
 

@@ -3,9 +3,8 @@ import logging
 import time
 
 import argh
-import psycopg.errors
-
 import database
+import psycopg.errors
 import utils.validate
 
 

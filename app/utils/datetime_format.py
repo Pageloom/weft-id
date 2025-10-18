@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from babel.dates import format_datetime as babel_format_datetime
 
 
-def format_datetime(dt: datetime, timezone: str | None = None, locale: str = 'en_US') -> str:
+def format_datetime(dt: datetime, timezone: str | None = None, locale: str = "en_US") -> str:
     """
     Format a datetime object to a localized string with timezone conversion.
 
@@ -20,11 +20,11 @@ def format_datetime(dt: datetime, timezone: str | None = None, locale: str = 'en
         Formatted datetime string according to locale conventions
     """
     if dt is None:
-        return ''
+        return ""
 
     # Ensure datetime is timezone-aware (assume UTC if naive)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo('UTC'))
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
 
     # Convert to user's timezone if provided
     if timezone:
@@ -38,10 +38,10 @@ def format_datetime(dt: datetime, timezone: str | None = None, locale: str = 'en
     # Format using babel for locale-aware formatting
     # 'medium' format includes date and time with seconds
     try:
-        return babel_format_datetime(dt, format='medium', locale=locale)
+        return babel_format_datetime(dt, format="medium", locale=locale)
     except Exception:
         # Fallback to ISO format if locale is invalid
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def create_datetime_formatter(user_timezone: str | None = None, user_locale: str = "en_US"):

@@ -1,12 +1,11 @@
 from pathlib import Path
 
+import settings
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-
-import settings
 from middleware.session import DynamicSessionMiddleware
-from routers import auth, mfa, tenants, users
 from routers import account as account_router
+from routers import auth, mfa, tenants, users
 from routers import settings as settings_router
 
 app = FastAPI(title="Loom")

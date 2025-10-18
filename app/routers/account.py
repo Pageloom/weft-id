@@ -582,6 +582,11 @@ def mfa_setup_verify(
         {"method": method, "user_id": user["id"]},
     )
 
+    # Delete existing backup codes (to replace them with new ones)
+    database.execute(
+        tenant_id, "delete from mfa_backup_codes where user_id = :user_id", {"user_id": user["id"]}
+    )
+
     # Generate backup codes
     backup_codes = generate_backup_codes()
 

@@ -56,7 +56,7 @@ def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
         order by u.created_at desc
-        """,
+        """
     )
 
     return templates.TemplateResponse(

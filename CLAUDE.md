@@ -1,0 +1,1 @@
+- The app/pages.py file is the single source of truth for navigational integrity (making sure people only see links to pages they can actually visit), and for authorization, each page must always check whether the invoked URL is accessible to them by checking back with app/pages.py.

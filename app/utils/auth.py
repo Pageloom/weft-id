@@ -65,10 +65,37 @@ def get_current_user(
     """
     Get the currently authenticated user from session.
     Returns user dict if authenticated, None otherwise.
+    Checks session timeout if configured for the tenant.
     """
     user_id = request.session.get("user_id")
     if not user_id:
         return None
+
+    # Check session timeout
+    session_start = request.session.get("session_start")
+    if session_start:
+        # Fetch tenant security settings to check for session timeout
+        security_settings = database.fetchone(
+            tenant_id,
+            """
+            select session_timeout_seconds
+            from tenant_security_settings
+            where tenant_id = :tenant_id
+            """,
+            {"tenant_id": tenant_id},
+        )
+
+        if security_settings and security_settings["session_timeout_seconds"]:
+            import time
+
+            current_time = int(time.time())
+            session_duration = current_time - session_start
+            timeout_seconds = security_settings["session_timeout_seconds"]
+
+            if session_duration > timeout_seconds:
+                # Session has expired, clear it
+                request.session.clear()
+                return None
 
     user = database.fetchone(
         tenant_id,

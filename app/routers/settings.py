@@ -157,3 +157,104 @@ def delete_privileged_domain(
     )
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
+
+
+@router.get("/tenant-security", response_class=HTMLResponse)
+def tenant_security(
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+):
+    """Display security settings for the tenant."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Check if user has permission to access this page (super_admin only)
+    if not has_page_access("/settings/tenant-security", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Fetch current security settings for this tenant
+    settings_row = database.fetchone(
+        tenant_id,
+        """
+        select session_timeout_seconds, persistent_sessions
+        from tenant_security_settings
+        where tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+
+    current_timeout = settings_row["session_timeout_seconds"] if settings_row else None
+    persistent_sessions = settings_row["persistent_sessions"] if settings_row else True
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "settings_tenant_security.html",
+        get_template_context(
+            request,
+            tenant_id,
+            current_timeout=current_timeout,
+            persistent_sessions=persistent_sessions,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/tenant-security/update")
+def update_tenant_security(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    session_timeout: Annotated[str, Form()] = "",
+    persistent_sessions: Annotated[str, Form()] = "",
+):
+    """Update security settings for the tenant."""
+    user = get_current_user(request, tenant_id)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Check if user has permission to manage security settings (super_admin only)
+    if not has_page_access("/settings/tenant-security", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Parse session timeout (empty string means indefinite/NULL)
+    timeout_seconds = None
+    if session_timeout:
+        try:
+            timeout_seconds = int(session_timeout)
+            if timeout_seconds <= 0:
+                return RedirectResponse(
+                    url="/settings/tenant-security?error=invalid_timeout", status_code=303
+                )
+        except ValueError:
+            return RedirectResponse(
+                url="/settings/tenant-security?error=invalid_timeout", status_code=303
+            )
+
+    # Parse persistent_sessions checkbox (checked = "true", unchecked = "")
+    persistent = persistent_sessions == "true"
+
+    # Upsert the security settings
+    database.execute(
+        tenant_id,
+        """
+        insert into tenant_security_settings (tenant_id, session_timeout_seconds, persistent_sessions, updated_by)
+        values (:tenant_id, :timeout_seconds, :persistent_sessions, :updated_by)
+        on conflict (tenant_id)
+        do update set
+            session_timeout_seconds = :timeout_seconds,
+            persistent_sessions = :persistent_sessions,
+            updated_at = now(),
+            updated_by = :updated_by
+        """,
+        {
+            "tenant_id": tenant_id,
+            "timeout_seconds": timeout_seconds,
+            "persistent_sessions": persistent,
+            "updated_by": user["id"],
+        },
+    )
+
+    return RedirectResponse(url="/settings/tenant-security?success=1", status_code=303)

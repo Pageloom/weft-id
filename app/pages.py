@@ -127,6 +127,12 @@ PAGES = [
                 permission=PagePermission.ADMIN,
                 show_in_nav=True,
             ),
+            Page(
+                path="/settings/tenant-security",
+                title="Security",
+                permission=PagePermission.SUPER_ADMIN,
+                show_in_nav=True,
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

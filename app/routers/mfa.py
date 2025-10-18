@@ -116,6 +116,38 @@ def mfa_verify(
 
     # MFA verified - complete login
     request.session["user_id"] = pending_user_id
+    request.session["session_start"] = int(__import__("time").time())
+
+    # Fetch tenant security settings to configure session persistence
+    security_settings = database.fetchone(
+        tenant_id,
+        """
+        select persistent_sessions, session_timeout_seconds
+        from tenant_security_settings
+        where tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+
+    # Store session configuration in session for middleware to use
+    if security_settings:
+        persistent = security_settings.get("persistent_sessions", True)
+        timeout = security_settings.get("session_timeout_seconds")
+    else:
+        # Defaults: persistent sessions enabled, no timeout
+        persistent = True
+        timeout = None
+
+    # Store max_age preference - will be used when setting the cookie
+    # If persistent_sessions is False, max_age should be None (session cookie)
+    # If persistent_sessions is True and timeout is set, use that timeout
+    # If persistent_sessions is True and no timeout, use a long max_age (e.g., 30 days)
+    if not persistent:
+        request.session["_max_age"] = None  # Session cookie (expires on browser close)
+    elif timeout:
+        request.session["_max_age"] = timeout  # Use configured timeout
+    else:
+        request.session["_max_age"] = 30 * 24 * 3600  # 30 days as default for persistent
 
     # Update timezone and locale if provided (prefer from this form, fallback to session from login)
     tz_to_update = timezone or request.session.get("pending_timezone", "")

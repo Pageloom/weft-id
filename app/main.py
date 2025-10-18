@@ -2,17 +2,17 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.sessions import SessionMiddleware
 
 import settings
+from middleware.session import DynamicSessionMiddleware
 from routers import auth, mfa, tenants, users
 from routers import account as account_router
 from routers import settings as settings_router
 
 app = FastAPI(title="Loom")
 
-# Add session middleware
-app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
+# Add session middleware with dynamic per-tenant session configuration
+app.add_middleware(DynamicSessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
 
 # Mount static files (if directory exists)
 static_dir = Path("static")

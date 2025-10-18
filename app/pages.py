@@ -48,7 +48,7 @@ PAGES = [
         show_in_nav=True,
         children=[
             Page(
-                path="/users",
+                path="/users/list",
                 title="User List",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
@@ -117,14 +117,14 @@ PAGES = [
     Page(
         path="/settings",
         title="Settings",
-        permission=PagePermission.SUPER_ADMIN,
+        permission=PagePermission.ADMIN,
         icon="settings",
         show_in_nav=True,
         children=[
             Page(
                 path="/settings/privileged-domains",
                 title="Privileged Domains",
-                permission=PagePermission.SUPER_ADMIN,
+                permission=PagePermission.ADMIN,
                 show_in_nav=True,
             ),
         ],
@@ -187,7 +187,7 @@ def get_nav_items(user_role: str | None = None) -> list[Page]:
             continue
 
         # Filter by permission
-        if _has_permission(page, user_role):
+        if has_permission(page, user_role):
             nav_items.append(page)
 
     return nav_items
@@ -259,7 +259,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
         sub_nav_items = [
             child
             for child in active_top_level.children
-            if child.show_in_nav and _has_permission(child, user_role)
+            if child.show_in_nav and has_permission(child, user_role)
         ]
 
         # Determine active sub-level
@@ -271,7 +271,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
                 sub_sub_nav_items = [
                     child
                     for child in active_sub_level.children
-                    if child.show_in_nav and _has_permission(child, user_role)
+                    if child.show_in_nav and has_permission(child, user_role)
                 ]
 
     return {
@@ -285,7 +285,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     }
 
 
-def _has_permission(page: Page, user_role: str | None) -> bool:
+def has_permission(page: Page, user_role: str | None) -> bool:
     """Check if user has permission to access page.
 
     Permission hierarchy (higher roles can access lower level pages):
@@ -305,6 +305,27 @@ def _has_permission(page: Page, user_role: str | None) -> bool:
     return False
 
 
+def has_page_access(path: str, user_role: str | None) -> bool:
+    """Check if user has permission to access a specific page path.
+
+    This is the primary function that route handlers should use to verify access.
+
+    Args:
+        path: The page path to check (e.g., "/settings/privileged-domains")
+        user_role: The user's role (e.g., "admin", "super_admin", or None)
+
+    Returns:
+        True if the user has permission to access the page, False otherwise
+    """
+    page = get_page_by_path(path)
+
+    if not page:
+        # If page is not defined in PAGES, deny access by default
+        return False
+
+    return has_permission(page, user_role)
+
+
 def get_first_accessible_child(path: str, user_role: str | None = None) -> str | None:
     """Get the first accessible child page for a given parent path."""
     page = get_page_by_path(path)
@@ -314,7 +335,7 @@ def get_first_accessible_child(path: str, user_role: str | None = None) -> str |
 
     # Find first child that user has permission to access and is shown in nav
     for child in page.children:
-        if child.show_in_nav and _has_permission(child, user_role):
+        if child.show_in_nav and has_permission(child, user_role):
             return child.path
 
     return None

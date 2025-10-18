@@ -1,4 +1,4 @@
-"""Settings routes (privileged domains - super admin only)."""
+"""Settings routes (privileged domains)."""
 
 from typing import Annotated
 
@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 import database
 from dependencies import get_tenant_id_from_request
-from pages import get_first_accessible_child
+from pages import get_first_accessible_child, has_page_access
 from utils.auth import get_current_user
 from utils.template_context import get_template_context
 
@@ -20,14 +20,14 @@ templates = Jinja2Templates(directory="templates")
 def settings_index(
     request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
 ):
-    """Redirect to first accessible settings page."""
+    """Redirect to the first accessible settings page."""
     user = get_current_user(request, tenant_id)
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    # Only super admins can access settings
-    if user.get("role") != "super_admin":
+    # Check if user has permission to access settings
+    if not has_page_access("/settings", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Get first accessible child page
@@ -44,14 +44,14 @@ def settings_index(
 def privileged_domains(
     request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
 ):
-    """Display and manage privileged domains for the tenant (super admin only)."""
+    """Display and manage privileged domains for the tenant."""
     user = get_current_user(request, tenant_id)
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    # Only super admins can access this page
-    if user.get("role") != "super_admin":
+    # Check if user has permission to access this page
+    if not has_page_access("/settings/privileged-domains", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Fetch all privileged domains for this tenant
@@ -79,14 +79,14 @@ def add_privileged_domain(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     domain: Annotated[str, Form()],
 ):
-    """Add a new privileged domain (super admin only)."""
+    """Add a new privileged domain."""
     user = get_current_user(request, tenant_id)
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    # Only super admins can manage privileged domains
-    if user.get("role") != "super_admin":
+    # Check if user has permission to manage privileged domains
+    if not has_page_access("/settings/privileged-domains", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Clean and validate domain
@@ -139,14 +139,14 @@ def delete_privileged_domain(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     domain_id: str,
 ):
-    """Delete a privileged domain (super admin only)."""
+    """Delete a privileged domain."""
     user = get_current_user(request, tenant_id)
 
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
-    # Only super admins can manage privileged domains
-    if user.get("role") != "super_admin":
+    # Check if user has permission to manage privileged domains
+    if not has_page_access("/settings/privileged-domains", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Delete the domain (RLS ensures it belongs to this tenant)

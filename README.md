@@ -73,24 +73,3 @@ make typecheck       # Type checking
 make sql-migrations  # Run pending migrations
 ```
 
-## Project Structure
-
-```
-loom/
-├── app/                 # Application code
-│   ├── main.py          # FastAPI app
-│   ├── settings.py      # Configuration
-│   ├── database.py      # Database utilities
-│   ├── dependencies.py  # FastAPI dependencies
-│   ├── routers/         # API routes
-│   ├── dev/             # Dev utilities
-│   └── utils/           # Helper functions
-├── tests/               # Test suite
-├── sql-migrations/      # Database migrations
-├── docker-compose.yml   # Docker services
-└── Makefile             # Dev commands
-```
-
-## Documentation
-
-See [REFACTORING.md](REFACTORING.md) for details on recent organizational improvements.

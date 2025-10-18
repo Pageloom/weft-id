@@ -90,13 +90,6 @@ PAGES = [
                 show_in_nav=True,
                 children=[
                     Page(
-                        path="/account/mfa/setup/passcode",
-                        title="Setup Passcode",
-                        permission=PagePermission.AUTHENTICATED,
-                        show_in_nav=False,
-                        creates_nav_level=False,
-                    ),
-                    Page(
                         path="/account/mfa/setup/totp",
                         title="Setup Authenticator",
                         permission=PagePermission.AUTHENTICATED,

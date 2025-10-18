@@ -30,14 +30,28 @@
                     {% endfor %}
                 </div>
 
-                <!-- User info and sign out -->
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-700">{{ user.first_name }} {{ user.last_name }}</span>
-                    <form method="post" action="/logout">
-                        <button type="submit" class="text-sm text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md">
-                            Sign Out
-                        </button>
-                    </form>
+                <!-- User dropdown menu -->
+                <div class="relative">
+                    <button id="user-menu-button" type="button" class="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        <span>{{ user.first_name }} {{ user.last_name }}</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Dropdown menu -->
+                    <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                        <div class="py-1" role="menu">
+                            <a href="/account" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                User Settings
+                            </a>
+                            <form method="post" action="/logout" class="block">
+                                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                    Sign Out
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -79,6 +93,34 @@
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         {% block content %}{% endblock %}
     </div>
+
+    {% if user %}
+    <script>
+        // User dropdown menu toggle
+        const menuButton = document.getElementById('user-menu-button');
+        const menu = document.getElementById('user-menu');
+
+        if (menuButton && menu) {
+            menuButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menu.classList.toggle('hidden');
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!menu.classList.contains('hidden')) {
+                    menu.classList.add('hidden');
+                }
+            });
+
+            // Prevent closing when clicking inside the menu
+            menu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+    </script>
+    {% endif %}
+
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

@@ -56,26 +56,26 @@ PAGES = [
         ],
     ),
     Page(
-        path="/settings",
-        title="Settings",
+        path="/account",
+        title="User Settings",
         permission=PagePermission.AUTHENTICATED,
-        icon="settings",
-        show_in_nav=True,
+        icon="user",
+        show_in_nav=False,
         children=[
             Page(
-                path="/settings/profile",
+                path="/account/profile",
                 title="Profile",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
             ),
             Page(
-                path="/settings/emails",
+                path="/account/emails",
                 title="Email Addresses",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 children=[
                     Page(
-                        path="/settings/emails/verify",
+                        path="/account/emails/verify",
                         title="Verify Email",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
@@ -84,27 +84,27 @@ PAGES = [
                 ],
             ),
             Page(
-                path="/settings/mfa",
+                path="/account/mfa",
                 title="MFA Settings",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 children=[
                     Page(
-                        path="/settings/mfa/setup/passcode",
+                        path="/account/mfa/setup/passcode",
                         title="Setup Passcode",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
                     ),
                     Page(
-                        path="/settings/mfa/setup/totp",
+                        path="/account/mfa/setup/totp",
                         title="Setup Authenticator",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
                     ),
                     Page(
-                        path="/settings/mfa/downgrade-verify",
+                        path="/account/mfa/downgrade-verify",
                         title="Verify MFA Downgrade",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
@@ -112,6 +112,15 @@ PAGES = [
                     ),
                 ],
             ),
+        ],
+    ),
+    Page(
+        path="/settings",
+        title="Settings",
+        permission=PagePermission.SUPER_ADMIN,
+        icon="settings",
+        show_in_nav=True,
+        children=[
             Page(
                 path="/settings/privileged-domains",
                 title="Privileged Domains",

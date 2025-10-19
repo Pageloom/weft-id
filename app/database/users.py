@@ -247,3 +247,22 @@ def list_users(
     """
 
     return fetchall(tenant_id, query, params)
+
+
+def update_user_role(tenant_id: TenantArg, user_id: str, role: str) -> int:
+    """
+    Update a user's role (admin operation).
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID to update
+        role: New role ('member', 'admin', or 'super_admin')
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "update users set role = :role where id = :user_id",
+        {"role": role, "user_id": user_id},
+    )

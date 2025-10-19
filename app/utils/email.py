@@ -138,3 +138,171 @@ If you did not add this email address to your account, please ignore this email.
     # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_secondary_email_added_notification(
+    to_email: str, added_email: str, admin_name: str
+) -> bool:
+    """Send notification when an admin adds a secondary email to an account."""
+    # ruff: noqa: E501
+    subject = "Secondary email address added to your account"
+
+    text_body = f"""
+A secondary email address has been added to your account by an administrator.
+
+Added email: {added_email}
+Added by: {admin_name}
+
+This email address has been automatically verified and can be used to access your account.
+
+If you did not expect this change or have concerns, please contact your administrator immediately.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .warning {{ margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secondary Email Address Added</h1>
+        <p>A secondary email address has been added to your account by an administrator.</p>
+        <div class="info-box">
+            <p><strong>Added email:</strong> {added_email}</p>
+            <p><strong>Added by:</strong> {admin_name}</p>
+        </div>
+        <p>This email address has been automatically verified and can be used to access your account.</p>
+        <div class="warning">
+            <p><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_secondary_email_removed_notification(
+    to_email: str, removed_email: str, admin_name: str
+) -> bool:
+    """Send notification when an admin removes a secondary email from an account."""
+    # ruff: noqa: E501
+    subject = "Secondary email address removed from your account"
+
+    text_body = f"""
+A secondary email address has been removed from your account by an administrator.
+
+Removed email: {removed_email}
+Removed by: {admin_name}
+
+This email address can no longer be used to access your account.
+
+If you did not expect this change or have concerns, please contact your administrator immediately.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .warning {{ margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secondary Email Address Removed</h1>
+        <p>A secondary email address has been removed from your account by an administrator.</p>
+        <div class="info-box">
+            <p><strong>Removed email:</strong> {removed_email}</p>
+            <p><strong>Removed by:</strong> {admin_name}</p>
+        </div>
+        <p>This email address can no longer be used to access your account.</p>
+        <div class="warning">
+            <p><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_primary_email_changed_notification(
+    to_email: str, new_primary_email: str, admin_name: str
+) -> bool:
+    """Send notification to the old primary email when it has been changed."""
+    # ruff: noqa: E501
+    subject = "Your primary email address has been changed"
+
+    text_body = f"""
+Your primary email address has been changed by an administrator.
+
+New primary email: {new_primary_email}
+Changed by: {admin_name}
+
+Your account login will now use the new primary email address.
+
+If you did not expect this change or have concerns, please contact your administrator immediately.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .warning {{ margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Primary Email Address Changed</h1>
+        <p>Your primary email address has been changed by an administrator.</p>
+        <div class="info-box">
+            <p><strong>New primary email:</strong> {new_primary_email}</p>
+            <p><strong>Changed by:</strong> {admin_name}</p>
+        </div>
+        <p>Your account login will now use the new primary email address.</p>
+        <div class="warning">
+            <p><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)

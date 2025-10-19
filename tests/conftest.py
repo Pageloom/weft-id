@@ -213,3 +213,55 @@ def test_admin_user(test_tenant):
     yield user
 
     # Cleanup happens via tenant deletion (cascading delete)
+
+
+@pytest.fixture
+def test_super_admin_user(test_tenant):
+    """
+    Create a test super_admin user in the test tenant.
+
+    Yields a dict with user details (same structure as test_user).
+    """
+    import database
+    from argon2 import PasswordHasher
+
+    ph = PasswordHasher()
+    unique_suffix = str(uuid4())[:8]
+    email = f"superadmin-{unique_suffix}@example.com"
+    password_hash = ph.hash("SuperAdminPassword123!")
+
+    # Create super_admin user
+    user = database.fetchone(
+        test_tenant["id"],
+        """
+        INSERT INTO users (
+            tenant_id, password_hash, first_name, last_name, role
+        ) VALUES (
+            :tenant_id, :password_hash, :first_name, :last_name, :role
+        ) RETURNING id, first_name, last_name, role
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "password_hash": password_hash,
+            "first_name": "Super",
+            "last_name": "Admin",
+            "role": "super_admin"
+        }
+    )
+
+    user["tenant_id"] = test_tenant["id"]
+    user["email"] = email
+
+    # Create primary verified email
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email}
+    )
+
+    yield user
+
+    # Cleanup happens via tenant deletion (cascading delete)

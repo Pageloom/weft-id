@@ -154,6 +154,16 @@ PAGES = [
 ]
 
 
+def get_all_pages(pages: list[Page]) -> list[Page]:
+    """Recursively get all pages including nested children."""
+    result = []
+    for page in pages:
+        result.append(page)
+        if page.children:
+            result.extend(get_all_pages(page.children))
+    return result
+
+
 def get_page_by_path(path: str) -> Page | None:
     """Find a page by its path."""
 

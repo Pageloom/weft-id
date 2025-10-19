@@ -69,6 +69,13 @@ PAGES = [
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
             ),
+            Page(
+                path="/users/user",
+                title="User Details",
+                permission=PagePermission.ADMIN,
+                show_in_nav=False,
+                creates_nav_level=False,
+            ),
         ],
     ),
     Page(

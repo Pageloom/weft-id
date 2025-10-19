@@ -1,8 +1,9 @@
 """Tests for database module."""
 
+import uuid
+
 import database
 import pytest
-import uuid
 from psycopg.types.json import Json
 
 
@@ -22,11 +23,7 @@ def test_database_pool_operations(test_tenant):
     assert not pool.closed
 
     # Test a simple query works
-    result = database.fetchone(
-        database.UNSCOPED,
-        "SELECT :value as test_value",
-        {"value": "test"}
-    )
+    result = database.fetchone(database.UNSCOPED, "SELECT :value as test_value", {"value": "test"})
     assert result["test_value"] == "test"
 
 
@@ -34,9 +31,7 @@ def test_validate_params_with_array_values(test_tenant):
     """Test that array/list values are properly validated."""
     # Lists are valid PostgreSQL values
     result = database.fetchone(
-        test_tenant["id"],
-        "SELECT :values as array_test",
-        {"values": [1, 2, 3]}
+        test_tenant["id"], "SELECT :values as array_test", {"values": [1, 2, 3]}
     )
     assert result["array_test"] == [1, 2, 3]
 
@@ -48,7 +43,7 @@ def test_validate_params_with_invalid_dict_value():
         database.execute(
             database.UNSCOPED,
             "SELECT :data as json_test",
-            {"data": {"key": "value"}}  # Invalid - should be Json({"key": "value"})
+            {"data": {"key": "value"}},  # Invalid - should be Json({"key": "value"})
         )
 
     error_message = str(exc_info.value)
@@ -73,21 +68,14 @@ def test_validate_params_with_json_wrapper(test_user):
 def test_validate_params_with_none():
     """Test that None params are handled correctly."""
     # None params should work fine
-    result = database.fetchone(
-        database.UNSCOPED,
-        "SELECT 1 as test_value",
-        None  # No params
-    )
+    result = database.fetchone(database.UNSCOPED, "SELECT 1 as test_value", None)  # No params
     assert result["test_value"] == 1
 
 
 def test_convert_query_without_placeholders():
     """Test query conversion when there are no placeholders."""
     # Query without any : placeholders should remain unchanged
-    result = database.fetchone(
-        database.UNSCOPED,
-        "SELECT 42 as answer"  # No placeholders
-    )
+    result = database.fetchone(database.UNSCOPED, "SELECT 42 as answer")  # No placeholders
     assert result["answer"] == 42
 
 
@@ -95,8 +83,7 @@ def test_fetchall_function(test_user, test_admin_user):
     """Test fetchall returns list of dicts."""
     # Use existing users table to test fetchall
     results = database.fetchall(
-        test_user["tenant_id"],
-        "SELECT id, first_name, last_name FROM users ORDER BY created_at"
+        test_user["tenant_id"], "SELECT id, first_name, last_name FROM users ORDER BY created_at"
     )
 
     # Should have at least 2 users from fixtures

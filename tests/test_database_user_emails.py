@@ -204,3 +204,125 @@ def test_delete_email(test_user):
         test_user["id"]
     )
     assert not any(e["email"] == email_to_delete for e in emails_after)
+
+
+def test_get_user_with_primary_email(test_user):
+    """Test getting user info with their primary email."""
+    import database
+
+    result = database.user_emails.get_user_with_primary_email(
+        test_user["tenant_id"],
+        test_user["id"]
+    )
+
+    assert result is not None
+    assert result["id"] == test_user["id"]
+    assert result["email"] == test_user["email"]
+
+
+def test_get_email_by_id(test_user):
+    """Test getting an email record by ID."""
+    import database
+
+    # Add a secondary email
+    new_email = f"byid-{test_user['id']}@example.com"
+    result = database.user_emails.add_email(
+        test_user["tenant_id"],
+        test_user["id"],
+        new_email,
+        test_user["tenant_id"]
+    )
+    email_id = result["id"]
+
+    # Get the email by ID
+    email_record = database.user_emails.get_email_by_id(
+        test_user["tenant_id"],
+        email_id,
+        test_user["id"]
+    )
+
+    assert email_record is not None
+    assert email_record["id"] == email_id
+    assert email_record["is_primary"] is False
+    assert email_record["verified_at"] is None
+
+
+def test_get_email_for_verification(test_user):
+    """Test getting email info for verification."""
+    import database
+
+    # Add an unverified email
+    new_email = f"forverify-{test_user['id']}@example.com"
+    result = database.user_emails.add_email(
+        test_user["tenant_id"],
+        test_user["id"],
+        new_email,
+        test_user["tenant_id"]
+    )
+    email_id = result["id"]
+
+    # Get email for verification
+    email_info = database.user_emails.get_email_for_verification(
+        test_user["tenant_id"],
+        email_id
+    )
+
+    assert email_info is not None
+    assert email_info["id"] == email_id
+    assert email_info["user_id"] == test_user["id"]
+    assert email_info["email"] == new_email
+    assert email_info["verified_at"] is None
+    assert "verify_nonce" in email_info
+
+
+def test_get_email_with_nonce(test_user):
+    """Test getting email with verification nonce."""
+    import database
+
+    # Add a new email
+    new_email = f"withnonce-{test_user['id']}@example.com"
+    result = database.user_emails.add_email(
+        test_user["tenant_id"],
+        test_user["id"],
+        new_email,
+        test_user["tenant_id"]
+    )
+    email_id = result["id"]
+    original_nonce = result["verify_nonce"]
+
+    # Get email with nonce
+    email_info = database.user_emails.get_email_with_nonce(
+        test_user["tenant_id"],
+        email_id,
+        test_user["id"]
+    )
+
+    assert email_info is not None
+    assert email_info["id"] == email_id
+    assert email_info["email"] == new_email
+    assert email_info["verify_nonce"] == original_nonce
+
+
+def test_unset_primary_emails(test_user):
+    """Test unsetting all primary email flags for a user."""
+    import database
+
+    # Verify user has a primary email
+    primary_before = database.user_emails.get_primary_email(
+        test_user["tenant_id"],
+        test_user["id"]
+    )
+    assert primary_before is not None
+
+    # Unset all primary emails
+    database.user_emails.unset_primary_emails(
+        test_user["tenant_id"],
+        test_user["id"]
+    )
+
+    # Verify no primary email exists
+    emails = database.user_emails.list_user_emails(
+        test_user["tenant_id"],
+        test_user["id"]
+    )
+    assert not any(e["is_primary"] for e in emails)

@@ -183,3 +183,181 @@ def test_generate_email_otp_uniqueness():
 
     # Should have some variation (statistically very unlikely to be all the same)
     assert len(set(otps)) > 1
+
+
+def test_create_email_otp(test_user):
+    """Test creating and storing an email OTP."""
+    from utils.mfa import create_email_otp
+
+    code = create_email_otp(
+        test_user["tenant_id"],
+        test_user["id"],
+        expiry_minutes=10
+    )
+
+    # Should be a 6-digit code
+    assert isinstance(code, str)
+    assert len(code) == 6
+    assert code.isdigit()
+
+
+def test_verify_email_otp_valid(test_user):
+    """Test verifying a valid email OTP."""
+    from utils.mfa import create_email_otp, verify_email_otp
+
+    # Create OTP
+    code = create_email_otp(
+        test_user["tenant_id"],
+        test_user["id"],
+        expiry_minutes=10
+    )
+
+    # Verify it
+    is_valid = verify_email_otp(
+        test_user["tenant_id"],
+        test_user["id"],
+        code
+    )
+
+    assert is_valid is True
+
+
+def test_verify_email_otp_invalid(test_user):
+    """Test verifying an invalid email OTP."""
+    from utils.mfa import verify_email_otp
+
+    # Try to verify a code that was never created
+    is_valid = verify_email_otp(
+        test_user["tenant_id"],
+        test_user["id"],
+        "999999"
+    )
+
+    assert is_valid is False
+
+
+def test_verify_backup_code_valid(test_user):
+    """Test verifying a valid backup code."""
+    from utils.mfa import hash_code, verify_backup_code
+    import database
+
+    # Generate a backup code
+    code = "ABCD-1234"
+    code_hash = hash_code(code.upper().replace("-", ""))
+
+    # Store it in database
+    database.mfa.create_backup_code(
+        test_user["tenant_id"],
+        test_user["id"],
+        code_hash,
+        test_user["tenant_id"]
+    )
+
+    # Verify it
+    is_valid = verify_backup_code(
+        test_user["tenant_id"],
+        test_user["id"],
+        code
+    )
+
+    assert is_valid is True
+
+
+def test_verify_backup_code_invalid(test_user):
+    """Test verifying an invalid backup code."""
+    from utils.mfa import verify_backup_code
+
+    # Try to verify a code that doesn't exist
+    is_valid = verify_backup_code(
+        test_user["tenant_id"],
+        test_user["id"],
+        "XXXX-YYYY"
+    )
+
+    assert is_valid is False
+
+
+def test_get_totp_secret_verified(test_user):
+    """Test getting a verified TOTP secret."""
+    from utils.mfa import encrypt_secret, get_totp_secret
+    import database
+
+    # Create and verify a TOTP secret
+    secret = "JBSWY3DPEHPK3PXP"
+    encrypted = encrypt_secret(secret)
+
+    database.mfa.create_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        encrypted,
+        test_user["tenant_id"]
+    )
+
+    # Verify it
+    database.mfa.verify_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        "totp"
+    )
+
+    # Get it back
+    retrieved_secret = get_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        "totp"
+    )
+
+    assert retrieved_secret == secret
+
+
+def test_get_totp_secret_not_found(test_user):
+    """Test getting a TOTP secret that doesn't exist."""
+    from utils.mfa import get_totp_secret
+
+    # Try to get a secret that doesn't exist
+    secret = get_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        "totp"
+    )
+
+    assert secret is None
+
+
+def test_get_totp_secret_unverified(test_user):
+    """Test getting an unverified TOTP secret returns None."""
+    from utils.mfa import encrypt_secret, get_totp_secret
+    import database
+
+    # Create but don't verify a TOTP secret
+    secret = "JBSWY3DPEHPK3PXP"
+    encrypted = encrypt_secret(secret)
+
+    database.mfa.create_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        encrypted,
+        test_user["tenant_id"]
+    )
+
+    # Try to get it - should be None because not verified
+    retrieved_secret = get_totp_secret(
+        test_user["tenant_id"],
+        test_user["id"],
+        "totp"
+    )
+
+    assert retrieved_secret is None
+
+
+def test_encryption_key_fallback():
+    """Test that encryption key fallback works with invalid base64."""
+    from utils.mfa import _get_encryption_key
+    from unittest.mock import patch
+
+    # Test with invalid base64
+    with patch('settings.MFA_ENCRYPTION_KEY', 'not-valid-base64-!!!'):
+        key = _get_encryption_key()
+        # Should still return a valid key (fallback to SHA256)
+        assert isinstance(key, bytes)
+        assert len(key) > 0

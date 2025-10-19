@@ -205,3 +205,47 @@ def delete_email(tenant_id: TenantArg, email_id: str) -> int:
         "delete from user_emails where id = :email_id",
         {"email_id": email_id},
     )
+
+
+def add_verified_email(
+    tenant_id: TenantArg, user_id: str, email: str, tenant_id_value: str
+) -> dict | None:
+    """
+    Add a new email address to a user's account (pre-verified, for admin use).
+
+    This is used when an admin adds an email to a user's account. The email
+    is automatically marked as verified.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID
+        email: Email address to add
+        tenant_id_value: The actual tenant ID value to store in the record
+
+    Returns:
+        Dict with id and email, or None if insert failed
+    """
+    return fetchone(
+        tenant_id,
+        """
+        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        values (:tenant_id, :user_id, :email, false, now())
+        returning id, email
+        """,
+        {"tenant_id": tenant_id_value, "user_id": user_id, "email": email},
+    )
+
+
+def count_user_emails(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Count the number of email addresses for a user.
+
+    Returns:
+        Number of email addresses
+    """
+    result = fetchone(
+        tenant_id,
+        "select count(*) as count from user_emails where user_id = :user_id",
+        {"user_id": user_id},
+    )
+    return result["count"] if result else 0

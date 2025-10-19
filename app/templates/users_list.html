@@ -135,6 +135,11 @@
                         {{ sort_header('role', 'Role') }}
                         {{ sort_header('last_login', 'Last Login') }}
                         {{ sort_header('created_at', 'Created') }}
+                        {% if user.role in ['admin', 'super_admin'] %}
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -149,7 +154,9 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    {% if u.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {% if u.role == 'super_admin' %}bg-red-100 text-red-800
+                                    {% elif u.role == 'admin' %}bg-purple-100 text-purple-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
                                     {{ u.role }}
                                 </span>
                             </td>
@@ -159,11 +166,20 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ fmt_datetime(u.created_at) }}
                             </td>
+                            {% if user.role in ['admin', 'super_admin'] %}
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <a href="/users/{{ u.id }}" class="text-blue-600 hover:text-blue-900" title="Edit user">
+                                    <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    </svg>
+                                </a>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}6{% else %}5{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
                                 {% if search %}
                                     No users found matching "{{ search }}"
                                 {% else %}

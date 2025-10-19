@@ -273,3 +273,337 @@ def test_dashboard_authenticated_no_email(test_user):
                     assert response.status_code == 200
                     # Verify "N/A" was used for missing email
                     mock_context.assert_called_once()
+
+
+def test_verify_email_public_success_new_user(test_tenant):
+    """Test successful email verification for new user without password."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            with patch("database.users.get_user_by_id") as mock_get_user:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": None,
+                    "verify_nonce": 1,
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "email": "test@example.com",
+                    "password_hash": None,  # No password yet
+                }
+
+                client = TestClient(app)
+                response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/set-password?email_id=email-123" in response.headers["location"]
+                mock_verify.assert_called_once_with(test_tenant["id"], "email-123")
+
+
+def test_verify_email_public_success_existing_user(test_tenant):
+    """Test successful email verification for existing user with password."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            with patch("database.users.get_user_by_id") as mock_get_user:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": None,
+                    "verify_nonce": 1,
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "email": "test@example.com",
+                    "password_hash": "hashed_password",  # Has password
+                }
+
+                client = TestClient(app)
+                response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/login?success=email_verified" in response.headers["location"]
+                mock_verify.assert_called_once_with(test_tenant["id"], "email-123")
+
+
+def test_verify_email_public_already_verified_no_password(test_tenant):
+    """Test verification of already verified email for user without password."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            with patch("database.users.get_user_by_id") as mock_get_user:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": datetime.now(),  # Already verified
+                    "verify_nonce": 1,
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "email": "test@example.com",
+                    "password_hash": None,  # No password yet
+                }
+
+                client = TestClient(app)
+                response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/set-password?email_id=email-123" in response.headers["location"]
+                mock_verify.assert_not_called()
+
+
+def test_verify_email_public_already_verified_with_password(test_tenant):
+    """Test verification of already verified email for user with password."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            with patch("database.users.get_user_by_id") as mock_get_user:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": datetime.now(),  # Already verified
+                    "verify_nonce": 1,
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "email": "test@example.com",
+                    "password_hash": "hashed_password",  # Has password
+                }
+
+                client = TestClient(app)
+                response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/login?success=already_verified" in response.headers["location"]
+                mock_verify.assert_not_called()
+
+
+def test_verify_email_public_invalid_nonce(test_tenant):
+    """Test verification with invalid nonce."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            mock_get_email.return_value = {
+                "id": "email-123",
+                "user_id": "user-123",
+                "email": "test@example.com",
+                "verified_at": None,
+                "verify_nonce": 2,  # Different nonce
+            }
+
+            client = TestClient(app)
+            response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "/login?error=invalid_verification_link" in response.headers["location"]
+            mock_verify.assert_not_called()
+
+
+def test_verify_email_public_email_not_found(test_tenant):
+    """Test verification when email not found."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.user_emails.verify_email") as mock_verify:
+            mock_get_email.return_value = None
+
+            client = TestClient(app)
+            response = client.get("/verify-email/email-123/1", follow_redirects=False)
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "/login?error=verification_failed" in response.headers["location"]
+            mock_verify.assert_not_called()
+
+
+def test_set_password_page_renders(test_tenant):
+    """Test set password page renders for verified user without password."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.users.get_user_by_id") as mock_get_user:
+            with patch("routers.auth.templates.TemplateResponse") as mock_template:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": datetime.now(),
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "password_hash": None,
+                }
+                mock_template.return_value = HTMLResponse(content="<html>Set Password</html>")
+
+                client = TestClient(app)
+                response = client.get("/set-password?email_id=email-123")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                mock_template.assert_called_once()
+
+
+def test_set_password_success(test_tenant):
+    """Test successful password setting and auto-login."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.users.get_user_by_id") as mock_get_user:
+            with patch("database.users.update_password") as mock_update:
+                with patch("utils.password.hash_password") as mock_hash:
+                    with patch("routers.auth.create_email_otp") as mock_create_otp:
+                        with patch("database.user_emails.get_primary_email") as mock_get_primary:
+                            with patch("routers.auth.send_mfa_code_email") as mock_send_email:
+                                mock_get_email.return_value = {
+                                    "id": "email-123",
+                                    "user_id": "user-123",
+                                    "email": "test@example.com",
+                                    "verified_at": datetime.now(),
+                                }
+                                mock_get_user.return_value = {
+                                    "id": "user-123",
+                                    "password_hash": None,
+                                    "mfa_method": "email",
+                                }
+                                mock_hash.return_value = "hashed_password"
+                                mock_create_otp.return_value = "123456"
+                                mock_get_primary.return_value = {"email": "test@example.com"}
+
+                                client = TestClient(app)
+                                response = client.post(
+                                    "/set-password",
+                                    data={
+                                        "email_id": "email-123",
+                                        "password": "NewPassword123!",
+                                        "password_confirm": "NewPassword123!",
+                                    },
+                                    follow_redirects=False,
+                                )
+
+                                app.dependency_overrides.clear()
+
+                                assert response.status_code == 303
+                                assert "/mfa/verify" in response.headers["location"]
+                                mock_update.assert_called_once()
+                                mock_send_email.assert_called_once_with("test@example.com", "123456")
+
+
+def test_set_password_passwords_dont_match(test_tenant):
+    """Test password setting with mismatched passwords."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.users.get_user_by_id") as mock_get_user:
+            with patch("database.users.update_password") as mock_update:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": datetime.now(),
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "password_hash": None,
+                }
+
+                client = TestClient(app)
+                response = client.post(
+                    "/set-password",
+                    data={
+                        "email_id": "email-123",
+                        "password": "Password123!",
+                        "password_confirm": "DifferentPassword123!",
+                    },
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "error=passwords_dont_match" in response.headers["location"]
+                mock_update.assert_not_called()
+
+
+def test_set_password_too_short(test_tenant):
+    """Test password setting with password too short."""
+    from dependencies import get_tenant_id_from_request
+    from datetime import datetime
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
+        with patch("database.users.get_user_by_id") as mock_get_user:
+            with patch("database.users.update_password") as mock_update:
+                mock_get_email.return_value = {
+                    "id": "email-123",
+                    "user_id": "user-123",
+                    "email": "test@example.com",
+                    "verified_at": datetime.now(),
+                }
+                mock_get_user.return_value = {
+                    "id": "user-123",
+                    "password_hash": None,
+                }
+
+                client = TestClient(app)
+                response = client.post(
+                    "/set-password",
+                    data={
+                        "email_id": "email-123",
+                        "password": "short",
+                        "password_confirm": "short",
+                    },
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "error=password_too_short" in response.headers["location"]
+                mock_update.assert_not_called()

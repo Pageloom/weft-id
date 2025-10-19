@@ -179,7 +179,10 @@ def test_mfa_verify_complete_flow_with_totp(test_user):
                     with patch("database.users.update_last_login") as mock_update_login:
                         mock_get_secret.return_value = "secret123"
                         mock_verify.return_value = True
-                        mock_settings.return_value = {"persistent_sessions": True, "session_timeout_seconds": 3600}
+                        mock_settings.return_value = {
+                            "persistent_sessions": True,
+                            "session_timeout_seconds": 3600,
+                        }
                         mock_get_user.return_value = test_user
 
                         # Verification with session persistence configured

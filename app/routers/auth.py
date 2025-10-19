@@ -23,7 +23,13 @@ def login_page(request: Request):
     if user:
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    return templates.TemplateResponse("login.html", {"request": request})
+    # Get success/error messages from query params
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "login.html", {"request": request, "success": success, "error": error}
+    )
 
 
 @router.post("/login")
@@ -70,6 +76,154 @@ def logout(request: Request):
     """Handle logout."""
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get("/verify-email/{email_id}/{nonce}")
+def verify_email_public(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email_id: str,
+    nonce: int,
+):
+    """
+    Verify an email address using the verification link (public endpoint).
+
+    This is used for new users who don't have passwords yet and can't log in.
+    """
+    # Look up the email by ID and nonce
+    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+
+    if not email:
+        # Email not found - redirect to login
+        return RedirectResponse(url="/login?error=verification_failed", status_code=303)
+
+    # Check if already verified
+    if email["verified_at"]:
+        # Already verified - check if user has password
+        user = database.users.get_user_by_id(tenant_id, email["user_id"])
+        if user and not user.get("password_hash"):
+            # User verified but no password set - redirect to set password
+            return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
+        # User has password - redirect to login
+        return RedirectResponse(url="/login?success=already_verified", status_code=303)
+
+    # Verify nonce matches
+    if email["verify_nonce"] != nonce:
+        # Invalid nonce - redirect to login with error
+        return RedirectResponse(url="/login?error=invalid_verification_link", status_code=303)
+
+    # Mark as verified and increment nonce
+    database.user_emails.verify_email(tenant_id, email_id)
+
+    # Get user to check if they have a password
+    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    if user and not user.get("password_hash"):
+        # New user without password - redirect to set password page
+        return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
+
+    # Existing user adding new email - redirect to login/account
+    return RedirectResponse(url="/login?success=email_verified", status_code=303)
+
+
+@router.get("/set-password", response_class=HTMLResponse)
+def set_password_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Display set password page for new users who have verified their email."""
+    email_id = request.query_params.get("email_id")
+
+    if not email_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Look up the email to get the user's email address
+    # We need to get the email to find the user_id first
+    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+
+    if not email:
+        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
+
+    # Check if email is verified
+    if not email.get("verified_at"):
+        return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
+
+    # Check if user already has a password
+    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    if not user or user.get("password_hash"):
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Get success/error messages from query params
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "set_password.html",
+        {
+            "request": request,
+            "email": email["email"],
+            "email_id": email_id,
+            "success": success,
+            "error": error,
+        },
+    )
+
+
+@router.post("/set-password")
+def set_password(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email_id: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    password_confirm: Annotated[str, Form()],
+):
+    """Set password for a new user who has verified their email."""
+    # Look up the email
+    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+
+    if not email:
+        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
+
+    # Check if email is verified
+    if not email.get("verified_at"):
+        return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
+
+    # Check if user already has a password
+    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    if not user or user.get("password_hash"):
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Validate passwords match
+    if password != password_confirm:
+        return RedirectResponse(
+            url=f"/set-password?email_id={email_id}&error=passwords_dont_match", status_code=303
+        )
+
+    # Validate password strength
+    from utils.password import hash_password
+
+    if len(password) < 8:
+        return RedirectResponse(
+            url=f"/set-password?email_id={email_id}&error=password_too_short", status_code=303
+        )
+
+    # Set the password
+    password_hash = hash_password(password)
+    database.users.update_password(tenant_id, user["id"], password_hash)
+
+    # Store user info in session to start MFA flow (same as regular login)
+    request.session["pending_mfa_user_id"] = str(user["id"])
+    request.session["pending_mfa_method"] = user.get("mfa_method", "email")
+
+    # If email MFA, send code immediately
+    if user.get("mfa_method") == "email":
+        code = create_email_otp(tenant_id, user["id"])
+        # Get user's email
+        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
+        if email_row:
+            send_mfa_code_email(email_row["email"], code)
+
+    # Redirect to MFA verification (same as after login)
+    return RedirectResponse(url="/mfa/verify", status_code=303)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

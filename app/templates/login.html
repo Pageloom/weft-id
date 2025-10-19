@@ -8,9 +8,33 @@
         <div class="bg-white rounded-lg shadow-sm p-8">
             <h1 class="text-2xl font-semibold text-center mb-6">Sign In</h1>
 
+            {% if success %}
+            <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6" role="alert">
+                {% if success == 'email_verified' %}
+                Email verified successfully! You can now log in.
+                {% elif success == 'password_set' %}
+                Password set successfully! You can now log in.
+                {% elif success == 'already_verified' %}
+                Your email is already verified. Please log in.
+                {% else %}
+                {{ success }}
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% if error %}
             <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6" role="alert">
+                {% if error == 'verification_failed' %}
+                Email verification failed. Please contact your administrator.
+                {% elif error == 'invalid_verification_link' %}
+                Invalid verification link. Please contact your administrator.
+                {% elif error == 'invalid_link' %}
+                Invalid link. Please contact your administrator.
+                {% elif error == 'email_not_verified' %}
+                Please verify your email address before setting your password.
+                {% else %}
                 {{ error }}
+                {% endif %}
             </div>
             {% endif %}
 

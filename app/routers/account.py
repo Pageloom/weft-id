@@ -3,12 +3,11 @@
 from typing import Annotated
 
 import database
-from dependencies import get_tenant_id_from_request
+from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
-from utils.auth import get_current_user
 from utils.email import send_email_verification
 from utils.mfa import (
     decrypt_secret,
@@ -23,18 +22,21 @@ from utils.mfa import (
 )
 from utils.template_context import get_template_context
 
-router = APIRouter(prefix="/account", tags=["account"])
+router = APIRouter(
+    prefix="/account",
+    tags=["account"],
+    dependencies=[Depends(require_current_user)],  # All routes require authentication
+)
 templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)
-def account_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+def account_index(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
     """Redirect to first accessible account page."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Get first accessible child page
     first_child = get_first_accessible_child("/account", user.get("role"))
 
@@ -47,14 +49,10 @@ def account_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant
 
 @router.get("/profile", response_class=HTMLResponse)
 def profile_settings(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
     """Display and edit user profile settings (name, etc)."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     return templates.TemplateResponse(
         "settings_profile.html", get_template_context(request, tenant_id)
     )
@@ -64,15 +62,11 @@ def profile_settings(
 def update_profile(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     first_name: Annotated[str, Form()],
     last_name: Annotated[str, Form()],
 ):
     """Update user profile information."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if user is allowed to edit their profile
     # Super admins are always allowed, otherwise check tenant security setting
     if user.get("role") != "super_admin":
@@ -92,14 +86,10 @@ def update_profile(
 def update_timezone(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     timezone: Annotated[str, Form()],
 ):
     """Update user's timezone."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Validate timezone using zoneinfo
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -120,15 +110,11 @@ def update_timezone(
 def update_regional(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     timezone: Annotated[str, Form()],
     locale: Annotated[str, Form()],
 ):
     """Update user's timezone and locale."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Validate timezone using zoneinfo
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -154,14 +140,10 @@ def update_regional(
 
 @router.get("/emails", response_class=HTMLResponse)
 def email_settings(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage user email addresses."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Fetch all email addresses for this user
     emails = database.user_emails.list_user_emails(tenant_id, user["id"])
 
@@ -171,13 +153,12 @@ def email_settings(
 
 
 @router.get("/mfa", response_class=HTMLResponse)
-def mfa_settings(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+def mfa_settings(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
     """Display and configure MFA settings."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if user has backup codes
     backup_codes = database.mfa.list_backup_codes(tenant_id, user["id"])
 
@@ -196,14 +177,10 @@ def mfa_settings(request: Request, tenant_id: Annotated[str, Depends(get_tenant_
 def add_email(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     email: Annotated[str, Form()],
 ):
     """Add a new email address to the user's account."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if user is allowed to add emails
     # Super admins are always allowed, otherwise check tenant security setting
     if user.get("role") != "super_admin":
@@ -236,14 +213,10 @@ def add_email(
 def set_primary_email(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     email_id: str,
 ):
     """Set an email as the primary email for the user."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Verify the email belongs to this user and is verified
     email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
 
@@ -264,14 +237,10 @@ def set_primary_email(
 def delete_email(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     email_id: str,
 ):
     """Delete an email address from the user's account."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Verify the email belongs to this user and is not primary
     email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
 
@@ -289,14 +258,10 @@ def delete_email(
 def resend_verification(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     email_id: str,
 ):
     """Resend verification email for an unverified email address."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Verify the email belongs to this user
     email = database.user_emails.get_email_with_nonce(tenant_id, email_id, user["id"])
 
@@ -343,14 +308,10 @@ def verify_email(
 @router.get("/mfa/setup/totp", response_class=HTMLResponse)
 @router.post("/mfa/setup/totp")
 def mfa_setup_totp(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Start TOTP (authenticator app) setup process."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Prevent TOTP setup if TOTP is already active
     # Users must downgrade to email OTP first, then re-enable TOTP
     if user.get("mfa_method") == "totp":
@@ -379,14 +340,10 @@ def mfa_setup_totp(
 
 @router.post("/mfa/setup/email")
 def mfa_setup_email(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Enable email-only MFA (or downgrade from TOTP - requires re-verification)."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if user is downgrading from TOTP to email
     current_method = user.get("mfa_method")
     if current_method == "totp":
@@ -418,15 +375,11 @@ def mfa_setup_email(
 def mfa_setup_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     code: Annotated[str, Form()],
     method: Annotated[str, Form()],
 ):
     """Verify TOTP setup and enable MFA."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     if method != "totp":
         return RedirectResponse(url="/account/mfa", status_code=303)
 
@@ -478,14 +431,10 @@ def mfa_setup_verify(
 
 @router.post("/mfa/regenerate-backup-codes")
 def mfa_regenerate_backup_codes(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Regenerate backup codes for the current user."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Delete existing backup codes
     database.mfa.delete_backup_codes(tenant_id, user["id"])
 
@@ -505,14 +454,10 @@ def mfa_regenerate_backup_codes(
 
 @router.post("/mfa/generate-backup-codes")
 def mfa_generate_backup_codes(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Generate initial backup codes for users who don't have any."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Generate new backup codes
     backup_codes = generate_backup_codes()
 
@@ -532,11 +477,6 @@ def mfa_downgrade_verify_page(
     request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
 ):
     """Show verification page when downgrading from TOTP to email MFA."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if there's a pending downgrade
     if not request.session.get("pending_mfa_downgrade"):
         return RedirectResponse(url="/account/mfa", status_code=303)
@@ -550,14 +490,10 @@ def mfa_downgrade_verify_page(
 def mfa_downgrade_verify(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     code: Annotated[str, Form()],
 ):
     """Verify email code and complete downgrade to email MFA."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if there's a pending downgrade
     pending_method = request.session.get("pending_mfa_downgrade")
     if not pending_method:

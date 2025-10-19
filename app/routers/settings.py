@@ -3,32 +3,27 @@
 from typing import Annotated
 
 import database
-from dependencies import get_tenant_id_from_request
+from dependencies import get_current_user, get_tenant_id_from_request, require_admin, require_super_admin
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
-from utils.auth import get_current_user
 from utils.template_context import get_template_context
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(
+    prefix="/settings",
+    tags=["settings"],
+    dependencies=[Depends(require_admin)],  # All routes require admin role
+)
 templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)
 def settings_index(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Redirect to the first accessible settings page."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to access settings
-    if not has_page_access("/settings", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Get first accessible child page
     first_child = get_first_accessible_child("/settings", user.get("role"))
 
@@ -41,18 +36,10 @@ def settings_index(
 
 @router.get("/privileged-domains", response_class=HTMLResponse)
 def privileged_domains(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage privileged domains for the tenant."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to access this page
-    if not has_page_access("/settings/privileged-domains", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Fetch all privileged domains for this tenant
     domains = database.settings.list_privileged_domains(tenant_id)
 
@@ -68,18 +55,10 @@ def privileged_domains(
 def add_privileged_domain(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     domain: Annotated[str, Form()],
 ):
     """Add a new privileged domain."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to manage privileged domains
-    if not has_page_access("/settings/privileged-domains", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Clean and validate domain
     domain_clean = domain.strip().lower()
 
@@ -115,38 +94,22 @@ def add_privileged_domain(
 def delete_privileged_domain(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     domain_id: str,
 ):
     """Delete a privileged domain."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to manage privileged domains
-    if not has_page_access("/settings/privileged-domains", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Delete the domain (RLS ensures it belongs to this tenant)
     database.settings.delete_privileged_domain(tenant_id, domain_id)
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
 
-@router.get("/tenant-security", response_class=HTMLResponse)
+@router.get("/tenant-security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)])
 def tenant_security(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
     """Display security settings for the tenant."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to access this page (super_admin only)
-    if not has_page_access("/settings/tenant-security", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Fetch current security settings for this tenant
     settings_row = database.security.get_security_settings(tenant_id)
 
@@ -172,25 +135,17 @@ def tenant_security(
     )
 
 
-@router.post("/tenant-security/update")
+@router.post("/tenant-security/update", dependencies=[Depends(require_super_admin)])
 def update_tenant_security(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
     session_timeout: Annotated[str, Form()] = "",
     persistent_sessions: Annotated[str, Form()] = "",
     allow_users_edit_profile: Annotated[str, Form()] = "",
     allow_users_add_emails: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if user has permission to manage security settings (super_admin only)
-    if not has_page_access("/settings/tenant-security", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
     # Parse session timeout (empty string means indefinite/NULL)
     timeout_seconds = None
     if session_timeout:

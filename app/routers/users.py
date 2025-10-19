@@ -3,26 +3,28 @@
 from typing import Annotated
 
 import database
-from dependencies import get_tenant_id_from_request
+from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
-from utils.auth import get_current_user
 from utils.template_context import get_template_context
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(
+    prefix="/users",
+    tags=["users"],
+    dependencies=[Depends(require_current_user)],  # All routes require authentication
+)
 templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)
-def users_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+def users_index(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
     """Redirect to the first accessible users page."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Check if user has permission to access settings
     if not has_page_access("/users", user.get("role")):
         return RedirectResponse(url="/account", status_code=303)
@@ -38,13 +40,12 @@ def users_index(request: Request, tenant_id: Annotated[str, Depends(get_tenant_i
 
 
 @router.get("/list", response_class=HTMLResponse)
-def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]):
+def users_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
     """Display a list of users in the tenant with sorting, pagination, and search."""
-    user = get_current_user(request, tenant_id)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-
     # Get user's locale for locale-aware sorting
     user_locale = user.get("locale")
     # Determine collation for locale-aware text sorting

@@ -3,7 +3,8 @@
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-from utils.auth import get_current_user
+from dependencies import get_current_user
+from utils.auth import verify_login
 
 router = APIRouter(prefix="", tags=["tenants"])
 

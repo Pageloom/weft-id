@@ -2,7 +2,8 @@
 
 from fastapi import Request
 from pages import get_navigation_context
-from utils.auth import get_current_user
+from dependencies import get_current_user
+from utils.auth import verify_login
 from utils.datetime_format import create_datetime_formatter
 
 

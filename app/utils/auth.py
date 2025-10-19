@@ -1,10 +1,7 @@
 """Authentication utilities for login and session management."""
 
-from typing import Annotated
-
 import database
-from dependencies import get_tenant_id_from_request
-from fastapi import Depends, Request
+from fastapi import Request
 from fastapi.responses import RedirectResponse
 from utils.password import verify_password
 
@@ -36,9 +33,7 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
     return user
 
 
-def get_current_user(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
-) -> dict | None:
+def get_current_user(request: Request, tenant_id: str) -> dict | None:
     """
     Get the currently authenticated user from session.
     Returns user dict if authenticated, None otherwise.
@@ -68,17 +63,4 @@ def get_current_user(
 
     user = database.users.get_user_by_id(tenant_id, user_id)
 
-    return user
-
-
-def require_auth(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)]
-) -> dict | RedirectResponse:
-    """
-    Require authentication. Redirects to /login if not authenticated.
-    Returns user dict if authenticated, or RedirectResponse if not.
-    """
-    user = get_current_user(request, tenant_id)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
     return user

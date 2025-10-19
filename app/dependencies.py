@@ -22,11 +22,7 @@ def get_tenant_id_from_request(request: Request) -> str:
 
     subdomain = host.split(".")[0]
 
-    row = database.fetchone(
-        database.UNSCOPED,
-        "select id from tenants where subdomain = :subdomain",
-        {"subdomain": subdomain},
-    )
+    row = database.tenants.get_tenant_by_subdomain(subdomain)
 
     if not row:
         raise HTTPException(status_code=404, detail=f"No tenant configured for host {host}")

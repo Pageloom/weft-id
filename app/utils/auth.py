@@ -16,16 +16,7 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
     Updates last_login timestamp on success.
     """
     # Find user by email within tenant
-    user_email = database.fetchone(
-        tenant_id,
-        """
-        select ue.user_id, u.password_hash
-        from user_emails ue
-        join users u on u.id = ue.user_id
-        where ue.email = :email and ue.verified_at is not null
-        """,
-        {"email": email},
-    )
+    user_email = database.users.get_user_by_email(tenant_id, email)
 
     if not user_email or not user_email["password_hash"]:
         return None
@@ -37,23 +28,10 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
     user_id = user_email["user_id"]
 
     # Update last_login
-    database.execute(
-        tenant_id,
-        "update users set last_login = now() where id = :user_id",
-        {"user_id": user_id},
-    )
+    database.users.update_last_login(tenant_id, user_id)
 
     # Fetch and return full user record (including MFA fields)
-    user = database.fetchone(
-        tenant_id,
-        """
-        select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method, tz, locale
-        from users
-        where id = :user_id
-        """,
-        {"user_id": user_id},
-    )
+    user = database.users.get_user_by_id(tenant_id, user_id)
 
     return user
 
@@ -74,15 +52,7 @@ def get_current_user(
     session_start = request.session.get("session_start")
     if session_start:
         # Fetch tenant security settings to check for session timeout
-        security_settings = database.fetchone(
-            tenant_id,
-            """
-            select session_timeout_seconds
-            from tenant_security_settings
-            where tenant_id = :tenant_id
-            """,
-            {"tenant_id": tenant_id},
-        )
+        security_settings = database.security.get_session_timeout(tenant_id)
 
         if security_settings and security_settings["session_timeout_seconds"]:
             import time
@@ -96,16 +66,7 @@ def get_current_user(
                 request.session.clear()
                 return None
 
-    user = database.fetchone(
-        tenant_id,
-        """
-        select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method, tz, locale
-        from users
-        where id = :user_id
-        """,
-        {"user_id": user_id},
-    )
+    user = database.users.get_user_by_id(tenant_id, user_id)
 
     return user
 

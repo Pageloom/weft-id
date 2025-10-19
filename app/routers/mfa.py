@@ -33,16 +33,7 @@ def mfa_verify_page(
         return RedirectResponse(url="/login", status_code=303)
 
     # Get user email for display
-    user = database.fetchone(
-        tenant_id,
-        """
-        select u.id, ue.email
-        from users u
-        join user_emails ue on ue.user_id = u.id and ue.is_primary = true
-        where u.id = :user_id
-        """,
-        {"user_id": pending_user_id},
-    )
+    user = database.user_emails.get_user_with_primary_email(tenant_id, pending_user_id)
 
     return templates.TemplateResponse(
         "mfa_verify.html",
@@ -83,16 +74,7 @@ def mfa_verify(
         verified = verify_backup_code(tenant_id, pending_user_id, code_clean)
 
     if not verified:
-        user = database.fetchone(
-            tenant_id,
-            """
-            select u.id, ue.email
-            from users u
-            join user_emails ue on ue.user_id = u.id and ue.is_primary = true
-            where u.id = :user_id
-            """,
-            {"user_id": pending_user_id},
-        )
+        user = database.user_emails.get_user_with_primary_email(tenant_id, pending_user_id)
         return templates.TemplateResponse(
             "mfa_verify.html",
             {
@@ -109,15 +91,7 @@ def mfa_verify(
     request.session["session_start"] = int(__import__("time").time())
 
     # Fetch tenant security settings to configure session persistence
-    security_settings = database.fetchone(
-        tenant_id,
-        """
-        select persistent_sessions, session_timeout_seconds
-        from tenant_security_settings
-        where tenant_id = :tenant_id
-        """,
-        {"tenant_id": tenant_id},
-    )
+    security_settings = database.security.get_session_settings(tenant_id)
 
     # Store session configuration in session for middleware to use
     if security_settings:
@@ -144,9 +118,7 @@ def mfa_verify(
     locale_to_update = locale or request.session.get("pending_locale", "")
 
     # Get current values
-    current_user = database.fetchone(
-        tenant_id, "select tz, locale from users where id = :user_id", {"user_id": pending_user_id}
-    )
+    current_user = database.users.get_user_by_id(tenant_id, pending_user_id)
 
     tz_changed = tz_to_update and (not current_user or current_user.get("tz") != tz_to_update)
     locale_changed = locale_to_update and (
@@ -154,30 +126,16 @@ def mfa_verify(
     )
 
     if tz_changed and locale_changed:
-        database.execute(
-            tenant_id,
-            "update users set tz = :tz, locale = :locale, last_login = now() where id = :user_id",
-            {"tz": tz_to_update, "locale": locale_to_update, "user_id": pending_user_id},
+        database.users.update_timezone_locale_and_last_login(
+            tenant_id, pending_user_id, tz_to_update, locale_to_update
         )
     elif tz_changed:
-        database.execute(
-            tenant_id,
-            "update users set tz = :tz, last_login = now() where id = :user_id",
-            {"tz": tz_to_update, "user_id": pending_user_id},
-        )
+        database.users.update_timezone_and_last_login(tenant_id, pending_user_id, tz_to_update)
     elif locale_changed:
-        database.execute(
-            tenant_id,
-            "update users set locale = :locale, last_login = now() where id = :user_id",
-            {"locale": locale_to_update, "user_id": pending_user_id},
-        )
+        database.users.update_locale_and_last_login(tenant_id, pending_user_id, locale_to_update)
     else:
         # Just update last_login
-        database.execute(
-            tenant_id,
-            "update users set last_login = now() where id = :user_id",
-            {"user_id": pending_user_id},
-        )
+        database.users.update_last_login(tenant_id, pending_user_id)
 
     request.session.pop("pending_mfa_user_id", None)
     request.session.pop("pending_mfa_method", None)
@@ -207,15 +165,7 @@ def mfa_send_email_code(
     code = create_email_otp(tenant_id, pending_user_id)
 
     # Get user email
-    user = database.fetchone(
-        tenant_id,
-        """
-        select ue.email
-        from user_emails ue
-        where ue.user_id = :user_id and ue.is_primary = true
-        """,
-        {"user_id": pending_user_id},
-    )
+    user = database.user_emails.get_primary_email(tenant_id, pending_user_id)
 
     if user:
         send_mfa_code_email(user["email"], code)

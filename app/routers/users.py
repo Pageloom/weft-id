@@ -4,10 +4,15 @@ from typing import Annotated
 
 import database
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
+from utils.email import (
+    send_primary_email_changed_notification,
+    send_secondary_email_added_notification,
+    send_secondary_email_removed_notification,
+)
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -129,4 +134,260 @@ def users_list(
             sort_field=sort_field,
             sort_order=sort_order,
         ),
+    )
+
+
+@router.get("/{user_id}", response_class=HTMLResponse)
+def user_detail(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Display detailed user information and allow admin edits."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Get target user information
+    target_user = database.users.get_user_by_id(tenant_id, user_id)
+    if not target_user:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+
+    # Get all emails for the user
+    emails = database.user_emails.list_user_emails(tenant_id, user_id)
+
+    # Get privileged domains for email validation
+    privileged_domains = database.settings.list_privileged_domains(tenant_id)
+
+    # Get success/error messages from query params
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "user_detail.html",
+        get_template_context(
+            request,
+            tenant_id,
+            target_user=target_user,
+            emails=emails,
+            privileged_domains=privileged_domains,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/{user_id}/update-name")
+def update_user_name(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    first_name: Annotated[str, Form()],
+    last_name: Annotated[str, Form()],
+):
+    """Update a user's name (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Validate inputs
+    first_name = first_name.strip()
+    last_name = last_name.strip()
+
+    if not first_name or not last_name:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=name_required", status_code=303
+        )
+
+    # Update the user's name
+    database.users.update_user_profile(tenant_id, user_id, first_name, last_name)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=name_updated", status_code=303)
+
+
+@router.post("/{user_id}/update-role")
+def update_user_role_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    role: Annotated[str, Form()],
+):
+    """Update a user's role (super_admin only)."""
+    # Check super_admin permission
+    if user.get("role") != "super_admin":
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Validate role
+    if role not in ["member", "admin", "super_admin"]:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=invalid_role", status_code=303
+        )
+
+    # Prevent changing own role
+    if user_id == user.get("id"):
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=cannot_change_own_role", status_code=303
+        )
+
+    # Update the user's role
+    database.users.update_user_role(tenant_id, user_id, role)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=role_updated", status_code=303)
+
+
+@router.post("/{user_id}/add-email")
+def add_user_email(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    email: Annotated[str, Form()],
+):
+    """Add a secondary email to a user (admin only, privileged domains only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Clean and validate email
+    email = email.strip().lower()
+
+    if not email or "@" not in email:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=invalid_email", status_code=303
+        )
+
+    # Check if email already exists
+    if database.user_emails.email_exists(tenant_id, email):
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=email_exists", status_code=303
+        )
+
+    # Extract domain and check if it's privileged
+    domain = email.split("@")[1]
+    if not database.settings.privileged_domain_exists(tenant_id, domain):
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=domain_not_privileged", status_code=303
+        )
+
+    # Add the email as verified
+    database.user_emails.add_verified_email(tenant_id, user_id, email, tenant_id)
+
+    # Get primary email for notification
+    primary_email_record = database.user_emails.get_primary_email(tenant_id, user_id)
+    if primary_email_record:
+        admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+        send_secondary_email_added_notification(
+            primary_email_record["email"], email, admin_name
+        )
+
+    return RedirectResponse(url=f"/users/{user_id}?success=email_added", status_code=303)
+
+
+@router.post("/{user_id}/remove-email/{email_id}")
+def remove_user_email(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    email_id: str,
+):
+    """Remove a secondary email from a user (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Get the email to be removed
+    email_to_remove = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
+    if not email_to_remove:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=email_not_found", status_code=303
+        )
+
+    # Prevent removing primary email
+    if email_to_remove.get("is_primary"):
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=cannot_remove_primary", status_code=303
+        )
+
+    # Check that user will have at least one email left
+    email_count = database.user_emails.count_user_emails(tenant_id, user_id)
+    if email_count <= 1:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=must_keep_one_email", status_code=303
+        )
+
+    # Get the email address before deleting
+    all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
+    email_address = next(
+        (e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None
+    )
+
+    # Delete the email
+    database.user_emails.delete_email(tenant_id, email_id)
+
+    # Get primary email for notification
+    if email_address:
+        primary_email_record = database.user_emails.get_primary_email(tenant_id, user_id)
+        if primary_email_record:
+            admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+            send_secondary_email_removed_notification(
+                primary_email_record["email"], email_address, admin_name
+            )
+
+    return RedirectResponse(
+        url=f"/users/{user_id}?success=email_removed", status_code=303
+    )
+
+
+@router.post("/{user_id}/promote-email/{email_id}")
+def promote_user_email(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+    email_id: str,
+):
+    """Promote a secondary email to primary (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Get the email to be promoted
+    email_to_promote = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
+    if not email_to_promote:
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=email_not_found", status_code=303
+        )
+
+    # Check if already primary
+    if email_to_promote.get("is_primary"):
+        return RedirectResponse(
+            url=f"/users/{user_id}?error=already_primary", status_code=303
+        )
+
+    # Get old primary email info before changing
+    old_primary_record = database.user_emails.get_primary_email(tenant_id, user_id)
+
+    # Get the new primary email address
+    all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
+    new_primary_email = next(
+        (e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None
+    )
+
+    # Update primary status
+    database.user_emails.unset_primary_emails(tenant_id, user_id)
+    database.user_emails.set_primary_email(tenant_id, email_id)
+
+    # Send notification to old primary email
+    if old_primary_record and new_primary_email:
+        admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+        send_primary_email_changed_notification(
+            old_primary_record["email"], new_primary_email, admin_name
+        )
+
+    return RedirectResponse(
+        url=f"/users/{user_id}?success=email_promoted", status_code=303
     )

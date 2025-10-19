@@ -490,3 +490,223 @@ def test_promote_user_email_already_primary(test_admin_user):
             assert response.status_code == 303
             assert "error=already_primary" in response.headers["location"]
             mock_set.assert_not_called()
+
+
+
+
+def test_users_list_with_locale_collation(test_admin_user):
+    """Test users list with locale-specific collation."""
+    user_with_locale = {**test_admin_user, "locale": "sv_SE"}
+    override_auth(app, user_with_locale)
+
+    with patch("database.users.check_collation_exists") as mock_check:
+        with patch("database.users.list_users") as mock_list:
+            with patch("database.users.count_users") as mock_count:
+                with patch("routers.users.templates.TemplateResponse") as mock_template:
+                    from fastapi.responses import HTMLResponse
+
+                    mock_check.return_value = True
+                    mock_list.return_value = []
+                    mock_count.return_value = 0
+                    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+
+                    client = TestClient(app)
+                    response = client.get("/users/list")
+
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 200
+                    # Check collation was passed to list_users
+                    mock_list.assert_called_once()
+                    call_args = mock_list.call_args
+                    assert call_args[0][6] == "sv-SE-x-icu"  # collation parameter
+
+
+def test_users_list_with_invalid_page_param(test_admin_user):
+    """Test users list with invalid page parameter."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.users.list_users") as mock_list:
+        with patch("database.users.count_users") as mock_count:
+            with patch("routers.users.templates.TemplateResponse") as mock_template:
+                from fastapi.responses import HTMLResponse
+
+                mock_list.return_value = []
+                mock_count.return_value = 0
+                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+
+                client = TestClient(app)
+                response = client.get("/users/list?page=invalid")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Should default to page 1
+
+
+def test_users_list_with_invalid_page_size(test_admin_user):
+    """Test users list with invalid page size parameter."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.users.list_users") as mock_list:
+        with patch("database.users.count_users") as mock_count:
+            with patch("routers.users.templates.TemplateResponse") as mock_template:
+                from fastapi.responses import HTMLResponse
+
+                mock_list.return_value = []
+                mock_count.return_value = 0
+                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+
+                client = TestClient(app)
+                response = client.get("/users/list?size=invalid")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Should default to page size 25
+
+
+def test_users_list_with_nonstandard_page_size(test_admin_user):
+    """Test users list with non-standard page size."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.users.list_users") as mock_list:
+        with patch("database.users.count_users") as mock_count:
+            with patch("routers.users.templates.TemplateResponse") as mock_template:
+                from fastapi.responses import HTMLResponse
+
+                mock_list.return_value = []
+                mock_count.return_value = 0
+                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+
+                client = TestClient(app)
+                response = client.get("/users/list?size=35")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Should normalize to 25
+
+
+def test_users_list_with_invalid_sort_order(test_admin_user):
+    """Test users list with invalid sort order."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.users.list_users") as mock_list:
+        with patch("database.users.count_users") as mock_count:
+            with patch("routers.users.templates.TemplateResponse") as mock_template:
+                from fastapi.responses import HTMLResponse
+
+                mock_list.return_value = []
+                mock_count.return_value = 0
+                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+
+                client = TestClient(app)
+                response = client.get("/users/list?order=invalid")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Should default to desc
+
+
+
+
+def test_add_user_email_invalid_email(test_admin_user):
+    """Test adding invalid email address."""
+    override_auth(app, test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "invalid-email"},
+        follow_redirects=False
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=invalid_email" in response.headers["location"]
+
+
+def test_add_user_email_already_exists(test_admin_user):
+    """Test adding email that already exists."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.user_emails.email_exists") as mock_exists:
+        mock_exists.return_value = True
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/add-email",
+            data={"email": "existing@example.com"},
+            follow_redirects=False
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=email_exists" in response.headers["location"]
+
+
+
+
+def test_remove_user_email_not_found(test_admin_user):
+    """Test removing non-existent email."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.user_emails.get_email_by_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/remove-email/invalid-id",
+            follow_redirects=False
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=email_not_found" in response.headers["location"]
+
+
+def test_remove_user_email_must_keep_one(test_admin_user):
+    """Test cannot remove last email."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.user_emails.get_email_by_id") as mock_get:
+        with patch("database.user_emails.count_user_emails") as mock_count:
+            mock_get.return_value = {"id": "email-id", "is_primary": False}
+            mock_count.return_value = 1
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/remove-email/email-id",
+                follow_redirects=False
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "error=must_keep_one_email" in response.headers["location"]
+
+
+
+
+def test_promote_user_email_not_found(test_admin_user):
+    """Test promoting non-existent email."""
+    override_auth(app, test_admin_user)
+
+    with patch("database.user_emails.get_email_by_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/promote-email/invalid-id",
+            follow_redirects=False
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=email_not_found" in response.headers["location"]

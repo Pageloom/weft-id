@@ -3,11 +3,10 @@
 from typing import Annotated
 
 import database
-from dependencies import get_tenant_id_from_request
+from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from dependencies import get_current_user
 from utils.auth import verify_login
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp

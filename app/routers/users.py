@@ -197,9 +197,7 @@ def update_user_name(
     last_name = last_name.strip()
 
     if not first_name or not last_name:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=name_required", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=name_required", status_code=303)
 
     # Update the user's name
     database.users.update_user_profile(tenant_id, user_id, first_name, last_name)
@@ -222,9 +220,7 @@ def update_user_role_route(
 
     # Validate role
     if role not in ["member", "admin", "super_admin"]:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=invalid_role", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=invalid_role", status_code=303)
 
     # Prevent changing own role
     if user_id == user.get("id"):
@@ -255,15 +251,11 @@ def add_user_email(
     email = email.strip().lower()
 
     if not email or "@" not in email:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=invalid_email", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=invalid_email", status_code=303)
 
     # Check if email already exists
     if database.user_emails.email_exists(tenant_id, email):
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=email_exists", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=email_exists", status_code=303)
 
     # Extract domain and check if it's privileged
     domain = email.split("@")[1]
@@ -279,9 +271,7 @@ def add_user_email(
     primary_email_record = database.user_emails.get_primary_email(tenant_id, user_id)
     if primary_email_record:
         admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-        send_secondary_email_added_notification(
-            primary_email_record["email"], email, admin_name
-        )
+        send_secondary_email_added_notification(primary_email_record["email"], email, admin_name)
 
     return RedirectResponse(url=f"/users/{user_id}?success=email_added", status_code=303)
 
@@ -302,9 +292,7 @@ def remove_user_email(
     # Get the email to be removed
     email_to_remove = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
     if not email_to_remove:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=email_not_found", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=email_not_found", status_code=303)
 
     # Prevent removing primary email
     if email_to_remove.get("is_primary"):
@@ -315,15 +303,11 @@ def remove_user_email(
     # Check that user will have at least one email left
     email_count = database.user_emails.count_user_emails(tenant_id, user_id)
     if email_count <= 1:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=must_keep_one_email", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=must_keep_one_email", status_code=303)
 
     # Get the email address before deleting
     all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    email_address = next(
-        (e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None
-    )
+    email_address = next((e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None)
 
     # Delete the email
     database.user_emails.delete_email(tenant_id, email_id)
@@ -337,9 +321,7 @@ def remove_user_email(
                 primary_email_record["email"], email_address, admin_name
             )
 
-    return RedirectResponse(
-        url=f"/users/{user_id}?success=email_removed", status_code=303
-    )
+    return RedirectResponse(url=f"/users/{user_id}?success=email_removed", status_code=303)
 
 
 @router.post("/{user_id}/promote-email/{email_id}")
@@ -358,15 +340,11 @@ def promote_user_email(
     # Get the email to be promoted
     email_to_promote = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
     if not email_to_promote:
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=email_not_found", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=email_not_found", status_code=303)
 
     # Check if already primary
     if email_to_promote.get("is_primary"):
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=already_primary", status_code=303
-        )
+        return RedirectResponse(url=f"/users/{user_id}?error=already_primary", status_code=303)
 
     # Get old primary email info before changing
     old_primary_record = database.user_emails.get_primary_email(tenant_id, user_id)
@@ -388,6 +366,4 @@ def promote_user_email(
             old_primary_record["email"], new_primary_email, admin_name
         )
 
-    return RedirectResponse(
-        url=f"/users/{user_id}?success=email_promoted", status_code=303
-    )
+    return RedirectResponse(url=f"/users/{user_id}?success=email_promoted", status_code=303)

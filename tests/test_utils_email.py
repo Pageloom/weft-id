@@ -202,3 +202,129 @@ def test_send_email_uses_environment_variables():
 
             # Verify SMTP was created with custom host and port
             mock_smtp.assert_called_once_with(custom_host, 2525)
+
+
+def test_send_secondary_email_added_notification():
+    """Test sending notification when admin adds secondary email."""
+    from utils.email import send_secondary_email_added_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_secondary_email_added_notification(
+            to_email="user@example.com",
+            added_email="new@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Secondary email address added to your account"
+        assert "new@example.com" in html_body
+        assert "Admin User" in html_body
+        assert "new@example.com" in text_body
+        assert "Admin User" in text_body
+
+
+def test_send_secondary_email_added_notification_failure():
+    """Test failure when sending secondary email added notification."""
+    from utils.email import send_secondary_email_added_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_secondary_email_added_notification(
+            to_email="user@example.com",
+            added_email="new@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is False
+
+
+def test_send_secondary_email_removed_notification():
+    """Test sending notification when admin removes secondary email."""
+    from utils.email import send_secondary_email_removed_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_secondary_email_removed_notification(
+            to_email="user@example.com",
+            removed_email="old@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Secondary email address removed from your account"
+        assert "old@example.com" in html_body
+        assert "Admin User" in html_body
+        assert "old@example.com" in text_body
+        assert "Admin User" in text_body
+
+
+def test_send_secondary_email_removed_notification_failure():
+    """Test failure when sending secondary email removed notification."""
+    from utils.email import send_secondary_email_removed_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_secondary_email_removed_notification(
+            to_email="user@example.com",
+            removed_email="old@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is False
+
+
+def test_send_primary_email_changed_notification():
+    """Test sending notification when admin changes primary email."""
+    from utils.email import send_primary_email_changed_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_primary_email_changed_notification(
+            to_email="old@example.com",
+            new_primary_email="new@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "old@example.com"
+        assert subject == "Your primary email address has been changed"
+        assert "new@example.com" in html_body
+        assert "Admin User" in html_body
+        assert "new@example.com" in text_body
+        assert "Admin User" in text_body
+
+
+def test_send_primary_email_changed_notification_failure():
+    """Test failure when sending primary email changed notification."""
+    from utils.email import send_primary_email_changed_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_primary_email_changed_notification(
+            to_email="old@example.com",
+            new_primary_email="new@example.com",
+            admin_name="Admin User"
+        )
+
+        assert result is False

@@ -1,9 +1,9 @@
 """Multi-factor authentication utilities."""
 
 import base64
+import datetime
 import hashlib
 import secrets
-import datetime
 
 import database
 import pyotp

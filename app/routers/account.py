@@ -140,7 +140,8 @@ def update_regional(
 
 @router.get("/emails", response_class=HTMLResponse)
 def email_settings(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage user email addresses."""
@@ -308,7 +309,8 @@ def verify_email(
 @router.get("/mfa/setup/totp", response_class=HTMLResponse)
 @router.post("/mfa/setup/totp")
 def mfa_setup_totp(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Start TOTP (authenticator app) setup process."""
@@ -340,7 +342,8 @@ def mfa_setup_totp(
 
 @router.post("/mfa/setup/email")
 def mfa_setup_email(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Enable email-only MFA (or downgrade from TOTP - requires re-verification)."""
@@ -431,7 +434,8 @@ def mfa_setup_verify(
 
 @router.post("/mfa/regenerate-backup-codes")
 def mfa_regenerate_backup_codes(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Regenerate backup codes for the current user."""
@@ -454,7 +458,8 @@ def mfa_regenerate_backup_codes(
 
 @router.post("/mfa/generate-backup-codes")
 def mfa_generate_backup_codes(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Generate initial backup codes for users who don't have any."""

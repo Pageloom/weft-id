@@ -3,11 +3,16 @@
 from typing import Annotated
 
 import database
-from dependencies import get_current_user, get_tenant_id_from_request, require_admin, require_super_admin
+from dependencies import (
+    get_current_user,
+    get_tenant_id_from_request,
+    require_admin,
+    require_super_admin,
+)
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pages import get_first_accessible_child, has_page_access
+from pages import get_first_accessible_child
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -20,7 +25,8 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/", response_class=HTMLResponse)
 def settings_index(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Redirect to the first accessible settings page."""
@@ -36,7 +42,8 @@ def settings_index(
 
 @router.get("/privileged-domains", response_class=HTMLResponse)
 def privileged_domains(
-    request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage privileged domains for the tenant."""
@@ -104,7 +111,9 @@ def delete_privileged_domain(
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
 
-@router.get("/tenant-security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)])
+@router.get(
+    "/tenant-security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)]
+)
 def tenant_security(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

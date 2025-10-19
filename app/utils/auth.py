@@ -2,7 +2,6 @@
 
 import database
 from fastapi import Request
-from fastapi.responses import RedirectResponse
 from utils.password import verify_password
 
 

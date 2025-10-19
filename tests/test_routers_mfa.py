@@ -1,10 +1,10 @@
 """Tests for routers/mfa.py endpoints."""
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, Mock
-from main import app
+from unittest.mock import patch
+
 from fastapi.responses import HTMLResponse
+from fastapi.testclient import TestClient
+from main import app
 
 
 def test_mfa_verify_page_no_pending_session(test_tenant):
@@ -47,11 +47,7 @@ def test_mfa_verify_post_no_pending_session(test_tenant):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
     client = TestClient(app)
-    response = client.post(
-        "/mfa/verify",
-        data={"code": "123456"},
-        follow_redirects=False
-    )
+    response = client.post("/mfa/verify", data={"code": "123456"}, follow_redirects=False)
 
     app.dependency_overrides.clear()
 
@@ -65,8 +61,8 @@ def test_mfa_verify_with_valid_totp(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('utils.mfa.get_totp_secret') as mock_get_secret:
-        with patch('utils.mfa.verify_totp_code') as mock_verify_totp:
+    with patch("utils.mfa.get_totp_secret") as mock_get_secret:
+        with patch("utils.mfa.verify_totp_code") as mock_verify_totp:
             mock_get_secret.return_value = "JBSWY3DPEHPK3PXP"
             mock_verify_totp.return_value = True
 
@@ -74,11 +70,7 @@ def test_mfa_verify_with_valid_totp(test_user):
 
             # Without a real session, this will redirect to /login
             # This test verifies the mocks are set up correctly
-            response = client.post(
-                "/mfa/verify",
-                data={"code": "123456"},
-                follow_redirects=False
-            )
+            response = client.post("/mfa/verify", data={"code": "123456"}, follow_redirects=False)
 
             app.dependency_overrides.clear()
 
@@ -92,19 +84,16 @@ def test_mfa_verify_with_valid_email_otp(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('utils.mfa.verify_email_otp') as mock_verify_email:
-        with patch('database.security.get_session_settings') as mock_settings:
-            with patch('database.users.update_last_login') as mock_update:
-                with patch('database.users.get_user_by_id') as mock_get_user:
-                    mock_verify_email.return_value = True
-                    mock_settings.return_value = None  # Test defaults
-                    mock_get_user.return_value = test_user
+    with patch("utils.mfa.verify_email_otp") as mock_verify_email:
+        with patch("database.security.get_session_settings") as mock_settings:
+            with patch("database.users.get_user_by_id") as mock_get_user:
+                mock_verify_email.return_value = True
+                mock_settings.return_value = None  # Test defaults
+                mock_get_user.return_value = test_user
 
-                    client = TestClient(app)
-
-                    # We can't easily test the full session flow with TestClient,
-                    # but we can verify the mocks are set up correctly
-                    app.dependency_overrides.clear()
+                # We can't easily test the full session flow with TestClient,
+                # but we can verify the mocks are set up correctly
+                app.dependency_overrides.clear()
 
 
 def test_mfa_verify_with_invalid_code(test_user):
@@ -113,21 +102,22 @@ def test_mfa_verify_with_invalid_code(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('utils.mfa.get_totp_secret') as mock_get_secret:
-        with patch('utils.mfa.verify_totp_code') as mock_verify_totp:
-            with patch('utils.mfa.verify_email_otp') as mock_verify_email:
-                with patch('utils.mfa.verify_backup_code') as mock_verify_backup:
-                    with patch('database.user_emails.get_user_with_primary_email') as mock_get_user:
-                        with patch('routers.mfa.templates.TemplateResponse') as mock_template:
+    with patch("utils.mfa.get_totp_secret") as mock_get_secret:
+        with patch("utils.mfa.verify_totp_code") as mock_verify_totp:
+            with patch("utils.mfa.verify_email_otp") as mock_verify_email:
+                with patch("utils.mfa.verify_backup_code") as mock_verify_backup:
+                    with patch("database.user_emails.get_user_with_primary_email") as mock_get_user:
+                        with patch("routers.mfa.templates.TemplateResponse") as mock_template:
                             # All verification methods return False
                             mock_get_secret.return_value = "JBSWY3DPEHPK3PXP"
                             mock_verify_totp.return_value = False
                             mock_verify_email.return_value = False
                             mock_verify_backup.return_value = False
                             mock_get_user.return_value = test_user
-                            mock_template.return_value = HTMLResponse(content="<html>Invalid code</html>")
+                            mock_template.return_value = HTMLResponse(
+                                content="<html>Invalid code</html>"
+                            )
 
-                            client = TestClient(app)
                             # The actual test would require session setup
                             app.dependency_overrides.clear()
 
@@ -154,7 +144,6 @@ def test_mfa_send_email_code_with_totp_method(test_user):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
     # Can't easily test with TestClient sessions, but verify endpoint exists
-    client = TestClient(app)
     app.dependency_overrides.clear()
 
 
@@ -164,12 +153,10 @@ def test_mfa_send_email_code_success(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('utils.mfa.create_email_otp') as mock_create:
-        with patch('database.user_emails.get_primary_email') as mock_get_email:
-            with patch('utils.email.send_mfa_code_email') as mock_send:
-                mock_create.return_value = "123456"
-                mock_get_email.return_value = {"email": test_user["email"]}
+    with patch("utils.mfa.create_email_otp") as mock_create:
+        with patch("database.user_emails.get_primary_email") as mock_get_email:
+            mock_create.return_value = "123456"
+            mock_get_email.return_value = {"email": test_user["email"]}
 
-                # Can't easily test full flow with TestClient sessions
-                client = TestClient(app)
-                app.dependency_overrides.clear()
+            # Can't easily test full flow with TestClient sessions
+            app.dependency_overrides.clear()

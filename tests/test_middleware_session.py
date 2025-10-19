@@ -1,7 +1,8 @@
 """Tests for session middleware."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -12,9 +13,7 @@ def test_middleware_creation():
     """Test that DynamicSessionMiddleware can be instantiated."""
     app = FastAPI()
     middleware = DynamicSessionMiddleware(
-        app=app,
-        secret_key="test-secret-key",
-        session_cookie="session"
+        app=app, secret_key="test-secret-key", session_cookie="session"
     )
     assert middleware is not None
     assert middleware.session_cookie == "session"
@@ -25,9 +24,7 @@ async def test_non_http_scope():
     """Test that non-HTTP scopes are passed through unchanged."""
     app_mock = AsyncMock()
     middleware = DynamicSessionMiddleware(
-        app=app_mock,
-        secret_key="test-secret-key",
-        session_cookie="session"
+        app=app_mock, secret_key="test-secret-key", session_cookie="session"
     )
 
     scope = {"type": "lifespan"}
@@ -48,7 +45,7 @@ def test_session_middleware_integration_no_max_age():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/set-session")
@@ -83,7 +80,7 @@ def test_session_middleware_with_persistent_max_age():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/set-persistent-session")
@@ -112,7 +109,7 @@ def test_session_middleware_with_none_max_age():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/set-session-only")
@@ -137,7 +134,7 @@ def test_session_middleware_changing_max_age():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/set-persistent")
@@ -173,7 +170,7 @@ def test_websocket_scope_handling():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/")
@@ -193,7 +190,7 @@ def test_multiple_cookies_with_session():
     app.add_middleware(
         DynamicSessionMiddleware,
         secret_key="test-secret-key-at-least-32-chars-long",
-        session_cookie="session"
+        session_cookie="session",
     )
 
     @app.get("/set-cookies")

@@ -32,10 +32,10 @@ def test_root_endpoint_without_host(client):
 
 def test_tenant_root_redirect_to_login_when_not_authenticated(test_tenant):
     """Test that unauthenticated users are redirected to /login."""
+
+    from dependencies import get_current_user, get_tenant_id_from_request
     from fastapi.testclient import TestClient
     from main import app
-    from dependencies import get_tenant_id_from_request, get_current_user
-    from unittest.mock import Mock
 
     # Override dependencies
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
@@ -54,16 +54,17 @@ def test_tenant_root_redirect_to_login_when_not_authenticated(test_tenant):
 
 def test_tenant_root_redirect_to_dashboard_when_authenticated(test_user):
     """Test that authenticated users are redirected to /dashboard."""
+    from unittest.mock import patch
+
+    from dependencies import get_tenant_id_from_request
     from fastapi.testclient import TestClient
     from main import app
-    from dependencies import get_tenant_id_from_request
-    from unittest.mock import patch
 
     # Override tenant ID dependency
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
     # Patch get_current_user since it's called directly in the route
-    with patch('routers.tenants.get_current_user') as mock_user:
+    with patch("routers.tenants.get_current_user") as mock_user:
         mock_user.return_value = test_user
 
         client = TestClient(app)

@@ -17,10 +17,10 @@ os.environ.setdefault("POSTGRES_DB", "appdb")
 os.environ.setdefault("POSTGRES_PORT", "5432")
 
 import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
 
 # Import settings and patch DATABASE_URL to use localhost
 import settings  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 settings.DATABASE_URL = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@localhost:5432/{os.environ['POSTGRES_DB']}"
 
@@ -77,17 +77,17 @@ def test_tenant():
     name = f"Test Tenant {unique_suffix}"
 
     # Create tenant
-    tenant_id = database.execute(
+    database.execute(
         database.UNSCOPED,
         "INSERT INTO tenants (subdomain, name) VALUES (:subdomain, :name) RETURNING id",
-        {"subdomain": subdomain, "name": name}
+        {"subdomain": subdomain, "name": name},
     )
 
     # Fetch the created tenant to get the full record
     tenant = database.fetchone(
         database.UNSCOPED,
         "SELECT id, subdomain, name FROM tenants WHERE subdomain = :subdomain",
-        {"subdomain": subdomain}
+        {"subdomain": subdomain},
     )
 
     yield tenant
@@ -96,9 +96,7 @@ def test_tenant():
     # Note: This assumes cascading deletes are set up in your schema
     # If not, you may need to manually delete related records first
     database.execute(
-        database.UNSCOPED,
-        "DELETE FROM tenants WHERE id = :tenant_id",
-        {"tenant_id": tenant["id"]}
+        database.UNSCOPED, "DELETE FROM tenants WHERE id = :tenant_id", {"tenant_id": tenant["id"]}
     )
 
 
@@ -140,8 +138,8 @@ def test_user(test_tenant):
             "password_hash": password_hash,
             "first_name": "Test",
             "last_name": "User",
-            "role": "member"
-        }
+            "role": "member",
+        },
     )
 
     # Add tenant_id and email to the returned dict for convenience
@@ -155,7 +153,7 @@ def test_user(test_tenant):
         INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
         VALUES (:tenant_id, :user_id, :email, true, now())
         """,
-        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email}
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
     )
 
     yield user
@@ -193,8 +191,8 @@ def test_admin_user(test_tenant):
             "password_hash": password_hash,
             "first_name": "Admin",
             "last_name": "User",
-            "role": "admin"
-        }
+            "role": "admin",
+        },
     )
 
     user["tenant_id"] = test_tenant["id"]
@@ -207,7 +205,7 @@ def test_admin_user(test_tenant):
         INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
         VALUES (:tenant_id, :user_id, :email, true, now())
         """,
-        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email}
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
     )
 
     yield user
@@ -245,8 +243,8 @@ def test_super_admin_user(test_tenant):
             "password_hash": password_hash,
             "first_name": "Super",
             "last_name": "Admin",
-            "role": "super_admin"
-        }
+            "role": "super_admin",
+        },
     )
 
     user["tenant_id"] = test_tenant["id"]
@@ -259,7 +257,7 @@ def test_super_admin_user(test_tenant):
         INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
         VALUES (:tenant_id, :user_id, :email, true, now())
         """,
-        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email}
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
     )
 
     yield user

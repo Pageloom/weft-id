@@ -1,0 +1,31 @@
+[run]
+source = app
+omit =
+    # Development/utility scripts
+    app/dev/*
+    # Test files
+    */tests/*
+    */test_*.py
+    # Virtual environment
+    .venv/*
+    */site-packages/*
+
+[report]
+# Show line numbers of missing coverage
+show_missing = True
+# Exclude lines from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+    # Don't complain about missing debug code
+    def __repr__
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    # Don't complain about abstract methods
+    @abstractmethod
+
+[html]
+directory = htmlcov

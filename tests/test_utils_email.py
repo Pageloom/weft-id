@@ -212,9 +212,7 @@ def test_send_secondary_email_added_notification():
         mock_send.return_value = True
 
         result = send_secondary_email_added_notification(
-            to_email="user@example.com",
-            added_email="new@example.com",
-            admin_name="Admin User"
+            to_email="user@example.com", added_email="new@example.com", admin_name="Admin User"
         )
 
         assert result is True
@@ -238,9 +236,7 @@ def test_send_secondary_email_added_notification_failure():
         mock_send.return_value = False
 
         result = send_secondary_email_added_notification(
-            to_email="user@example.com",
-            added_email="new@example.com",
-            admin_name="Admin User"
+            to_email="user@example.com", added_email="new@example.com", admin_name="Admin User"
         )
 
         assert result is False
@@ -254,9 +250,7 @@ def test_send_secondary_email_removed_notification():
         mock_send.return_value = True
 
         result = send_secondary_email_removed_notification(
-            to_email="user@example.com",
-            removed_email="old@example.com",
-            admin_name="Admin User"
+            to_email="user@example.com", removed_email="old@example.com", admin_name="Admin User"
         )
 
         assert result is True
@@ -280,9 +274,7 @@ def test_send_secondary_email_removed_notification_failure():
         mock_send.return_value = False
 
         result = send_secondary_email_removed_notification(
-            to_email="user@example.com",
-            removed_email="old@example.com",
-            admin_name="Admin User"
+            to_email="user@example.com", removed_email="old@example.com", admin_name="Admin User"
         )
 
         assert result is False
@@ -296,9 +288,7 @@ def test_send_primary_email_changed_notification():
         mock_send.return_value = True
 
         result = send_primary_email_changed_notification(
-            to_email="old@example.com",
-            new_primary_email="new@example.com",
-            admin_name="Admin User"
+            to_email="old@example.com", new_primary_email="new@example.com", admin_name="Admin User"
         )
 
         assert result is True
@@ -322,9 +312,7 @@ def test_send_primary_email_changed_notification_failure():
         mock_send.return_value = False
 
         result = send_primary_email_changed_notification(
-            to_email="old@example.com",
-            new_primary_email="new@example.com",
-            admin_name="Admin User"
+            to_email="old@example.com", new_primary_email="new@example.com", admin_name="Admin User"
         )
 
         assert result is False

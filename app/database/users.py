@@ -266,3 +266,69 @@ def update_user_role(tenant_id: TenantArg, user_id: str, role: str) -> int:
         "update users set role = :role where id = :user_id",
         {"role": role, "user_id": user_id},
     )
+
+
+def update_password(tenant_id: TenantArg, user_id: str, password_hash: str) -> int:
+    """
+    Update a user's password hash.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID to update
+        password_hash: New hashed password
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "update users set password_hash = :password_hash where id = :user_id",
+        {"password_hash": password_hash, "user_id": user_id},
+    )
+
+
+def create_user(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    first_name: str,
+    last_name: str,
+    email: str,
+    role: str = "member",
+) -> dict | None:
+    """
+    Create a new user account (admin operation).
+
+    This creates a user WITHOUT a password. The user will need to set their password
+    via the password reset flow when they receive their invitation email.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        tenant_id_value: The actual tenant ID value to store in the record
+        first_name: User's first name
+        last_name: User's last name
+        email: User's primary email address
+        role: User role ('member', 'admin', or 'super_admin'). Defaults to 'member'.
+
+    Returns:
+        Dict with user_id and email_id, or None if insert failed
+    """
+    # Create user without password_hash (NULL)
+    user = fetchone(
+        tenant_id,
+        """
+        insert into users (tenant_id, first_name, last_name, role, password_hash)
+        values (:tenant_id, :first_name, :last_name, :role, null)
+        returning id
+        """,
+        {
+            "tenant_id": tenant_id_value,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": role,
+        },
+    )
+
+    if not user:
+        return None
+
+    return {"user_id": user["id"]}

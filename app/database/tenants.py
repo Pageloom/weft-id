@@ -28,6 +28,6 @@ def get_tenant_by_id(tenant_id: TenantArg) -> dict | None:
     """
     return fetchone(
         tenant_id,
-        "select id, subdomain from tenants where id = :tenant_id",
+        "select id, subdomain, name from tenants where id = :tenant_id",
         {"tenant_id": tenant_id},
     )

@@ -575,10 +575,7 @@ def test_mfa_setup_email_downgrade_flow(test_user):
                 mock_create.return_value = "123456"
 
                 client = TestClient(app)
-                response = client.post(
-                    "/account/mfa/setup/email",
-                    follow_redirects=False
-                )
+                response = client.post("/account/mfa/setup/email", follow_redirects=False)
 
                 app.dependency_overrides.clear()
 
@@ -597,6 +594,7 @@ def test_mfa_setup_totp_verify_invalid_code(test_user):
 
     # Use real encryption for testing
     from utils.mfa import encrypt_secret
+
     real_secret = "JBSWY3DPEHPK3PXP"
     encrypted = encrypt_secret(real_secret)
 

@@ -9,6 +9,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
 from utils.email import (
+    send_new_user_invitation,
+    send_new_user_privileged_domain_notification,
     send_primary_email_changed_notification,
     send_secondary_email_added_notification,
     send_secondary_email_removed_notification,
@@ -135,6 +137,121 @@ def users_list(
             sort_order=sort_order,
         ),
     )
+
+
+@router.get("/new", response_class=HTMLResponse)
+def new_user(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display form to create a new user."""
+    # Check admin permission
+    if not has_page_access("/users/new", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Get privileged domains for display
+    privileged_domains = database.settings.list_privileged_domains(tenant_id)
+
+    # Get success/error messages from query params
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "users_new.html",
+        get_template_context(
+            request,
+            tenant_id,
+            privileged_domains=privileged_domains,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/new")
+def create_new_user(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    email: Annotated[str, Form()],
+    first_name: Annotated[str, Form()],
+    last_name: Annotated[str, Form()],
+    role: Annotated[str, Form()] = "member",
+):
+    """Create a new user account."""
+    # Check admin permission
+    if not has_page_access("/users/new", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    # Validate inputs
+    email = email.strip().lower()
+    first_name = first_name.strip()
+    last_name = last_name.strip()
+
+    if not email or "@" not in email:
+        return RedirectResponse(url="/users/new?error=invalid_email", status_code=303)
+
+    if not first_name or not last_name:
+        return RedirectResponse(url="/users/new?error=name_required", status_code=303)
+
+    # Validate role
+    if role not in ["member", "admin", "super_admin"]:
+        return RedirectResponse(url="/users/new?error=invalid_role", status_code=303)
+
+    # Only super_admin can create admin or super_admin users
+    if role in ["admin", "super_admin"] and user.get("role") != "super_admin":
+        return RedirectResponse(url="/users/new?error=insufficient_permissions", status_code=303)
+
+    # Check if email already exists
+    if database.user_emails.email_exists(tenant_id, email):
+        return RedirectResponse(url="/users/new?error=email_exists", status_code=303)
+
+    # Extract domain and check if it's privileged
+    domain = email.split("@")[1]
+    is_privileged_domain = database.settings.privileged_domain_exists(tenant_id, domain)
+
+    # Create the user
+    result = database.users.create_user(tenant_id, tenant_id, first_name, last_name, email, role)
+
+    if not result:
+        return RedirectResponse(url="/users/new?error=creation_failed", status_code=303)
+
+    user_id = result["user_id"]
+
+    # Get tenant name for email
+    tenant_info = database.tenants.get_tenant_by_id(tenant_id)
+    org_name = tenant_info.get("name", "Loom") if tenant_info else "Loom"
+
+    # Create email record and send appropriate notification
+    admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+
+    if is_privileged_domain:
+        # Auto-verify email for privileged domains
+        email_result = database.user_emails.add_verified_email(tenant_id, user_id, email, tenant_id)
+        if email_result:
+            # Set as primary email
+            database.user_emails.set_primary_email(tenant_id, email_result["id"])
+
+        # Send welcome email with password set link
+        # TODO: For now, we'll use a placeholder URL
+        # This should integrate with password reset flow
+        password_set_url = f"{request.base_url}password-reset?email={email}"
+        send_new_user_privileged_domain_notification(email, admin_name, org_name, password_set_url)
+    else:
+        # Add unverified email for non-privileged domains
+        email_result = database.user_emails.add_email(tenant_id, user_id, email, tenant_id)
+        if email_result:
+            # Set as primary email even though unverified
+            database.user_emails.set_primary_email(tenant_id, email_result["id"])
+
+            # Send invitation email with verification link
+            verify_nonce = email_result["verify_nonce"]
+            email_id = email_result["id"]
+            verification_url = f"{request.base_url}verify-email/{email_id}/{verify_nonce}"
+            send_new_user_invitation(email, admin_name, org_name, verification_url)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=user_created", status_code=303)
 
 
 @router.get("/{user_id}", response_class=HTMLResponse)

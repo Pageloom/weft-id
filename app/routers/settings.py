@@ -54,15 +54,7 @@ def privileged_domains(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Fetch all privileged domains for this tenant
-    domains = database.fetchall(
-        tenant_id,
-        """
-        select pd.id, pd.domain, pd.created_at, u.first_name, u.last_name
-        from tenant_privileged_domains pd
-        left join users u on pd.created_by = u.id
-        order by pd.created_at desc
-        """,
-    )
+    domains = database.settings.list_privileged_domains(tenant_id)
 
     error = request.query_params.get("error")
 
@@ -108,26 +100,13 @@ def add_privileged_domain(
         )
 
     # Check if domain already exists for this tenant
-    existing = database.fetchone(
-        tenant_id,
-        "select id from tenant_privileged_domains where domain = :domain",
-        {"domain": domain_clean},
-    )
-
-    if existing:
+    if database.settings.privileged_domain_exists(tenant_id, domain_clean):
         return RedirectResponse(
             url="/settings/privileged-domains?error=domain_exists", status_code=303
         )
 
     # Insert the new privileged domain
-    database.execute(
-        tenant_id,
-        """
-        insert into tenant_privileged_domains (tenant_id, domain, created_by)
-        values (:tenant_id, :domain, :created_by)
-        """,
-        {"tenant_id": tenant_id, "domain": domain_clean, "created_by": user["id"]},
-    )
+    database.settings.add_privileged_domain(tenant_id, domain_clean, user["id"], tenant_id)
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
@@ -149,11 +128,7 @@ def delete_privileged_domain(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Delete the domain (RLS ensures it belongs to this tenant)
-    database.execute(
-        tenant_id,
-        "delete from tenant_privileged_domains where id = :domain_id",
-        {"domain_id": domain_id},
-    )
+    database.settings.delete_privileged_domain(tenant_id, domain_id)
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
@@ -173,16 +148,7 @@ def tenant_security(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Fetch current security settings for this tenant
-    settings_row = database.fetchone(
-        tenant_id,
-        """
-        select session_timeout_seconds, persistent_sessions,
-               allow_users_edit_profile, allow_users_add_emails
-        from tenant_security_settings
-        where tenant_id = :tenant_id
-        """,
-        {"tenant_id": tenant_id},
-    )
+    settings_row = database.security.get_security_settings(tenant_id)
 
     current_timeout = settings_row["session_timeout_seconds"] if settings_row else None
     persistent_sessions = settings_row["persistent_sessions"] if settings_row else True
@@ -247,34 +213,14 @@ def update_tenant_security(
     allow_add_emails = allow_users_add_emails == "true"
 
     # Upsert the security settings
-    database.execute(
+    database.security.update_security_settings(
         tenant_id,
-        """
-        insert into tenant_security_settings (
-            tenant_id, session_timeout_seconds, persistent_sessions,
-            allow_users_edit_profile, allow_users_add_emails, updated_by
-        )
-        values (
-            :tenant_id, :timeout_seconds, :persistent_sessions,
-            :allow_users_edit_profile, :allow_users_add_emails, :updated_by
-        )
-        on conflict (tenant_id)
-        do update set
-            session_timeout_seconds = :timeout_seconds,
-            persistent_sessions = :persistent_sessions,
-            allow_users_edit_profile = :allow_users_edit_profile,
-            allow_users_add_emails = :allow_users_add_emails,
-            updated_at = now(),
-            updated_by = :updated_by
-        """,
-        {
-            "tenant_id": tenant_id,
-            "timeout_seconds": timeout_seconds,
-            "persistent_sessions": persistent,
-            "allow_users_edit_profile": allow_edit_profile,
-            "allow_users_add_emails": allow_add_emails,
-            "updated_by": user["id"],
-        },
+        timeout_seconds,
+        persistent,
+        allow_edit_profile,
+        allow_add_emails,
+        user["id"],
+        tenant_id,
     )
 
     return RedirectResponse(url="/settings/tenant-security?success=1", status_code=303)

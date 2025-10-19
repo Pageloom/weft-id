@@ -100,30 +100,7 @@ def verify_backup_code(tenant_id: str, user_id: str, code: str) -> bool:
     Returns True if valid, False otherwise.
     """
     code_hash = hash_code(code.upper().replace("-", ""))
-
-    # Find unused backup code
-    backup_code = database.fetchone(
-        tenant_id,
-        """
-        select id from mfa_backup_codes
-        where user_id = :user_id
-          and code_hash = :code_hash
-          and used_at is null
-        """,
-        {"user_id": user_id, "code_hash": code_hash},
-    )
-
-    if not backup_code:
-        return False
-
-    # Mark as used
-    database.execute(
-        tenant_id,
-        "update mfa_backup_codes set used_at = now() where id = :id",
-        {"id": backup_code["id"]},
-    )
-
-    return True
+    return database.mfa.verify_backup_code(tenant_id, user_id, code_hash)
 
 
 def generate_email_otp() -> str:
@@ -140,19 +117,7 @@ def create_email_otp(tenant_id: str, user_id: str, expiry_minutes: int = 10) -> 
     code_hash = hash_code(code)
     expires_at = datetime.utcnow() + timedelta(minutes=expiry_minutes)
 
-    database.execute(
-        tenant_id,
-        """
-        insert into mfa_email_codes (tenant_id, user_id, code_hash, expires_at)
-        values (:tenant_id, :user_id, :code_hash, :expires_at)
-        """,
-        {
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "code_hash": code_hash,
-            "expires_at": expires_at,
-        },
-    )
+    database.mfa.create_email_otp(tenant_id, user_id, code_hash, expires_at, tenant_id)
 
     return code
 
@@ -163,45 +128,7 @@ def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
     Returns True if valid and not expired, False otherwise.
     """
     code_hash = hash_code(code)
-
-    # Find valid, unused, non-expired code
-    email_code = database.fetchone(
-        tenant_id,
-        """
-        select id from mfa_email_codes
-        where user_id = :user_id
-          and code_hash = :code_hash
-          and used_at is null
-          and expires_at > now()
-        order by created_at desc
-        limit 1
-        """,
-        {"user_id": user_id, "code_hash": code_hash},
-    )
-
-    if not email_code:
-        return False
-
-    # Mark as used
-    database.execute(
-        tenant_id,
-        "update mfa_email_codes set used_at = now() where id = :id",
-        {"id": email_code["id"]},
-    )
-
-    return True
-
-
-def get_user_mfa_method(tenant_id: str, user_id: str) -> dict | None:
-    """
-    Get the user's active MFA method.
-    Returns dict with 'mfa_enabled' and 'mfa_method', or None if not found.
-    """
-    return database.fetchone(
-        tenant_id,
-        "select mfa_enabled, mfa_method from users where id = :user_id",
-        {"user_id": user_id},
-    )
+    return database.mfa.verify_email_otp(tenant_id, user_id, code_hash)
 
 
 def get_totp_secret(tenant_id: str, user_id: str, method: str) -> str | None:
@@ -209,14 +136,7 @@ def get_totp_secret(tenant_id: str, user_id: str, method: str) -> str | None:
     Get and decrypt the user's TOTP secret for a specific method.
     Returns decrypted secret or None if not found.
     """
-    row = database.fetchone(
-        tenant_id,
-        """
-        select secret_encrypted from mfa_totp
-        where user_id = :user_id and method = :method and verified_at is not null
-        """,
-        {"user_id": user_id, "method": method},
-    )
+    row = database.mfa.get_verified_totp_secret(tenant_id, user_id, method)
 
     if not row:
         return None

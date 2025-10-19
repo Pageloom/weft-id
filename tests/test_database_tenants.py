@@ -1,7 +1,5 @@
 """Tests for database.tenants module."""
 
-import pytest
-
 
 def test_get_tenant_by_subdomain(test_tenant):
     """Test retrieving a tenant by subdomain."""
@@ -35,8 +33,9 @@ def test_get_tenant_by_id(test_tenant):
 
 def test_get_tenant_by_id_not_found():
     """Test retrieving a non-existent tenant by ID returns None."""
-    import database
     from uuid import uuid4
+
+    import database
 
     tenant = database.tenants.get_tenant_by_id(uuid4())
 

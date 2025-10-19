@@ -1,8 +1,8 @@
 """Tests for routers/auth.py endpoints."""
 
-import pytest
+from unittest.mock import Mock, patch
+
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, MagicMock
 from main import app
 
 
@@ -14,9 +14,9 @@ def test_login_page_not_authenticated(test_tenant):
     # Override tenant dependency
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch('routers.auth.get_current_user') as mock_user:
-        with patch('routers.auth.get_tenant_id_from_request') as mock_tenant:
-            with patch('routers.auth.templates.TemplateResponse') as mock_template:
+    with patch("routers.auth.get_current_user") as mock_user:
+        with patch("routers.auth.get_tenant_id_from_request") as mock_tenant:
+            with patch("routers.auth.templates.TemplateResponse") as mock_template:
                 mock_user.return_value = None
                 mock_tenant.return_value = test_tenant["id"]
                 mock_template.return_value = HTMLResponse(content="<html>login page</html>")
@@ -37,8 +37,8 @@ def test_login_page_already_authenticated_redirects(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('routers.auth.get_current_user') as mock_user:
-        with patch('routers.auth.get_tenant_id_from_request') as mock_tenant:
+    with patch("routers.auth.get_current_user") as mock_user:
+        with patch("routers.auth.get_tenant_id_from_request") as mock_tenant:
             mock_user.return_value = test_user
             mock_tenant.return_value = test_user["tenant_id"]
 
@@ -58,15 +58,16 @@ def test_login_post_invalid_credentials(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch('routers.auth.verify_login') as mock_verify:
-        with patch('routers.auth.templates.TemplateResponse') as mock_template:
+    with patch("routers.auth.verify_login") as mock_verify:
+        with patch("routers.auth.templates.TemplateResponse") as mock_template:
             mock_verify.return_value = None
-            mock_template.return_value = HTMLResponse(content="<html>Invalid email or password</html>")
+            mock_template.return_value = HTMLResponse(
+                content="<html>Invalid email or password</html>"
+            )
 
             client = TestClient(app)
             response = client.post(
-                "/login",
-                data={"email": "wrong@example.com", "password": "wrongpass"}
+                "/login", data={"email": "wrong@example.com", "password": "wrongpass"}
             )
 
             app.dependency_overrides.clear()
@@ -91,10 +92,10 @@ def test_login_post_valid_credentials_with_email_mfa(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('routers.auth.verify_login') as mock_verify:
-        with patch('routers.auth.create_email_otp') as mock_create_otp:
-            with patch('routers.auth.database.user_emails.get_primary_email') as mock_get_email:
-                with patch('routers.auth.send_mfa_code_email') as mock_send_email:
+    with patch("routers.auth.verify_login") as mock_verify:
+        with patch("routers.auth.create_email_otp") as mock_create_otp:
+            with patch("routers.auth.database.user_emails.get_primary_email") as mock_get_email:
+                with patch("routers.auth.send_mfa_code_email") as mock_send_email:
                     mock_verify.return_value = test_user_with_mfa
                     mock_create_otp.return_value = "123456"
                     mock_get_email.return_value = {"email": test_user["email"]}
@@ -106,9 +107,9 @@ def test_login_post_valid_credentials_with_email_mfa(test_user):
                             "email": test_user["email"],
                             "password": "TestPassword123!",
                             "timezone": "America/New_York",
-                            "locale": "en-US"
+                            "locale": "en-US",
                         },
-                        follow_redirects=False
+                        follow_redirects=False,
                     )
 
                     app.dependency_overrides.clear()
@@ -127,10 +128,10 @@ def test_login_post_valid_credentials_without_email_row(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('routers.auth.verify_login') as mock_verify:
-        with patch('routers.auth.create_email_otp') as mock_create_otp:
-            with patch('routers.auth.database.user_emails.get_primary_email') as mock_get_email:
-                with patch('routers.auth.send_mfa_code_email') as mock_send_email:
+    with patch("routers.auth.verify_login") as mock_verify:
+        with patch("routers.auth.create_email_otp") as mock_create_otp:
+            with patch("routers.auth.database.user_emails.get_primary_email") as mock_get_email:
+                with patch("routers.auth.send_mfa_code_email") as mock_send_email:
                     mock_verify.return_value = test_user_with_mfa
                     mock_create_otp.return_value = "123456"
                     mock_get_email.return_value = None  # No email row
@@ -138,11 +139,8 @@ def test_login_post_valid_credentials_without_email_row(test_user):
                     client = TestClient(app)
                     response = client.post(
                         "/login",
-                        data={
-                            "email": test_user["email"],
-                            "password": "TestPassword123!"
-                        },
-                        follow_redirects=False
+                        data={"email": test_user["email"], "password": "TestPassword123!"},
+                        follow_redirects=False,
                     )
 
                     app.dependency_overrides.clear()
@@ -162,17 +160,14 @@ def test_login_post_with_totp_mfa(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('routers.auth.verify_login') as mock_verify:
+    with patch("routers.auth.verify_login") as mock_verify:
         mock_verify.return_value = test_user_with_totp
 
         client = TestClient(app)
         response = client.post(
             "/login",
-            data={
-                "email": test_user["email"],
-                "password": "TestPassword123!"
-            },
-            follow_redirects=False
+            data={"email": test_user["email"], "password": "TestPassword123!"},
+            follow_redirects=False,
         )
 
         app.dependency_overrides.clear()
@@ -206,7 +201,7 @@ def test_dashboard_not_authenticated(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch('dependencies.auth.get_current_user') as mock_user:
+    with patch("dependencies.auth.get_current_user") as mock_user:
         mock_user.return_value = None
 
         client = TestClient(app)
@@ -225,17 +220,17 @@ def test_dashboard_authenticated(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('dependencies.auth.get_current_user') as mock_user:
-        with patch('database.user_emails.get_primary_email') as mock_get_email:
-            with patch('utils.template_context.get_template_context') as mock_context:
-                with patch('routers.auth.templates.TemplateResponse') as mock_template:
+    with patch("dependencies.auth.get_current_user") as mock_user:
+        with patch("database.user_emails.get_primary_email") as mock_get_email:
+            with patch("utils.template_context.get_template_context") as mock_context:
+                with patch("routers.auth.templates.TemplateResponse") as mock_template:
                     mock_user.return_value = test_user
                     mock_get_email.return_value = {"email": test_user["email"]}
                     mock_context.return_value = {
                         "request": Mock(),
                         "user": test_user,
                         "nav_items": [],
-                        "nav": {}
+                        "nav": {},
                     }
                     mock_template.return_value = HTMLResponse(content="<html>dashboard</html>")
 
@@ -256,17 +251,17 @@ def test_dashboard_authenticated_no_email(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch('dependencies.auth.get_current_user') as mock_user:
-        with patch('database.user_emails.get_primary_email') as mock_get_email:
-            with patch('utils.template_context.get_template_context') as mock_context:
-                with patch('routers.auth.templates.TemplateResponse') as mock_template:
+    with patch("dependencies.auth.get_current_user") as mock_user:
+        with patch("database.user_emails.get_primary_email") as mock_get_email:
+            with patch("utils.template_context.get_template_context") as mock_context:
+                with patch("routers.auth.templates.TemplateResponse") as mock_template:
                     mock_user.return_value = test_user
                     mock_get_email.return_value = None  # No email
                     mock_context.return_value = {
                         "request": Mock(),
                         "user": test_user,
                         "nav_items": [],
-                        "nav": {}
+                        "nav": {},
                     }
                     mock_template.return_value = HTMLResponse(content="<html>dashboard</html>")
 

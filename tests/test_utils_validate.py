@@ -1,6 +1,7 @@
 """Tests for subdomain validation utilities."""
 
 import pytest
+
 from app.utils.validate import subdomain
 
 

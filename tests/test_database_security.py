@@ -1,7 +1,5 @@
 """Tests for database.security module."""
 
-import pytest
-
 
 def test_get_security_settings(test_tenant, test_admin_user):
     """Test retrieving all security settings."""
@@ -15,7 +13,7 @@ def test_get_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=False,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_security_settings(test_tenant["id"])
@@ -39,7 +37,7 @@ def test_get_session_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_session_settings(test_tenant["id"])
@@ -61,7 +59,7 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_session_timeout(test_tenant["id"])
@@ -82,7 +80,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     result = database.security.can_user_edit_profile(test_tenant["id"])
@@ -98,7 +96,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         allow_users_edit_profile=False,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     result = database.security.can_user_edit_profile(test_tenant["id"])
@@ -119,7 +117,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     result = database.security.can_user_add_emails(test_tenant["id"])
@@ -135,7 +133,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=False,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     result = database.security.can_user_add_emails(test_tenant["id"])
@@ -156,7 +154,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_security_settings(test_tenant["id"])
@@ -170,7 +168,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=False,
         allow_users_add_emails=False,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_security_settings(test_tenant["id"])
@@ -192,7 +190,7 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"]
+        tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_security_settings(test_tenant["id"])

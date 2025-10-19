@@ -1,7 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(make typecheck)"
+      "Bash(make typecheck)",
+      "Bash(python -m py_compile app/routers/users.py app/database/users.py app/database/user_emails.py app/utils/email.py app/pages.py)",
+      "Bash(poetry run pytest tests/test_routers_account.py tests/test_routers_users.py tests/test_pages.py -v)",
+      "Bash(make format)",
+      "Bash(poetry run pytest tests/test_routers_account.py tests/test_routers_users.py tests/test_pages.py -v --tb=no)",
+      "Bash(git add tests/test_routers_account.py tests/test_routers_users.py tests/test_pages.py app/dependencies.py tests/)",
+      "Bash(poetry run pytest tests/ --cov=app --cov-report=term-missing --tb=no -q)",
+      "Bash(poetry run pytest tests/test_routers_account.py::test_verify_email_invalid_user -v)",
+      "Bash(poetry run python -m py_compile app/routers/users.py app/database/users.py app/pages.py app/utils/email.py tests/test_routers_users.py)",
+      "Bash(poetry run pytest tests/test_routers_users.py::test_new_user_page_renders tests/test_routers_users.py::test_create_new_user_with_privileged_domain tests/test_routers_users.py::test_create_new_user_with_non_privileged_domain tests/test_routers_users.py::test_create_new_user_invalid_email tests/test_routers_users.py::test_create_new_user_missing_name -v)",
+      "Bash(poetry run pytest tests/test_routers_users.py::test_create_new_user_with_privileged_domain tests/test_routers_users.py::test_create_new_user_with_non_privileged_domain tests/test_routers_users.py::test_create_new_user_super_admin_can_create_admin -v)",
+      "Bash(poetry run pytest tests/test_routers_auth.py tests/test_routers_users.py -v --tb=no -q)",
+      "Bash(poetry run pytest tests/test_routers_auth.py -v --tb=short)",
+      "Bash(poetry run pytest tests/test_routers_auth.py -v --tb=no -q)"
     ],
     "deny": [],
     "ask": []

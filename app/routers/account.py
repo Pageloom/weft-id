@@ -76,30 +76,14 @@ def update_profile(
     # Check if user is allowed to edit their profile
     # Super admins are always allowed, otherwise check tenant security setting
     if user.get("role") != "super_admin":
-        security_settings = database.fetchone(
-            tenant_id,
-            """
-            select allow_users_edit_profile
-            from tenant_security_settings
-            where tenant_id = :tenant_id
-            """,
-            {"tenant_id": tenant_id},
-        )
+        security_settings = database.security.can_user_edit_profile(tenant_id)
 
         # If setting exists and is False, deny access
         if security_settings and not security_settings.get("allow_users_edit_profile"):
             return RedirectResponse(url="/account/profile", status_code=303)
 
     # Update user's name
-    database.execute(
-        tenant_id,
-        """
-        update users
-        set first_name = :first_name, last_name = :last_name
-        where id = :user_id
-        """,
-        {"first_name": first_name.strip(), "last_name": last_name.strip(), "user_id": user["id"]},
-    )
+    database.users.update_user_profile(tenant_id, user["id"], first_name.strip(), last_name.strip())
 
     return RedirectResponse(url="/account/profile", status_code=303)
 
@@ -124,11 +108,7 @@ def update_timezone(
         ZoneInfo(timezone)
 
         # Update user's timezone
-        database.execute(
-            tenant_id,
-            "update users set tz = :tz where id = :user_id",
-            {"tz": timezone, "user_id": user["id"]},
-        )
+        database.users.update_user_timezone(tenant_id, user["id"], timezone)
     except ZoneInfoNotFoundError:
         # Invalid timezone, skip update
         pass
@@ -163,23 +143,11 @@ def update_regional(
 
     # Update both timezone and locale if timezone is valid
     if tz_valid and locale:
-        database.execute(
-            tenant_id,
-            "update users set tz = :tz, locale = :locale where id = :user_id",
-            {"tz": timezone, "locale": locale, "user_id": user["id"]},
-        )
+        database.users.update_user_timezone_and_locale(tenant_id, user["id"], timezone, locale)
     elif tz_valid:
-        database.execute(
-            tenant_id,
-            "update users set tz = :tz where id = :user_id",
-            {"tz": timezone, "user_id": user["id"]},
-        )
+        database.users.update_user_timezone(tenant_id, user["id"], timezone)
     elif locale:
-        database.execute(
-            tenant_id,
-            "update users set locale = :locale where id = :user_id",
-            {"locale": locale, "user_id": user["id"]},
-        )
+        database.users.update_user_locale(tenant_id, user["id"], locale)
 
     return RedirectResponse(url="/account/profile", status_code=303)
 
@@ -195,16 +163,7 @@ def email_settings(
         return RedirectResponse(url="/login", status_code=303)
 
     # Fetch all email addresses for this user
-    emails = database.fetchall(
-        tenant_id,
-        """
-        select id, email, is_primary, verified_at, created_at
-        from user_emails
-        where user_id = :user_id
-        order by is_primary desc, created_at asc
-        """,
-        {"user_id": user["id"]},
-    )
+    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
 
     return templates.TemplateResponse(
         "settings_emails.html", get_template_context(request, tenant_id, emails=emails)
@@ -220,15 +179,7 @@ def mfa_settings(request: Request, tenant_id: Annotated[str, Depends(get_tenant_
         return RedirectResponse(url="/login", status_code=303)
 
     # Check if user has backup codes
-    backup_codes = database.fetchall(
-        tenant_id,
-        """
-        select id, code_hash, used_at from mfa_backup_codes
-        where user_id = :user_id
-        order by created_at asc
-        """,
-        {"user_id": user["id"]},
-    )
+    backup_codes = database.mfa.list_backup_codes(tenant_id, user["id"])
 
     return templates.TemplateResponse(
         "settings_mfa.html",
@@ -256,42 +207,20 @@ def add_email(
     # Check if user is allowed to add emails
     # Super admins are always allowed, otherwise check tenant security setting
     if user.get("role") != "super_admin":
-        security_settings = database.fetchone(
-            tenant_id,
-            """
-            select allow_users_add_emails
-            from tenant_security_settings
-            where tenant_id = :tenant_id
-            """,
-            {"tenant_id": tenant_id},
-        )
+        security_settings = database.security.can_user_add_emails(tenant_id)
 
         # If setting exists and is False, deny access
         if security_settings and not security_settings.get("allow_users_add_emails"):
             return RedirectResponse(url="/account/emails", status_code=303)
 
     # Check if email already exists for this tenant
-    existing = database.fetchone(
-        tenant_id,
-        "select id from user_emails where email = :email",
-        {"email": email.lower()},
-    )
-
-    if existing:
+    if database.user_emails.email_exists(tenant_id, email.lower()):
         # Email already exists - redirect back with error
         # TODO: Add flash message support
         return RedirectResponse(url="/account/emails", status_code=303)
 
     # Add the new email (unverified)
-    result = database.fetchone(
-        tenant_id,
-        """
-        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
-        values (:tenant_id, :user_id, :email, false, null)
-        returning id, verify_nonce
-        """,
-        {"tenant_id": user["tenant_id"], "user_id": user["id"], "email": email.lower()},
-    )
+    result = database.user_emails.add_email(tenant_id, user["id"], email.lower(), user["tenant_id"])
 
     # Send verification email
     if result:
@@ -316,29 +245,17 @@ def set_primary_email(
         return RedirectResponse(url="/login", status_code=303)
 
     # Verify the email belongs to this user and is verified
-    email = database.fetchone(
-        tenant_id,
-        "select id, verified_at from user_emails where id = :email_id and user_id = :user_id",
-        {"email_id": email_id, "user_id": user["id"]},
-    )
+    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
 
     if not email or not email["verified_at"]:
         # Can't set unverified email as primary
         return RedirectResponse(url="/account/emails", status_code=303)
 
     # Unset current primary
-    database.execute(
-        tenant_id,
-        "update user_emails set is_primary = false where user_id = :user_id and is_primary = true",
-        {"user_id": user["id"]},
-    )
+    database.user_emails.unset_primary_emails(tenant_id, user["id"])
 
     # Set new primary
-    database.execute(
-        tenant_id,
-        "update user_emails set is_primary = true where id = :email_id",
-        {"email_id": email_id},
-    )
+    database.user_emails.set_primary_email(tenant_id, email_id)
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -356,22 +273,14 @@ def delete_email(
         return RedirectResponse(url="/login", status_code=303)
 
     # Verify the email belongs to this user and is not primary
-    email = database.fetchone(
-        tenant_id,
-        "select id, is_primary from user_emails where id = :email_id and user_id = :user_id",
-        {"email_id": email_id, "user_id": user["id"]},
-    )
+    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
 
     if not email or email["is_primary"]:
         # Can't delete primary email or email that doesn't exist
         return RedirectResponse(url="/account/emails", status_code=303)
 
     # Delete the email
-    database.execute(
-        tenant_id,
-        "delete from user_emails where id = :email_id",
-        {"email_id": email_id},
-    )
+    database.user_emails.delete_email(tenant_id, email_id)
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -389,14 +298,7 @@ def resend_verification(
         return RedirectResponse(url="/login", status_code=303)
 
     # Verify the email belongs to this user
-    email = database.fetchone(
-        tenant_id,
-        """
-        select id, email, verify_nonce from user_emails
-        where id = :email_id and user_id = :user_id
-        """,
-        {"email_id": email_id, "user_id": user["id"]},
-    )
+    email = database.user_emails.get_email_with_nonce(tenant_id, email_id, user["id"])
 
     if not email:
         return RedirectResponse(url="/account/emails", status_code=303)
@@ -419,14 +321,7 @@ def verify_email(
 ):
     """Verify an email address using the verification link."""
     # Look up the email by ID and nonce
-    email = database.fetchone(
-        tenant_id,
-        """
-        select id, user_id, email, verified_at, verify_nonce from user_emails
-        where id = :email_id
-        """,
-        {"email_id": email_id},
-    )
+    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
 
     if not email:
         return RedirectResponse(url="/login", status_code=303)
@@ -440,15 +335,7 @@ def verify_email(
         return RedirectResponse(url="/account/emails", status_code=303)
 
     # Mark as verified and increment nonce
-    database.execute(
-        tenant_id,
-        """
-        update user_emails
-        set verified_at = now(), verify_nonce = verify_nonce + 1
-        where id = :email_id
-        """,
-        {"email_id": email_id},
-    )
+    database.user_emails.verify_email(tenant_id, email_id)
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -474,11 +361,7 @@ def mfa_setup_totp(
     secret_encrypted = encrypt_secret(secret)
 
     # Get user email for URI
-    email_row = database.fetchone(
-        tenant_id,
-        "select email from user_emails where user_id = :user_id and is_primary = true",
-        {"user_id": user["id"]},
-    )
+    email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
     email = email_row["email"] if email_row else "user@example.com"
 
     # Generate URI for QR code
@@ -486,17 +369,7 @@ def mfa_setup_totp(
     secret_display = format_secret_for_display(secret)
 
     # Store unverified secret
-    database.execute(
-        tenant_id,
-        """
-        insert into mfa_totp (tenant_id, user_id, secret_encrypted, method)
-        values (:tenant_id, :user_id, :secret_encrypted, 'totp')
-        on conflict (user_id, method) do update
-        set secret_encrypted = excluded.secret_encrypted,
-            verified_at = null
-        """,
-        {"tenant_id": tenant_id, "user_id": user["id"], "secret_encrypted": secret_encrypted},
-    )
+    database.mfa.create_totp_secret(tenant_id, user["id"], secret_encrypted, tenant_id)
 
     return templates.TemplateResponse(
         "mfa_setup_totp.html",
@@ -522,11 +395,7 @@ def mfa_setup_email(
         request.session["pending_mfa_downgrade"] = "email"
 
         # Get primary email
-        email_row = database.fetchone(
-            tenant_id,
-            "select email from user_emails where user_id = :user_id and is_primary = true",
-            {"user_id": user["id"]},
-        )
+        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
 
         if email_row:
             # Send verification code via email
@@ -540,11 +409,7 @@ def mfa_setup_email(
         return RedirectResponse(url="/account/mfa/downgrade-verify", status_code=303)
 
     # Normal case: switching to email MFA without downgrading
-    database.execute(
-        tenant_id,
-        "update users set mfa_enabled = true, mfa_method = :method where id = :user_id",
-        {"method": "email", "user_id": user["id"]},
-    )
+    database.mfa.enable_mfa(tenant_id, user["id"], "email")
 
     return RedirectResponse(url="/account/mfa", status_code=303)
 
@@ -566,14 +431,7 @@ def mfa_setup_verify(
         return RedirectResponse(url="/account/mfa", status_code=303)
 
     # Get unverified secret
-    row = database.fetchone(
-        tenant_id,
-        """
-        select secret_encrypted from mfa_totp
-        where user_id = :user_id and method = :method
-        """,
-        {"user_id": user["id"], "method": method},
-    )
+    row = database.mfa.get_totp_secret(tenant_id, user["id"], method)
 
     if not row:
         return RedirectResponse(url="/account/mfa", status_code=303)
@@ -583,11 +441,7 @@ def mfa_setup_verify(
 
     if not verify_totp_code(secret, code_clean):
         # Get user email for error display
-        email_row = database.fetchone(
-            tenant_id,
-            "select email from user_emails where user_id = :user_id and is_primary = true",
-            {"user_id": user["id"]},
-        )
+        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
         email = email_row["email"] if email_row else "user@example.com"
         uri = generate_totp_uri(secret, email)
         secret_display = format_secret_for_display(secret)
@@ -600,23 +454,13 @@ def mfa_setup_verify(
         )
 
     # Mark as verified
-    database.execute(
-        tenant_id,
-        "update mfa_totp set verified_at = now() where user_id = :user_id and method = :method",
-        {"user_id": user["id"], "method": method},
-    )
+    database.mfa.verify_totp_secret(tenant_id, user["id"], method)
 
     # Enable MFA on user account
-    database.execute(
-        tenant_id,
-        "update users set mfa_enabled = true, mfa_method = :method where id = :user_id",
-        {"method": method, "user_id": user["id"]},
-    )
+    database.mfa.enable_mfa(tenant_id, user["id"], method)
 
     # Delete existing backup codes (to replace them with new ones)
-    database.execute(
-        tenant_id, "delete from mfa_backup_codes where user_id = :user_id", {"user_id": user["id"]}
-    )
+    database.mfa.delete_backup_codes(tenant_id, user["id"])
 
     # Generate backup codes
     backup_codes = generate_backup_codes()
@@ -624,14 +468,7 @@ def mfa_setup_verify(
     # Store hashed backup codes
     for code_str in backup_codes:
         code_hash = hash_code(code_str.replace("-", ""))
-        database.execute(
-            tenant_id,
-            """
-            insert into mfa_backup_codes (tenant_id, user_id, code_hash)
-            values (:tenant_id, :user_id, :code_hash)
-            """,
-            {"tenant_id": tenant_id, "user_id": user["id"], "code_hash": code_hash},
-        )
+        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
 
     # Show backup codes
     return templates.TemplateResponse(
@@ -650,9 +487,7 @@ def mfa_regenerate_backup_codes(
         return RedirectResponse(url="/login", status_code=303)
 
     # Delete existing backup codes
-    database.execute(
-        tenant_id, "delete from mfa_backup_codes where user_id = :user_id", {"user_id": user["id"]}
-    )
+    database.mfa.delete_backup_codes(tenant_id, user["id"])
 
     # Generate new backup codes
     backup_codes = generate_backup_codes()
@@ -660,14 +495,7 @@ def mfa_regenerate_backup_codes(
     # Store hashed backup codes
     for code_str in backup_codes:
         code_hash = hash_code(code_str.replace("-", ""))
-        database.execute(
-            tenant_id,
-            """
-            insert into mfa_backup_codes (tenant_id, user_id, code_hash)
-            values (:tenant_id, :user_id, :code_hash)
-            """,
-            {"tenant_id": tenant_id, "user_id": user["id"], "code_hash": code_hash},
-        )
+        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
 
     # Show backup codes
     return templates.TemplateResponse(
@@ -691,14 +519,7 @@ def mfa_generate_backup_codes(
     # Store hashed backup codes
     for code_str in backup_codes:
         code_hash = hash_code(code_str.replace("-", ""))
-        database.execute(
-            tenant_id,
-            """
-            insert into mfa_backup_codes (tenant_id, user_id, code_hash)
-            values (:tenant_id, :user_id, :code_hash)
-            """,
-            {"tenant_id": tenant_id, "user_id": user["id"], "code_hash": code_hash},
-        )
+        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
 
     # Show backup codes
     return templates.TemplateResponse(
@@ -751,18 +572,10 @@ def mfa_downgrade_verify(
         )
 
     # Code verified - complete the downgrade
-    database.execute(
-        tenant_id,
-        "update users set mfa_method = :method where id = :user_id",
-        {"method": pending_method, "user_id": user["id"]},
-    )
+    database.mfa.set_mfa_method(tenant_id, user["id"], pending_method)
 
     # Delete TOTP secrets (no longer needed)
-    database.execute(
-        tenant_id,
-        "delete from mfa_totp where user_id = :user_id",
-        {"user_id": user["id"]},
-    )
+    database.mfa.delete_totp_secrets(tenant_id, user["id"])
 
     # Clear session
     request.session.pop("pending_mfa_downgrade", None)

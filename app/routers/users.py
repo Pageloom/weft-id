@@ -55,13 +55,7 @@ def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
         icu_collation = f"{user_locale.replace('_', '-')}-x-icu"
 
         # Check if this collation exists in the database
-        collation_exists = database.fetchone(
-            tenant_id,
-            "select 1 from pg_collation where collname = %(collation)s",
-            {"collation": icu_collation},
-        )
-
-        if collation_exists:
+        if database.users.check_collation_exists(tenant_id, icu_collation):
             collation = icu_collation
 
     # Parse query parameters
@@ -81,70 +75,35 @@ def users_list(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id
     except ValueError:
         page_size = 25
 
-    # Whitelist allowed sort fields to prevent SQL injection
-    # For name, we need to apply the sort order to both fields
-    # For text fields, add COLLATE clause if user has a locale set
-    # Note: role is an ENUM type and cannot use COLLATE
-    collate_clause = f' COLLATE "{collation}"' if collation else ""
-    sort_field_map = {
-        "name": f"u.last_name{collate_clause} {{order}}, u.first_name{collate_clause} {{order}}",
-        "email": f"ue.email{collate_clause} {{order}}",
-        "role": "u.role {order}",  # ENUM type - cannot use COLLATE
-        "last_login": "u.last_login {order}",
-        "created_at": "u.created_at {order}",
-    }
-
-    if sort_field not in sort_field_map:
+    # Validate sort field and order (validation also happens in database.users.list_users)
+    allowed_sort_fields = ["name", "email", "role", "last_login", "created_at"]
+    if sort_field not in allowed_sort_fields:
         sort_field = "created_at"
 
     # Validate sort order
     if sort_order not in ["asc", "desc"]:
         sort_order = "desc"
 
-    # Build WHERE clause for search
-    where_clause = ""
-    params = {}
-    if search:
-        where_clause = """
-            where u.first_name ilike %(search)s
-               or u.last_name ilike %(search)s
-               or ue.email ilike %(search)s
-        """
-        params["search"] = f"%{search}%"
-
     # Get total count for pagination
-    count_query = f"""
-        select count(distinct u.id) as count
-        from users u
-        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
-        {where_clause}
-    """
-    count_result = database.fetchone(tenant_id, count_query, params)
-    total_count = count_result["count"] if count_result else 0
+    total_count = database.users.count_users(tenant_id, search if search else None)
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
     # Ensure page is within bounds
     page = min(page, total_pages)
 
-    # Build main query with sorting and pagination
+    # Fetch users with pagination
+    users = database.users.list_users(
+        tenant_id,
+        search if search else None,
+        sort_field,
+        sort_order,
+        page,
+        page_size,
+        collation,
+    )
+
+    # Calculate offset for pagination metadata
     offset = (page - 1) * page_size
-    # Convert to dict[str, str | int] for params
-    query_params: dict[str, str | int] = {**params, "limit": page_size, "offset": offset}
-
-    # Build ORDER BY clause with proper sort order applied
-    order_by_clause = sort_field_map[sort_field].format(order=sort_order)
-
-    users_query = f"""
-        select u.id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
-               ue.email
-        from users u
-        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
-        {where_clause}
-        order by {order_by_clause}
-        limit %(limit)s offset %(offset)s
-    """
-
-    users = database.fetchall(tenant_id, users_query, query_params)
 
     # Pagination metadata
     pagination = {

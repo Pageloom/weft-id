@@ -57,11 +57,7 @@ def login(
     if user.get("mfa_method") == "email":
         code = create_email_otp(tenant_id, user["id"])
         # Get user's email
-        email_row = database.fetchone(
-            tenant_id,
-            "select email from user_emails where user_id = :user_id and is_primary = true",
-            {"user_id": user["id"]},
-        )
+        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
         if email_row:
             send_mfa_code_email(email_row["email"], code)
 
@@ -88,11 +84,7 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
     import database
     from utils.template_context import get_template_context
 
-    email_row = database.fetchone(
-        tenant_id,
-        "select email from user_emails where user_id = :user_id and is_primary = true",
-        {"user_id": user["id"]},
-    )
+    email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
 
     user["email"] = email_row["email"] if email_row else "N/A"
 

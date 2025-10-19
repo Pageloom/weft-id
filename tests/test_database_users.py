@@ -1,7 +1,5 @@
 """Tests for database.users module."""
 
-import pytest
-
 
 def test_get_user_by_id(test_user):
     """Test retrieving a user by ID."""
@@ -42,10 +40,7 @@ def test_update_user_profile(test_user):
 
     # Update the user's profile
     database.users.update_user_profile(
-        test_user["tenant_id"],
-        test_user["id"],
-        first_name="Updated",
-        last_name="Name"
+        test_user["tenant_id"], test_user["id"], first_name="Updated", last_name="Name"
     )
 
     # Verify the update
@@ -70,10 +65,7 @@ def test_list_users_with_search(test_user):
     import database
 
     users = database.users.list_users(
-        test_user["tenant_id"],
-        search=test_user["first_name"],
-        page=1,
-        page_size=10
+        test_user["tenant_id"], search=test_user["first_name"], page=1, page_size=10
     )
 
     assert len(users) >= 1
@@ -93,10 +85,7 @@ def test_count_users_with_search(test_user):
     """Test counting users with search query."""
     import database
 
-    count = database.users.count_users(
-        test_user["tenant_id"],
-        search=test_user["first_name"]
-    )
+    count = database.users.count_users(test_user["tenant_id"], search=test_user["first_name"])
 
     assert count >= 1
 
@@ -105,11 +94,7 @@ def test_update_user_timezone(test_user):
     """Test updating user's timezone."""
     import database
 
-    database.users.update_user_timezone(
-        test_user["tenant_id"],
-        test_user["id"],
-        "America/New_York"
-    )
+    database.users.update_user_timezone(test_user["tenant_id"], test_user["id"], "America/New_York")
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
     assert user["tz"] == "America/New_York"
@@ -119,11 +104,7 @@ def test_update_user_locale(test_user):
     """Test updating user's locale."""
     import database
 
-    database.users.update_user_locale(
-        test_user["tenant_id"],
-        test_user["id"],
-        "fr-FR"
-    )
+    database.users.update_user_locale(test_user["tenant_id"], test_user["id"], "fr-FR")
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
     assert user["locale"] == "fr-FR"
@@ -134,10 +115,7 @@ def test_update_user_timezone_and_locale(test_user):
     import database
 
     database.users.update_user_timezone_and_locale(
-        test_user["tenant_id"],
-        test_user["id"],
-        "Europe/London",
-        "en-GB"
+        test_user["tenant_id"], test_user["id"], "Europe/London", "en-GB"
     )
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
@@ -154,10 +132,7 @@ def test_update_last_login(test_user):
     initial_last_login = user_before["last_login"]
 
     # Update last login
-    database.users.update_last_login(
-        test_user["tenant_id"],
-        test_user["id"]
-    )
+    database.users.update_last_login(test_user["tenant_id"], test_user["id"])
 
     # Verify it was updated
     user_after = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
@@ -167,7 +142,10 @@ def test_update_last_login(test_user):
         assert user_after["last_login"] is not None
     else:
         # Timestamps should differ
-        assert user_after["last_login"] != initial_last_login or user_after["last_login"] == initial_last_login
+        assert (
+            user_after["last_login"] != initial_last_login
+            or user_after["last_login"] == initial_last_login
+        )
 
 
 def test_update_timezone_and_last_login(test_user):
@@ -175,9 +153,7 @@ def test_update_timezone_and_last_login(test_user):
     import database
 
     database.users.update_timezone_and_last_login(
-        test_user["tenant_id"],
-        test_user["id"],
-        "Asia/Tokyo"
+        test_user["tenant_id"], test_user["id"], "Asia/Tokyo"
     )
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
@@ -189,11 +165,7 @@ def test_update_locale_and_last_login(test_user):
     """Test updating user's locale and last login together."""
     import database
 
-    database.users.update_locale_and_last_login(
-        test_user["tenant_id"],
-        test_user["id"],
-        "ja-JP"
-    )
+    database.users.update_locale_and_last_login(test_user["tenant_id"], test_user["id"], "ja-JP")
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
     assert user["locale"] == "ja-JP"
@@ -205,10 +177,7 @@ def test_update_timezone_locale_and_last_login(test_user):
     import database
 
     database.users.update_timezone_locale_and_last_login(
-        test_user["tenant_id"],
-        test_user["id"],
-        "Australia/Sydney",
-        "en-AU"
+        test_user["tenant_id"], test_user["id"], "Australia/Sydney", "en-AU"
     )
 
     user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
@@ -222,17 +191,13 @@ def test_check_collation_exists(test_user):
     import database
 
     # C collation should always exist in PostgreSQL
-    exists = database.users.check_collation_exists(
-        test_user["tenant_id"],
-        "C"
-    )
+    exists = database.users.check_collation_exists(test_user["tenant_id"], "C")
 
     assert exists is True
 
     # Non-existent collation
     exists = database.users.check_collation_exists(
-        test_user["tenant_id"],
-        "nonexistent-collation-xyz"
+        test_user["tenant_id"], "nonexistent-collation-xyz"
     )
 
     assert exists is False
@@ -244,10 +209,7 @@ def test_list_users_with_invalid_sort_field(test_user):
 
     # Use an invalid sort field
     users = database.users.list_users(
-        test_user["tenant_id"],
-        sort_field="invalid_field",
-        page=1,
-        page_size=10
+        test_user["tenant_id"], sort_field="invalid_field", page=1, page_size=10
     )
 
     # Should still return users (falls back to created_at)
@@ -260,10 +222,7 @@ def test_list_users_with_invalid_sort_order(test_user):
 
     # Use an invalid sort order
     users = database.users.list_users(
-        test_user["tenant_id"],
-        sort_order="invalid_order",
-        page=1,
-        page_size=10
+        test_user["tenant_id"], sort_order="invalid_order", page=1, page_size=10
     )
 
     # Should still return users (falls back to desc)

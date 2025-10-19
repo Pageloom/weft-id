@@ -22,10 +22,7 @@ def test_add_privileged_domain(test_tenant, test_user):
 
     # Add the domain
     database.settings.add_privileged_domain(
-        test_tenant["id"],
-        domain,
-        test_user["id"],
-        test_tenant["id"]
+        test_tenant["id"], domain, test_user["id"], test_tenant["id"]
     )
 
     # Verify it was added
@@ -46,10 +43,7 @@ def test_privileged_domain_exists(test_tenant, test_user):
 
     # Add it
     database.settings.add_privileged_domain(
-        test_tenant["id"],
-        domain,
-        test_user["id"],
-        test_tenant["id"]
+        test_tenant["id"], domain, test_user["id"], test_tenant["id"]
     )
 
     # Now it exists
@@ -65,10 +59,7 @@ def test_delete_privileged_domain(test_tenant, test_user):
 
     # Add the domain
     database.settings.add_privileged_domain(
-        test_tenant["id"],
-        domain,
-        test_user["id"],
-        test_tenant["id"]
+        test_tenant["id"], domain, test_user["id"], test_tenant["id"]
     )
 
     # Verify it exists
@@ -97,17 +88,11 @@ def test_add_duplicate_privileged_domain(test_tenant, test_user):
 
     # Add the domain once
     database.settings.add_privileged_domain(
-        test_tenant["id"],
-        domain,
-        test_user["id"],
-        test_tenant["id"]
+        test_tenant["id"], domain, test_user["id"], test_tenant["id"]
     )
 
     # Adding it again should raise unique constraint violation
     with pytest.raises(psycopg.errors.UniqueViolation):
         database.settings.add_privileged_domain(
-            test_tenant["id"],
-            domain,
-            test_user["id"],
-            test_tenant["id"]
+            test_tenant["id"], domain, test_user["id"], test_tenant["id"]
         )

@@ -6,8 +6,6 @@ import database
 import settings
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-
-from pages import PagePermission, has_page_access
 from utils import auth
 
 
@@ -63,7 +61,7 @@ def require_current_user(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)
+        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
     return user
 
 
@@ -85,11 +83,11 @@ def require_admin(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)
+        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
 
     user_role = user.get("role")
     if user_role not in ("admin", "super_admin"):
-        raise RedirectResponse(url="/dashboard", status_code=303)
+        raise RedirectResponse(url="/dashboard", status_code=303)  # type: ignore[misc]
 
     return user
 
@@ -112,10 +110,10 @@ def require_super_admin(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)
+        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
 
     user_role = user.get("role")
     if user_role != "super_admin":
-        raise RedirectResponse(url="/dashboard", status_code=303)
+        raise RedirectResponse(url="/dashboard", status_code=303)  # type: ignore[misc]
 
     return user

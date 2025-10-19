@@ -306,3 +306,117 @@ If you did not expect this change or have concerns, please contact your administ
     # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_new_user_privileged_domain_notification(
+    to_email: str, admin_name: str, org_name: str, password_set_url: str
+) -> bool:
+    """Send notification to a new user with a privileged domain email (auto-verified)."""
+    # ruff: noqa: E501
+    subject = f"Welcome to {org_name}"
+
+    text_body = f"""
+Welcome to {org_name}!
+
+Your account has been created by {admin_name}. Since you're using a trusted email domain, your email address has been automatically verified.
+
+To get started, please set your password by visiting:
+{password_set_url}
+
+After setting your password, you'll be able to log in and access your account.
+
+If you have any questions, please contact your administrator.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to {org_name}!</h1>
+        <p>Your account has been created by <strong>{admin_name}</strong>.</p>
+        <p>Since you're using a trusted email domain, your email address has been automatically verified.</p>
+        <p>To get started, please set your password:</p>
+        <a href="{password_set_url}" class="button">Set Your Password</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{password_set_url}</p>
+        <p>After setting your password, you'll be able to log in and access your account.</p>
+        <div class="footer">
+            <p>If you have any questions, please contact your administrator.</p>
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_new_user_invitation(
+    to_email: str, admin_name: str, org_name: str, verification_url: str
+) -> bool:
+    """Send invitation to a new user with non-privileged domain (requires verification)."""
+    # ruff: noqa: E501
+    subject = f"You've been invited to join {org_name}"
+
+    text_body = f"""
+You've been invited to join {org_name}!
+
+{admin_name} has invited you to join the organization. To accept this invitation and activate your account, please verify your email address by clicking the link below:
+
+{verification_url}
+
+After verifying your email, you'll be able to set your password and access your account.
+
+If you have any questions, please contact your administrator.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>You've been invited to join {org_name}!</h1>
+        <div class="info-box">
+            <p><strong>{admin_name}</strong> has invited you to join the organization.</p>
+        </div>
+        <p>To accept this invitation and activate your account, please verify your email address:</p>
+        <a href="{verification_url}" class="button">Verify Email & Activate Account</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{verification_url}</p>
+        <p>After verifying your email, you'll be able to set your password and access your account.</p>
+        <div class="footer">
+            <p>If you have any questions, please contact your administrator.</p>
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)

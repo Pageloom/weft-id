@@ -1,5 +1,5 @@
 # Import submodules for convenient access
-from . import mfa, security, settings, tenants, user_emails, users
+from . import mfa, oauth2, security, settings, tenants, user_emails, users
 from ._core import (
     UNSCOPED,
     close_pool,
@@ -18,6 +18,7 @@ __all__ = [
     "fetchone",
     "get_pool",
     "mfa",
+    "oauth2",
     "security",
     "session",
     "settings",

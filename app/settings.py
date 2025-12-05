@@ -29,3 +29,10 @@ SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-secret-key-change
 MFA_ENCRYPTION_KEY = os.environ.get(
     "MFA_ENCRYPTION_KEY", "dev-mfa-key-change-in-production-must-be-base64"
 )
+
+# OAuth2 Configuration
+# Token expiry times (in seconds)
+OAUTH2_AUTHORIZATION_CODE_EXPIRY = 300  # 5 minutes
+OAUTH2_ACCESS_TOKEN_EXPIRY = 3600  # 1 hour
+OAUTH2_REFRESH_TOKEN_EXPIRY = 2592000  # 30 days
+OAUTH2_CLIENT_CREDENTIALS_TOKEN_EXPIRY = 86400  # 24 hours

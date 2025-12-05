@@ -14,7 +14,13 @@
       "Bash(poetry run pytest tests/test_routers_users.py::test_create_new_user_with_privileged_domain tests/test_routers_users.py::test_create_new_user_with_non_privileged_domain tests/test_routers_users.py::test_create_new_user_super_admin_can_create_admin -v)",
       "Bash(poetry run pytest tests/test_routers_auth.py tests/test_routers_users.py -v --tb=no -q)",
       "Bash(poetry run pytest tests/test_routers_auth.py -v --tb=short)",
-      "Bash(poetry run pytest tests/test_routers_auth.py -v --tb=no -q)"
+      "Bash(poetry run pytest tests/test_routers_auth.py -v --tb=no -q)",
+      "Bash(docker compose restart:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(curl:*)",
+      "Bash(poetry run ruff:*)",
+      "Bash(poetry run pytest:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []

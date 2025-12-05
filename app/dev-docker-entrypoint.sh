@@ -2,8 +2,8 @@
 set -e
 
 until python - <<'PY'
-import os, psycopg, config
-psycopg.connect(config.DATABASE_URL).close()
+import os, psycopg, settings
+psycopg.connect(settings.DATABASE_URL).close()
 PY
 do
  echo "Waiting for database..."

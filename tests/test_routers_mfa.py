@@ -176,7 +176,7 @@ def test_mfa_verify_complete_flow_with_totp(test_user):
         with patch("utils.mfa.verify_totp_code") as mock_verify:
             with patch("database.security.get_session_settings") as mock_settings:
                 with patch("database.users.get_user_by_id") as mock_get_user:
-                    with patch("database.users.update_last_login") as mock_update_login:
+                    with patch("database.users.update_last_login"):
                         mock_get_secret.return_value = "secret123"
                         mock_verify.return_value = True
                         mock_settings.return_value = {
@@ -218,7 +218,7 @@ def test_mfa_verify_with_non_persistent_session(test_user):
     with patch("utils.mfa.verify_backup_code") as mock_verify:
         with patch("database.security.get_session_settings") as mock_settings:
             with patch("database.users.get_user_by_id") as mock_get_user:
-                with patch("database.users.update_last_login") as mock_update_login:
+                with patch("database.users.update_last_login"):
                     mock_verify.return_value = True
                     mock_settings.return_value = {"persistent_sessions": False}
                     mock_get_user.return_value = test_user

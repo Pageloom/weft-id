@@ -919,7 +919,9 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
                 with patch("database.user_emails.add_verified_email") as mock_add_email:
                     with patch("database.user_emails.set_primary_email"):
                         with patch("database.tenants.get_tenant_by_id") as mock_tenant:
-                            with patch("routers.users.send_new_user_privileged_domain_notification"):
+                            with patch(
+                                "routers.users.send_new_user_privileged_domain_notification"
+                            ):
                                 mock_exists.return_value = False
                                 mock_privileged.return_value = True
                                 mock_create.return_value = {"user_id": "new-admin-123"}

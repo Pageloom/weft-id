@@ -341,8 +341,9 @@ def test_verify_email_public_success_existing_user(test_tenant):
 
 def test_verify_email_public_already_verified_no_password(test_tenant):
     """Test verification of already verified email for user without password."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
@@ -374,8 +375,9 @@ def test_verify_email_public_already_verified_no_password(test_tenant):
 
 def test_verify_email_public_already_verified_with_password(test_tenant):
     """Test verification of already verified email for user with password."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
@@ -453,8 +455,9 @@ def test_verify_email_public_email_not_found(test_tenant):
 
 def test_set_password_page_renders(test_tenant):
     """Test set password page renders for verified user without password."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
     from fastapi.responses import HTMLResponse
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
@@ -485,8 +488,9 @@ def test_set_password_page_renders(test_tenant):
 
 def test_set_password_success(test_tenant):
     """Test successful password setting and auto-login."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
@@ -528,13 +532,16 @@ def test_set_password_success(test_tenant):
                                 assert response.status_code == 303
                                 assert "/mfa/verify" in response.headers["location"]
                                 mock_update.assert_called_once()
-                                mock_send_email.assert_called_once_with("test@example.com", "123456")
+                                mock_send_email.assert_called_once_with(
+                                    "test@example.com", "123456"
+                                )
 
 
 def test_set_password_passwords_dont_match(test_tenant):
     """Test password setting with mismatched passwords."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
@@ -572,8 +579,9 @@ def test_set_password_passwords_dont_match(test_tenant):
 
 def test_set_password_too_short(test_tenant):
     """Test password setting with password too short."""
-    from dependencies import get_tenant_id_from_request
     from datetime import datetime
+
+    from dependencies import get_tenant_id_from_request
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 

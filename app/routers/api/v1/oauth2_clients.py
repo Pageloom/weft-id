@@ -1,0 +1,170 @@
+"""OAuth2 client management API endpoints."""
+
+from typing import Annotated
+
+import database
+from api_dependencies import require_admin_api
+from dependencies import get_tenant_id_from_request
+from fastapi import APIRouter, Depends, HTTPException
+from schemas.oauth2 import (
+    B2BClientCreate,
+    ClientResponse,
+    ClientWithSecret,
+    NormalClientCreate,
+)
+
+router = APIRouter(prefix="/api/v1/oauth2/clients", tags=["OAuth2 Clients"])
+
+
+@router.get("", response_model=list[ClientResponse])
+def list_clients(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    List all OAuth2 clients for the tenant.
+
+    Requires admin role.
+
+    Returns:
+        List of OAuth2 clients (without secrets)
+    """
+    clients = database.oauth2.get_all_clients(tenant_id)
+    return [ClientResponse(**client) for client in clients]
+
+
+@router.post("", response_model=ClientWithSecret, status_code=201)
+def create_normal_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_data: NormalClientCreate,
+):
+    """
+    Create a new normal OAuth2 client (authorization code flow).
+
+    Requires admin role.
+
+    Request Body:
+        name: Client name
+        redirect_uris: List of exact redirect URIs
+
+    Returns:
+        Client details including client_secret (shown only once!)
+
+    Note:
+        The client_secret is only returned once. Store it securely.
+    """
+    try:
+        client = database.oauth2.create_normal_client(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            name=client_data.name,
+            redirect_uris=client_data.redirect_uris,
+            created_by=user["id"],
+        )
+
+        return ClientWithSecret(**client)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/b2b", response_model=ClientWithSecret, status_code=201)
+def create_b2b_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_data: B2BClientCreate,
+):
+    """
+    Create a new B2B OAuth2 client (client credentials flow).
+
+    This creates a service user with the specified role and links it to the client.
+
+    Requires admin role.
+
+    Request Body:
+        name: Client name (used as service user first_name)
+        role: Role for service user (member, admin, super_admin)
+
+    Returns:
+        Client details including client_secret (shown only once!)
+
+    Note:
+        The client_secret is only returned once. Store it securely.
+        The service user is automatically created and linked to this client.
+    """
+    try:
+        client = database.oauth2.create_b2b_client(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            name=client_data.name,
+            role=client_data.role,
+            created_by=user["id"],
+        )
+
+        return ClientWithSecret(**client)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{client_id}", status_code=204)
+def delete_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """
+    Delete an OAuth2 client.
+
+    This cascades to delete all tokens and authorization codes.
+    For B2B clients, the service user remains (must be deleted separately if needed).
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Returns:
+        204 No Content on success
+    """
+    rows_deleted = database.oauth2.delete_client(tenant_id, client_id)
+
+    if rows_deleted == 0:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    return None  # 204 No Content
+
+
+@router.post("/{client_id}/regenerate-secret", response_model=ClientWithSecret)
+def regenerate_client_secret(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """
+    Regenerate the client secret for an OAuth2 client.
+
+    The old secret is immediately invalidated.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Returns:
+        Client details including new client_secret (shown only once!)
+
+    Note:
+        The new client_secret is only returned once. Store it securely.
+    """
+    # Get client
+    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Regenerate secret
+    new_secret = database.oauth2.regenerate_client_secret(tenant_id, client_id)
+
+    # Return client with new secret
+    client["client_secret"] = new_secret
+    return ClientWithSecret(**client)

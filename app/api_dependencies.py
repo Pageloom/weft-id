@@ -42,10 +42,10 @@ def get_current_user_api(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
 
-        # Validate token
-        token_data = database.oauth2.validate_token(token)
+        # Validate token (scoped to the tenant from request)
+        token_data = database.oauth2.validate_token(token, tenant_id)
 
-        if token_data and str(token_data["tenant_id"]) == tenant_id:
+        if token_data:
             # Token is valid and matches tenant
             # Get user from token's user_id
             user = database.users.get_user_by_id(tenant_id, token_data["user_id"])

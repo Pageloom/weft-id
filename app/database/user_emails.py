@@ -208,7 +208,11 @@ def delete_email(tenant_id: TenantArg, email_id: str) -> int:
 
 
 def add_verified_email(
-    tenant_id: TenantArg, user_id: str, email: str, tenant_id_value: str
+    tenant_id: TenantArg,
+    user_id: str,
+    email: str,
+    tenant_id_value: str,
+    is_primary: bool = False,
 ) -> dict | None:
     """
     Add a new email address to a user's account (pre-verified, for admin use).
@@ -221,6 +225,7 @@ def add_verified_email(
         user_id: User ID
         email: Email address to add
         tenant_id_value: The actual tenant ID value to store in the record
+        is_primary: Whether this should be the primary email (default: False)
 
     Returns:
         Dict with id and email, or None if insert failed
@@ -229,10 +234,15 @@ def add_verified_email(
         tenant_id,
         """
         insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
-        values (:tenant_id, :user_id, :email, false, now())
+        values (:tenant_id, :user_id, :email, :is_primary, now())
         returning id, email
         """,
-        {"tenant_id": tenant_id_value, "user_id": user_id, "email": email},
+        {
+            "tenant_id": tenant_id_value,
+            "user_id": user_id,
+            "email": email,
+            "is_primary": is_primary,
+        },
     )
 
 

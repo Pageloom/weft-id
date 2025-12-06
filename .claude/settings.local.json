@@ -20,7 +20,10 @@
       "Bash(curl:*)",
       "Bash(poetry run ruff:*)",
       "Bash(poetry run pytest:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(poetry run python:*)"
     ],
     "deny": [],
     "ask": []

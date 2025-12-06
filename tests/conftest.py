@@ -27,6 +27,15 @@ settings.DATABASE_URL = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ
 settings.BASE_DOMAIN = os.environ["BASE_DOMAIN"]
 
 
+@pytest.fixture(autouse=True)
+def clear_dependency_overrides():
+    """Clear dependency overrides after each test to prevent state leakage."""
+    yield
+    from main import app
+
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI application."""

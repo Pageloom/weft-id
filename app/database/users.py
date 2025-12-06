@@ -379,3 +379,22 @@ def is_service_user(tenant_id: TenantArg, user_id: str) -> bool:
         {"user_id": user_id},
     )
     return result is not None
+
+
+def update_mfa_status(tenant_id: TenantArg, user_id: str, enabled: bool) -> int:
+    """
+    Update a user's MFA enabled status.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to update
+        enabled: Whether MFA is enabled
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "update users set mfa_enabled = :enabled where id = :user_id",
+        {"enabled": enabled, "user_id": user_id},
+    )

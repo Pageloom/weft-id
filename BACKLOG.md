@@ -20,7 +20,7 @@ So that I can build custom applications and integrations without relying on serv
 - [x] Settings management endpoints (privileged domains, tenant settings)
 - [ ] Organizational structure endpoints (view hierarchy, manage units - admin only)
 - [ ] Ad-hoc groups endpoints (create, manage, invite members)
-- [ ] Role and permission management endpoints
+- [x] Role and permission management endpoints
 - [x] Pre-authentication flows (login, registration) remain server-side rendered (excluded from API)
 - [x] Email verification flows remain server-side rendered (excluded from API)
 

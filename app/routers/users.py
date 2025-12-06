@@ -21,6 +21,7 @@ router = APIRouter(
     prefix="/users",
     tags=["users"],
     dependencies=[Depends(require_current_user)],  # All routes require authentication
+    include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
 

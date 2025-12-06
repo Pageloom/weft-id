@@ -16,7 +16,7 @@ from utils.mfa import (
     verify_totp_code,
 )
 
-router = APIRouter(prefix="/mfa", tags=["mfa"])
+router = APIRouter(prefix="/mfa", tags=["mfa"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
 
 

@@ -37,9 +37,9 @@ So that I can build custom applications and integrations without relying on serv
 - [x] No detailed descriptions or examples required (minimal documentation)
 - [x] Specification available at `/openapi.json` endpoint
 - [x] Interactive API docs available at `/docs` (Swagger UI)
-- [ ] Specification covers all implemented API endpoints
-- [ ] Exclude HTML/server-rendered endpoints from OpenAPI spec (only include `/api/v1/*` routes)
-- [ ] Document security/authentication requirements per endpoint in OpenAPI spec
+- [x] Specification covers all implemented API endpoints
+- [x] Exclude HTML/server-rendered endpoints from OpenAPI spec (only include `/api/v1/*` routes)
+- [x] Document security/authentication requirements per endpoint in OpenAPI spec
 
 **API Testing Strategy:**
 - [ ] Automated test generation based on OpenAPI specification

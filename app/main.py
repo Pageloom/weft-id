@@ -9,6 +9,7 @@ from routers import account as account_router
 from routers import auth, mfa, oauth2, tenants, users
 from routers import settings as settings_router
 from routers.api.v1 import oauth2_clients
+from routers.api.v1 import settings as settings_api
 from routers.api.v1 import users as users_api
 
 app = FastAPI(
@@ -40,6 +41,7 @@ app.include_router(oauth2.router)
 
 # Include API routers (JSON)
 app.include_router(oauth2_clients.router)
+app.include_router(settings_api.router)
 app.include_router(users_api.router)
 
 

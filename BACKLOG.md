@@ -15,47 +15,49 @@ So that I can build custom applications and integrations without relying on serv
 
 **API Coverage:**
 - [ ] All post-authentication functionality exposed via RESTful APIs
-- [ ] User management endpoints (CRUD operations)
-- [ ] User profile endpoints (view/edit profile, title, organizational placement)
+- [x] User management endpoints (CRUD operations)
+- [x] User profile endpoints (view/edit profile, title, organizational placement)
 - [ ] Settings management endpoints (privileged domains, tenant settings)
 - [ ] Organizational structure endpoints (view hierarchy, manage units - admin only)
 - [ ] Ad-hoc groups endpoints (create, manage, invite members)
 - [ ] Role and permission management endpoints
-- [ ] Pre-authentication flows (login, registration) remain server-side rendered (excluded from API)
-- [ ] Email verification flows remain server-side rendered (excluded from API)
+- [x] Pre-authentication flows (login, registration) remain server-side rendered (excluded from API)
+- [x] Email verification flows remain server-side rendered (excluded from API)
 
 **Authentication & Authorization:**
-- [ ] OAuth2 authentication for API access
-- [ ] Support for B2B client-credentials flow
-- [ ] API endpoints respect existing role-based permissions (Super Admin, Admin, User)
-- [ ] Token-based authentication for all API requests
-- [ ] Secure token storage and refresh mechanisms
+- [x] OAuth2 authentication for API access
+- [x] Support for B2B client-credentials flow
+- [x] API endpoints respect existing role-based permissions (Super Admin, Admin, User)
+- [x] Token-based authentication for all API requests
+- [x] Secure token storage and refresh mechanisms
 
 **OpenAPI Specification:**
-- [ ] Auto-generated OpenAPI 3.x specification from FastAPI
-- [ ] Bare-bones spec (endpoint paths, methods, request/response schemas)
-- [ ] No detailed descriptions or examples required (minimal documentation)
-- [ ] Specification available at `/openapi.json` endpoint
-- [ ] Interactive API docs available at `/docs` (Swagger UI)
+- [x] Auto-generated OpenAPI 3.x specification from FastAPI
+- [x] Bare-bones spec (endpoint paths, methods, request/response schemas)
+- [x] No detailed descriptions or examples required (minimal documentation)
+- [x] Specification available at `/openapi.json` endpoint
+- [x] Interactive API docs available at `/docs` (Swagger UI)
 - [ ] Specification covers all implemented API endpoints
+- [ ] Exclude HTML/server-rendered endpoints from OpenAPI spec (only include `/api/v1/*` routes)
+- [ ] Document security/authentication requirements per endpoint in OpenAPI spec
 
 **API Testing Strategy:**
 - [ ] Automated test generation based on OpenAPI specification
 - [ ] Tests validate all endpoints defined in the OpenAPI spec
-- [ ] Tests cover: request/response schemas, HTTP status codes, authentication requirements
-- [ ] Tests verify role-based permission enforcement for each endpoint
-- [ ] Tests ensure tenant isolation for multi-tenant endpoints
+- [x] Tests cover: request/response schemas, HTTP status codes, authentication requirements
+- [x] Tests verify role-based permission enforcement for each endpoint
+- [x] Tests ensure tenant isolation for multi-tenant endpoints
 - [ ] Contract testing: ensure API implementation matches OpenAPI spec
 - [ ] Tool/library selection for spec-driven testing (e.g., `schemathesis`, `dredd`, or custom pytest-based approach)
-- [ ] Integration with existing pytest test suite
+- [x] Integration with existing pytest test suite
 - [ ] CI/CD integration to run spec-based tests automatically
 
 **Architecture:**
-- [ ] Existing server-side rendered pages remain untouched (no breaking changes)
-- [ ] New API routes organized under `/api/v1/` prefix
-- [ ] API responses return JSON with consistent error handling
-- [ ] Proper HTTP status codes for all responses
-- [ ] Tenant isolation maintained for all API endpoints (via `tenant_id`)
+- [x] Existing server-side rendered pages remain untouched (no breaking changes)
+- [x] New API routes organized under `/api/v1/` prefix
+- [x] API responses return JSON with consistent error handling
+- [x] Proper HTTP status codes for all responses
+- [x] Tenant isolation maintained for all API endpoints (via `tenant_id`)
 
 **Out of Scope:**
 - SDK generation (can be done separately using OpenAPI spec)

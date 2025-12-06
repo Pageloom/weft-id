@@ -16,6 +16,27 @@ from schemas.oauth2 import (
 router = APIRouter(prefix="/api/v1/oauth2/clients", tags=["OAuth2 Clients"])
 
 
+def _client_to_response(
+    client: dict, include_secret: bool = False
+) -> ClientResponse | ClientWithSecret:
+    """Convert database client dict to ClientResponse/ClientWithSecret schema."""
+    data = {
+        "id": str(client["id"]),
+        "client_id": client["client_id"],
+        "client_type": client["client_type"],
+        "name": client["name"],
+        "redirect_uris": client.get("redirect_uris"),
+        "service_user_id": (
+            str(client["service_user_id"]) if client.get("service_user_id") else None
+        ),
+        "created_at": client["created_at"],
+    }
+    if include_secret:
+        data["client_secret"] = client["client_secret"]
+        return ClientWithSecret(**data)
+    return ClientResponse(**data)
+
+
 @router.get("", response_model=list[ClientResponse])
 def list_clients(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -30,7 +51,7 @@ def list_clients(
         List of OAuth2 clients (without secrets)
     """
     clients = database.oauth2.get_all_clients(tenant_id)
-    return [ClientResponse(**client) for client in clients]
+    return [_client_to_response(client) for client in clients]
 
 
 @router.post("", response_model=ClientWithSecret, status_code=201)
@@ -60,10 +81,10 @@ def create_normal_client(
             tenant_id_value=tenant_id,
             name=client_data.name,
             redirect_uris=client_data.redirect_uris,
-            created_by=user["id"],
+            created_by=str(user["id"]),
         )
 
-        return ClientWithSecret(**client)
+        return _client_to_response(client, include_secret=True)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -98,10 +119,10 @@ def create_b2b_client(
             tenant_id_value=tenant_id,
             name=client_data.name,
             role=client_data.role,
-            created_by=user["id"],
+            created_by=str(user["id"]),
         )
 
-        return ClientWithSecret(**client)
+        return _client_to_response(client, include_secret=True)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -167,4 +188,4 @@ def regenerate_client_secret(
 
     # Return client with new secret
     client["client_secret"] = new_secret
-    return ClientWithSecret(**client)
+    return _client_to_response(client, include_secret=True)

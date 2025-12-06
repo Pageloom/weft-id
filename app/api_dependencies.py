@@ -5,7 +5,14 @@ from typing import Annotated
 import database
 from dependencies import get_tenant_id_from_request
 from fastapi import Depends, Header, HTTPException, Request
+from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
 from utils import auth
+
+# Security schemes for OpenAPI documentation
+# These are used to show the "Authorize" button in Swagger UI
+# auto_error=False because we handle authentication manually in get_current_user_api
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/oauth2/token", auto_error=False)
+session_cookie_scheme = APIKeyCookie(name="session", auto_error=False)
 
 
 def get_current_user_api(

@@ -19,6 +19,8 @@ So that I can build custom applications and integrations without relying on serv
 - [x] User profile endpoints (view/edit profile)
 - [x] Settings management endpoints (privileged domains, tenant settings)
 - [x] Role and permission management endpoints
+- [x] Email management endpoints (add, verify, remove, set-primary for user and admin)
+- [x] MFA management endpoints (TOTP setup, email MFA, backup codes, admin reset)
 - [x] Pre-authentication flows (login, registration) remain server-side rendered (excluded from API)
 - [x] Email verification flows remain server-side rendered (excluded from API)
 

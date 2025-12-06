@@ -44,15 +44,10 @@ So that I can build custom applications and integrations without relying on serv
 - [x] Document security/authentication requirements per endpoint in OpenAPI spec
 
 **API Testing Strategy:**
-- [ ] Automated test generation based on OpenAPI specification
-- [ ] Tests validate all endpoints defined in the OpenAPI spec
 - [x] Tests cover: request/response schemas, HTTP status codes, authentication requirements
 - [x] Tests verify role-based permission enforcement for each endpoint
 - [x] Tests ensure tenant isolation for multi-tenant endpoints
-- [ ] Contract testing: ensure API implementation matches OpenAPI spec
-- [ ] Tool/library selection for spec-driven testing (e.g., `schemathesis`, `dredd`, or custom pytest-based approach)
 - [x] Integration with existing pytest test suite
-- [ ] CI/CD integration to run spec-based tests automatically
 
 **Architecture:**
 - [x] Existing server-side rendered pages remain untouched (no breaking changes)
@@ -68,6 +63,8 @@ So that I can build custom applications and integrations without relying on serv
 - Migration of existing server-side pages to API-driven SPAs
 - Detailed API documentation or examples
 - GraphQL or other API paradigms
+- Spec-driven testing (automated test generation, contract testing, schemathesis/dredd)
+- CI/CD integration for spec-based tests
 
 **Technical Implementation:**
 - New router module: `app/routers/api/` directory structure

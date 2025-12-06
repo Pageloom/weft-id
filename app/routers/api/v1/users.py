@@ -79,6 +79,21 @@ def _user_to_detail(user: dict, emails: list[dict], is_service: bool) -> UserDet
     )
 
 
+@router.get("/roles", response_model=list[str])
+def list_roles(
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    List available user roles.
+
+    Requires admin role.
+
+    Returns:
+        List of role names: member, admin, super_admin
+    """
+    return ["member", "admin", "super_admin"]
+
+
 @router.get("/me", response_model=UserProfile)
 def get_current_user_profile(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],

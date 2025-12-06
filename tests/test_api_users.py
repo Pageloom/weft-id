@@ -1,5 +1,35 @@
 """Tests for User Management API endpoints."""
 
+# =============================================================================
+# Roles
+# =============================================================================
+
+
+def test_list_roles_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can list available roles."""
+    response = client.get(
+        "/api/v1/users/roles",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == ["member", "admin", "super_admin"]
+
+
+def test_list_roles_unauthorized(client, test_tenant_host, oauth2_authorization_header):
+    """Regular member cannot list roles."""
+    response = client.get(
+        "/api/v1/users/roles",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# User List
+# =============================================================================
+
 
 def test_list_users_as_admin(
     client, test_tenant_host, oauth2_admin_authorization_header, test_user

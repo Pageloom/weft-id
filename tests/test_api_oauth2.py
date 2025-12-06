@@ -92,10 +92,9 @@ def test_openapi_spec_available(client, test_host):
     assert "paths" in data
     assert "components" in data
 
-    # Check that OAuth2 security schemes are defined
+    # Check that security schemes are defined
     security_schemes = data["components"].get("securitySchemes", {})
-    assert "OAuth2AuthorizationCode" in security_schemes
-    assert "OAuth2ClientCredentials" in security_schemes
+    assert "BearerToken" in security_schemes
     assert "SessionCookie" in security_schemes
 
 

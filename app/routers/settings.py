@@ -19,6 +19,7 @@ router = APIRouter(
     prefix="/settings",
     tags=["settings"],
     dependencies=[Depends(require_admin)],  # All routes require admin role
+    include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
 

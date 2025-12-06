@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
 
-router = APIRouter(prefix="/oauth2", tags=["oauth2"])
+router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
 templates = Jinja2Templates(directory="app/templates")
 
 

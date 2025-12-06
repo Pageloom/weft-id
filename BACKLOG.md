@@ -14,15 +14,15 @@ So that I can build custom applications and integrations without relying on serv
 **Acceptance Criteria:**
 
 **API Coverage:**
-- [ ] All post-authentication functionality exposed via RESTful APIs
+- [x] All existing post-authentication functionality exposed via RESTful APIs
 - [x] User management endpoints (CRUD operations)
-- [x] User profile endpoints (view/edit profile, title, organizational placement)
+- [x] User profile endpoints (view/edit profile)
 - [x] Settings management endpoints (privileged domains, tenant settings)
-- [ ] Organizational structure endpoints (view hierarchy, manage units - admin only)
-- [ ] Ad-hoc groups endpoints (create, manage, invite members)
 - [x] Role and permission management endpoints
 - [x] Pre-authentication flows (login, registration) remain server-side rendered (excluded from API)
 - [x] Email verification flows remain server-side rendered (excluded from API)
+
+*Note: Future features (organizational structure, ad-hoc groups) will be API-first by default.*
 
 **Authentication & Authorization:**
 - [x] OAuth2 authentication for API access

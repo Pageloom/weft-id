@@ -1,8 +1,7 @@
 """OAuth2 database operations for clients, authorization codes, and tokens."""
 
-
 import oauth2
-from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, execute, fetchall, fetchone
 from database.users import create_user
 
 # ============================================================================
@@ -508,22 +507,24 @@ def create_refresh_token(
     return token, result["id"]
 
 
-def validate_token(token: str) -> dict | None:
+def validate_token(token: str, tenant_id: TenantArg | None = None) -> dict | None:
     """
     Validate an OAuth2 access token.
 
-    Note: This function does NOT scope by tenant_id since the token itself
-    contains the tenant_id. We search across all tenants.
-
     Args:
         token: Plain text access token
+        tenant_id: Tenant ID to scope the search (required for RLS compliance)
 
     Returns:
         Dict with user_id, tenant_id, client_id, expires_at if valid, None otherwise
     """
-    # Find all tokens (across all tenants)
+    if tenant_id is None:
+        # Tenant ID is required due to RLS policies
+        return None
+
+    # Find all access tokens for this tenant
     tokens = fetchall(
-        UNSCOPED,
+        tenant_id,
         """
         select id, token_hash, user_id, tenant_id, client_id, expires_at
         from oauth2_tokens

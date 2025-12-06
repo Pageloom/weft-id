@@ -332,3 +332,50 @@ def create_user(
         return None
 
     return {"user_id": user["id"]}
+
+
+def delete_user(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Delete a user and all associated data.
+
+    This relies on cascading deletes for related records (emails, tokens, etc.).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to delete
+
+    Returns:
+        Number of rows deleted (0 or 1)
+
+    Note:
+        Service users (linked to OAuth2 clients) should not be deleted directly.
+        Delete the OAuth2 client first to unlink the service user.
+    """
+    return execute(
+        tenant_id,
+        "delete from users where id = :user_id",
+        {"user_id": user_id},
+    )
+
+
+def is_service_user(tenant_id: TenantArg, user_id: str) -> bool:
+    """
+    Check if a user is a service user (linked to a B2B OAuth2 client).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to check
+
+    Returns:
+        True if user is a service user, False otherwise
+    """
+    result = fetchone(
+        tenant_id,
+        """
+        select 1 from oauth2_clients
+        where service_user_id = :user_id
+        limit 1
+        """,
+        {"user_id": user_id},
+    )
+    return result is not None

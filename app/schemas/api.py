@@ -79,6 +79,77 @@ class EmailCreate(BaseModel):
     email: EmailStr
 
 
+class EmailVerifyRequest(BaseModel):
+    """Request to verify an email address with nonce."""
+
+    nonce: int = Field(..., description="Verification nonce from email link")
+
+
+# ============================================================================
+# MFA Management Schemas
+# ============================================================================
+
+
+class MFAStatus(BaseModel):
+    """MFA status response."""
+
+    enabled: bool = Field(..., description="Whether MFA is enabled")
+    method: str | None = Field(None, description="MFA method (totp, email)")
+    has_backup_codes: bool = Field(..., description="Whether user has backup codes")
+    backup_codes_remaining: int = Field(0, description="Number of unused backup codes")
+
+
+class MFAEnableResponse(BaseModel):
+    """Response when enabling email MFA (may require verification for downgrade)."""
+
+    status: MFAStatus | None = Field(None, description="MFA status if enabled directly")
+    pending_verification: bool = Field(
+        False, description="True if email verification required (TOTP downgrade)"
+    )
+    message: str | None = Field(None, description="Message explaining next steps")
+
+
+class TOTPSetupResponse(BaseModel):
+    """Response with TOTP setup details."""
+
+    secret: str = Field(..., description="Base32-encoded secret for manual entry")
+    uri: str = Field(..., description="otpauth:// URI for QR code generation")
+
+
+class TOTPVerifyRequest(BaseModel):
+    """Request to verify TOTP code."""
+
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit TOTP code")
+
+
+class EmailOTPVerifyRequest(BaseModel):
+    """Request to verify email OTP code (for MFA downgrade)."""
+
+    code: str = Field(..., min_length=6, max_length=6, description="6-digit email OTP code")
+
+
+class BackupCodesResponse(BaseModel):
+    """Response with backup codes (only shown once after generation)."""
+
+    codes: list[str] = Field(..., description="Plain text backup codes")
+    count: int = Field(..., description="Number of codes generated")
+
+
+class BackupCodeStatus(BaseModel):
+    """Status of a single backup code."""
+
+    id: str
+    used: bool = Field(..., description="Whether the code has been used")
+
+
+class BackupCodesStatusResponse(BaseModel):
+    """Response with backup codes status (not the actual codes)."""
+
+    total: int = Field(..., description="Total number of backup codes")
+    used: int = Field(..., description="Number of used backup codes")
+    remaining: int = Field(..., description="Number of remaining backup codes")
+
+
 # ============================================================================
 # Pagination Schemas
 # ============================================================================

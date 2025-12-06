@@ -331,3 +331,472 @@ def test_delete_self_fails(
 
     assert response.status_code == 400
     assert "own account" in response.json()["detail"]
+
+
+# =============================================================================
+# User Email Management
+# =============================================================================
+
+
+def test_list_current_user_emails(client, test_tenant_host, oauth2_authorization_header):
+    """Test listing current user's emails."""
+    response = client.get(
+        "/api/v1/users/me/emails",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert len(data["items"]) >= 1  # At least primary email
+
+
+def test_add_email_to_current_user(client, test_tenant_host, oauth2_authorization_header):
+    """Test adding an email to current user's account."""
+    response = client.post(
+        "/api/v1/users/me/emails",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+        json={"email": "newemail@test.example.com"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "newemail@test.example.com"
+    assert data["is_primary"] is False
+    assert data["verified_at"] is None
+
+
+def test_add_duplicate_email_fails(
+    client, test_tenant_host, oauth2_authorization_header, test_user
+):
+    """Test adding a duplicate email fails."""
+    response = client.post(
+        "/api/v1/users/me/emails",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+        json={"email": test_user["email"]},
+    )
+
+    assert response.status_code == 409
+
+
+def test_delete_email_from_current_user(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test deleting a secondary email from current user's account."""
+    import database
+
+    # First add a secondary email
+    result = database.user_emails.add_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="secondary@test.example.com",
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Delete the email
+    response = client.delete(
+        f"/api/v1/users/me/emails/{result['id']}",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 204
+
+
+def test_cannot_delete_primary_email(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test that deleting primary email fails."""
+    import database
+
+    # Get primary email (need to use list_user_emails to get the id)
+    emails = database.user_emails.list_user_emails(test_tenant["id"], test_user["id"])
+    primary = next((e for e in emails if e["is_primary"]), None)
+    assert primary is not None, "User should have a primary email"
+
+    response = client.delete(
+        f"/api/v1/users/me/emails/{primary['id']}",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 400
+    assert "primary" in response.json()["detail"].lower()
+
+
+def test_set_primary_email(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test setting a verified email as primary."""
+    import database
+
+    # Add a verified secondary email
+    result = database.user_emails.add_verified_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="newprimary@test.example.com",
+        tenant_id_value=test_tenant["id"],
+        is_primary=False,
+    )
+
+    # Set as primary
+    response = client.post(
+        f"/api/v1/users/me/emails/{result['id']}/set-primary",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_primary"] is True
+
+
+def test_cannot_set_unverified_email_as_primary(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test that setting an unverified email as primary fails."""
+    import database
+
+    # Add an unverified secondary email
+    result = database.user_emails.add_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="unverified@test.example.com",
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Try to set as primary
+    response = client.post(
+        f"/api/v1/users/me/emails/{result['id']}/set-primary",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 400
+    assert "unverified" in response.json()["detail"].lower()
+
+
+def test_resend_email_verification(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test resending verification email."""
+    import database
+
+    # Add an unverified email
+    result = database.user_emails.add_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="resendtest@test.example.com",
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Resend verification
+    response = client.post(
+        f"/api/v1/users/me/emails/{result['id']}/resend-verification",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    assert "sent" in response.json()["message"].lower()
+
+
+def test_verify_email(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test verifying an email address."""
+    import database
+
+    # Add an unverified email
+    result = database.user_emails.add_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="verifytest@test.example.com",
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Verify with correct nonce
+    response = client.post(
+        f"/api/v1/users/me/emails/{result['id']}/verify",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+        json={"nonce": result["verify_nonce"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["verified_at"] is not None
+
+
+def test_verify_email_invalid_nonce(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test verifying with invalid nonce fails."""
+    import database
+
+    # Add an unverified email
+    result = database.user_emails.add_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="badnonce@test.example.com",
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Verify with wrong nonce
+    response = client.post(
+        f"/api/v1/users/me/emails/{result['id']}/verify",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+        json={"nonce": result["verify_nonce"] + 1},
+    )
+
+    assert response.status_code == 400
+
+
+# =============================================================================
+# Admin Email Management
+# =============================================================================
+
+
+def test_admin_list_user_emails(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test admin listing a user's emails."""
+    response = client.get(
+        f"/api/v1/users/{test_user['id']}/emails",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+
+
+def test_admin_add_email_to_user(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test admin adding an email to a user (pre-verified)."""
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/emails",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+        json={"email": "adminadded@test.example.com"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "adminadded@test.example.com"
+    assert data["verified_at"] is not None  # Admin-added emails are pre-verified
+
+
+def test_admin_delete_user_email(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_tenant, test_user
+):
+    """Test admin deleting a user's secondary email."""
+    import database
+
+    # Add a secondary email
+    result = database.user_emails.add_verified_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="admindelete@test.example.com",
+        tenant_id_value=test_tenant["id"],
+        is_primary=False,
+    )
+
+    # Delete it
+    response = client.delete(
+        f"/api/v1/users/{test_user['id']}/emails/{result['id']}",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 204
+
+
+def test_admin_set_user_primary_email(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_tenant, test_user
+):
+    """Test admin setting a user's primary email."""
+    import database
+
+    # Add a verified secondary email
+    result = database.user_emails.add_verified_email(
+        tenant_id=test_tenant["id"],
+        user_id=test_user["id"],
+        email="adminprimary@test.example.com",
+        tenant_id_value=test_tenant["id"],
+        is_primary=False,
+    )
+
+    # Set as primary
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/emails/{result['id']}/set-primary",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_primary"] is True
+
+
+# =============================================================================
+# User MFA Management
+# =============================================================================
+
+
+def test_get_mfa_status(client, test_tenant_host, oauth2_authorization_header):
+    """Test getting current user's MFA status."""
+    response = client.get(
+        "/api/v1/users/me/mfa",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "enabled" in data
+    assert "method" in data
+    assert "has_backup_codes" in data
+
+
+def test_setup_totp(client, test_tenant_host, oauth2_authorization_header):
+    """Test initiating TOTP setup."""
+    response = client.post(
+        "/api/v1/users/me/mfa/totp/setup",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "secret" in data
+    assert "uri" in data
+    assert "otpauth://" in data["uri"]
+
+
+def test_verify_totp_invalid_code(client, test_tenant_host, oauth2_authorization_header):
+    """Test verifying TOTP with invalid code fails."""
+    # First setup
+    client.post(
+        "/api/v1/users/me/mfa/totp/setup",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    # Verify with invalid code
+    response = client.post(
+        "/api/v1/users/me/mfa/totp/verify",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+        json={"code": "000000"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_enable_email_mfa(client, test_tenant_host, oauth2_authorization_header):
+    """Test enabling email MFA."""
+    response = client.post(
+        "/api/v1/users/me/mfa/email/enable",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Either direct enable or pending verification
+    assert "status" in data or "pending_verification" in data
+
+
+def test_disable_mfa(client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user):
+    """Test disabling MFA."""
+    import database
+
+    # First enable email MFA
+    database.mfa.enable_mfa(test_tenant["id"], test_user["id"], "email")
+
+    # Disable
+    response = client.post(
+        "/api/v1/users/me/mfa/disable",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enabled"] is False
+
+
+def test_get_backup_codes_status(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test getting backup codes status."""
+    import database
+    from utils.mfa import generate_backup_codes, hash_code
+
+    # Enable MFA and create some backup codes
+    database.mfa.enable_mfa(test_tenant["id"], test_user["id"], "email")
+    codes = generate_backup_codes(5)
+    for code in codes:
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], hash_code(code.replace("-", "")), test_tenant["id"]
+        )
+
+    response = client.get(
+        "/api/v1/users/me/mfa/backup-codes",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 5
+    assert data["used"] == 0
+    assert data["remaining"] == 5
+
+
+def test_regenerate_backup_codes(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test regenerating backup codes."""
+    import database
+
+    # Enable MFA first
+    database.mfa.enable_mfa(test_tenant["id"], test_user["id"], "email")
+
+    response = client.post(
+        "/api/v1/users/me/mfa/backup-codes/regenerate",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "codes" in data
+    assert len(data["codes"]) == 10  # Default count
+
+
+def test_regenerate_backup_codes_requires_mfa(
+    client, test_tenant_host, oauth2_authorization_header, test_tenant, test_user
+):
+    """Test that regenerating backup codes requires MFA enabled."""
+    import database
+
+    # Ensure MFA is disabled
+    database.users.update_mfa_status(test_tenant["id"], test_user["id"], enabled=False)
+
+    response = client.post(
+        "/api/v1/users/me/mfa/backup-codes/regenerate",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 400
+
+
+# =============================================================================
+# Admin MFA Management
+# =============================================================================
+
+
+def test_admin_reset_user_mfa(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_tenant, test_user
+):
+    """Test admin resetting a user's MFA."""
+    import database
+
+    # Enable MFA for the user
+    database.mfa.enable_mfa(test_tenant["id"], test_user["id"], "email")
+
+    # Admin resets it
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/mfa/reset",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enabled"] is False

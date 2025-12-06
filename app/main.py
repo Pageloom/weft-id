@@ -58,31 +58,28 @@ def custom_openapi():
 
     # Add security schemes
     openapi_schema["components"]["securitySchemes"] = {
-        "OAuth2AuthorizationCode": {
-            "type": "oauth2",
-            "flows": {
-                "authorizationCode": {
-                    "authorizationUrl": "/oauth2/authorize",
-                    "tokenUrl": "/oauth2/token",
-                    "scopes": {},
-                }
-            },
-        },
-        "OAuth2ClientCredentials": {
-            "type": "oauth2",
-            "flows": {
-                "clientCredentials": {
-                    "tokenUrl": "/oauth2/token",
-                    "scopes": {},
-                }
-            },
+        "BearerToken": {
+            "type": "http",
+            "scheme": "bearer",
+            "description": "OAuth2 access token (Bearer token)",
         },
         "SessionCookie": {
             "type": "apiKey",
             "in": "cookie",
             "name": "session",
+            "description": "Session cookie from web login",
         },
     }
+
+    # Apply security to all API endpoints
+    # Security is an OR - either Bearer token OR session cookie
+    api_security = [{"BearerToken": []}, {"SessionCookie": []}]
+
+    for path, path_item in openapi_schema.get("paths", {}).items():
+        if path.startswith("/api/"):
+            for method in path_item.values():
+                if isinstance(method, dict):
+                    method["security"] = api_security
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

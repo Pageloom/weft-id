@@ -4,7 +4,7 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 
-router = APIRouter(prefix="", tags=["tenants"])
+router = APIRouter(prefix="", tags=["tenants"], include_in_schema=False)
 
 
 @router.get("/")

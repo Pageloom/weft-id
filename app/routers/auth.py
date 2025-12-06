@@ -11,7 +11,7 @@ from utils.auth import verify_login
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 
-router = APIRouter(prefix="", tags=["auth"])
+router = APIRouter(prefix="", tags=["auth"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
 
 

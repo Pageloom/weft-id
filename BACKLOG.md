@@ -17,7 +17,7 @@ So that I can build custom applications and integrations without relying on serv
 - [ ] All post-authentication functionality exposed via RESTful APIs
 - [x] User management endpoints (CRUD operations)
 - [x] User profile endpoints (view/edit profile, title, organizational placement)
-- [ ] Settings management endpoints (privileged domains, tenant settings)
+- [x] Settings management endpoints (privileged domains, tenant settings)
 - [ ] Organizational structure endpoints (view hierarchy, manage units - admin only)
 - [ ] Ad-hoc groups endpoints (create, manage, invite members)
 - [ ] Role and permission management endpoints

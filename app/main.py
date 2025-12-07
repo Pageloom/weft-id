@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import settings
-from fastapi import FastAPI
+from dependencies import RedirectError
+from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from middleware.session import DynamicSessionMiddleware
 from routers import account as account_router
@@ -22,6 +24,13 @@ app = FastAPI(
 
 # Add session middleware with dynamic per-tenant session configuration
 app.add_middleware(DynamicSessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
+
+
+@app.exception_handler(RedirectError)
+async def redirect_error_handler(request: Request, exc: RedirectError):
+    """Handle RedirectError by returning a RedirectResponse."""
+    return RedirectResponse(url=exc.url, status_code=exc.status_code)
+
 
 # Mount static files (if directory exists)
 static_dir = Path("static")

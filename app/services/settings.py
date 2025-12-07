@@ -322,6 +322,24 @@ def can_users_add_emails(tenant_id: str) -> bool:
     return bool(settings.get("allow_users_add_emails", True))
 
 
+def can_user_edit_profile(tenant_id: str) -> bool:
+    """
+    Check if users are allowed to edit their own profile.
+
+    This is a utility function that does not require authorization.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        True if users can edit profile, False otherwise
+    """
+    settings = database.security.get_security_settings(tenant_id)
+    if not settings:
+        return True  # Default to allowing
+    return bool(settings.get("allow_users_edit_profile", True))
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,

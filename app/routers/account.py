@@ -2,24 +2,19 @@
 
 from typing import Annotated
 
-import database
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
-from utils.email import send_email_verification
-from utils.mfa import (
-    decrypt_secret,
-    encrypt_secret,
-    format_secret_for_display,
-    generate_backup_codes,
-    generate_totp_secret,
-    generate_totp_uri,
-    hash_code,
-    verify_email_otp,
-    verify_totp_code,
-)
+from schemas.api import UserProfileUpdate
+from services import emails as emails_service
+from services import mfa as mfa_service
+from services import settings as settings_service
+from services import users as users_service
+from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.types import RequestingUser
+from utils.email import send_email_verification, send_mfa_code_email
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -29,6 +24,15 @@ router = APIRouter(
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
+
+
+def _to_requesting_user(user: dict) -> RequestingUser:
+    """Convert user dict to RequestingUser TypedDict."""
+    return RequestingUser(
+        id=user["id"],
+        tenant_id=user["tenant_id"],
+        role=user["role"],
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -71,14 +75,16 @@ def update_profile(
     # Check if user is allowed to edit their profile
     # Super admins are always allowed, otherwise check tenant security setting
     if user.get("role") != "super_admin":
-        security_settings = database.security.can_user_edit_profile(tenant_id)
-
-        # If setting exists and is False, deny access
-        if security_settings and not security_settings.get("allow_users_edit_profile"):
+        if not settings_service.can_user_edit_profile(tenant_id):
             return RedirectResponse(url="/account/profile", status_code=303)
 
-    # Update user's name
-    database.users.update_user_profile(tenant_id, user["id"], first_name.strip(), last_name.strip())
+    # Update user's name via service
+    requesting_user = _to_requesting_user(user)
+    profile_update = UserProfileUpdate(
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+    )
+    users_service.update_current_user_profile(requesting_user, user, profile_update)
 
     return RedirectResponse(url="/account/profile", status_code=303)
 
@@ -98,8 +104,10 @@ def update_timezone(
         # This will raise ZoneInfoNotFoundError if invalid
         ZoneInfo(timezone)
 
-        # Update user's timezone
-        database.users.update_user_timezone(tenant_id, user["id"], timezone)
+        # Update user's timezone via service
+        requesting_user = _to_requesting_user(user)
+        profile_update = UserProfileUpdate(timezone=timezone)
+        users_service.update_current_user_profile(requesting_user, user, profile_update)
     except ZoneInfoNotFoundError:
         # Invalid timezone, skip update
         pass
@@ -128,13 +136,16 @@ def update_regional(
         # Invalid timezone, skip timezone update
         pass
 
-    # Update both timezone and locale if timezone is valid
-    if tz_valid and locale:
-        database.users.update_user_timezone_and_locale(tenant_id, user["id"], timezone, locale)
-    elif tz_valid:
-        database.users.update_user_timezone(tenant_id, user["id"], timezone)
-    elif locale:
-        database.users.update_user_locale(tenant_id, user["id"], locale)
+    # Build profile update with valid fields
+    requesting_user = _to_requesting_user(user)
+    profile_update = UserProfileUpdate(
+        timezone=timezone if tz_valid else None,
+        locale=locale if locale else None,
+    )
+
+    # Only call service if there's something to update
+    if profile_update.timezone or profile_update.locale:
+        users_service.update_current_user_profile(requesting_user, user, profile_update)
 
     return RedirectResponse(url="/account/profile", status_code=303)
 
@@ -146,8 +157,9 @@ def email_settings(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage user email addresses."""
-    # Fetch all email addresses for this user
-    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
+    # Fetch all email addresses for this user via service
+    requesting_user = _to_requesting_user(user)
+    emails = emails_service.list_user_emails(requesting_user, user["id"])
 
     return templates.TemplateResponse(
         "settings_emails.html", get_template_context(request, tenant_id, emails=emails)
@@ -161,8 +173,8 @@ def mfa_settings(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and configure MFA settings."""
-    # Check if user has backup codes
-    backup_codes = database.mfa.list_backup_codes(tenant_id, user["id"])
+    # Check if user has backup codes via service
+    backup_codes = mfa_service.list_backup_codes_raw(tenant_id, user["id"])
 
     return templates.TemplateResponse(
         "settings_mfa.html",
@@ -185,28 +197,33 @@ def add_email(
     """Add a new email address to the user's account."""
     # Check if user is allowed to add emails
     # Super admins are always allowed, otherwise check tenant security setting
-    if user.get("role") != "super_admin":
-        security_settings = database.security.can_user_add_emails(tenant_id)
-
-        # If setting exists and is False, deny access
-        if security_settings and not security_settings.get("allow_users_add_emails"):
-            return RedirectResponse(url="/account/emails", status_code=303)
-
-    # Check if email already exists for this tenant
-    if database.user_emails.email_exists(tenant_id, email.lower()):
-        # Email already exists - redirect back with error
-        # TODO: Add flash message support
+    allow_add = settings_service.can_users_add_emails(tenant_id)
+    if user.get("role") != "super_admin" and not allow_add:
         return RedirectResponse(url="/account/emails", status_code=303)
 
-    # Add the new email (unverified)
-    result = database.user_emails.add_email(tenant_id, user["id"], email.lower(), user["tenant_id"])
+    requesting_user = _to_requesting_user(user)
+    try:
+        # Add email via service (non-admin action, requires verification)
+        created_email = emails_service.add_user_email(
+            requesting_user,
+            user["id"],
+            email,
+            is_admin_action=False,
+            allow_users_add_emails=allow_add,
+        )
 
-    # Send verification email
-    if result:
+        # Get verification info and send verification email
+        verification_info = emails_service.resend_verification(
+            requesting_user, user["id"], created_email.id
+        )
         verification_url = (
-            f"{request.base_url}account/emails/verify/{result['id']}/{result['verify_nonce']}"
+            f"{request.base_url}account/emails/verify/"
+            f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
         )
         send_email_verification(email.lower(), str(verification_url))
+    except (ValidationError, NotFoundError, ConflictError):
+        # Email exists or other error - redirect back silently
+        pass
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -219,18 +236,12 @@ def set_primary_email(
     email_id: str,
 ):
     """Set an email as the primary email for the user."""
-    # Verify the email belongs to this user and is verified
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
-
-    if not email or not email["verified_at"]:
-        # Can't set unverified email as primary
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    # Unset current primary
-    database.user_emails.unset_primary_emails(tenant_id, user["id"])
-
-    # Set new primary
-    database.user_emails.set_primary_email(tenant_id, email_id)
+    requesting_user = _to_requesting_user(user)
+    try:
+        emails_service.set_primary_email(requesting_user, user["id"], email_id)
+    except (NotFoundError, ValidationError):
+        # Email not found or not verified - redirect back silently
+        pass
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -243,66 +254,64 @@ def delete_email(
     email_id: str,
 ):
     """Delete an email address from the user's account."""
-    # Verify the email belongs to this user and is not primary
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
-
-    if not email or email["is_primary"]:
-        # Can't delete primary email or email that doesn't exist
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    # Delete the email
-    database.user_emails.delete_email(tenant_id, email_id)
+    requesting_user = _to_requesting_user(user)
+    try:
+        emails_service.delete_user_email(requesting_user, user["id"], email_id)
+    except (NotFoundError, ValidationError):
+        # Email not found, is primary, or is last email - redirect back silently
+        pass
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
 
 @router.post("/emails/resend-verification/{email_id}")
-def resend_verification(
+def resend_verification_route(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     email_id: str,
 ):
     """Resend verification email for an unverified email address."""
-    # Verify the email belongs to this user
-    email = database.user_emails.get_email_with_nonce(tenant_id, email_id, user["id"])
-
-    if not email:
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    # Send verification email
-    verification_url = (
-        f"{request.base_url}account/emails/verify/{email['id']}/{email['verify_nonce']}"
-    )
-    send_email_verification(email["email"], str(verification_url))
+    requesting_user = _to_requesting_user(user)
+    try:
+        verification_info = emails_service.resend_verification(
+            requesting_user, user["id"], email_id
+        )
+        verification_url = (
+            f"{request.base_url}account/emails/verify/"
+            f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
+        )
+        send_email_verification(verification_info["email"], str(verification_url))
+    except NotFoundError:
+        # Email not found - redirect back silently
+        pass
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
 
 @router.get("/emails/verify/{email_id}/{nonce}")
-def verify_email(
+def verify_email_route(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     email_id: str,
     nonce: int,
 ):
     """Verify an email address using the verification link."""
-    # Look up the email by ID and nonce
-    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    # First get email info to get the user_id
+    email_info = emails_service.get_email_for_verification(tenant_id, email_id)
 
-    if not email:
+    if not email_info:
         return RedirectResponse(url="/login", status_code=303)
 
     # Check if already verified
-    if email["verified_at"]:
+    if email_info["verified_at"]:
         return RedirectResponse(url="/account/emails", status_code=303)
 
-    # Verify nonce matches
-    if email["verify_nonce"] != nonce:
+    try:
+        emails_service.verify_email(tenant_id, email_id, str(email_info["user_id"]), nonce)
+    except (NotFoundError, ValidationError):
+        # Invalid nonce or email - redirect back silently
         return RedirectResponse(url="/account/emails", status_code=303)
-
-    # Mark as verified and increment nonce
-    database.user_emails.verify_email(tenant_id, email_id)
 
     return RedirectResponse(url="/account/emails", status_code=303)
 
@@ -315,29 +324,18 @@ def mfa_setup_totp(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Start TOTP (authenticator app) setup process."""
-    # Prevent TOTP setup if TOTP is already active
-    # Users must downgrade to email OTP first, then re-enable TOTP
-    if user.get("mfa_method") == "totp":
+    requesting_user = _to_requesting_user(user)
+    try:
+        setup_response = mfa_service.setup_totp(requesting_user, user)
+    except ValidationError:
+        # TOTP already active - redirect back
         return RedirectResponse(url="/account/mfa", status_code=303)
-
-    # Generate TOTP secret
-    secret = generate_totp_secret()
-    secret_encrypted = encrypt_secret(secret)
-
-    # Get user email for URI
-    email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-    email = email_row["email"] if email_row else "user@example.com"
-
-    # Generate URI for QR code
-    uri = generate_totp_uri(secret, email)
-    secret_display = format_secret_for_display(secret)
-
-    # Store unverified secret
-    database.mfa.create_totp_secret(tenant_id, user["id"], secret_encrypted, tenant_id)
 
     return templates.TemplateResponse(
         "mfa_setup_totp.html",
-        get_template_context(request, tenant_id, uri=uri, secret=secret_display),
+        get_template_context(
+            request, tenant_id, uri=setup_response.uri, secret=setup_response.secret
+        ),
     )
 
 
@@ -348,30 +346,16 @@ def mfa_setup_email(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Enable email-only MFA (or downgrade from TOTP - requires re-verification)."""
-    # Check if user is downgrading from TOTP to email
-    current_method = user.get("mfa_method")
-    if current_method == "totp":
-        # This is a downgrade - require email re-verification
-        # Store pending downgrade in session
+    requesting_user = _to_requesting_user(user)
+    response, notification_info = mfa_service.enable_email_mfa(requesting_user, user)
+
+    if response.pending_verification and notification_info:
+        # Downgrading from TOTP - store session and send code
         request.session["pending_mfa_downgrade"] = "email"
-
-        # Get primary email
-        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-
-        if email_row:
-            # Send verification code via email
-            from utils.email import send_mfa_code_email
-            from utils.mfa import create_email_otp
-
-            code = create_email_otp(tenant_id, user["id"])
-            send_mfa_code_email(email_row["email"], code)
-
-        # Redirect to verification page
+        send_mfa_code_email(notification_info["email"], notification_info["code"])
         return RedirectResponse(url="/account/mfa/downgrade-verify", status_code=303)
 
-    # Normal case: switching to email MFA without downgrading
-    database.mfa.enable_mfa(tenant_id, user["id"], "email")
-
+    # Email MFA enabled directly
     return RedirectResponse(url="/account/mfa", status_code=303)
 
 
@@ -387,50 +371,28 @@ def mfa_setup_verify(
     if method != "totp":
         return RedirectResponse(url="/account/mfa", status_code=303)
 
-    # Get unverified secret
-    row = database.mfa.get_totp_secret(tenant_id, user["id"], method)
-
-    if not row:
-        return RedirectResponse(url="/account/mfa", status_code=303)
-
-    secret = decrypt_secret(row["secret_encrypted"])
-    code_clean = code.replace(" ", "").replace("-", "")
-
-    if not verify_totp_code(secret, code_clean):
-        # Get user email for error display
-        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-        email = email_row["email"] if email_row else "user@example.com"
-        uri = generate_totp_uri(secret, email)
-        secret_display = format_secret_for_display(secret)
-
+    requesting_user = _to_requesting_user(user)
+    try:
+        backup_codes_response = mfa_service.verify_totp_and_enable(requesting_user, user, code)
+        # Show backup codes
         return templates.TemplateResponse(
-            "mfa_setup_totp.html",
-            get_template_context(
-                request, tenant_id, uri=uri, secret=secret_display, error="Invalid code"
-            ),
+            "mfa_backup_codes.html",
+            get_template_context(request, tenant_id, backup_codes=backup_codes_response.codes),
         )
-
-    # Mark as verified
-    database.mfa.verify_totp_secret(tenant_id, user["id"], method)
-
-    # Enable MFA on user account
-    database.mfa.enable_mfa(tenant_id, user["id"], method)
-
-    # Delete existing backup codes (to replace them with new ones)
-    database.mfa.delete_backup_codes(tenant_id, user["id"])
-
-    # Generate backup codes
-    backup_codes = generate_backup_codes()
-
-    # Store hashed backup codes
-    for code_str in backup_codes:
-        code_hash = hash_code(code_str.replace("-", ""))
-        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
-
-    # Show backup codes
-    return templates.TemplateResponse(
-        "mfa_backup_codes.html", get_template_context(request, tenant_id, backup_codes=backup_codes)
-    )
+    except ValidationError as e:
+        if e.code == "invalid_totp_code":
+            # Re-display setup page with error
+            pending_setup = mfa_service.get_pending_totp_setup(tenant_id, user["id"])
+            if pending_setup:
+                secret_display, uri = pending_setup
+                return templates.TemplateResponse(
+                    "mfa_setup_totp.html",
+                    get_template_context(
+                        request, tenant_id, uri=uri, secret=secret_display, error="Invalid code"
+                    ),
+                )
+        # No pending setup or other error - redirect back
+        return RedirectResponse(url="/account/mfa", status_code=303)
 
 
 @router.post("/mfa/regenerate-backup-codes")
@@ -440,21 +402,17 @@ def mfa_regenerate_backup_codes(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Regenerate backup codes for the current user."""
-    # Delete existing backup codes
-    database.mfa.delete_backup_codes(tenant_id, user["id"])
-
-    # Generate new backup codes
-    backup_codes = generate_backup_codes()
-
-    # Store hashed backup codes
-    for code_str in backup_codes:
-        code_hash = hash_code(code_str.replace("-", ""))
-        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
-
-    # Show backup codes
-    return templates.TemplateResponse(
-        "mfa_backup_codes.html", get_template_context(request, tenant_id, backup_codes=backup_codes)
-    )
+    requesting_user = _to_requesting_user(user)
+    try:
+        backup_codes_response = mfa_service.regenerate_backup_codes(requesting_user, user)
+        # Show backup codes
+        return templates.TemplateResponse(
+            "mfa_backup_codes.html",
+            get_template_context(request, tenant_id, backup_codes=backup_codes_response.codes),
+        )
+    except ValidationError:
+        # MFA not enabled - redirect back
+        return RedirectResponse(url="/account/mfa", status_code=303)
 
 
 @router.post("/mfa/generate-backup-codes")
@@ -464,17 +422,12 @@ def mfa_generate_backup_codes(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Generate initial backup codes for users who don't have any."""
-    # Generate new backup codes
-    backup_codes = generate_backup_codes()
-
-    # Store hashed backup codes
-    for code_str in backup_codes:
-        code_hash = hash_code(code_str.replace("-", ""))
-        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
+    backup_codes = mfa_service.generate_initial_backup_codes(tenant_id, user["id"])
 
     # Show backup codes
     return templates.TemplateResponse(
-        "mfa_backup_codes.html", get_template_context(request, tenant_id, backup_codes=backup_codes)
+        "mfa_backup_codes.html",
+        get_template_context(request, tenant_id, backup_codes=backup_codes),
     )
 
 
@@ -505,21 +458,17 @@ def mfa_downgrade_verify(
     if not pending_method:
         return RedirectResponse(url="/account/mfa", status_code=303)
 
-    # Verify the email code
-    code_clean = code.replace(" ", "").replace("-", "")
-    if not verify_email_otp(tenant_id, user["id"], code_clean):
-        return templates.TemplateResponse(
-            "mfa_downgrade_verify.html",
-            get_template_context(request, tenant_id, error="Invalid or expired code"),
-        )
-
-    # Code verified - complete the downgrade
-    database.mfa.set_mfa_method(tenant_id, user["id"], pending_method)
-
-    # Delete TOTP secrets (no longer needed)
-    database.mfa.delete_totp_secrets(tenant_id, user["id"])
-
-    # Clear session
-    request.session.pop("pending_mfa_downgrade", None)
-
-    return RedirectResponse(url="/account/mfa?downgraded=1", status_code=303)
+    requesting_user = _to_requesting_user(user)
+    try:
+        mfa_service.verify_mfa_downgrade(requesting_user, user, code)
+        # Clear session
+        request.session.pop("pending_mfa_downgrade", None)
+        return RedirectResponse(url="/account/mfa?downgraded=1", status_code=303)
+    except ValidationError as e:
+        if e.code == "invalid_email_otp":
+            return templates.TemplateResponse(
+                "mfa_downgrade_verify.html",
+                get_template_context(request, tenant_id, error="Invalid or expired code"),
+            )
+        # Other validation error - redirect back
+        return RedirectResponse(url="/account/mfa", status_code=303)

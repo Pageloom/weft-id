@@ -49,8 +49,8 @@ def test_users_list_page(test_admin_user):
     override_auth(app, test_admin_user)
 
     with patch("routers.users.templates.TemplateResponse") as mock_template:
-        with patch("database.users.count_users") as mock_count:
-            with patch("database.users.list_users") as mock_list:
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
                 from fastapi.responses import HTMLResponse
 
                 mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
@@ -76,8 +76,8 @@ def test_users_list_with_search(test_admin_user):
 
         mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
 
-        with patch("database.users.count_users") as mock_count:
-            with patch("database.users.list_users") as mock_list:
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
                 mock_count.return_value = 2
                 mock_list.return_value = []
 
@@ -99,8 +99,8 @@ def test_users_list_with_sorting(test_admin_user):
 
         mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
 
-        with patch("database.users.count_users") as mock_count:
-            with patch("database.users.list_users") as mock_list:
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
                 mock_count.return_value = 5
                 mock_list.return_value = []
 
@@ -125,8 +125,8 @@ def test_users_list_with_pagination(test_admin_user):
 
         mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
 
-        with patch("database.users.count_users") as mock_count:
-            with patch("database.users.list_users") as mock_list:
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
                 mock_count.return_value = 100
                 mock_list.return_value = []
 
@@ -150,8 +150,8 @@ def test_users_list_invalid_sort_field(test_admin_user):
 
         mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
 
-        with patch("database.users.count_users") as mock_count:
-            with patch("database.users.list_users") as mock_list:
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
                 mock_count.return_value = 5
                 mock_list.return_value = []
 
@@ -168,41 +168,54 @@ def test_users_list_invalid_sort_field(test_admin_user):
 
 def test_user_detail_page(test_admin_user):
     """Test user detail page renders."""
+    from datetime import datetime
+
+    from schemas.api import UserDetail
+
     override_auth(app, test_admin_user)
 
-    target_user = {
-        "id": "user-123",
-        "first_name": "Test",
-        "last_name": "User",
-        "role": "member",
-    }
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
 
     with patch("routers.users.templates.TemplateResponse") as mock_template:
-        with patch("database.users.get_user_by_id") as mock_get:
-            with patch("database.user_emails.list_user_emails") as mock_emails:
-                with patch("database.settings.list_privileged_domains") as mock_domains:
-                    from fastapi.responses import HTMLResponse
+        with patch("services.users.get_user") as mock_get:
+            with patch("database.settings.list_privileged_domains") as mock_domains:
+                from fastapi.responses import HTMLResponse
 
-                    mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
-                    mock_get.return_value = target_user
-                    mock_emails.return_value = []
-                    mock_domains.return_value = []
+                mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
+                mock_get.return_value = target_user
+                mock_domains.return_value = []
 
-                    client = TestClient(app)
-                    response = client.get("/users/user-123")
+                client = TestClient(app)
+                response = client.get("/users/user-123")
 
-                    app.dependency_overrides.clear()
+                app.dependency_overrides.clear()
 
-                    assert response.status_code == 200
-                    mock_get.assert_called_once_with(test_admin_user["tenant_id"], "user-123")
+                assert response.status_code == 200
+                mock_get.assert_called_once()
 
 
 def test_user_detail_not_found(test_admin_user):
     """Test user detail redirects when user not found."""
+    from services.exceptions import NotFoundError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.users.get_user_by_id") as mock_get:
-        mock_get.return_value = None
+    with patch("services.users.get_user") as mock_get:
+        mock_get.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.get("/users/user-123", follow_redirects=False)
@@ -228,9 +241,29 @@ def test_user_detail_regular_user_denied(test_user):
 
 def test_update_user_name_success(test_admin_user):
     """Test updating user name as admin."""
+    from schemas.api import UserDetail
+
     override_auth(app, test_admin_user)
 
-    with patch("database.users.update_user_profile") as mock_update:
+    # Mock the service layer update_user function
+    mock_user_detail = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="New",
+        last_name="Name",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at="2025-01-01T00:00:00",
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    with patch("services.users.update_user") as mock_update:
+        mock_update.return_value = mock_user_detail
         client = TestClient(app)
         response = client.post(
             "/users/user-123/update-name",
@@ -242,7 +275,12 @@ def test_update_user_name_success(test_admin_user):
 
         assert response.status_code == 303
         assert "/users/user-123" in response.headers["location"]
-        mock_update.assert_called_once_with(test_admin_user["tenant_id"], "user-123", "New", "Name")
+        # Verify service was called with correct parameters
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        assert call_args[0][1] == "user-123"  # user_id
+        assert call_args[0][2].first_name == "New"
+        assert call_args[0][2].last_name == "Name"
 
 
 def test_update_user_name_empty_validation(test_admin_user):
@@ -266,9 +304,29 @@ def test_update_user_name_empty_validation(test_admin_user):
 
 def test_update_user_role_success(test_super_admin_user):
     """Test updating user role as super_admin."""
+    from schemas.api import UserDetail
+
     override_auth(app, test_super_admin_user)
 
-    with patch("database.users.update_user_role") as mock_update:
+    # Mock the service layer update_user function
+    mock_user_detail = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="admin",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at="2025-01-01T00:00:00",
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    with patch("services.users.update_user") as mock_update:
+        mock_update.return_value = mock_user_detail
         client = TestClient(app)
         response = client.post(
             "/users/user-123/update-role",
@@ -280,7 +338,11 @@ def test_update_user_role_success(test_super_admin_user):
 
         assert response.status_code == 303
         assert "success=role_updated" in response.headers["location"]
-        mock_update.assert_called_once_with(test_super_admin_user["tenant_id"], "user-123", "admin")
+        # Verify service was called with correct parameters
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        assert call_args[0][1] == "user-123"  # user_id
+        assert call_args[0][2].role == "admin"
 
 
 def test_update_user_role_denied_for_admin(test_admin_user):
@@ -342,95 +404,99 @@ def test_update_user_role_invalid_role(test_super_admin_user):
 
 def test_add_user_email_success(test_admin_user):
     """Test adding secondary email to user."""
+    from schemas.api import EmailInfo
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            with patch("database.user_emails.add_verified_email") as mock_add:
-                with patch("database.user_emails.get_primary_email") as mock_primary:
-                    with patch(
-                        "routers.users.send_secondary_email_added_notification"
-                    ) as mock_send:
-                        mock_exists.return_value = False
-                        mock_privileged.return_value = True
-                        mock_primary.return_value = {"email": "primary@example.com"}
+    mock_email_info = EmailInfo(
+        id="new-email-id",
+        email="new@privileged.com",
+        is_primary=False,
+        verified_at="2025-01-01T00:00:00",
+        created_at="2025-01-01T00:00:00",
+    )
 
-                        client = TestClient(app)
-                        response = client.post(
-                            "/users/user-123/add-email",
-                            data={"email": "new@privileged.com"},
-                            follow_redirects=False,
-                        )
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.emails.add_user_email") as mock_add:
+            with patch("services.emails.get_primary_email") as mock_primary:
+                with patch("routers.users.send_secondary_email_added_notification") as mock_send:
+                    mock_privileged.return_value = True
+                    mock_add.return_value = mock_email_info
+                    mock_primary.return_value = "primary@example.com"
 
-                        app.dependency_overrides.clear()
+                    client = TestClient(app)
+                    response = client.post(
+                        "/users/user-123/add-email",
+                        data={"email": "new@privileged.com"},
+                        follow_redirects=False,
+                    )
 
-                        assert response.status_code == 303
-                        assert "success=email_added" in response.headers["location"]
-                        mock_add.assert_called_once()
-                        mock_send.assert_called_once()
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 303
+                    assert "success=email_added" in response.headers["location"]
+                    mock_add.assert_called_once()
+                    mock_send.assert_called_once()
 
 
 def test_add_user_email_not_privileged(test_admin_user):
     """Test adding email from non-privileged domain."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            mock_exists.return_value = False
-            mock_privileged.return_value = False
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        mock_privileged.return_value = False
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/add-email",
-                data={"email": "new@unprivileged.com"},
-                follow_redirects=False,
-            )
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/add-email",
+            data={"email": "new@unprivileged.com"},
+            follow_redirects=False,
+        )
 
-            app.dependency_overrides.clear()
+        app.dependency_overrides.clear()
 
-            assert response.status_code == 303
-            assert "error=domain_not_privileged" in response.headers["location"]
+        assert response.status_code == 303
+        assert "error=domain_not_privileged" in response.headers["location"]
 
 
 def test_remove_user_email_success(test_admin_user):
     """Test removing secondary email from user."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.count_user_emails") as mock_count:
-            with patch("database.user_emails.list_user_emails") as mock_list:
-                with patch("database.user_emails.delete_email") as mock_delete:
-                    with patch("database.user_emails.get_primary_email") as mock_primary:
-                        with patch(
-                            "routers.users.send_secondary_email_removed_notification"
-                        ) as mock_send:
-                            mock_get.return_value = {"id": "email-id", "is_primary": False}
-                            mock_count.return_value = 2
-                            mock_list.return_value = [
-                                {"id": "email-id", "email": "secondary@example.com"}
-                            ]
-                            mock_primary.return_value = {"email": "primary@example.com"}
+    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+        with patch("services.emails.delete_user_email") as mock_delete:
+            with patch("services.emails.get_primary_email") as mock_primary:
+                with patch("routers.users.send_secondary_email_removed_notification") as mock_send:
+                    mock_get_addr.return_value = "secondary@example.com"
+                    mock_delete.return_value = None
+                    mock_primary.return_value = "primary@example.com"
 
-                            client = TestClient(app)
-                            response = client.post(
-                                "/users/user-123/remove-email/email-id", follow_redirects=False
-                            )
+                    client = TestClient(app)
+                    response = client.post(
+                        "/users/user-123/remove-email/email-id", follow_redirects=False
+                    )
 
-                            app.dependency_overrides.clear()
+                    app.dependency_overrides.clear()
 
-                            assert response.status_code == 303
-                            assert "success=email_removed" in response.headers["location"]
-                            mock_delete.assert_called_once()
-                            mock_send.assert_called_once()
+                    assert response.status_code == 303
+                    assert "success=email_removed" in response.headers["location"]
+                    mock_delete.assert_called_once()
+                    mock_send.assert_called_once()
 
 
 def test_remove_user_email_primary_blocked(test_admin_user):
     """Test cannot remove primary email."""
+    from services.exceptions import ValidationError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.delete_email") as mock_delete:
-            mock_get.return_value = {"id": "email-id", "is_primary": True}
+    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+        with patch("services.emails.delete_user_email") as mock_delete:
+            mock_get_addr.return_value = "primary@example.com"
+            mock_delete.side_effect = ValidationError(
+                message="Cannot delete primary email address",
+                code="cannot_delete_primary",
+            )
 
             client = TestClient(app)
             response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
@@ -439,57 +505,74 @@ def test_remove_user_email_primary_blocked(test_admin_user):
 
             assert response.status_code == 303
             assert "error=cannot_remove_primary" in response.headers["location"]
-            mock_delete.assert_not_called()
 
 
 def test_promote_user_email_success(test_admin_user):
     """Test promoting secondary email to primary."""
+    from schemas.api import EmailInfo
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.get_primary_email") as mock_old_primary:
-            with patch("database.user_emails.list_user_emails") as mock_list:
-                with patch("database.user_emails.unset_primary_emails") as mock_unset:
-                    with patch("database.user_emails.set_primary_email") as mock_set:
-                        with patch(
-                            "routers.users.send_primary_email_changed_notification"
-                        ) as mock_send:
-                            mock_get.return_value = {"id": "email-id", "is_primary": False}
-                            mock_old_primary.return_value = {"email": "old@example.com"}
-                            mock_list.return_value = [
-                                {"id": "email-id", "email": "new@example.com"}
-                            ]
+    mock_email_info = EmailInfo(
+        id="email-id",
+        email="new@example.com",
+        is_primary=True,
+        verified_at="2025-01-01T00:00:00",
+        created_at="2025-01-01T00:00:00",
+    )
 
-                            client = TestClient(app)
-                            response = client.post(
-                                "/users/user-123/promote-email/email-id", follow_redirects=False
-                            )
+    with patch("services.emails.get_primary_email") as mock_old_primary:
+        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+            with patch("services.emails.set_primary_email") as mock_set:
+                with patch("routers.users.send_primary_email_changed_notification") as mock_send:
+                    mock_old_primary.return_value = "old@example.com"
+                    mock_get_addr.return_value = "new@example.com"
+                    mock_set.return_value = mock_email_info
 
-                            app.dependency_overrides.clear()
+                    client = TestClient(app)
+                    response = client.post(
+                        "/users/user-123/promote-email/email-id", follow_redirects=False
+                    )
 
-                            assert response.status_code == 303
-                            assert "success=email_promoted" in response.headers["location"]
-                            mock_unset.assert_called_once()
-                            mock_set.assert_called_once()
-                            mock_send.assert_called_once()
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 303
+                    assert "success=email_promoted" in response.headers["location"]
+                    mock_set.assert_called_once()
+                    mock_send.assert_called_once()
 
 
 def test_promote_user_email_already_primary(test_admin_user):
     """Test cannot promote already primary email."""
+    from schemas.api import EmailInfo
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.set_primary_email") as mock_set:
-            mock_get.return_value = {"id": "email-id", "is_primary": True}
+    mock_email_info = EmailInfo(
+        id="email-id",
+        email="already@primary.com",
+        is_primary=True,
+        verified_at="2025-01-01T00:00:00",
+        created_at="2025-01-01T00:00:00",
+    )
 
-            client = TestClient(app)
-            response = client.post("/users/user-123/promote-email/email-id", follow_redirects=False)
+    with patch("services.emails.get_primary_email") as mock_old_primary:
+        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+            with patch("services.emails.set_primary_email") as mock_set:
+                # Same email - already primary
+                mock_old_primary.return_value = "already@primary.com"
+                mock_get_addr.return_value = "already@primary.com"
+                mock_set.return_value = mock_email_info
 
-            app.dependency_overrides.clear()
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/promote-email/email-id", follow_redirects=False
+                )
 
-            assert response.status_code == 303
-            assert "error=already_primary" in response.headers["location"]
-            mock_set.assert_not_called()
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "error=already_primary" in response.headers["location"]
 
 
 def test_users_list_with_locale_collation(test_admin_user):
@@ -497,9 +580,9 @@ def test_users_list_with_locale_collation(test_admin_user):
     user_with_locale = {**test_admin_user, "locale": "sv_SE"}
     override_auth(app, user_with_locale)
 
-    with patch("database.users.check_collation_exists") as mock_check:
-        with patch("database.users.list_users") as mock_list:
-            with patch("database.users.count_users") as mock_count:
+    with patch("services.users.check_collation_exists") as mock_check:
+        with patch("services.users.list_users_raw") as mock_list:
+            with patch("services.users.count_users") as mock_count:
                 with patch("routers.users.templates.TemplateResponse") as mock_template:
                     from fastapi.responses import HTMLResponse
 
@@ -514,7 +597,7 @@ def test_users_list_with_locale_collation(test_admin_user):
                     app.dependency_overrides.clear()
 
                     assert response.status_code == 200
-                    # Check collation was passed to list_users
+                    # Check collation was passed to list_users_raw
                     mock_list.assert_called_once()
                     call_args = mock_list.call_args
                     assert call_args[0][6] == "sv-SE-x-icu"  # collation parameter
@@ -524,8 +607,8 @@ def test_users_list_with_invalid_page_param(test_admin_user):
     """Test users list with invalid page parameter."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.list_users") as mock_list:
-        with patch("database.users.count_users") as mock_count:
+    with patch("services.users.list_users_raw") as mock_list:
+        with patch("services.users.count_users") as mock_count:
             with patch("routers.users.templates.TemplateResponse") as mock_template:
                 from fastapi.responses import HTMLResponse
 
@@ -546,8 +629,8 @@ def test_users_list_with_invalid_page_size(test_admin_user):
     """Test users list with invalid page size parameter."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.list_users") as mock_list:
-        with patch("database.users.count_users") as mock_count:
+    with patch("services.users.list_users_raw") as mock_list:
+        with patch("services.users.count_users") as mock_count:
             with patch("routers.users.templates.TemplateResponse") as mock_template:
                 from fastapi.responses import HTMLResponse
 
@@ -568,8 +651,8 @@ def test_users_list_with_nonstandard_page_size(test_admin_user):
     """Test users list with non-standard page size."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.list_users") as mock_list:
-        with patch("database.users.count_users") as mock_count:
+    with patch("services.users.list_users_raw") as mock_list:
+        with patch("services.users.count_users") as mock_count:
             with patch("routers.users.templates.TemplateResponse") as mock_template:
                 from fastapi.responses import HTMLResponse
 
@@ -590,8 +673,8 @@ def test_users_list_with_invalid_sort_order(test_admin_user):
     """Test users list with invalid sort order."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.list_users") as mock_list:
-        with patch("database.users.count_users") as mock_count:
+    with patch("services.users.list_users_raw") as mock_list:
+        with patch("services.users.count_users") as mock_count:
             with patch("routers.users.templates.TemplateResponse") as mock_template:
                 from fastapi.responses import HTMLResponse
 
@@ -625,48 +708,69 @@ def test_add_user_email_invalid_email(test_admin_user):
 
 def test_add_user_email_already_exists(test_admin_user):
     """Test adding email that already exists."""
+    from services.exceptions import ConflictError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        mock_exists.return_value = True
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.emails.add_user_email") as mock_add:
+            mock_privileged.return_value = True
+            mock_add.side_effect = ConflictError(
+                message="Email address already exists",
+                code="email_exists",
+            )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/add-email",
-            data={"email": "existing@example.com"},
-            follow_redirects=False,
-        )
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/add-email",
+                data={"email": "existing@example.com"},
+                follow_redirects=False,
+            )
 
-        app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=email_exists" in response.headers["location"]
+            assert response.status_code == 303
+            assert "error=email_exists" in response.headers["location"]
 
 
 def test_remove_user_email_not_found(test_admin_user):
     """Test removing non-existent email."""
+    from services.exceptions import NotFoundError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        mock_get.return_value = None
+    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+        with patch("services.emails.delete_user_email") as mock_delete:
+            mock_get_addr.return_value = None
+            mock_delete.side_effect = NotFoundError(
+                message="Email not found",
+                code="email_not_found",
+            )
 
-        client = TestClient(app)
-        response = client.post("/users/user-123/remove-email/invalid-id", follow_redirects=False)
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/remove-email/invalid-id", follow_redirects=False
+            )
 
-        app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=email_not_found" in response.headers["location"]
+            assert response.status_code == 303
+            assert "error=email_not_found" in response.headers["location"]
 
 
 def test_remove_user_email_must_keep_one(test_admin_user):
     """Test cannot remove last email."""
+    from services.exceptions import ValidationError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.count_user_emails") as mock_count:
-            mock_get.return_value = {"id": "email-id", "is_primary": False}
-            mock_count.return_value = 1
+    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+        with patch("services.emails.delete_user_email") as mock_delete:
+            mock_get_addr.return_value = "last@example.com"
+            mock_delete.side_effect = ValidationError(
+                message="Cannot delete last email address",
+                code="must_keep_one_email",
+            )
 
             client = TestClient(app)
             response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
@@ -679,18 +783,29 @@ def test_remove_user_email_must_keep_one(test_admin_user):
 
 def test_promote_user_email_not_found(test_admin_user):
     """Test promoting non-existent email."""
+    from services.exceptions import NotFoundError
+
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        mock_get.return_value = None
+    with patch("services.emails.get_primary_email") as mock_old_primary:
+        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
+            with patch("services.emails.set_primary_email") as mock_set:
+                mock_old_primary.return_value = None
+                mock_get_addr.return_value = None
+                mock_set.side_effect = NotFoundError(
+                    message="Email not found",
+                    code="email_not_found",
+                )
 
-        client = TestClient(app)
-        response = client.post("/users/user-123/promote-email/invalid-id", follow_redirects=False)
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/promote-email/invalid-id", follow_redirects=False
+                )
 
-        app.dependency_overrides.clear()
+                app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=email_not_found" in response.headers["location"]
+                assert response.status_code == 303
+                assert "error=email_not_found" in response.headers["location"]
 
 
 # New user creation tests
@@ -733,92 +848,82 @@ def test_create_new_user_with_privileged_domain(test_admin_user):
     """Test creating new user with privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            with patch("database.users.create_user") as mock_create:
-                with patch("database.user_emails.add_verified_email") as mock_add_email:
-                    with patch("database.user_emails.set_primary_email") as mock_set_primary:
-                        with patch("database.tenants.get_tenant_by_id") as mock_tenant:
-                            with patch(
-                                "routers.users.send_new_user_privileged_domain_notification"
-                            ) as mock_send:
-                                mock_exists.return_value = False
-                                mock_privileged.return_value = True
-                                mock_create.return_value = {"user_id": "new-user-123"}
-                                mock_add_email.return_value = {"id": "email-123"}
-                                mock_tenant.return_value = {
-                                    "id": "tenant-123",
-                                    "name": "Test Organization",
-                                }
+    with patch("services.users.email_exists") as mock_exists:
+        with patch("services.settings.is_privileged_domain") as mock_privileged:
+            with patch("services.users.create_user_raw") as mock_create:
+                with patch("services.users.add_verified_email_with_nonce") as mock_add_email:
+                    with patch("services.users.get_tenant_name") as mock_tenant:
+                        with patch(
+                            "routers.users.send_new_user_privileged_domain_notification"
+                        ) as mock_send:
+                            mock_exists.return_value = False
+                            mock_privileged.return_value = True
+                            mock_create.return_value = {"user_id": "new-user-123"}
+                            mock_add_email.return_value = {"id": "email-123"}
+                            mock_tenant.return_value = "Test Organization"
 
-                                client = TestClient(app)
-                                response = client.post(
-                                    "/users/new",
-                                    data={
-                                        "email": "newuser@privileged.com",
-                                        "first_name": "New",
-                                        "last_name": "User",
-                                        "role": "member",
-                                    },
-                                    follow_redirects=False,
-                                )
+                            client = TestClient(app)
+                            response = client.post(
+                                "/users/new",
+                                data={
+                                    "email": "newuser@privileged.com",
+                                    "first_name": "New",
+                                    "last_name": "User",
+                                    "role": "member",
+                                },
+                                follow_redirects=False,
+                            )
 
-                                app.dependency_overrides.clear()
+                            app.dependency_overrides.clear()
 
-                                assert response.status_code == 303
-                                assert "/users/new-user-123" in response.headers["location"]
-                                assert "success=user_created" in response.headers["location"]
-                                mock_create.assert_called_once()
-                                mock_add_email.assert_called_once()
-                                mock_set_primary.assert_called_once()
-                                # Verify org name was passed to email
-                                assert mock_send.call_args[0][2] == "Test Organization"
+                            assert response.status_code == 303
+                            assert "/users/new-user-123" in response.headers["location"]
+                            assert "success=user_created" in response.headers["location"]
+                            mock_create.assert_called_once()
+                            mock_add_email.assert_called_once()
+                            # Verify org name was passed to email
+                            assert mock_send.call_args[0][2] == "Test Organization"
 
 
 def test_create_new_user_with_non_privileged_domain(test_admin_user):
     """Test creating new user with non-privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            with patch("database.users.create_user") as mock_create:
-                with patch("database.user_emails.add_email") as mock_add_email:
-                    with patch("database.user_emails.set_primary_email") as mock_set_primary:
-                        with patch("database.tenants.get_tenant_by_id") as mock_tenant:
-                            with patch("routers.users.send_new_user_invitation") as mock_send:
-                                mock_exists.return_value = False
-                                mock_privileged.return_value = False
-                                mock_create.return_value = {"user_id": "new-user-123"}
-                                mock_add_email.return_value = {
-                                    "id": "email-123",
-                                    "verify_nonce": "test-nonce",
-                                }
-                                mock_tenant.return_value = {
-                                    "id": "tenant-123",
-                                    "name": "Test Organization",
-                                }
+    with patch("services.users.email_exists") as mock_exists:
+        with patch("services.settings.is_privileged_domain") as mock_privileged:
+            with patch("services.users.create_user_raw") as mock_create:
+                with patch("services.users.add_unverified_email_with_nonce") as mock_add_email:
+                    with patch("services.users.get_tenant_name") as mock_tenant:
+                        with patch("routers.users.send_new_user_invitation") as mock_send:
+                            mock_exists.return_value = False
+                            mock_privileged.return_value = False
+                            mock_create.return_value = {"user_id": "new-user-123"}
+                            mock_add_email.return_value = {
+                                "id": "email-123",
+                                "verify_nonce": "test-nonce",
+                            }
+                            mock_tenant.return_value = "Test Organization"
 
-                                client = TestClient(app)
-                                response = client.post(
-                                    "/users/new",
-                                    data={
-                                        "email": "newuser@example.com",
-                                        "first_name": "New",
-                                        "last_name": "User",
-                                        "role": "member",
-                                    },
-                                    follow_redirects=False,
-                                )
+                            client = TestClient(app)
+                            response = client.post(
+                                "/users/new",
+                                data={
+                                    "email": "newuser@example.com",
+                                    "first_name": "New",
+                                    "last_name": "User",
+                                    "role": "member",
+                                },
+                                follow_redirects=False,
+                            )
 
-                                app.dependency_overrides.clear()
+                            app.dependency_overrides.clear()
 
-                                assert response.status_code == 303
-                                assert "/users/new-user-123" in response.headers["location"]
-                                mock_create.assert_called_once()
-                                mock_add_email.assert_called_once()
-                                mock_set_primary.assert_called_once()
-                                # Verify org name was passed to email
-                                assert mock_send.call_args[0][2] == "Test Organization"
+                            assert response.status_code == 303
+                            assert "/users/new-user-123" in response.headers["location"]
+                            mock_create.assert_called_once()
+                            mock_add_email.assert_called_once()
+                            # Verify org name was passed to email
+                            assert mock_send.call_args[0][2] == "Test Organization"
 
 
 def test_create_new_user_invalid_email(test_admin_user):
@@ -913,51 +1018,45 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
     """Test super admin can create admin users."""
     override_auth(app, test_super_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            with patch("database.users.create_user") as mock_create:
-                with patch("database.user_emails.add_verified_email") as mock_add_email:
-                    with patch("database.user_emails.set_primary_email"):
-                        with patch("database.tenants.get_tenant_by_id") as mock_tenant:
-                            with patch(
-                                "routers.users.send_new_user_privileged_domain_notification"
-                            ):
-                                mock_exists.return_value = False
-                                mock_privileged.return_value = True
-                                mock_create.return_value = {"user_id": "new-admin-123"}
-                                mock_add_email.return_value = {"id": "email-123"}
-                                mock_tenant.return_value = {
-                                    "id": "tenant-123",
-                                    "name": "Test Organization",
-                                }
+    with patch("services.users.email_exists") as mock_exists:
+        with patch("services.settings.is_privileged_domain") as mock_privileged:
+            with patch("services.users.create_user_raw") as mock_create:
+                with patch("services.users.add_verified_email_with_nonce"):
+                    with patch("services.users.get_tenant_name") as mock_tenant:
+                        with patch("routers.users.send_new_user_privileged_domain_notification"):
+                            mock_exists.return_value = False
+                            mock_privileged.return_value = True
+                            mock_create.return_value = {"user_id": "new-admin-123"}
+                            mock_tenant.return_value = "Test Organization"
 
-                                client = TestClient(app)
-                                response = client.post(
-                                    "/users/new",
-                                    data={
-                                        "email": "admin@example.com",
-                                        "first_name": "New",
-                                        "last_name": "Admin",
-                                        "role": "admin",
-                                    },
-                                    follow_redirects=False,
-                                )
+                            client = TestClient(app)
+                            response = client.post(
+                                "/users/new",
+                                data={
+                                    "email": "admin@example.com",
+                                    "first_name": "New",
+                                    "last_name": "Admin",
+                                    "role": "admin",
+                                },
+                                follow_redirects=False,
+                            )
 
-                                app.dependency_overrides.clear()
+                            app.dependency_overrides.clear()
 
-                                assert response.status_code == 303
-                                assert "/users/new-admin-123" in response.headers["location"]
-                                # Verify role was passed correctly
-                                call_args = mock_create.call_args[0]
-                                assert call_args[4] == "admin@example.com"
-                                assert call_args[5] == "admin"
+                            assert response.status_code == 303
+                            assert "/users/new-admin-123" in response.headers["location"]
+                            # Verify role was passed correctly
+                            mock_create.assert_called_once()
+                            call_args = mock_create.call_args[0]
+                            assert call_args[3] == "admin@example.com"
+                            assert call_args[4] == "admin"
 
 
 def test_create_new_user_email_already_exists(test_admin_user):
     """Test creating user with existing email."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
+    with patch("services.users.email_exists") as mock_exists:
         mock_exists.return_value = True
 
         client = TestClient(app)
@@ -982,9 +1081,9 @@ def test_create_new_user_creation_failed(test_admin_user):
     """Test handling of user creation failure."""
     override_auth(app, test_admin_user)
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.settings.privileged_domain_exists") as mock_privileged:
-            with patch("database.users.create_user") as mock_create:
+    with patch("services.users.email_exists") as mock_exists:
+        with patch("services.settings.is_privileged_domain") as mock_privileged:
+            with patch("services.users.create_user_raw") as mock_create:
                 mock_exists.return_value = False
                 mock_privileged.return_value = True
                 mock_create.return_value = None  # Simulate failure

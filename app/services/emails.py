@@ -516,3 +516,32 @@ def get_email_address_by_id(tenant_id: str, user_id: str, email_id: str) -> str 
         if str(e["id"]) == str(email_id):
             return str(e["email"])
     return None
+
+
+def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
+    """
+    Verify an email address using its nonce (public endpoint flow).
+
+    This is a utility function without authorization - used for
+    public email verification links where user isn't authenticated.
+
+    Unlike verify_email(), this only checks the nonce and doesn't
+    require user_id (used in public verification flow).
+
+    Args:
+        tenant_id: Tenant ID
+        email_id: Email UUID
+        nonce: Verification nonce from email link
+
+    Returns:
+        True if successfully verified, False if nonce doesn't match
+    """
+    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    if not email:
+        return False
+
+    if email["verify_nonce"] != nonce:
+        return False
+
+    database.user_emails.verify_email(tenant_id, email_id)
+    return True

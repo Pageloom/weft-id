@@ -271,6 +271,57 @@ def get_security_settings(
     )
 
 
+def get_privileged_domains_list(tenant_id: str) -> list[str]:
+    """
+    Get list of privileged domain names for a tenant.
+
+    This is a utility function that does not require authorization,
+    intended for use by other services (e.g., when creating users).
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        List of domain strings (e.g., ["example.com", "corp.example.com"])
+    """
+    rows = database.settings.list_privileged_domains(tenant_id)
+    return [row["domain"] for row in rows]
+
+
+def is_privileged_domain(tenant_id: str, domain: str) -> bool:
+    """
+    Check if a domain is privileged for the tenant.
+
+    This is a utility function that does not require authorization.
+
+    Args:
+        tenant_id: The tenant ID
+        domain: Domain to check
+
+    Returns:
+        True if domain is privileged, False otherwise
+    """
+    return database.settings.privileged_domain_exists(tenant_id, domain.lower())
+
+
+def can_users_add_emails(tenant_id: str) -> bool:
+    """
+    Check if users are allowed to add email addresses.
+
+    This is a utility function that does not require authorization.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        True if users can add emails, False otherwise
+    """
+    settings = database.security.get_security_settings(tenant_id)
+    if not settings:
+        return True  # Default to allowing
+    return bool(settings.get("allow_users_add_emails", True))
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,

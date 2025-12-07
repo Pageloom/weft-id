@@ -2,12 +2,21 @@
 
 from typing import Annotated
 
-import database
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
+from services import emails as emails_service
+from services import settings as settings_service
+from services import users as users_service
+from services.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+)
+from services.types import RequestingUser
 from utils.email import (
     send_new_user_invitation,
     send_new_user_privileged_domain_notification,
@@ -15,6 +24,7 @@ from utils.email import (
     send_secondary_email_added_notification,
     send_secondary_email_removed_notification,
 )
+from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -24,6 +34,15 @@ router = APIRouter(
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
+
+
+def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
+    """Convert route user dict to RequestingUser for service layer."""
+    return RequestingUser(
+        id=str(user["id"]),
+        tenant_id=tenant_id,
+        role=user.get("role", "member"),
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -64,7 +83,7 @@ def users_list(
         icu_collation = f"{user_locale.replace('_', '-')}-x-icu"
 
         # Check if this collation exists in the database
-        if database.users.check_collation_exists(tenant_id, icu_collation):
+        if users_service.check_collation_exists(tenant_id, icu_collation):
             collation = icu_collation
 
     # Parse query parameters
@@ -84,7 +103,7 @@ def users_list(
     except ValueError:
         page_size = 25
 
-    # Validate sort field and order (validation also happens in database.users.list_users)
+    # Validate sort field and order
     allowed_sort_fields = ["name", "email", "role", "last_login", "created_at"]
     if sort_field not in allowed_sort_fields:
         sort_field = "created_at"
@@ -94,14 +113,14 @@ def users_list(
         sort_order = "desc"
 
     # Get total count for pagination
-    total_count = database.users.count_users(tenant_id, search if search else None)
+    total_count = users_service.count_users(tenant_id, search if search else None)
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
     # Ensure page is within bounds
     page = min(page, total_pages)
 
     # Fetch users with pagination
-    users = database.users.list_users(
+    users = users_service.list_users_raw(
         tenant_id,
         search if search else None,
         sort_field,
@@ -151,8 +170,8 @@ def new_user(
     if not has_page_access("/users/new", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    # Get privileged domains for display
-    privileged_domains = database.settings.list_privileged_domains(tenant_id)
+    # Get privileged domains for display via service layer
+    privileged_domains = settings_service.get_privileged_domains_list(tenant_id)
 
     # Get success/error messages from query params
     success = request.query_params.get("success")
@@ -205,15 +224,15 @@ def create_new_user(
         return RedirectResponse(url="/users/new?error=insufficient_permissions", status_code=303)
 
     # Check if email already exists
-    if database.user_emails.email_exists(tenant_id, email):
+    if users_service.email_exists(tenant_id, email):
         return RedirectResponse(url="/users/new?error=email_exists", status_code=303)
 
     # Extract domain and check if it's privileged
     domain = email.split("@")[1]
-    is_privileged_domain = database.settings.privileged_domain_exists(tenant_id, domain)
+    is_privileged = settings_service.is_privileged_domain(tenant_id, domain)
 
     # Create the user
-    result = database.users.create_user(tenant_id, tenant_id, first_name, last_name, email, role)
+    result = users_service.create_user_raw(tenant_id, first_name, last_name, email, role)
 
     if not result:
         return RedirectResponse(url="/users/new?error=creation_failed", status_code=303)
@@ -221,18 +240,14 @@ def create_new_user(
     user_id = result["user_id"]
 
     # Get tenant name for email
-    tenant_info = database.tenants.get_tenant_by_id(tenant_id)
-    org_name = tenant_info.get("name", "Loom") if tenant_info else "Loom"
+    org_name = users_service.get_tenant_name(tenant_id)
 
     # Create email record and send appropriate notification
     admin_name = f"{user.get('first_name')} {user.get('last_name')}"
 
-    if is_privileged_domain:
+    if is_privileged:
         # Auto-verify email for privileged domains
-        email_result = database.user_emails.add_verified_email(tenant_id, user_id, email, tenant_id)
-        if email_result:
-            # Set as primary email
-            database.user_emails.set_primary_email(tenant_id, email_result["id"])
+        users_service.add_verified_email_with_nonce(tenant_id, user_id, email, is_primary=True)
 
         # Send welcome email with password set link
         # TODO: For now, we'll use a placeholder URL
@@ -241,11 +256,10 @@ def create_new_user(
         send_new_user_privileged_domain_notification(email, admin_name, org_name, password_set_url)
     else:
         # Add unverified email for non-privileged domains
-        email_result = database.user_emails.add_email(tenant_id, user_id, email, tenant_id)
+        email_result = users_service.add_unverified_email_with_nonce(
+            tenant_id, user_id, email, is_primary=True
+        )
         if email_result:
-            # Set as primary email even though unverified
-            database.user_emails.set_primary_email(tenant_id, email_result["id"])
-
             # Send invitation email with verification link
             verify_nonce = email_result["verify_nonce"]
             email_id = email_result["id"]
@@ -267,16 +281,17 @@ def user_detail(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    # Get target user information
-    target_user = database.users.get_user_by_id(tenant_id, user_id)
-    if not target_user:
+    requesting_user = _to_requesting_user(user, tenant_id)
+
+    try:
+        user_detail_data = users_service.get_user(requesting_user, user_id)
+    except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
-    # Get all emails for the user
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-
-    # Get privileged domains for email validation
-    privileged_domains = database.settings.list_privileged_domains(tenant_id)
+    # Get privileged domains for email validation (for the add-email form)
+    privileged_domains = settings_service.get_privileged_domains_list(tenant_id)
 
     # Get success/error messages from query params
     success = request.query_params.get("success")
@@ -287,8 +302,8 @@ def user_detail(
         get_template_context(
             request,
             tenant_id,
-            target_user=target_user,
-            emails=emails,
+            target_user=user_detail_data,
+            emails=user_detail_data.emails,
             privileged_domains=privileged_domains,
             success=success,
             error=error,
@@ -317,8 +332,18 @@ def update_user_name(
     if not first_name or not last_name:
         return RedirectResponse(url=f"/users/{user_id}?error=name_required", status_code=303)
 
-    # Update the user's name
-    database.users.update_user_profile(tenant_id, user_id, first_name, last_name)
+    # Update the user's name via service layer
+    from schemas.api import UserUpdate
+
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        users_service.update_user(
+            requesting_user, user_id, UserUpdate(first_name=first_name, last_name=last_name)
+        )
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url=f"/users/{user_id}?success=name_updated", status_code=303)
 
@@ -340,20 +365,35 @@ def update_user_role_route(
     if role not in ["member", "admin", "super_admin"]:
         return RedirectResponse(url=f"/users/{user_id}?error=invalid_role", status_code=303)
 
-    # Prevent changing own role
-    if user_id == user.get("id"):
+    # Prevent changing own role (kept at route level for quick UI feedback)
+    if str(user_id) == str(user.get("id")):
         return RedirectResponse(
             url=f"/users/{user_id}?error=cannot_change_own_role", status_code=303
         )
 
-    # Update the user's role
-    database.users.update_user_role(tenant_id, user_id, role)
+    # Update the user's role via service layer
+    from schemas.api import UserUpdate
+
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        users_service.update_user(requesting_user, user_id, UserUpdate(role=role))
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        # Handle last_super_admin error
+        if exc.code == "last_super_admin":
+            return RedirectResponse(
+                url=f"/users/{user_id}?error=cannot_demote_last_super_admin", status_code=303
+            )
+        return render_error_page(request, tenant_id, exc)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url=f"/users/{user_id}?success=role_updated", status_code=303)
 
 
 @router.post("/{user_id}/add-email")
-def add_user_email(
+def add_user_email_route(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -366,36 +406,40 @@ def add_user_email(
         return RedirectResponse(url="/dashboard", status_code=303)
 
     # Clean and validate email
-    email = email.strip().lower()
+    email_lower = email.strip().lower()
 
-    if not email or "@" not in email:
+    if not email_lower or "@" not in email_lower:
         return RedirectResponse(url=f"/users/{user_id}?error=invalid_email", status_code=303)
 
-    # Check if email already exists
-    if database.user_emails.email_exists(tenant_id, email):
-        return RedirectResponse(url=f"/users/{user_id}?error=email_exists", status_code=303)
-
-    # Extract domain and check if it's privileged
-    domain = email.split("@")[1]
-    if not database.settings.privileged_domain_exists(tenant_id, domain):
+    # Extract domain and check if it's privileged (admin can only add privileged domains)
+    domain = email_lower.split("@")[1]
+    if not settings_service.is_privileged_domain(tenant_id, domain):
         return RedirectResponse(
             url=f"/users/{user_id}?error=domain_not_privileged", status_code=303
         )
 
-    # Add the email as verified
-    database.user_emails.add_verified_email(tenant_id, user_id, email, tenant_id)
+    # Add the email via service layer (admin action = auto-verified)
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        emails_service.add_user_email(requesting_user, user_id, email_lower, is_admin_action=True)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ConflictError:
+        return RedirectResponse(url=f"/users/{user_id}?error=email_exists", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     # Get primary email for notification
-    primary_email_record = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email_record:
+    primary_email = emails_service.get_primary_email(tenant_id, user_id)
+    if primary_email:
         admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-        send_secondary_email_added_notification(primary_email_record["email"], email, admin_name)
+        send_secondary_email_added_notification(primary_email, email_lower, admin_name)
 
     return RedirectResponse(url=f"/users/{user_id}?success=email_added", status_code=303)
 
 
 @router.post("/{user_id}/remove-email/{email_id}")
-def remove_user_email(
+def remove_user_email_route(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -407,43 +451,40 @@ def remove_user_email(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    # Get the email to be removed
-    email_to_remove = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
-    if not email_to_remove:
+    # Get email address before deletion for notification
+    email_address = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
+
+    # Delete via service layer
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        emails_service.delete_user_email(requesting_user, user_id, email_id)
+    except NotFoundError:
         return RedirectResponse(url=f"/users/{user_id}?error=email_not_found", status_code=303)
-
-    # Prevent removing primary email
-    if email_to_remove.get("is_primary"):
-        return RedirectResponse(
-            url=f"/users/{user_id}?error=cannot_remove_primary", status_code=303
-        )
-
-    # Check that user will have at least one email left
-    email_count = database.user_emails.count_user_emails(tenant_id, user_id)
-    if email_count <= 1:
-        return RedirectResponse(url=f"/users/{user_id}?error=must_keep_one_email", status_code=303)
-
-    # Get the email address before deleting
-    all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    email_address = next((e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None)
-
-    # Delete the email
-    database.user_emails.delete_email(tenant_id, email_id)
+    except ValidationError as exc:
+        if exc.code == "cannot_delete_primary":
+            return RedirectResponse(
+                url=f"/users/{user_id}?error=cannot_remove_primary", status_code=303
+            )
+        if exc.code == "must_keep_one_email":
+            return RedirectResponse(
+                url=f"/users/{user_id}?error=must_keep_one_email", status_code=303
+            )
+        return render_error_page(request, tenant_id, exc)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     # Get primary email for notification
     if email_address:
-        primary_email_record = database.user_emails.get_primary_email(tenant_id, user_id)
-        if primary_email_record:
+        primary_email = emails_service.get_primary_email(tenant_id, user_id)
+        if primary_email:
             admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-            send_secondary_email_removed_notification(
-                primary_email_record["email"], email_address, admin_name
-            )
+            send_secondary_email_removed_notification(primary_email, email_address, admin_name)
 
     return RedirectResponse(url=f"/users/{user_id}?success=email_removed", status_code=303)
 
 
 @router.post("/{user_id}/promote-email/{email_id}")
-def promote_user_email(
+def promote_user_email_route(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -455,33 +496,34 @@ def promote_user_email(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    # Get the email to be promoted
-    email_to_promote = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
-    if not email_to_promote:
+    # Get old primary email info before changing (for notification)
+    old_primary_email = emails_service.get_primary_email(tenant_id, user_id)
+
+    # Get the new primary email address (for notification)
+    new_primary_email = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
+
+    # Set primary via service layer
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        emails_service.set_primary_email(requesting_user, user_id, email_id)
+        # If already primary, the service returns the email without error
+        # Check if it was already primary (email unchanged)
+        if old_primary_email == new_primary_email:
+            return RedirectResponse(url=f"/users/{user_id}?error=already_primary", status_code=303)
+    except NotFoundError:
         return RedirectResponse(url=f"/users/{user_id}?error=email_not_found", status_code=303)
-
-    # Check if already primary
-    if email_to_promote.get("is_primary"):
-        return RedirectResponse(url=f"/users/{user_id}?error=already_primary", status_code=303)
-
-    # Get old primary email info before changing
-    old_primary_record = database.user_emails.get_primary_email(tenant_id, user_id)
-
-    # Get the new primary email address
-    all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    new_primary_email = next(
-        (e["email"] for e in all_emails if str(e["id"]) == str(email_id)), None
-    )
-
-    # Update primary status
-    database.user_emails.unset_primary_emails(tenant_id, user_id)
-    database.user_emails.set_primary_email(tenant_id, email_id)
+    except ValidationError as exc:
+        if exc.code == "email_not_verified":
+            return RedirectResponse(
+                url=f"/users/{user_id}?error=email_not_verified", status_code=303
+            )
+        return render_error_page(request, tenant_id, exc)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     # Send notification to old primary email
-    if old_primary_record and new_primary_email:
+    if old_primary_email and new_primary_email and old_primary_email != new_primary_email:
         admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-        send_primary_email_changed_notification(
-            old_primary_record["email"], new_primary_email, admin_name
-        )
+        send_primary_email_changed_notification(old_primary_email, new_primary_email, admin_name)
 
     return RedirectResponse(url=f"/users/{user_id}?success=email_promoted", status_code=303)

@@ -2,7 +2,9 @@
 
 from typing import Annotated
 
-import database
+import services.emails as emails_service
+import services.settings as settings_service
+import services.users as users_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -33,7 +35,7 @@ def mfa_verify_page(
         return RedirectResponse(url="/login", status_code=303)
 
     # Get user email for display
-    user = database.user_emails.get_user_with_primary_email(tenant_id, pending_user_id)
+    user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
 
     return templates.TemplateResponse(
         "mfa_verify.html",
@@ -74,7 +76,7 @@ def mfa_verify(
         verified = verify_backup_code(tenant_id, pending_user_id, code_clean)
 
     if not verified:
-        user = database.user_emails.get_user_with_primary_email(tenant_id, pending_user_id)
+        user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
         return templates.TemplateResponse(
             "mfa_verify.html",
             {
@@ -91,7 +93,7 @@ def mfa_verify(
     request.session["session_start"] = int(__import__("time").time())
 
     # Fetch tenant security settings to configure session persistence
-    security_settings = database.security.get_session_settings(tenant_id)
+    security_settings = settings_service.get_session_settings(tenant_id)
 
     # Store session configuration in session for middleware to use
     if security_settings:
@@ -118,7 +120,7 @@ def mfa_verify(
     locale_to_update = locale or request.session.get("pending_locale", "")
 
     # Get current values
-    current_user = database.users.get_user_by_id(tenant_id, pending_user_id)
+    current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
 
     tz_changed = tz_to_update and (not current_user or current_user.get("tz") != tz_to_update)
     locale_changed = locale_to_update and (
@@ -126,16 +128,16 @@ def mfa_verify(
     )
 
     if tz_changed and locale_changed:
-        database.users.update_timezone_locale_and_last_login(
+        users_service.update_timezone_locale_and_last_login(
             tenant_id, pending_user_id, tz_to_update, locale_to_update
         )
     elif tz_changed:
-        database.users.update_timezone_and_last_login(tenant_id, pending_user_id, tz_to_update)
+        users_service.update_timezone_and_last_login(tenant_id, pending_user_id, tz_to_update)
     elif locale_changed:
-        database.users.update_locale_and_last_login(tenant_id, pending_user_id, locale_to_update)
+        users_service.update_locale_and_last_login(tenant_id, pending_user_id, locale_to_update)
     else:
         # Just update last_login
-        database.users.update_last_login(tenant_id, pending_user_id)
+        users_service.update_last_login(tenant_id, pending_user_id)
 
     request.session.pop("pending_mfa_user_id", None)
     request.session.pop("pending_mfa_method", None)
@@ -165,9 +167,9 @@ def mfa_send_email_code(
     code = create_email_otp(tenant_id, pending_user_id)
 
     # Get user email
-    user = database.user_emails.get_primary_email(tenant_id, pending_user_id)
+    primary_email = emails_service.get_primary_email(tenant_id, pending_user_id)
 
-    if user:
-        send_mfa_code_email(user["email"], code)
+    if primary_email:
+        send_mfa_code_email(primary_email, code)
 
     return RedirectResponse(url="/mfa/verify?email_sent=1", status_code=303)

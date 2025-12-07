@@ -800,3 +800,65 @@ def update_password(tenant_id: str, user_id: str, password_hash: str) -> None:
         password_hash: Hashed password to store
     """
     database.users.update_password(tenant_id, user_id, password_hash)
+
+
+def update_last_login(tenant_id: str, user_id: str) -> None:
+    """
+    Update user's last login timestamp.
+
+    This is a utility function without authorization - called after
+    successful MFA verification.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+    """
+    database.users.update_last_login(tenant_id, user_id)
+
+
+def update_timezone_and_last_login(tenant_id: str, user_id: str, timezone: str) -> None:
+    """
+    Update user's timezone and last login timestamp.
+
+    This is a utility function without authorization - called after
+    successful MFA verification when timezone changed.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+        timezone: Timezone string (e.g., "America/New_York")
+    """
+    database.users.update_timezone_and_last_login(tenant_id, user_id, timezone)
+
+
+def update_locale_and_last_login(tenant_id: str, user_id: str, locale: str) -> None:
+    """
+    Update user's locale and last login timestamp.
+
+    This is a utility function without authorization - called after
+    successful MFA verification when locale changed.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+        locale: Locale string (e.g., "en-US")
+    """
+    database.users.update_locale_and_last_login(tenant_id, user_id, locale)
+
+
+def update_timezone_locale_and_last_login(
+    tenant_id: str, user_id: str, timezone: str, locale: str
+) -> None:
+    """
+    Update user's timezone, locale, and last login timestamp.
+
+    This is a utility function without authorization - called after
+    successful MFA verification when both changed.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+        timezone: Timezone string (e.g., "America/New_York")
+        locale: Locale string (e.g., "en-US")
+    """
+    database.users.update_timezone_locale_and_last_login(tenant_id, user_id, timezone, locale)

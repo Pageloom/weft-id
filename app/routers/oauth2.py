@@ -2,8 +2,8 @@
 
 from typing import Annotated
 
-import database
 import oauth2
+import services.oauth2 as oauth2_service
 from dependencies import get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -43,7 +43,7 @@ def authorize_page(
         code_challenge_method: Optional PKCE challenge method (S256 or plain)
     """
     # Get client
-    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
     if not client:
         return templates.TemplateResponse(
@@ -130,7 +130,7 @@ def authorize_grant(
         code_challenge_method: Optional PKCE challenge method
     """
     # Get client
-    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
     if not client or client["client_type"] != "normal":
         # Invalid client, redirect with error
@@ -159,9 +159,8 @@ def authorize_grant(
 
     # Handle approval - create authorization code
     if action == "allow":
-        code = database.oauth2.create_authorization_code(
+        code = oauth2_service.create_authorization_code(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             client_id=client["id"],
             user_id=user["id"],
             redirect_uri=redirect_uri,
@@ -217,7 +216,7 @@ def token_endpoint(
         refresh_token: Refresh token (for refresh_token grant)
     """
     # Get and validate client
-    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
     if not client:
         raise HTTPException(
@@ -263,7 +262,7 @@ def token_endpoint(
             )
 
         # Validate and consume authorization code
-        code_data = database.oauth2.validate_and_consume_code(
+        code_data = oauth2_service.validate_and_consume_code(
             tenant_id=tenant_id,
             code=code,
             client_id=client["id"],
@@ -281,17 +280,15 @@ def token_endpoint(
             )
 
         # Create refresh token
-        refresh_token_str, refresh_token_id = database.oauth2.create_refresh_token(
+        refresh_token_str, refresh_token_id = oauth2_service.create_refresh_token(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             client_id=client["id"],
             user_id=code_data["user_id"],
         )
 
         # Create access token
-        access_token_str = database.oauth2.create_access_token(
+        access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             client_id=client["id"],
             user_id=code_data["user_id"],
             parent_token_id=refresh_token_id,
@@ -319,7 +316,7 @@ def token_endpoint(
             )
 
         # Validate refresh token
-        token_data = database.oauth2.validate_refresh_token(
+        token_data = oauth2_service.validate_refresh_token(
             tenant_id=tenant_id,
             token=refresh_token,
             client_id=client["id"],
@@ -335,9 +332,8 @@ def token_endpoint(
             )
 
         # Create new access token (linked to refresh token)
-        access_token_str = database.oauth2.create_access_token(
+        access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             client_id=client["id"],
             user_id=token_data["user_id"],
             parent_token_id=token_data["id"],
@@ -376,9 +372,8 @@ def token_endpoint(
             )
 
         # Create access token (24h expiry, no refresh token)
-        access_token_str = database.oauth2.create_access_token(
+        access_token_str = oauth2_service.create_access_token(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             client_id=client["id"],
             user_id=service_user_id,
             is_client_credentials=True,

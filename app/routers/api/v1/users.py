@@ -1,12 +1,10 @@
 """User API endpoints."""
 
-from datetime import UTC, datetime
 from typing import Annotated
 
-import database
 from api_dependencies import get_current_user_api, require_admin_api
 from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from schemas.api import (
     BackupCodesResponse,
     BackupCodesStatusResponse,
@@ -27,6 +25,12 @@ from schemas.api import (
     UserSummary,
     UserUpdate,
 )
+from services import emails as emails_service
+from services import mfa as mfa_service
+from services import settings as settings_service
+from services import users as users_service
+from services.exceptions import ServiceError
+from services.types import RequestingUser
 from utils.email import (
     send_email_verification,
     send_mfa_code_email,
@@ -34,20 +38,18 @@ from utils.email import (
     send_secondary_email_added_notification,
     send_secondary_email_removed_notification,
 )
-from utils.mfa import (
-    create_email_otp,
-    decrypt_secret,
-    encrypt_secret,
-    format_secret_for_display,
-    generate_backup_codes,
-    generate_totp_secret,
-    generate_totp_uri,
-    hash_code,
-    verify_email_otp,
-    verify_totp_code,
-)
+from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
+
+
+def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
+    """Convert route user dict to RequestingUser for service layer."""
+    return RequestingUser(
+        id=str(user["id"]),
+        tenant_id=tenant_id,
+        role=user.get("role", "member"),
+    )
 
 
 def _user_to_profile(user: dict) -> UserProfile:
@@ -121,7 +123,7 @@ def list_roles(
     Returns:
         List of role names: member, admin, super_admin
     """
-    return ["member", "admin", "super_admin"]
+    return users_service.get_available_roles()
 
 
 @router.get("/me", response_model=UserProfile)
@@ -139,7 +141,8 @@ def get_current_user_profile(
     Returns:
         User profile including id, email, name, role, timezone, locale, MFA status
     """
-    return _user_to_profile(user)
+    requesting_user = _to_requesting_user(user, tenant_id)
+    return users_service.get_current_user_profile(requesting_user, user)
 
 
 @router.patch("/me", response_model=UserProfile)
@@ -167,54 +170,11 @@ def update_current_user_profile(
     Note:
         Only provided fields are updated. Omitted fields remain unchanged.
     """
-    # Update profile fields if provided
-    if profile_update.first_name or profile_update.last_name:
-        # Update name
-        first_name = profile_update.first_name or user["first_name"]
-        last_name = profile_update.last_name or user["last_name"]
-
-        database.users.update_user_profile(
-            tenant_id=tenant_id,
-            user_id=user["id"],
-            first_name=first_name,
-            last_name=last_name,
-        )
-
-    if profile_update.timezone and profile_update.locale:
-        # Update both timezone and locale
-        database.users.update_user_timezone_and_locale(
-            tenant_id=tenant_id,
-            user_id=user["id"],
-            timezone=profile_update.timezone,
-            locale=profile_update.locale,
-        )
-    elif profile_update.timezone:
-        # Update timezone only
-        database.users.update_user_timezone(
-            tenant_id=tenant_id,
-            user_id=user["id"],
-            timezone=profile_update.timezone,
-        )
-    elif profile_update.locale:
-        # Update locale only
-        database.users.update_user_locale(
-            tenant_id=tenant_id,
-            user_id=user["id"],
-            locale=profile_update.locale,
-        )
-
-    # Fetch updated user
-    updated_user = database.users.get_user_by_id(tenant_id, user["id"])
-
-    if not updated_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Add primary email
-    primary_email = database.user_emails.get_primary_email(tenant_id, updated_user["id"])
-    if primary_email:
-        updated_user["email"] = primary_email["email"]
-
-    return _user_to_profile(updated_user)
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        return users_service.update_current_user_profile(requesting_user, user, profile_update)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 # ============================================================================
@@ -244,8 +204,12 @@ def list_current_user_emails(
     Returns:
         List of email addresses with their verification status
     """
-    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
-    return EmailList(items=[_email_to_info(e) for e in emails])
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        emails = emails_service.list_user_emails(requesting_user, str(user["id"]))
+        return EmailList(items=emails)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/emails", response_model=EmailInfo, status_code=201)
@@ -270,49 +234,37 @@ def add_current_user_email(
         May be restricted by tenant security settings (allow_users_add_emails).
         Super admins can always add emails.
     """
-    # Check if user is allowed to add emails
-    if user.get("role") != "super_admin":
-        security_settings = database.security.can_user_add_emails(tenant_id)
-        if security_settings and not security_settings.get("allow_users_add_emails"):
-            raise HTTPException(
-                status_code=403,
-                detail="Adding email addresses is disabled by administrator",
-            )
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        user_id = str(user["id"])
 
-    email_lower = email_data.email.lower()
+        # Get tenant setting for user email add permission
+        allow_add = settings_service.can_users_add_emails(tenant_id)
 
-    # Check if email already exists
-    if database.user_emails.email_exists(tenant_id, email_lower):
-        raise HTTPException(status_code=409, detail="Email address already exists")
+        # Add email via service (user action, not admin)
+        email_info = emails_service.add_user_email(
+            requesting_user,
+            user_id,
+            email_data.email,
+            is_admin_action=False,
+            allow_users_add_emails=allow_add,
+        )
 
-    # Add email (unverified)
-    result = database.user_emails.add_email(tenant_id, user["id"], email_lower, user["tenant_id"])
+        # Get verification info to send email
+        verification_info = emails_service.resend_verification(
+            requesting_user, user_id, email_info.id
+        )
 
-    if not result:
-        raise HTTPException(status_code=500, detail="Failed to add email address")
+        # Send verification email
+        verification_url = (
+            f"/api/v1/users/me/emails/{email_info.id}/verify"
+            f"?nonce={verification_info['verify_nonce']}"
+        )
+        send_email_verification(email_info.email, verification_url)
 
-    # Send verification email
-    # Note: For API, we construct a generic verification URL
-    # The frontend should handle the actual verification flow
-    verification_url = (
-        f"/api/v1/users/me/emails/{result['id']}/verify?nonce={result['verify_nonce']}"
-    )
-    send_email_verification(email_lower, verification_url)
-
-    # Fetch the created email from the list (has created_at)
-    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
-    for e in emails:
-        if str(e["id"]) == str(result["id"]):
-            return _email_to_info(e)
-
-    # Fallback: return basic info with current timestamp
-    return EmailInfo(
-        id=str(result["id"]),
-        email=email_lower,
-        is_primary=False,
-        verified_at=None,
-        created_at=datetime.now(UTC),
-    )
+        return email_info
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.delete("/me/emails/{email_id}", status_code=204)
@@ -333,17 +285,12 @@ def delete_current_user_email(
     Note:
         Cannot delete the primary email address.
     """
-    # Verify email belongs to user
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
-
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
-
-    if email["is_primary"]:
-        raise HTTPException(status_code=400, detail="Cannot delete primary email address")
-
-    database.user_emails.delete_email(tenant_id, email_id)
-    return None
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        emails_service.delete_user_email(requesting_user, str(user["id"]), email_id)
+        return None
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/emails/{email_id}/set-primary", response_model=EmailInfo)
@@ -364,33 +311,11 @@ def set_current_user_primary_email(
     Note:
         Email must be verified before it can be set as primary.
     """
-    # Verify email belongs to user
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user["id"])
-
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
-
-    if not email["verified_at"]:
-        raise HTTPException(status_code=400, detail="Cannot set unverified email as primary")
-
-    if email["is_primary"]:
-        # Already primary, just return it
-        emails = database.user_emails.list_user_emails(tenant_id, user["id"])
-        for e in emails:
-            if str(e["id"]) == email_id:
-                return _email_to_info(e)
-
-    # Unset current primary and set new one
-    database.user_emails.unset_primary_emails(tenant_id, user["id"])
-    database.user_emails.set_primary_email(tenant_id, email_id)
-
-    # Fetch updated email
-    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
-    for e in emails:
-        if str(e["id"]) == email_id:
-            return _email_to_info(e)
-
-    raise HTTPException(status_code=500, detail="Failed to retrieve updated email")
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return emails_service.set_primary_email(requesting_user, str(user["id"]), email_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/emails/{email_id}/resend-verification")
@@ -408,17 +333,22 @@ def resend_current_user_email_verification(
     Returns:
         Success message
     """
-    # Get email with nonce
-    email = database.user_emails.get_email_with_nonce(tenant_id, email_id, user["id"])
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        verification_info = emails_service.resend_verification(
+            requesting_user, str(user["id"]), email_id
+        )
 
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
+        # Send verification email
+        verification_url = (
+            f"/api/v1/users/me/emails/{verification_info['email_id']}/verify"
+            f"?nonce={verification_info['verify_nonce']}"
+        )
+        send_email_verification(verification_info["email"], verification_url)
 
-    # Send verification email
-    verification_url = f"/api/v1/users/me/emails/{email['id']}/verify?nonce={email['verify_nonce']}"
-    send_email_verification(email["email"], verification_url)
-
-    return {"message": "Verification email sent"}
+        return {"message": "Verification email sent"}
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/emails/{email_id}/verify", response_model=EmailInfo)
@@ -440,34 +370,12 @@ def verify_current_user_email(
     Returns:
         Verified email info
     """
-    # Get email for verification
-    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
-
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
-
-    # Verify email belongs to user
-    if str(email["user_id"]) != str(user["id"]):
-        raise HTTPException(status_code=404, detail="Email not found")
-
-    # Check if already verified
-    if email["verified_at"]:
-        raise HTTPException(status_code=400, detail="Email already verified")
-
-    # Verify nonce
-    if email["verify_nonce"] != verify_request.nonce:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-
-    # Mark as verified
-    database.user_emails.verify_email(tenant_id, email_id)
-
-    # Fetch updated email
-    emails = database.user_emails.list_user_emails(tenant_id, user["id"])
-    for e in emails:
-        if str(e["id"]) == email_id:
-            return _email_to_info(e)
-
-    raise HTTPException(status_code=500, detail="Failed to retrieve verified email")
+    try:
+        return emails_service.verify_email(
+            tenant_id, email_id, str(user["id"]), verify_request.nonce
+        )
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 # ============================================================================
@@ -502,25 +410,18 @@ def list_users(
     Returns:
         Paginated list of users
     """
-    # Get users
-    users = database.users.list_users(
-        tenant_id=tenant_id,
-        search=search,
-        sort_field=sort_by,
-        sort_order=sort_order,
-        page=page,
-        page_size=limit,
-    )
-
-    # Get total count
-    total = database.users.count_users(tenant_id, search)
-
-    return UserListResponse(
-        items=[_user_to_summary(u) for u in users],
-        total=total,
-        page=page,
-        limit=limit,
-    )
+    requesting_user = _to_requesting_user(admin, tenant_id)
+    try:
+        return users_service.list_users(
+            requesting_user,
+            page=page,
+            limit=limit,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.get("/{user_id}", response_model=UserDetail)
@@ -540,23 +441,11 @@ def get_user(
     Returns:
         Detailed user information including emails and service user status
     """
-    # Get user
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Get primary email
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email:
-        user["email"] = primary_email["email"]
-
-    # Get all emails
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-
-    # Check if service user
-    is_service = database.users.is_service_user(tenant_id, user_id)
-
-    return _user_to_detail(user, emails, is_service)
+    requesting_user = _to_requesting_user(admin, tenant_id)
+    try:
+        return users_service.get_user(requesting_user, user_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.post("", response_model=UserDetail, status_code=201)
@@ -582,51 +471,11 @@ def create_user(
     Returns:
         Created user details
     """
-    # Check role restrictions
-    if user_data.role == "super_admin" and admin["role"] != "super_admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Only super_admin can create users with super_admin role",
-        )
-
-    # Check if email already exists
-    if database.user_emails.email_exists(tenant_id, user_data.email):
-        raise HTTPException(status_code=409, detail="Email already exists")
-
-    # Create user
-    result = database.users.create_user(
-        tenant_id=tenant_id,
-        tenant_id_value=tenant_id,
-        first_name=user_data.first_name,
-        last_name=user_data.last_name,
-        email=user_data.email,
-        role=user_data.role,
-    )
-
-    if not result:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-
-    user_id = result["user_id"]
-
-    # Add verified email
-    database.user_emails.add_verified_email(
-        tenant_id=tenant_id,
-        tenant_id_value=tenant_id,
-        user_id=user_id,
-        email=user_data.email,
-        is_primary=True,
-    )
-
-    # Fetch created user
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve created user")
-
-    user["email"] = user_data.email
-
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-
-    return _user_to_detail(user, emails, is_service=False)
+    requesting_user = _to_requesting_user(admin, tenant_id)
+    try:
+        return users_service.create_user(requesting_user, user_data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.patch("/{user_id}", response_model=UserDetail)
@@ -652,66 +501,11 @@ def update_user(
     Returns:
         Updated user details
     """
-    # Get existing user
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Check role change restrictions
-    if user_update.role:
-        current_role = user["role"]
-        new_role = user_update.role
-
-        # Only super_admin can change to/from super_admin
-        if (new_role == "super_admin" or current_role == "super_admin") and admin[
-            "role"
-        ] != "super_admin":
-            raise HTTPException(
-                status_code=403,
-                detail="Only super_admin can change super_admin roles",
-            )
-
-        # Prevent demoting the last super_admin
-        if current_role == "super_admin" and new_role != "super_admin":
-            # Count super_admins
-            super_admins = database.users.list_users(
-                tenant_id=tenant_id,
-                search=None,
-                sort_field="created_at",
-                sort_order="asc",
-                page=1,
-                page_size=100,
-            )
-            super_admin_count = sum(1 for u in super_admins if u["role"] == "super_admin")
-            if super_admin_count <= 1:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Cannot demote the last super_admin",
-                )
-
-    # Update name if provided
-    if user_update.first_name or user_update.last_name:
-        first_name = user_update.first_name or user["first_name"]
-        last_name = user_update.last_name or user["last_name"]
-        database.users.update_user_profile(tenant_id, user_id, first_name, last_name)
-
-    # Update role if provided
-    if user_update.role:
-        database.users.update_user_role(tenant_id, user_id, user_update.role)
-
-    # Fetch updated user
-    updated_user = database.users.get_user_by_id(tenant_id, user_id)
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve updated user")
-
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email:
-        updated_user["email"] = primary_email["email"]
-
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    is_service = database.users.is_service_user(tenant_id, user_id)
-
-    return _user_to_detail(updated_user, emails, is_service)
+    requesting_user = _to_requesting_user(admin, tenant_id)
+    try:
+        return users_service.update_user(requesting_user, user_id, user_update)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.delete("/{user_id}", status_code=204)
@@ -731,26 +525,12 @@ def delete_user(
     Returns:
         204 No Content on success
     """
-    # Check if user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Cannot delete service users
-    if database.users.is_service_user(tenant_id, user_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot delete service user. Delete the associated OAuth2 client first.",
-        )
-
-    # Cannot delete yourself
-    if str(user["id"]) == str(admin["id"]):
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
-
-    # Delete user
-    database.users.delete_user(tenant_id, user_id)
-
-    return None
+    requesting_user = _to_requesting_user(admin, tenant_id)
+    try:
+        users_service.delete_user(requesting_user, user_id)
+        return None
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 # ============================================================================
@@ -775,13 +555,12 @@ def list_user_emails(
     Returns:
         List of email addresses with their verification status
     """
-    # Verify user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    return EmailList(items=[_email_to_info(e) for e in emails])
+    try:
+        requesting_user = _to_requesting_user(admin, tenant_id)
+        emails = emails_service.list_user_emails(requesting_user, user_id)
+        return EmailList(items=emails)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/{user_id}/emails", response_model=EmailInfo, status_code=201)
@@ -808,42 +587,28 @@ def add_user_email(
     Note:
         Sends notification to user's primary email about the added address.
     """
-    # Verify user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        requesting_user = _to_requesting_user(admin, tenant_id)
 
-    email_lower = email_data.email.lower()
+        # Get primary email before adding (for notification)
+        primary_email = emails_service.get_primary_email(tenant_id, user_id)
 
-    # Check if email already exists
-    if database.user_emails.email_exists(tenant_id, email_lower):
-        raise HTTPException(status_code=409, detail="Email address already exists")
+        # Add verified email via service (admin action)
+        email_info = emails_service.add_user_email(
+            requesting_user,
+            user_id,
+            email_data.email,
+            is_admin_action=True,
+        )
 
-    # Add verified email
-    result = database.user_emails.add_verified_email(
-        tenant_id=tenant_id,
-        tenant_id_value=tenant_id,
-        user_id=user_id,
-        email=email_lower,
-        is_primary=False,
-    )
+        # Send notification to primary email
+        if primary_email:
+            admin_name = f"{admin['first_name']} {admin['last_name']}"
+            send_secondary_email_added_notification(primary_email, email_info.email, admin_name)
 
-    if not result:
-        raise HTTPException(status_code=500, detail="Failed to add email address")
-
-    # Send notification to primary email
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email:
-        admin_name = f"{admin['first_name']} {admin['last_name']}"
-        send_secondary_email_added_notification(primary_email["email"], email_lower, admin_name)
-
-    # Fetch created email
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    for e in emails:
-        if e["email"] == email_lower:
-            return _email_to_info(e)
-
-    raise HTTPException(status_code=500, detail="Failed to retrieve created email")
+        return email_info
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.delete("/{user_id}/emails/{email_id}", status_code=204)
@@ -869,39 +634,25 @@ def delete_user_email(
         Cannot delete the primary email address.
         Sends notification to user's primary email about the removal.
     """
-    # Verify user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        requesting_user = _to_requesting_user(admin, tenant_id)
 
-    # Verify email belongs to user
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
+        # Get email address before deletion for notification
+        email_address = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
 
-    if email["is_primary"]:
-        raise HTTPException(status_code=400, detail="Cannot delete primary email address")
+        # Delete the email (service handles validation)
+        emails_service.delete_user_email(requesting_user, user_id, email_id)
 
-    # Get email address before deletion for notification
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    email_address = None
-    for e in emails:
-        if str(e["id"]) == email_id:
-            email_address = e["email"]
-            break
+        # Send notification to primary email
+        if email_address:
+            primary_email = emails_service.get_primary_email(tenant_id, user_id)
+            if primary_email and primary_email != email_address:
+                admin_name = f"{admin['first_name']} {admin['last_name']}"
+                send_secondary_email_removed_notification(primary_email, email_address, admin_name)
 
-    database.user_emails.delete_email(tenant_id, email_id)
-
-    # Send notification to primary email
-    if email_address:
-        primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-        if primary_email and primary_email["email"] != email_address:
-            admin_name = f"{admin['first_name']} {admin['last_name']}"
-            send_secondary_email_removed_notification(
-                primary_email["email"], email_address, admin_name
-            )
-
-    return None
+        return None
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/{user_id}/emails/{email_id}/set-primary", response_model=EmailInfo)
@@ -927,70 +678,28 @@ def set_user_primary_email(
         Email must be verified before it can be set as primary.
         Sends notification to the old primary email about the change.
     """
-    # Verify user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        requesting_user = _to_requesting_user(admin, tenant_id)
 
-    # Verify email belongs to user
-    email = database.user_emails.get_email_by_id(tenant_id, email_id, user_id)
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
+        # Get current primary email for notification before change
+        old_primary = emails_service.get_primary_email(tenant_id, user_id)
 
-    if not email["verified_at"]:
-        raise HTTPException(status_code=400, detail="Cannot set unverified email as primary")
+        # Set new primary (service handles all validation)
+        result = emails_service.set_primary_email(requesting_user, user_id, email_id)
 
-    if email["is_primary"]:
-        # Already primary, just return it
-        emails = database.user_emails.list_user_emails(tenant_id, user_id)
-        for e in emails:
-            if str(e["id"]) == email_id:
-                return _email_to_info(e)
+        # Send notification to old primary email if it changed
+        if old_primary and old_primary != result.email:
+            admin_name = f"{admin['first_name']} {admin['last_name']}"
+            send_primary_email_changed_notification(old_primary, result.email, admin_name)
 
-    # Get current primary email for notification
-    old_primary = database.user_emails.get_primary_email(tenant_id, user_id)
-
-    # Unset current primary and set new one
-    database.user_emails.unset_primary_emails(tenant_id, user_id)
-    database.user_emails.set_primary_email(tenant_id, email_id)
-
-    # Get new primary email address
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    new_primary_email = None
-    result_email = None
-    for e in emails:
-        if str(e["id"]) == email_id:
-            new_primary_email = e["email"]
-            result_email = _email_to_info(e)
-            break
-
-    # Send notification to old primary email
-    if old_primary and new_primary_email and old_primary["email"] != new_primary_email:
-        admin_name = f"{admin['first_name']} {admin['last_name']}"
-        send_primary_email_changed_notification(old_primary["email"], new_primary_email, admin_name)
-
-    if result_email:
-        return result_email
-
-    raise HTTPException(status_code=500, detail="Failed to retrieve updated email")
+        return result
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 # ============================================================================
 # User MFA Management Endpoints
 # ============================================================================
-
-
-def _get_mfa_status(tenant_id: str, user: dict) -> MFAStatus:
-    """Get MFA status for a user."""
-    backup_codes = database.mfa.list_backup_codes(tenant_id, user["id"])
-    remaining = sum(1 for c in backup_codes if c.get("used_at") is None)
-
-    return MFAStatus(
-        enabled=user.get("mfa_enabled", False),
-        method=user.get("mfa_method"),
-        has_backup_codes=len(backup_codes) > 0,
-        backup_codes_remaining=remaining,
-    )
 
 
 @router.get("/me/mfa", response_model=MFAStatus)
@@ -1004,7 +713,11 @@ def get_current_user_mfa_status(
     Returns:
         MFA status including enabled state, method, and backup codes availability
     """
-    return _get_mfa_status(tenant_id, user)
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.get_mfa_status(requesting_user, user)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/totp/setup", response_model=TOTPSetupResponse)
@@ -1024,29 +737,11 @@ def setup_current_user_totp(
     Note:
         If TOTP is already active, user must downgrade to email MFA first.
     """
-    # Prevent TOTP setup if TOTP is already active
-    if user.get("mfa_method") == "totp":
-        raise HTTPException(
-            status_code=400,
-            detail="TOTP is already active. Downgrade to email MFA first to reconfigure.",
-        )
-
-    # Generate TOTP secret
-    secret = generate_totp_secret()
-    secret_encrypted = encrypt_secret(secret)
-
-    # Get user email for URI
-    email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-    email = email_row["email"] if email_row else "user@example.com"
-
-    # Generate URI for QR code
-    uri = generate_totp_uri(secret, email)
-    secret_display = format_secret_for_display(secret)
-
-    # Store unverified secret
-    database.mfa.create_totp_secret(tenant_id, user["id"], secret_encrypted, tenant_id)
-
-    return TOTPSetupResponse(secret=secret_display, uri=uri)
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.setup_totp(requesting_user, user)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/totp/verify", response_model=BackupCodesResponse)
@@ -1067,39 +762,11 @@ def verify_current_user_totp(
     Returns:
         Backup codes (save these securely, only shown once)
     """
-    # Get unverified secret
-    row = database.mfa.get_totp_secret(tenant_id, user["id"], "totp")
-
-    if not row:
-        raise HTTPException(
-            status_code=400,
-            detail="No TOTP setup in progress. Start setup first.",
-        )
-
-    secret = decrypt_secret(row["secret_encrypted"])
-    code_clean = verify_request.code.replace(" ", "").replace("-", "")
-
-    if not verify_totp_code(secret, code_clean):
-        raise HTTPException(status_code=400, detail="Invalid TOTP code")
-
-    # Mark secret as verified
-    database.mfa.verify_totp_secret(tenant_id, user["id"], "totp")
-
-    # Enable TOTP MFA on user account
-    database.mfa.enable_mfa(tenant_id, user["id"], "totp")
-
-    # Delete existing backup codes (to replace them with new ones)
-    database.mfa.delete_backup_codes(tenant_id, user["id"])
-
-    # Generate backup codes
-    backup_codes = generate_backup_codes()
-
-    # Store hashed backup codes
-    for code_str in backup_codes:
-        code_hash = hash_code(code_str.replace("-", ""))
-        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
-
-    return BackupCodesResponse(codes=backup_codes, count=len(backup_codes))
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.verify_totp_and_enable(requesting_user, user, verify_request.code)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/email/enable", response_model=MFAEnableResponse)
@@ -1119,41 +786,17 @@ def enable_current_user_email_mfa(
     Returns:
         MFA status if enabled directly, or pending_verification=true if downgrade required
     """
-    current_method = user.get("mfa_method")
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        response, notification_info = mfa_service.enable_email_mfa(requesting_user, user)
 
-    if current_method == "totp":
-        # Downgrading from TOTP to email - require verification
-        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
+        # Send OTP email if downgrade is in progress
+        if notification_info:
+            send_mfa_code_email(notification_info["email"], notification_info["code"])
 
-        if not email_row:
-            raise HTTPException(
-                status_code=400,
-                detail="No primary email found for verification",
-            )
-
-        # Create and send email OTP
-        code = create_email_otp(tenant_id, user["id"])
-        send_mfa_code_email(email_row["email"], code)
-
-        return MFAEnableResponse(
-            status=None,
-            pending_verification=True,
-            message="Verification code sent. Use the verify-downgrade endpoint to complete.",
-        )
-
-    # Normal case: enable email MFA directly
-    database.mfa.enable_mfa(tenant_id, user["id"], "email")
-
-    # Refresh user data
-    updated_user = database.users.get_user_by_id(tenant_id, user["id"])
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve user")
-
-    return MFAEnableResponse(
-        status=_get_mfa_status(tenant_id, updated_user),
-        pending_verification=False,
-        message=None,
-    )
+        return response
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/email/verify-downgrade", response_model=MFAStatus)
@@ -1174,30 +817,11 @@ def verify_current_user_mfa_downgrade(
     Returns:
         Updated MFA status
     """
-    # Verify user currently has TOTP
-    if user.get("mfa_method") != "totp":
-        raise HTTPException(
-            status_code=400,
-            detail="This endpoint is only for downgrading from TOTP to email MFA",
-        )
-
-    # Verify the email OTP
-    code_clean = verify_request.code.replace(" ", "").replace("-", "")
-    if not verify_email_otp(tenant_id, user["id"], code_clean):
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
-
-    # Downgrade to email MFA
-    database.mfa.set_mfa_method(tenant_id, user["id"], "email")
-
-    # Delete TOTP secrets
-    database.mfa.delete_totp_secrets(tenant_id, user["id"])
-
-    # Refresh user data
-    updated_user = database.users.get_user_by_id(tenant_id, user["id"])
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve user")
-
-    return _get_mfa_status(tenant_id, updated_user)
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.verify_mfa_downgrade(requesting_user, user, verify_request.code)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/disable", response_model=MFAStatus)
@@ -1214,20 +838,11 @@ def disable_current_user_mfa(
     Returns:
         Updated MFA status
     """
-    # Disable MFA
-    database.mfa.enable_mfa(tenant_id, user["id"], "email")  # Reset to email first
-    database.users.update_mfa_status(tenant_id, user["id"], enabled=False)
-
-    # Delete TOTP secrets and backup codes
-    database.mfa.delete_totp_secrets(tenant_id, user["id"])
-    database.mfa.delete_backup_codes(tenant_id, user["id"])
-
-    # Refresh user data
-    updated_user = database.users.get_user_by_id(tenant_id, user["id"])
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve user")
-
-    return _get_mfa_status(tenant_id, updated_user)
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.disable_mfa(requesting_user, user)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.get("/me/mfa/backup-codes", response_model=BackupCodesStatusResponse)
@@ -1244,13 +859,11 @@ def get_current_user_backup_codes_status(
     Returns:
         Backup codes status (total, used, remaining)
     """
-    backup_codes = database.mfa.list_backup_codes(tenant_id, user["id"])
-
-    total = len(backup_codes)
-    used = sum(1 for c in backup_codes if c.get("used_at") is not None)
-    remaining = total - used
-
-    return BackupCodesStatusResponse(total=total, used=used, remaining=remaining)
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.get_backup_codes_status(requesting_user, user)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 @router.post("/me/mfa/backup-codes/regenerate", response_model=BackupCodesResponse)
@@ -1270,24 +883,11 @@ def regenerate_current_user_backup_codes(
     Note:
         MFA must be enabled to regenerate backup codes.
     """
-    if not user.get("mfa_enabled"):
-        raise HTTPException(
-            status_code=400,
-            detail="MFA must be enabled to regenerate backup codes",
-        )
-
-    # Delete existing backup codes
-    database.mfa.delete_backup_codes(tenant_id, user["id"])
-
-    # Generate new backup codes
-    backup_codes = generate_backup_codes()
-
-    # Store hashed backup codes
-    for code_str in backup_codes:
-        code_hash = hash_code(code_str.replace("-", ""))
-        database.mfa.create_backup_code(tenant_id, user["id"], code_hash, tenant_id)
-
-    return BackupCodesResponse(codes=backup_codes, count=len(backup_codes))
+    try:
+        requesting_user = _to_requesting_user(user, tenant_id)
+        return mfa_service.regenerate_backup_codes(requesting_user, user)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
 
 
 # ============================================================================
@@ -1315,21 +915,8 @@ def reset_user_mfa(
     Returns:
         Updated MFA status
     """
-    # Verify user exists
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Disable MFA
-    database.users.update_mfa_status(tenant_id, user_id, enabled=False)
-
-    # Delete TOTP secrets and backup codes
-    database.mfa.delete_totp_secrets(tenant_id, user_id)
-    database.mfa.delete_backup_codes(tenant_id, user_id)
-
-    # Refresh user data
-    updated_user = database.users.get_user_by_id(tenant_id, user_id)
-    if not updated_user:
-        raise HTTPException(status_code=500, detail="Failed to retrieve user")
-
-    return _get_mfa_status(tenant_id, updated_user)
+    try:
+        requesting_user = _to_requesting_user(admin, tenant_id)
+        return mfa_service.reset_user_mfa(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)

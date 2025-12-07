@@ -322,6 +322,22 @@ def can_users_add_emails(tenant_id: str) -> bool:
     return bool(settings.get("allow_users_add_emails", True))
 
 
+def get_session_settings(tenant_id: str) -> dict | None:
+    """
+    Get session settings for a tenant.
+
+    This is a utility function without authorization - used during
+    login/MFA flows to configure session behavior.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        Dict with session_timeout_seconds and persistent_sessions, or None
+    """
+    return database.security.get_session_settings(tenant_id)
+
+
 def can_user_edit_profile(tenant_id: str) -> bool:
     """
     Check if users are allowed to edit their own profile.

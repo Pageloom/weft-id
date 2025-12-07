@@ -768,3 +768,35 @@ def get_available_roles() -> list[str]:
         List of role names: member, admin, super_admin
     """
     return ["member", "admin", "super_admin"]
+
+
+def get_user_by_id_raw(tenant_id: str, user_id: str) -> dict | None:
+    """
+    Get a user by ID (raw dict).
+
+    This is a utility function without authorization - used for
+    authentication flows where the user isn't fully logged in yet.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+
+    Returns:
+        User dict or None if not found
+    """
+    return database.users.get_user_by_id(tenant_id, user_id)
+
+
+def update_password(tenant_id: str, user_id: str, password_hash: str) -> None:
+    """
+    Update a user's password hash.
+
+    This is a utility function without authorization - called after
+    validation in set_password route.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+        password_hash: Hashed password to store
+    """
+    database.users.update_password(tenant_id, user_id, password_hash)

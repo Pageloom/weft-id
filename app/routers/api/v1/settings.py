@@ -2,37 +2,35 @@
 
 from typing import Annotated
 
-import database
 from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from schemas.settings import (
     PrivilegedDomain,
     PrivilegedDomainCreate,
     TenantSecuritySettings,
     TenantSecuritySettingsUpdate,
 )
+from services import settings as settings_service
+from services.exceptions import ServiceError
+from services.types import RequestingUser
+from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
+
+
+def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
+    """Convert route user dict to RequestingUser for service layer."""
+    return RequestingUser(
+        id=str(user["id"]),
+        tenant_id=tenant_id,
+        role=user.get("role", "user"),
+    )
 
 
 # =============================================================================
 # Privileged Domains (Admin access)
 # =============================================================================
-
-
-def _domain_to_response(domain: dict) -> PrivilegedDomain:
-    """Convert database domain dict to PrivilegedDomain schema."""
-    created_by_name = None
-    if domain.get("first_name") or domain.get("last_name"):
-        created_by_name = f"{domain.get('first_name', '')} {domain.get('last_name', '')}".strip()
-
-    return PrivilegedDomain(
-        id=str(domain["id"]),
-        domain=domain["domain"],
-        created_at=domain["created_at"],
-        created_by_name=created_by_name,
-    )
 
 
 @router.get("/privileged-domains", response_model=list[PrivilegedDomain])
@@ -48,8 +46,12 @@ def list_privileged_domains(
     Returns:
         List of privileged domains with metadata
     """
-    domains = database.settings.list_privileged_domains(tenant_id)
-    return [_domain_to_response(d) for d in domains]
+    requesting_user = _to_requesting_user(admin, tenant_id)
+
+    try:
+        return settings_service.list_privileged_domains(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.post("/privileged-domains", response_model=PrivilegedDomain, status_code=201)
@@ -69,39 +71,12 @@ def add_privileged_domain(
     Returns:
         The created privileged domain
     """
-    # Clean and validate domain
-    domain_clean = domain_data.domain.strip().lower()
+    requesting_user = _to_requesting_user(admin, tenant_id)
 
-    # Remove @ prefix if present
-    if domain_clean.startswith("@"):
-        domain_clean = domain_clean[1:]
-
-    # Validate domain format
-    if not domain_clean or " " in domain_clean or "." not in domain_clean:
-        raise HTTPException(status_code=400, detail="Invalid domain format")
-
-    if len(domain_clean) < 3 or len(domain_clean) > 253:
-        raise HTTPException(status_code=400, detail="Domain must be 3-253 characters")
-
-    # Check if domain already exists
-    if database.settings.privileged_domain_exists(tenant_id, domain_clean):
-        raise HTTPException(status_code=409, detail="Domain already exists")
-
-    # Add the domain
-    database.settings.add_privileged_domain(
-        tenant_id=tenant_id,
-        domain=domain_clean,
-        created_by=str(admin["id"]),
-        tenant_id_value=tenant_id,
-    )
-
-    # Fetch the created domain to return it
-    domains = database.settings.list_privileged_domains(tenant_id)
-    for d in domains:
-        if d["domain"] == domain_clean:
-            return _domain_to_response(d)
-
-    raise HTTPException(status_code=500, detail="Failed to retrieve created domain")
+    try:
+        return settings_service.add_privileged_domain(requesting_user, domain_data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.delete("/privileged-domains/{domain_id}", status_code=204)
@@ -121,16 +96,13 @@ def delete_privileged_domain(
     Returns:
         204 No Content on success
     """
-    # Check if domain exists first
-    domains = database.settings.list_privileged_domains(tenant_id)
-    domain_exists = any(str(d["id"]) == domain_id for d in domains)
+    requesting_user = _to_requesting_user(admin, tenant_id)
 
-    if not domain_exists:
-        raise HTTPException(status_code=404, detail="Domain not found")
-
-    database.settings.delete_privileged_domain(tenant_id, domain_id)
-
-    return None
+    try:
+        settings_service.delete_privileged_domain(requesting_user, domain_id)
+        return None
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 # =============================================================================
@@ -151,18 +123,12 @@ def get_tenant_security(
     Returns:
         Current security settings
     """
-    settings = database.security.get_security_settings(tenant_id)
+    requesting_user = _to_requesting_user(super_admin, tenant_id)
 
-    if not settings:
-        # Return defaults if no settings exist
-        return TenantSecuritySettings()
-
-    return TenantSecuritySettings(
-        session_timeout_seconds=settings.get("session_timeout_seconds"),
-        persistent_sessions=settings.get("persistent_sessions", True),
-        allow_users_edit_profile=settings.get("allow_users_edit_profile", True),
-        allow_users_add_emails=settings.get("allow_users_add_emails", True),
-    )
+    try:
+        return settings_service.get_security_settings(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.patch("/tenant-security", response_model=TenantSecuritySettings)
@@ -185,46 +151,9 @@ def update_tenant_security(
     Returns:
         Updated security settings
     """
-    # Get current settings to merge with updates
-    current = database.security.get_security_settings(tenant_id) or {}
+    requesting_user = _to_requesting_user(super_admin, tenant_id)
 
-    # Merge updates with current values
-    timeout = (
-        settings_update.session_timeout_seconds
-        if settings_update.session_timeout_seconds is not None
-        else current.get("session_timeout_seconds")
-    )
-    persistent = (
-        settings_update.persistent_sessions
-        if settings_update.persistent_sessions is not None
-        else current.get("persistent_sessions", True)
-    )
-    allow_edit = (
-        settings_update.allow_users_edit_profile
-        if settings_update.allow_users_edit_profile is not None
-        else current.get("allow_users_edit_profile", True)
-    )
-    allow_emails = (
-        settings_update.allow_users_add_emails
-        if settings_update.allow_users_add_emails is not None
-        else current.get("allow_users_add_emails", True)
-    )
-
-    # Update settings
-    database.security.update_security_settings(
-        tenant_id=tenant_id,
-        timeout_seconds=timeout,
-        persistent_sessions=persistent,
-        allow_users_edit_profile=allow_edit,
-        allow_users_add_emails=allow_emails,
-        updated_by=str(super_admin["id"]),
-        tenant_id_value=tenant_id,
-    )
-
-    # Return updated settings
-    return TenantSecuritySettings(
-        session_timeout_seconds=timeout,
-        persistent_sessions=persistent,
-        allow_users_edit_profile=allow_edit,
-        allow_users_add_emails=allow_emails,
-    )
+    try:
+        return settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)

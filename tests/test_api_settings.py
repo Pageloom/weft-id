@@ -140,7 +140,8 @@ def test_add_privileged_domain_invalid_format(
     )
 
     assert response.status_code == 400
-    assert "Invalid domain format" in response.json()["detail"]
+    # Service layer returns specific validation message
+    assert "dot" in response.json()["detail"].lower()
 
 
 def test_add_privileged_domain_duplicate(

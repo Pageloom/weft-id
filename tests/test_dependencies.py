@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from dependencies import (
+    RedirectError,
     get_current_user,
     get_tenant_id_from_request,
     normalize_host,
@@ -12,7 +13,6 @@ from dependencies import (
     require_super_admin,
 )
 from fastapi import HTTPException
-from fastapi.responses import RedirectResponse
 
 
 def test_normalize_host_basic():
@@ -146,16 +146,11 @@ def test_require_current_user_not_authenticated():
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = None
 
-        # RedirectResponse is raised (FastAPI catches it specially)
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_current_user(request, "any-tenant-id")
-            assert False, "Should have raised"
-        except Exception as e:
-            # It's raised as a TypeError in pure Python, but FastAPI handles it
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/login"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/login"
 
 
 def test_require_admin_with_admin_user(test_admin_user):
@@ -189,14 +184,11 @@ def test_require_admin_with_regular_user(test_user):
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = test_user
 
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_admin(request, test_user["tenant_id"])
-            assert False, "Should have raised"
-        except Exception as e:
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/dashboard"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/dashboard"
 
 
 def test_require_admin_not_authenticated():
@@ -206,14 +198,11 @@ def test_require_admin_not_authenticated():
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = None
 
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_admin(request, "any-tenant-id")
-            assert False, "Should have raised"
-        except Exception as e:
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/login"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/login"
 
 
 def test_require_super_admin_with_super_admin_user(test_super_admin_user):
@@ -235,14 +224,11 @@ def test_require_super_admin_with_admin_user(test_admin_user):
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = test_admin_user
 
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_super_admin(request, test_admin_user["tenant_id"])
-            assert False, "Should have raised"
-        except Exception as e:
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/dashboard"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/dashboard"
 
 
 def test_require_super_admin_with_regular_user(test_user):
@@ -252,14 +238,11 @@ def test_require_super_admin_with_regular_user(test_user):
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = test_user
 
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_super_admin(request, test_user["tenant_id"])
-            assert False, "Should have raised"
-        except Exception as e:
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/dashboard"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/dashboard"
 
 
 def test_require_super_admin_not_authenticated():
@@ -269,11 +252,8 @@ def test_require_super_admin_not_authenticated():
     with patch("dependencies.auth.get_current_user") as mock_auth:
         mock_auth.return_value = None
 
-        try:
+        with pytest.raises(RedirectError) as exc_info:
             require_super_admin(request, "any-tenant-id")
-            assert False, "Should have raised"
-        except Exception as e:
-            assert isinstance(e, TypeError | RedirectResponse)
-            if hasattr(e, "status_code"):
-                assert e.status_code == 303
-                assert e.headers["location"] == "/login"
+
+        assert exc_info.value.status_code == 303
+        assert exc_info.value.url == "/login"

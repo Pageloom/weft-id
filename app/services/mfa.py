@@ -518,3 +518,70 @@ def reset_user_mfa(
     updated_user = _get_refreshed_user(tenant_id, target_user_id)
 
     return _build_mfa_status(tenant_id, updated_user)
+
+
+# =============================================================================
+# Utility Functions (for HTML routes)
+# =============================================================================
+
+
+def list_backup_codes_raw(tenant_id: str, user_id: str) -> list[dict]:
+    """
+    Get raw backup codes list for a user.
+
+    This is a utility function for HTML templates that need the raw database
+    rows (e.g., to display masked codes with used_at timestamps).
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+
+    Returns:
+        List of backup code dicts from database
+    """
+    return database.mfa.list_backup_codes(tenant_id, user_id)
+
+
+def get_pending_totp_setup(tenant_id: str, user_id: str) -> tuple[str, str] | None:
+    """
+    Get pending TOTP setup info (secret and URI) for re-display on error.
+
+    This is a utility function for HTML routes that need to re-display
+    the TOTP setup page when verification fails.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+
+    Returns:
+        Tuple of (secret_display, uri) or None if no pending setup
+    """
+    row = database.mfa.get_totp_secret(tenant_id, user_id, "totp")
+    if not row:
+        return None
+
+    secret = decrypt_secret(row["secret_encrypted"])
+    email_row = database.user_emails.get_primary_email(tenant_id, user_id)
+    email = email_row["email"] if email_row else "user@example.com"
+
+    uri = generate_totp_uri(secret, email)
+    secret_display = format_secret_for_display(secret)
+
+    return secret_display, uri
+
+
+def generate_initial_backup_codes(tenant_id: str, user_id: str) -> list[str]:
+    """
+    Generate initial backup codes for a user (without requiring MFA to be enabled).
+
+    This is for the HTML route that generates initial backup codes without
+    the MFA enabled check that regenerate_backup_codes has.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+
+    Returns:
+        List of plaintext backup code strings
+    """
+    return _generate_and_store_backup_codes(tenant_id, user_id)

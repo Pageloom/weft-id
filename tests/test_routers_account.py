@@ -52,7 +52,7 @@ def test_update_profile_success(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_profile") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile",
@@ -64,9 +64,12 @@ def test_update_profile_success(test_user):
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
-        mock_update.assert_called_once_with(
-            test_user["tenant_id"], test_user["id"], "NewFirst", "NewLast"
-        )
+        mock_update.assert_called_once()
+        # Verify the profile update contains correct names
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]  # Third positional arg is UserProfileUpdate
+        assert profile_update.first_name == "NewFirst"
+        assert profile_update.last_name == "NewLast"
 
 
 def test_update_profile_denied_by_security_setting(test_user):
@@ -77,9 +80,9 @@ def test_update_profile_denied_by_security_setting(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.security.can_user_edit_profile") as mock_security:
-        with patch("database.users.update_user_profile") as mock_update:
-            mock_security.return_value = {"allow_users_edit_profile": False}
+    with patch("services.settings.can_user_edit_profile") as mock_can_edit:
+        with patch("services.users.update_current_user_profile") as mock_update:
+            mock_can_edit.return_value = False
 
             client = TestClient(app)
             response = client.post(
@@ -103,7 +106,7 @@ def test_update_timezone_success(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_timezone") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile/update-timezone",
@@ -115,9 +118,11 @@ def test_update_timezone_success(test_user):
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
-        mock_update.assert_called_once_with(
-            test_user["tenant_id"], test_user["id"], "America/Los_Angeles"
-        )
+        mock_update.assert_called_once()
+        # Verify timezone in profile update
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone == "America/Los_Angeles"
 
 
 def test_update_timezone_invalid(test_user):
@@ -128,7 +133,7 @@ def test_update_timezone_invalid(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_timezone") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile/update-timezone",
@@ -151,20 +156,23 @@ def test_update_regional_both_valid(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_timezone_and_locale") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile/update-regional",
-            data={"timezone": "America/New_York", "locale": "en-US"},
+            data={"timezone": "America/New_York", "locale": "en"},
             follow_redirects=False,
         )
 
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        mock_update.assert_called_once_with(
-            test_user["tenant_id"], test_user["id"], "America/New_York", "en-US"
-        )
+        mock_update.assert_called_once()
+        # Verify both timezone and locale in profile update
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone == "America/New_York"
+        assert profile_update.locale == "en"
 
 
 def test_update_regional_timezone_only(test_user):
@@ -175,7 +183,7 @@ def test_update_regional_timezone_only(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_timezone") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile/update-regional",
@@ -186,9 +194,11 @@ def test_update_regional_timezone_only(test_user):
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        mock_update.assert_called_once_with(
-            test_user["tenant_id"], test_user["id"], "Europe/London"
-        )
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone == "Europe/London"
+        assert profile_update.locale is None
 
 
 def test_update_regional_locale_only(test_user):
@@ -199,18 +209,22 @@ def test_update_regional_locale_only(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.users.update_user_locale") as mock_update:
+    with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
         response = client.post(
             "/account/profile/update-regional",
-            data={"timezone": "Invalid/Zone", "locale": "fr-FR"},
+            data={"timezone": "Invalid/Zone", "locale": "fr"},
             follow_redirects=False,
         )
 
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        mock_update.assert_called_once_with(test_user["tenant_id"], test_user["id"], "fr-FR")
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone is None
+        assert profile_update.locale == "fr"
 
 
 def test_email_settings_page(test_user):
@@ -221,7 +235,7 @@ def test_email_settings_page(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.list_user_emails") as mock_list:
+    with patch("services.emails.list_user_emails") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from fastapi.responses import HTMLResponse
 
@@ -234,7 +248,7 @@ def test_email_settings_page(test_user):
             app.dependency_overrides.clear()
 
             assert response.status_code == 200
-            mock_list.assert_called_once_with(test_user["tenant_id"], test_user["id"])
+            mock_list.assert_called_once()
 
 
 def test_mfa_settings_page(test_user):
@@ -245,7 +259,7 @@ def test_mfa_settings_page(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.mfa.list_backup_codes") as mock_list:
+    with patch("services.mfa.list_backup_codes_raw") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from fastapi.responses import HTMLResponse
 
@@ -269,38 +283,54 @@ def test_add_email_success(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.user_emails.add_email") as mock_add:
-            with patch("routers.account.send_email_verification") as mock_send:
-                mock_exists.return_value = False
-                mock_add.return_value = {"id": "email-id", "verify_nonce": 12345}
+    with patch("services.settings.can_users_add_emails") as mock_can_add:
+        with patch("services.emails.add_user_email") as mock_add:
+            with patch("services.emails.resend_verification") as mock_resend:
+                with patch("routers.account.send_email_verification") as mock_send:
+                    from schemas.api import EmailInfo
 
-                client = TestClient(app)
-                response = client.post(
-                    "/account/emails/add",
-                    data={"email": "new@example.com"},
-                    follow_redirects=False,
-                )
+                    mock_can_add.return_value = True
+                    mock_add.return_value = EmailInfo(
+                        id="email-id",
+                        email="new@example.com",
+                        is_primary=False,
+                        verified_at=None,
+                        created_at="2024-01-01T00:00:00Z",
+                    )
+                    mock_resend.return_value = {
+                        "email": "new@example.com",
+                        "verify_nonce": 12345,
+                        "email_id": "email-id",
+                    }
 
-                app.dependency_overrides.clear()
+                    client = TestClient(app)
+                    response = client.post(
+                        "/account/emails/add",
+                        data={"email": "new@example.com"},
+                        follow_redirects=False,
+                    )
 
-                assert response.status_code == 303
-                assert response.headers["location"] == "/account/emails"
-                mock_add.assert_called_once()
-                mock_send.assert_called_once()
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 303
+                    assert response.headers["location"] == "/account/emails"
+                    mock_add.assert_called_once()
+                    mock_send.assert_called_once()
 
 
 def test_add_email_already_exists(test_user):
     """Test adding email that already exists."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ConflictError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.email_exists") as mock_exists:
-        with patch("database.user_emails.add_email") as mock_add:
-            mock_exists.return_value = True
+    with patch("services.settings.can_users_add_emails") as mock_can_add:
+        with patch("services.emails.add_user_email") as mock_add:
+            mock_can_add.return_value = True
+            mock_add.side_effect = ConflictError(message="Email exists", code="email_exists")
 
             client = TestClient(app)
             response = client.post(
@@ -312,7 +342,6 @@ def test_add_email_already_exists(test_user):
             app.dependency_overrides.clear()
 
             assert response.status_code == 303
-            mock_add.assert_not_called()
 
 
 def test_set_primary_email_success(test_user):
@@ -323,42 +352,46 @@ def test_set_primary_email_success(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.unset_primary_emails") as mock_unset:
-            with patch("database.user_emails.set_primary_email") as mock_set:
-                mock_get.return_value = {"id": "email-id", "verified_at": "2024-01-01"}
+    with patch("services.emails.set_primary_email") as mock_set:
+        from schemas.api import EmailInfo
 
-                client = TestClient(app)
-                response = client.post(
-                    "/account/emails/set-primary/email-id", follow_redirects=False
-                )
+        mock_set.return_value = EmailInfo(
+            id="email-id",
+            email="test@example.com",
+            is_primary=True,
+            verified_at="2024-01-01T00:00:00Z",
+            created_at="2024-01-01T00:00:00Z",
+        )
 
-                app.dependency_overrides.clear()
+        client = TestClient(app)
+        response = client.post("/account/emails/set-primary/email-id", follow_redirects=False)
 
-                assert response.status_code == 303
-                mock_unset.assert_called_once()
-                mock_set.assert_called_once_with(test_user["tenant_id"], "email-id")
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        mock_set.assert_called_once()
 
 
 def test_set_primary_email_unverified(test_user):
     """Test cannot set unverified email as primary."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.set_primary_email") as mock_set:
-            mock_get.return_value = {"id": "email-id", "verified_at": None}
+    with patch("services.emails.set_primary_email") as mock_set:
+        mock_set.side_effect = ValidationError(
+            message="Email not verified", code="email_not_verified"
+        )
 
-            client = TestClient(app)
-            response = client.post("/account/emails/set-primary/email-id", follow_redirects=False)
+        client = TestClient(app)
+        response = client.post("/account/emails/set-primary/email-id", follow_redirects=False)
 
-            app.dependency_overrides.clear()
+        app.dependency_overrides.clear()
 
-            assert response.status_code == 303
-            mock_set.assert_not_called()
+        assert response.status_code == 303
 
 
 def test_delete_email_success(test_user):
@@ -369,38 +402,36 @@ def test_delete_email_success(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.delete_email") as mock_delete:
-            mock_get.return_value = {"id": "email-id", "is_primary": False}
+    with patch("services.emails.delete_user_email") as mock_delete:
+        client = TestClient(app)
+        response = client.post("/account/emails/delete/email-id", follow_redirects=False)
 
-            client = TestClient(app)
-            response = client.post("/account/emails/delete/email-id", follow_redirects=False)
+        app.dependency_overrides.clear()
 
-            app.dependency_overrides.clear()
-
-            assert response.status_code == 303
-            mock_delete.assert_called_once_with(test_user["tenant_id"], "email-id")
+        assert response.status_code == 303
+        mock_delete.assert_called_once()
 
 
 def test_delete_email_primary_blocked(test_user):
     """Test cannot delete primary email."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_by_id") as mock_get:
-        with patch("database.user_emails.delete_email") as mock_delete:
-            mock_get.return_value = {"id": "email-id", "is_primary": True}
+    with patch("services.emails.delete_user_email") as mock_delete:
+        mock_delete.side_effect = ValidationError(
+            message="Cannot delete primary", code="cannot_delete_primary"
+        )
 
-            client = TestClient(app)
-            response = client.post("/account/emails/delete/email-id", follow_redirects=False)
+        client = TestClient(app)
+        response = client.post("/account/emails/delete/email-id", follow_redirects=False)
 
-            app.dependency_overrides.clear()
+        app.dependency_overrides.clear()
 
-            assert response.status_code == 303
-            mock_delete.assert_not_called()
+        assert response.status_code == 303
 
 
 def test_verify_email_success(test_user):
@@ -410,13 +441,23 @@ def test_verify_email_success(test_user):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get:
-        with patch("database.user_emails.verify_email") as mock_verify:
+    with patch("services.emails.get_email_for_verification") as mock_get:
+        with patch("services.emails.verify_email") as mock_verify:
+            from schemas.api import EmailInfo
+
             mock_get.return_value = {
                 "id": "email-id",
+                "user_id": test_user["id"],
                 "verified_at": None,
                 "verify_nonce": 12345,
             }
+            mock_verify.return_value = EmailInfo(
+                id="email-id",
+                email="test@example.com",
+                is_primary=False,
+                verified_at="2024-01-01T00:00:00Z",
+                created_at="2024-01-01T00:00:00Z",
+            )
 
             client = TestClient(app)
             response = client.get("/account/emails/verify/email-id/12345", follow_redirects=False)
@@ -425,23 +466,26 @@ def test_verify_email_success(test_user):
 
             assert response.status_code == 303
             assert response.headers["location"] == "/account/emails"
-            mock_verify.assert_called_once_with(test_user["tenant_id"], "email-id")
+            mock_verify.assert_called_once()
 
 
 def test_verify_email_invalid_nonce(test_user):
     """Test email verification with invalid nonce."""
     from dependencies import get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get:
-        with patch("database.user_emails.verify_email") as mock_verify:
+    with patch("services.emails.get_email_for_verification") as mock_get:
+        with patch("services.emails.verify_email") as mock_verify:
             mock_get.return_value = {
                 "id": "email-id",
+                "user_id": test_user["id"],
                 "verified_at": None,
                 "verify_nonce": 12345,
             }
+            mock_verify.side_effect = ValidationError(message="Invalid nonce", code="invalid_nonce")
 
             client = TestClient(app)
             response = client.get("/account/emails/verify/email-id/99999", follow_redirects=False)
@@ -449,7 +493,6 @@ def test_verify_email_invalid_nonce(test_user):
             app.dependency_overrides.clear()
 
             assert response.status_code == 303
-            mock_verify.assert_not_called()
 
 
 def test_mfa_setup_totp_get(test_user):
@@ -461,38 +504,47 @@ def test_mfa_setup_totp_get(test_user):
     app.dependency_overrides[require_current_user] = lambda: test_user
 
     with patch("routers.account.templates.TemplateResponse") as mock_template:
-        with patch("database.user_emails.get_primary_email") as mock_email:
-            with patch("database.mfa.create_totp_secret") as mock_create:
-                from fastapi.responses import HTMLResponse
+        with patch("services.mfa.setup_totp") as mock_setup:
+            from fastapi.responses import HTMLResponse
+            from schemas.api import TOTPSetupResponse
 
-                mock_template.return_value = HTMLResponse(content="<html>TOTP Setup</html>")
-                mock_email.return_value = {"email": "test@example.com"}
+            mock_template.return_value = HTMLResponse(content="<html>TOTP Setup</html>")
+            mock_setup.return_value = TOTPSetupResponse(
+                secret="ABCD EFGH IJKL MNOP",
+                uri="otpauth://totp/Test:user@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Test",
+            )
 
-                client = TestClient(app)
-                response = client.get("/account/mfa/setup/totp")
+            client = TestClient(app)
+            response = client.get("/account/mfa/setup/totp")
 
-                app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                mock_create.assert_called_once()
+            assert response.status_code == 200
+            mock_setup.assert_called_once()
 
 
 def test_mfa_setup_totp_already_enabled(test_user):
     """Test TOTP setup redirects when already enabled."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     totp_user = {**test_user, "mfa_method": "totp"}
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: totp_user
     app.dependency_overrides[require_current_user] = lambda: totp_user
 
-    client = TestClient(app)
-    response = client.get("/account/mfa/setup/totp", follow_redirects=False)
+    with patch("services.mfa.setup_totp") as mock_setup:
+        mock_setup.side_effect = ValidationError(
+            message="TOTP already active", code="totp_already_active"
+        )
 
-    app.dependency_overrides.clear()
+        client = TestClient(app)
+        response = client.get("/account/mfa/setup/totp", follow_redirects=False)
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/account/mfa"
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/mfa"
 
 
 def test_mfa_setup_email(test_user):
@@ -503,7 +555,23 @@ def test_mfa_setup_email(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("database.mfa.enable_mfa") as mock_enable:
+    with patch("services.mfa.enable_email_mfa") as mock_enable:
+        from schemas.api import MFAEnableResponse, MFAStatus
+
+        mock_enable.return_value = (
+            MFAEnableResponse(
+                status=MFAStatus(
+                    enabled=True,
+                    method="email",
+                    has_backup_codes=False,
+                    backup_codes_remaining=0,
+                ),
+                pending_verification=False,
+                message=None,
+            ),
+            None,
+        )
+
         client = TestClient(app)
         response = client.post("/account/mfa/setup/email", follow_redirects=False)
 
@@ -511,33 +579,47 @@ def test_mfa_setup_email(test_user):
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/mfa"
-        mock_enable.assert_called_once_with(test_user["tenant_id"], test_user["id"], "email")
+        mock_enable.assert_called_once()
 
 
 def test_mfa_regenerate_backup_codes(test_user):
     """Test regenerating backup codes."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 
+    mfa_user = {**test_user, "mfa_enabled": True}
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    app.dependency_overrides[get_current_user] = lambda: mfa_user
+    app.dependency_overrides[require_current_user] = lambda: mfa_user
 
     with patch("routers.account.templates.TemplateResponse") as mock_template:
-        with patch("database.mfa.delete_backup_codes") as mock_delete:
-            with patch("database.mfa.create_backup_code") as mock_create:
-                from fastapi.responses import HTMLResponse
+        with patch("services.mfa.regenerate_backup_codes") as mock_regen:
+            from fastapi.responses import HTMLResponse
+            from schemas.api import BackupCodesResponse
 
-                mock_template.return_value = HTMLResponse(content="<html>Backup Codes</html>")
+            mock_template.return_value = HTMLResponse(content="<html>Backup Codes</html>")
+            mock_regen.return_value = BackupCodesResponse(
+                codes=[
+                    "code1",
+                    "code2",
+                    "code3",
+                    "code4",
+                    "code5",
+                    "code6",
+                    "code7",
+                    "code8",
+                    "code9",
+                    "code10",
+                ],
+                count=10,
+            )
 
-                client = TestClient(app)
-                response = client.post("/account/mfa/regenerate-backup-codes")
+            client = TestClient(app)
+            response = client.post("/account/mfa/regenerate-backup-codes")
 
-                app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                mock_delete.assert_called_once()
-                # Should create 10 backup codes
-                assert mock_create.call_count == 10
+            assert response.status_code == 200
+            mock_regen.assert_called_once()
 
 
 def test_mfa_downgrade_verify_page_no_pending(test_user):
@@ -568,57 +650,59 @@ def test_mfa_setup_email_downgrade_flow(test_user):
     app.dependency_overrides[get_current_user] = lambda: user_with_totp
     app.dependency_overrides[require_current_user] = lambda: user_with_totp
 
-    with patch("database.user_emails.get_primary_email") as mock_get_email:
-        with patch("utils.email.send_mfa_code_email") as mock_send:
-            with patch("utils.mfa.create_email_otp") as mock_create:
-                mock_get_email.return_value = {"email": "user@example.com"}
-                mock_create.return_value = "123456"
+    with patch("services.mfa.enable_email_mfa") as mock_enable:
+        with patch("routers.account.send_mfa_code_email") as mock_send:
+            from schemas.api import MFAEnableResponse
 
-                client = TestClient(app)
-                response = client.post("/account/mfa/setup/email", follow_redirects=False)
+            mock_enable.return_value = (
+                MFAEnableResponse(
+                    status=None,
+                    pending_verification=True,
+                    message="Verification code sent",
+                ),
+                {"email": "user@example.com", "code": "123456"},
+            )
 
-                app.dependency_overrides.clear()
+            client = TestClient(app)
+            response = client.post("/account/mfa/setup/email", follow_redirects=False)
 
-                assert response.status_code == 303
-                assert response.headers["location"] == "/account/mfa/downgrade-verify"
-                mock_send.assert_called_once()
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert response.headers["location"] == "/account/mfa/downgrade-verify"
+            mock_send.assert_called_once_with("user@example.com", "123456")
 
 
 def test_mfa_setup_totp_verify_invalid_code(test_user):
     """Test TOTP verification with invalid code during setup."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    # Use real encryption for testing
-    from utils.mfa import encrypt_secret
+    with patch("services.mfa.verify_totp_and_enable") as mock_verify:
+        with patch("services.mfa.get_pending_totp_setup") as mock_pending:
+            with patch("routers.account.templates.TemplateResponse") as mock_template:
+                from fastapi.responses import HTMLResponse
 
-    real_secret = "JBSWY3DPEHPK3PXP"
-    encrypted = encrypt_secret(real_secret)
+                mock_verify.side_effect = ValidationError(
+                    message="Invalid TOTP code", code="invalid_totp_code"
+                )
+                mock_pending.return_value = ("ABCD EFGH", "otpauth://...")
+                mock_template.return_value = HTMLResponse(content="<html>Error</html>")
 
-    with patch("database.mfa.get_totp_secret") as mock_get_secret:
-        with patch("utils.mfa.verify_totp_code") as mock_verify:
-            with patch("database.user_emails.get_primary_email") as mock_get_email:
-                with patch("routers.account.templates.TemplateResponse") as mock_template:
-                    from fastapi.responses import HTMLResponse
+                client = TestClient(app)
+                response = client.post(
+                    "/account/mfa/setup/verify",
+                    data={"code": "000000", "method": "totp"},
+                )
 
-                    mock_get_secret.return_value = {"secret_encrypted": encrypted}
-                    mock_verify.return_value = False
-                    mock_get_email.return_value = {"email": "user@example.com"}
-                    mock_template.return_value = HTMLResponse(content="<html>Error</html>")
+                app.dependency_overrides.clear()
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/account/mfa/setup/verify",
-                        data={"code": "000000", "method": "totp"},
-                    )
-
-                    app.dependency_overrides.clear()
-
-                    assert response.status_code == 200
-                    mock_template.assert_called_once()
+                assert response.status_code == 200
+                mock_template.assert_called_once()
 
 
 def test_mfa_downgrade_verify_page_with_pending(test_user):
@@ -644,30 +728,37 @@ def test_mfa_downgrade_verify_complete(test_user):
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("utils.mfa.verify_email_otp") as mock_verify:
-        with patch("database.mfa.set_mfa_method") as mock_set_method:
-            with patch("database.mfa.delete_totp_secrets") as mock_delete:
-                mock_verify.return_value = True
+    with patch("services.mfa.verify_mfa_downgrade") as mock_verify:
+        from schemas.api import MFAStatus
 
-                # Test verifies the functions are called correctly
-                assert mock_set_method is not None
-                assert mock_delete is not None
-                app.dependency_overrides.clear()
+        mock_verify.return_value = MFAStatus(
+            enabled=True,
+            method="email",
+            has_backup_codes=False,
+            backup_codes_remaining=0,
+        )
+
+        # Test verifies the functions are called correctly
+        assert mock_verify is not None
+        app.dependency_overrides.clear()
 
 
 def test_mfa_downgrade_verify_invalid_code(test_user):
     """Test MFA downgrade verification with invalid code."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ValidationError
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
     app.dependency_overrides[get_current_user] = lambda: test_user
     app.dependency_overrides[require_current_user] = lambda: test_user
 
-    with patch("utils.mfa.verify_email_otp") as mock_verify:
+    with patch("services.mfa.verify_mfa_downgrade") as mock_verify:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from fastapi.responses import HTMLResponse
 
-            mock_verify.return_value = False
+            mock_verify.side_effect = ValidationError(
+                message="Invalid code", code="invalid_email_otp"
+            )
             mock_template.return_value = HTMLResponse(content="<html>Error</html>")
 
             # Test verifies error handling

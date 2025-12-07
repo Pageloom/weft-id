@@ -2,7 +2,6 @@
 
 from typing import Annotated
 
-import database
 from dependencies import (
     get_current_user,
     get_tenant_id_from_request,
@@ -13,6 +12,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
+from pydantic import ValidationError as PydanticValidationError
+from schemas.settings import PrivilegedDomainCreate, TenantSecuritySettingsUpdate
+from services import settings as settings_service
+from services.exceptions import ServiceError, ValidationError
+from services.types import RequestingUser
+from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -22,6 +27,15 @@ router = APIRouter(
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
+
+
+def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
+    """Convert route user dict to RequestingUser for service layer."""
+    return RequestingUser(
+        id=str(user["id"]),
+        tenant_id=tenant_id,
+        role=user.get("role", "user"),
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -48,8 +62,12 @@ def privileged_domains(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage privileged domains for the tenant."""
-    # Fetch all privileged domains for this tenant
-    domains = database.settings.list_privileged_domains(tenant_id)
+    requesting_user = _to_requesting_user(user, tenant_id)
+
+    try:
+        domains = settings_service.list_privileged_domains(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     error = request.query_params.get("error")
 
@@ -67,33 +85,13 @@ def add_privileged_domain(
     domain: Annotated[str, Form()],
 ):
     """Add a new privileged domain."""
-    # Clean and validate domain
-    domain_clean = domain.strip().lower()
+    requesting_user = _to_requesting_user(user, tenant_id)
+    domain_data = PrivilegedDomainCreate(domain=domain)
 
-    # Remove @ prefix if present
-    if domain_clean.startswith("@"):
-        domain_clean = domain_clean[1:]
-
-    # Basic validation: must contain a dot, no spaces, reasonable length
-    if (
-        not domain_clean
-        or " " in domain_clean
-        or "." not in domain_clean
-        or len(domain_clean) > 253
-        or len(domain_clean) < 3
-    ):
-        return RedirectResponse(
-            url="/settings/privileged-domains?error=invalid_domain", status_code=303
-        )
-
-    # Check if domain already exists for this tenant
-    if database.settings.privileged_domain_exists(tenant_id, domain_clean):
-        return RedirectResponse(
-            url="/settings/privileged-domains?error=domain_exists", status_code=303
-        )
-
-    # Insert the new privileged domain
-    database.settings.add_privileged_domain(tenant_id, domain_clean, user["id"], tenant_id)
+    try:
+        settings_service.add_privileged_domain(requesting_user, domain_data)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
@@ -106,8 +104,12 @@ def delete_privileged_domain(
     domain_id: str,
 ):
     """Delete a privileged domain."""
-    # Delete the domain (RLS ensures it belongs to this tenant)
-    database.settings.delete_privileged_domain(tenant_id, domain_id)
+    requesting_user = _to_requesting_user(user, tenant_id)
+
+    try:
+        settings_service.delete_privileged_domain(requesting_user, domain_id)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/settings/privileged-domains", status_code=303)
 
@@ -118,15 +120,16 @@ def delete_privileged_domain(
 def tenant_security(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display security settings for the tenant."""
-    # Fetch current security settings for this tenant
-    settings_row = database.security.get_security_settings(tenant_id)
+    requesting_user = _to_requesting_user(user, tenant_id)
 
-    current_timeout = settings_row["session_timeout_seconds"] if settings_row else None
-    persistent_sessions = settings_row["persistent_sessions"] if settings_row else True
-    allow_users_edit_profile = settings_row["allow_users_edit_profile"] if settings_row else True
-    allow_users_add_emails = settings_row["allow_users_add_emails"] if settings_row else True
+    try:
+        settings = settings_service.get_security_settings(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
     success = request.query_params.get("success")
     error = request.query_params.get("error")
 
@@ -135,10 +138,10 @@ def tenant_security(
         get_template_context(
             request,
             tenant_id,
-            current_timeout=current_timeout,
-            persistent_sessions=persistent_sessions,
-            allow_users_edit_profile=allow_users_edit_profile,
-            allow_users_add_emails=allow_users_add_emails,
+            current_timeout=settings.session_timeout_seconds,
+            persistent_sessions=settings.persistent_sessions,
+            allow_users_edit_profile=settings.allow_users_edit_profile,
+            allow_users_add_emails=settings.allow_users_add_emails,
             success=success,
             error=error,
         ),
@@ -156,36 +159,49 @@ def update_tenant_security(
     allow_users_add_emails: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
+    requesting_user = _to_requesting_user(user, tenant_id)
+
     # Parse session timeout (empty string means indefinite/NULL)
-    timeout_seconds = None
+    timeout_seconds: int | None = None
     if session_timeout:
         try:
             timeout_seconds = int(session_timeout)
             if timeout_seconds <= 0:
-                return RedirectResponse(
-                    url="/settings/tenant-security?error=invalid_timeout", status_code=303
+                # Invalid timeout - show error page
+                exc = ValidationError(
+                    message="Session timeout must be positive",
+                    code="invalid_timeout",
+                    field="session_timeout_seconds",
                 )
+                return render_error_page(request, tenant_id, exc)
         except ValueError:
-            return RedirectResponse(
-                url="/settings/tenant-security?error=invalid_timeout", status_code=303
+            # Non-numeric value - show error page
+            exc = ValidationError(
+                message="Session timeout must be a number",
+                code="invalid_timeout",
+                field="session_timeout_seconds",
             )
+            return render_error_page(request, tenant_id, exc)
 
-    # Parse persistent_sessions checkbox (checked = "true", unchecked = "")
-    persistent = persistent_sessions == "true"
+    # Parse checkboxes (checked = "true", unchecked = "")
+    try:
+        settings_update = TenantSecuritySettingsUpdate(
+            session_timeout_seconds=timeout_seconds,
+            persistent_sessions=persistent_sessions == "true",
+            allow_users_edit_profile=allow_users_edit_profile == "true",
+            allow_users_add_emails=allow_users_add_emails == "true",
+        )
+    except PydanticValidationError as e:
+        # Convert Pydantic validation error to service error
+        exc = ValidationError(
+            message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
 
-    # Parse user permission checkboxes (checked = "true", unchecked = "")
-    allow_edit_profile = allow_users_edit_profile == "true"
-    allow_add_emails = allow_users_add_emails == "true"
-
-    # Upsert the security settings
-    database.security.update_security_settings(
-        tenant_id,
-        timeout_seconds,
-        persistent,
-        allow_edit_profile,
-        allow_add_emails,
-        user["id"],
-        tenant_id,
-    )
+    try:
+        settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/settings/tenant-security?success=1", status_code=303)

@@ -5,8 +5,19 @@ from typing import Annotated, cast
 import database
 import settings
 from fastapi import Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
 from utils import auth
+
+
+class RedirectError(Exception):
+    """Exception that triggers an HTTP redirect.
+
+    Use this in dependencies to redirect unauthenticated or unauthorized users.
+    Must be registered with FastAPI's exception handler in main.py.
+    """
+
+    def __init__(self, url: str, status_code: int = 303):
+        self.url = url
+        self.status_code = status_code
 
 
 def normalize_host(h: str | None) -> str:
@@ -61,7 +72,7 @@ def require_current_user(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
+        raise RedirectError(url="/login", status_code=303)
     return user
 
 
@@ -83,11 +94,11 @@ def require_admin(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
+        raise RedirectError(url="/login", status_code=303)
 
     user_role = user.get("role")
     if user_role not in ("admin", "super_admin"):
-        raise RedirectResponse(url="/dashboard", status_code=303)  # type: ignore[misc]
+        raise RedirectError(url="/dashboard", status_code=303)
 
     return user
 
@@ -110,10 +121,10 @@ def require_super_admin(
     """
     user = auth.get_current_user(request, tenant_id)
     if not user:
-        raise RedirectResponse(url="/login", status_code=303)  # type: ignore[misc]
+        raise RedirectError(url="/login", status_code=303)
 
     user_role = user.get("role")
     if user_role != "super_admin":
-        raise RedirectResponse(url="/dashboard", status_code=303)  # type: ignore[misc]
+        raise RedirectError(url="/dashboard", status_code=303)
 
     return user

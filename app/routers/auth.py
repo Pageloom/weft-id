@@ -2,7 +2,8 @@
 
 from typing import Annotated
 
-import database
+import services.emails as emails_service
+import services.users as users_service
 from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -63,9 +64,9 @@ def login(
     if user.get("mfa_method") == "email":
         code = create_email_otp(tenant_id, user["id"])
         # Get user's email
-        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-        if email_row:
-            send_mfa_code_email(email_row["email"], code)
+        primary_email = emails_service.get_primary_email(tenant_id, user["id"])
+        if primary_email:
+            send_mfa_code_email(primary_email, code)
 
     # Redirect to MFA verification
     return RedirectResponse(url="/mfa/verify", status_code=303)
@@ -91,7 +92,7 @@ def verify_email_public(
     This is used for new users who don't have passwords yet and can't log in.
     """
     # Look up the email by ID and nonce
-    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    email = emails_service.get_email_for_verification(tenant_id, email_id)
 
     if not email:
         # Email not found - redirect to login
@@ -100,7 +101,7 @@ def verify_email_public(
     # Check if already verified
     if email["verified_at"]:
         # Already verified - check if user has password
-        user = database.users.get_user_by_id(tenant_id, email["user_id"])
+        user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
         if user and not user.get("password_hash"):
             # User verified but no password set - redirect to set password
             return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
@@ -113,10 +114,10 @@ def verify_email_public(
         return RedirectResponse(url="/login?error=invalid_verification_link", status_code=303)
 
     # Mark as verified and increment nonce
-    database.user_emails.verify_email(tenant_id, email_id)
+    emails_service.verify_email_by_nonce(tenant_id, email_id, nonce)
 
     # Get user to check if they have a password
-    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if user and not user.get("password_hash"):
         # New user without password - redirect to set password page
         return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
@@ -138,7 +139,7 @@ def set_password_page(
 
     # Look up the email to get the user's email address
     # We need to get the email to find the user_id first
-    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    email = emails_service.get_email_for_verification(tenant_id, email_id)
 
     if not email:
         return RedirectResponse(url="/login?error=invalid_link", status_code=303)
@@ -148,7 +149,7 @@ def set_password_page(
         return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
 
     # Check if user already has a password
-    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if not user or user.get("password_hash"):
         return RedirectResponse(url="/login", status_code=303)
 
@@ -178,7 +179,7 @@ def set_password(
 ):
     """Set password for a new user who has verified their email."""
     # Look up the email
-    email = database.user_emails.get_email_for_verification(tenant_id, email_id)
+    email = emails_service.get_email_for_verification(tenant_id, email_id)
 
     if not email:
         return RedirectResponse(url="/login?error=invalid_link", status_code=303)
@@ -188,7 +189,7 @@ def set_password(
         return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
 
     # Check if user already has a password
-    user = database.users.get_user_by_id(tenant_id, email["user_id"])
+    user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if not user or user.get("password_hash"):
         return RedirectResponse(url="/login", status_code=303)
 
@@ -208,7 +209,7 @@ def set_password(
 
     # Set the password
     password_hash = hash_password(password)
-    database.users.update_password(tenant_id, user["id"], password_hash)
+    users_service.update_password(tenant_id, user["id"], password_hash)
 
     # Store user info in session to start MFA flow (same as regular login)
     request.session["pending_mfa_user_id"] = str(user["id"])
@@ -218,9 +219,9 @@ def set_password(
     if user.get("mfa_method") == "email":
         code = create_email_otp(tenant_id, user["id"])
         # Get user's email
-        email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
-        if email_row:
-            send_mfa_code_email(email_row["email"], code)
+        primary_email = emails_service.get_primary_email(tenant_id, user["id"])
+        if primary_email:
+            send_mfa_code_email(primary_email, code)
 
     # Redirect to MFA verification (same as after login)
     return RedirectResponse(url="/mfa/verify", status_code=303)
@@ -235,12 +236,11 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
         return RedirectResponse(url="/login", status_code=303)
 
     # Fetch user's primary email for display
-    import database
     from utils.template_context import get_template_context
 
-    email_row = database.user_emails.get_primary_email(tenant_id, user["id"])
+    primary_email = emails_service.get_primary_email(tenant_id, user["id"])
 
-    user["email"] = email_row["email"] if email_row else "N/A"
+    user["email"] = primary_email if primary_email else "N/A"
 
     return templates.TemplateResponse(
         "dashboard.html", get_template_context(request, tenant_id, user=user)

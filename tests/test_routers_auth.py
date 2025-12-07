@@ -94,11 +94,11 @@ def test_login_post_valid_credentials_with_email_mfa(test_user):
 
     with patch("routers.auth.verify_login") as mock_verify:
         with patch("routers.auth.create_email_otp") as mock_create_otp:
-            with patch("routers.auth.database.user_emails.get_primary_email") as mock_get_email:
+            with patch("services.emails.get_primary_email") as mock_get_email:
                 with patch("routers.auth.send_mfa_code_email") as mock_send_email:
                     mock_verify.return_value = test_user_with_mfa
                     mock_create_otp.return_value = "123456"
-                    mock_get_email.return_value = {"email": test_user["email"]}
+                    mock_get_email.return_value = test_user["email"]  # Service returns string
 
                     client = TestClient(app)
                     response = client.post(
@@ -130,11 +130,11 @@ def test_login_post_valid_credentials_without_email_row(test_user):
 
     with patch("routers.auth.verify_login") as mock_verify:
         with patch("routers.auth.create_email_otp") as mock_create_otp:
-            with patch("routers.auth.database.user_emails.get_primary_email") as mock_get_email:
+            with patch("services.emails.get_primary_email") as mock_get_email:
                 with patch("routers.auth.send_mfa_code_email") as mock_send_email:
                     mock_verify.return_value = test_user_with_mfa
                     mock_create_otp.return_value = "123456"
-                    mock_get_email.return_value = None  # No email row
+                    mock_get_email.return_value = None  # No email
 
                     client = TestClient(app)
                     response = client.post(
@@ -221,11 +221,11 @@ def test_dashboard_authenticated(test_user):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
     with patch("dependencies.auth.get_current_user") as mock_user:
-        with patch("database.user_emails.get_primary_email") as mock_get_email:
+        with patch("services.emails.get_primary_email") as mock_get_email:
             with patch("utils.template_context.get_template_context") as mock_context:
                 with patch("routers.auth.templates.TemplateResponse") as mock_template:
                     mock_user.return_value = test_user
-                    mock_get_email.return_value = {"email": test_user["email"]}
+                    mock_get_email.return_value = test_user["email"]  # Service returns string
                     mock_context.return_value = {
                         "request": Mock(),
                         "user": test_user,
@@ -252,7 +252,7 @@ def test_dashboard_authenticated_no_email(test_user):
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
     with patch("dependencies.auth.get_current_user") as mock_user:
-        with patch("database.user_emails.get_primary_email") as mock_get_email:
+        with patch("services.emails.get_primary_email") as mock_get_email:
             with patch("utils.template_context.get_template_context") as mock_context:
                 with patch("routers.auth.templates.TemplateResponse") as mock_template:
                     mock_user.return_value = test_user
@@ -281,9 +281,9 @@ def test_verify_email_public_success_new_user(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
-            with patch("database.users.get_user_by_id") as mock_get_user:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
+            with patch("services.users.get_user_by_id_raw") as mock_get_user:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",
@@ -296,6 +296,7 @@ def test_verify_email_public_success_new_user(test_tenant):
                     "email": "test@example.com",
                     "password_hash": None,  # No password yet
                 }
+                mock_verify.return_value = True
 
                 client = TestClient(app)
                 response = client.get("/verify-email/email-123/1", follow_redirects=False)
@@ -304,7 +305,7 @@ def test_verify_email_public_success_new_user(test_tenant):
 
                 assert response.status_code == 303
                 assert "/set-password?email_id=email-123" in response.headers["location"]
-                mock_verify.assert_called_once_with(test_tenant["id"], "email-123")
+                mock_verify.assert_called_once_with(test_tenant["id"], "email-123", 1)
 
 
 def test_verify_email_public_success_existing_user(test_tenant):
@@ -313,9 +314,9 @@ def test_verify_email_public_success_existing_user(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
-            with patch("database.users.get_user_by_id") as mock_get_user:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
+            with patch("services.users.get_user_by_id_raw") as mock_get_user:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",
@@ -328,6 +329,7 @@ def test_verify_email_public_success_existing_user(test_tenant):
                     "email": "test@example.com",
                     "password_hash": "hashed_password",  # Has password
                 }
+                mock_verify.return_value = True
 
                 client = TestClient(app)
                 response = client.get("/verify-email/email-123/1", follow_redirects=False)
@@ -336,7 +338,7 @@ def test_verify_email_public_success_existing_user(test_tenant):
 
                 assert response.status_code == 303
                 assert "/login?success=email_verified" in response.headers["location"]
-                mock_verify.assert_called_once_with(test_tenant["id"], "email-123")
+                mock_verify.assert_called_once_with(test_tenant["id"], "email-123", 1)
 
 
 def test_verify_email_public_already_verified_no_password(test_tenant):
@@ -347,9 +349,9 @@ def test_verify_email_public_already_verified_no_password(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
-            with patch("database.users.get_user_by_id") as mock_get_user:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
+            with patch("services.users.get_user_by_id_raw") as mock_get_user:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",
@@ -381,9 +383,9 @@ def test_verify_email_public_already_verified_with_password(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
-            with patch("database.users.get_user_by_id") as mock_get_user:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
+            with patch("services.users.get_user_by_id_raw") as mock_get_user:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",
@@ -413,8 +415,8 @@ def test_verify_email_public_invalid_nonce(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
             mock_get_email.return_value = {
                 "id": "email-123",
                 "user_id": "user-123",
@@ -439,8 +441,8 @@ def test_verify_email_public_email_not_found(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.user_emails.verify_email") as mock_verify:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.emails.verify_email_by_nonce") as mock_verify:
             mock_get_email.return_value = None
 
             client = TestClient(app)
@@ -462,8 +464,8 @@ def test_set_password_page_renders(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.users.get_user_by_id") as mock_get_user:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.users.get_user_by_id_raw") as mock_get_user:
             with patch("routers.auth.templates.TemplateResponse") as mock_template:
                 mock_get_email.return_value = {
                     "id": "email-123",
@@ -494,12 +496,12 @@ def test_set_password_success(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.users.get_user_by_id") as mock_get_user:
-            with patch("database.users.update_password") as mock_update:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.users.get_user_by_id_raw") as mock_get_user:
+            with patch("services.users.update_password") as mock_update:
                 with patch("utils.password.hash_password") as mock_hash:
                     with patch("routers.auth.create_email_otp") as mock_create_otp:
-                        with patch("database.user_emails.get_primary_email") as mock_get_primary:
+                        with patch("services.emails.get_primary_email") as mock_get_primary:
                             with patch("routers.auth.send_mfa_code_email") as mock_send_email:
                                 mock_get_email.return_value = {
                                     "id": "email-123",
@@ -514,7 +516,9 @@ def test_set_password_success(test_tenant):
                                 }
                                 mock_hash.return_value = "hashed_password"
                                 mock_create_otp.return_value = "123456"
-                                mock_get_primary.return_value = {"email": "test@example.com"}
+                                mock_get_primary.return_value = (
+                                    "test@example.com"  # Service returns string
+                                )
 
                                 client = TestClient(app)
                                 response = client.post(
@@ -545,9 +549,9 @@ def test_set_password_passwords_dont_match(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.users.get_user_by_id") as mock_get_user:
-            with patch("database.users.update_password") as mock_update:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.users.get_user_by_id_raw") as mock_get_user:
+            with patch("services.users.update_password") as mock_update:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",
@@ -585,9 +589,9 @@ def test_set_password_too_short(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("database.user_emails.get_email_for_verification") as mock_get_email:
-        with patch("database.users.get_user_by_id") as mock_get_user:
-            with patch("database.users.update_password") as mock_update:
+    with patch("services.emails.get_email_for_verification") as mock_get_email:
+        with patch("services.users.get_user_by_id_raw") as mock_get_user:
+            with patch("services.users.update_password") as mock_update:
                 mock_get_email.return_value = {
                     "id": "email-123",
                     "user_id": "user-123",

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-import database
+import services.oauth2 as oauth2_service
 from api_dependencies import require_admin_api
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, HTTPException
@@ -50,7 +50,7 @@ def list_clients(
     Returns:
         List of OAuth2 clients (without secrets)
     """
-    clients = database.oauth2.get_all_clients(tenant_id)
+    clients = oauth2_service.get_all_clients(tenant_id)
     return [_client_to_response(client) for client in clients]
 
 
@@ -76,9 +76,8 @@ def create_normal_client(
         The client_secret is only returned once. Store it securely.
     """
     try:
-        client = database.oauth2.create_normal_client(
+        client = oauth2_service.create_normal_client(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             name=client_data.name,
             redirect_uris=client_data.redirect_uris,
             created_by=str(user["id"]),
@@ -114,9 +113,8 @@ def create_b2b_client(
         The service user is automatically created and linked to this client.
     """
     try:
-        client = database.oauth2.create_b2b_client(
+        client = oauth2_service.create_b2b_client(
             tenant_id=tenant_id,
-            tenant_id_value=tenant_id,
             name=client_data.name,
             role=client_data.role,
             created_by=str(user["id"]),
@@ -147,7 +145,7 @@ def delete_client(
     Returns:
         204 No Content on success
     """
-    rows_deleted = database.oauth2.delete_client(tenant_id, client_id)
+    rows_deleted = oauth2_service.delete_client(tenant_id, client_id)
 
     if rows_deleted == 0:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -178,13 +176,13 @@ def regenerate_client_secret(
         The new client_secret is only returned once. Store it securely.
     """
     # Get client
-    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
     # Regenerate secret
-    new_secret = database.oauth2.regenerate_client_secret(tenant_id, client_id)
+    new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id)
 
     # Return client with new secret
     client["client_secret"] = new_secret

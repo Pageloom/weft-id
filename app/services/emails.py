@@ -518,6 +518,23 @@ def get_email_address_by_id(tenant_id: str, user_id: str, email_id: str) -> str 
     return None
 
 
+def get_user_with_primary_email(tenant_id: str, user_id: str) -> dict | None:
+    """
+    Get user info with their primary email address.
+
+    This is a utility function without authorization - used for
+    MFA verification flows where user isn't fully logged in yet.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User UUID
+
+    Returns:
+        Dict with user info and primary email, or None if not found
+    """
+    return database.user_emails.get_user_with_primary_email(tenant_id, user_id)
+
+
 def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
     """
     Verify an email address using its nonce (public endpoint flow).

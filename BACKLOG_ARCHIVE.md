@@ -97,3 +97,68 @@ So that I can build custom applications and integrations without relying on serv
 - **Detailed implementation plan:** See [docs/api-implementation-plan.md](docs/api-implementation-plan.md)
 
 ---
+
+## Service Layer Architecture
+
+**Status:** Complete
+
+**User Story:**
+As a developer working on Loom
+I want a service layer that sits between routes and the database layer
+So that I can develop API-first and then compose server-rendered pages using the same models and operations without
+duplication or HTTP overhead
+
+**Architecture:**
+
+```
+[HTML Routes] → [Service Layer] → [Database Layer]
+[API Routes]  → [Service Layer] → [Database Layer]
+```
+
+**Acceptance Criteria:**
+
+**Service Layer Design:**
+
+- [x] New `app/services/` directory with domain-organized modules
+- [x] Service functions return Pydantic models (the API schemas from `app/schemas/`)
+- [x] Service layer handles **authorization** (can this user do this action?)
+- [x] Service layer handles business logic (validation, side effects like emails)
+- [x] Service layer is HTTP-agnostic (no knowledge of requests/responses)
+- [x] Routes handle **authentication** only (who is this user?) and inject requesting_user
+
+**Exception Handling:**
+
+- [x] Custom exception hierarchy in `app/services/exceptions.py`
+- [x] Exceptions are HTTP-agnostic but translatable (include error code, message, optional details)
+- [x] API routes translate service exceptions to HTTPException
+- [x] HTML routes translate service exceptions appropriately (flash messages, error pages)
+
+**API Routes Refactored:**
+
+- [x] API routes become thin wrappers around service calls
+- [x] API routes handle: HTTP parsing, authentication deps, response formatting
+- [x] All business logic moved out of API routes into service layer
+
+**HTML Routes Refactored:**
+
+- [x] HTML routes call service layer (same as API)
+- [x] HTML routes receive typed Pydantic models
+- [x] No direct database layer calls from HTML routes
+
+**Service Modules Created:**
+
+- [x] `services/settings.py` - Tenant settings, privileged domains
+- [x] `services/users.py` - User CRUD, profile management
+- [x] `services/emails.py` - Email management (add, verify, remove, set-primary)
+- [x] `services/mfa.py` - MFA setup, verification, backup codes
+- [x] `services/oauth2.py` - OAuth2 clients, authorization codes, tokens
+
+**Authorization Model:**
+
+- **Authentication** (route layer): FastAPI dependencies identify the caller
+- **Authorization** (service layer): Service checks role, ownership, tenant isolation
+
+**Effort:** XL
+**Value:** High (Enables true API-first development, eliminates duplication, improves maintainability)
+
+---

@@ -23,7 +23,11 @@
       "Bash(docker compose:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(poetry run python:*)"
+      "Bash(poetry run python:*)",
+      "Bash(xargs:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

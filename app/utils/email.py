@@ -18,7 +18,7 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
     smtp_port = int(os.getenv("SMTP_PORT", "1025"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_pass = os.getenv("SMTP_PASS", "")
-    from_email = os.getenv("SMTP_FROM", "noreply@pageloom.localhost")
+    from_email = os.getenv("FROM_EMAIL", "noreply@pageloom.localhost")
 
     try:
         # Create message

@@ -30,10 +30,13 @@ def get_tenant_id_from_request(request: Request) -> str:
     """Extract tenant ID from request hostname."""
     host = normalize_host(request.headers.get("x-forwarded-host") or request.headers.get("host"))
 
-    if not host.endswith(f".{settings.BASE_DOMAIN}"):
+    if host == settings.BASE_DOMAIN:
+        # Base domain without subdomain → default tenant
+        subdomain = settings.DEFAULT_SUBDOMAIN
+    elif host.endswith(f".{settings.BASE_DOMAIN}"):
+        subdomain = host.split(".")[0]
+    else:
         raise HTTPException(status_code=404, detail="Unknown host")
-
-    subdomain = host.split(".")[0]
 
     row = database.tenants.get_tenant_by_subdomain(subdomain)
 

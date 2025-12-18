@@ -16,6 +16,7 @@ DATABASE_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:5432/{POSTG
 
 IS_DEV = _parse_bool(os.environ.get("IS_DEV"))
 BASE_DOMAIN = os.environ.get("BASE_DOMAIN", "")
+DEFAULT_SUBDOMAIN = os.environ.get("DEFAULT_SUBDOMAIN", "dev")
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "25"))

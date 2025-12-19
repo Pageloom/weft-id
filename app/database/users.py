@@ -11,13 +11,15 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
 
     Returns:
         User record with id, tenant_id, first_name, last_name, role, created_at,
-        last_login, mfa_enabled, mfa_method, tz, locale
+        last_login, mfa_enabled, mfa_method, tz, locale, is_inactivated, is_anonymized,
+        inactivated_at, anonymized_at
     """
     return fetchone(
         tenant_id,
         """
         select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method, tz, locale
+               mfa_enabled, mfa_method, tz, locale,
+               is_inactivated, is_anonymized, inactivated_at, anonymized_at
         from users
         where id = :user_id
         """,
@@ -238,6 +240,7 @@ def list_users(
 
     query = f"""
         select u.id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
+               u.is_inactivated, u.is_anonymized,
                ue.email
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
@@ -397,4 +400,117 @@ def update_mfa_status(tenant_id: TenantArg, user_id: str, enabled: bool) -> int:
         tenant_id,
         "update users set mfa_enabled = :enabled where id = :user_id",
         {"enabled": enabled, "user_id": user_id},
+    )
+
+
+def count_active_super_admins(tenant_id: TenantArg) -> int:
+    """
+    Count active (non-inactivated) super_admin users.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+
+    Returns:
+        Number of active super_admin users
+    """
+    result = fetchone(
+        tenant_id,
+        """
+        select count(*) as count from users
+        where role = 'super_admin' and is_inactivated = false
+        """,
+        {},
+    )
+    return result["count"] if result else 0
+
+
+def inactivate_user(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Inactivate a user account (soft-disable login).
+
+    Inactivated users cannot sign in but retain all their data.
+    This operation is reversible via reactivate_user().
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to inactivate
+
+    Returns:
+        Number of rows affected (0 if user not found or already inactivated)
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set is_inactivated = true, inactivated_at = now()
+        where id = :user_id and is_inactivated = false
+        """,
+        {"user_id": user_id},
+    )
+
+
+def reactivate_user(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Reactivate an inactivated user account.
+
+    Cannot reactivate anonymized users (anonymization is irreversible).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to reactivate
+
+    Returns:
+        Number of rows affected (0 if user not found, not inactivated, or anonymized)
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set is_inactivated = false, inactivated_at = null
+        where id = :user_id and is_inactivated = true and is_anonymized = false
+        """,
+        {"user_id": user_id},
+    )
+
+
+def anonymize_user(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Anonymize a user account (GDPR right to be forgotten).
+
+    This is IRREVERSIBLE. Scrubs all PII from the user record:
+    - first_name → '[Anonymized]'
+    - last_name → 'User'
+    - password_hash → NULL
+    - mfa_enabled → false
+    - mfa_method → NULL
+    - tz, locale → NULL
+
+    The user is also inactivated. Related data (emails, MFA secrets) must be
+    handled separately by the service layer.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to anonymize
+
+    Returns:
+        Number of rows affected (0 if user not found or already anonymized)
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set is_inactivated = true,
+            is_anonymized = true,
+            first_name = '[Anonymized]',
+            last_name = 'User',
+            inactivated_at = coalesce(inactivated_at, now()),
+            anonymized_at = now(),
+            password_hash = null,
+            mfa_enabled = false,
+            mfa_method = null,
+            tz = null,
+            locale = null
+        where id = :user_id and is_anonymized = false
+        """,
+        {"user_id": user_id},
     )

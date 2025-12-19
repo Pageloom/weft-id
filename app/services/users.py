@@ -293,6 +293,8 @@ def _user_row_to_summary(user: dict) -> UserSummary:
         role=user["role"],
         created_at=user["created_at"],
         last_login=user.get("last_login"),
+        is_inactivated=user.get("is_inactivated", False),
+        is_anonymized=user.get("is_anonymized", False),
     )
 
 
@@ -322,6 +324,10 @@ def _user_row_to_detail(user: dict, emails: list[dict], is_service: bool) -> Use
         last_login=user.get("last_login"),
         emails=email_list,
         is_service_user=is_service,
+        is_inactivated=user.get("is_inactivated", False),
+        is_anonymized=user.get("is_anonymized", False),
+        inactivated_at=user.get("inactivated_at"),
+        anonymized_at=user.get("anonymized_at"),
     )
 
 
@@ -658,6 +664,222 @@ def delete_user(
 
     # Delete user
     database.users.delete_user(tenant_id, user_id)
+
+
+# =============================================================================
+# User Inactivation & GDPR Anonymization (Admin operations)
+# =============================================================================
+
+
+def inactivate_user(
+    requesting_user: RequestingUser,
+    user_id: str,
+) -> UserDetail:
+    """
+    Inactivate a user account (soft-disable login).
+
+    Inactivated users cannot sign in but retain all their data.
+    This operation is reversible via reactivate_user().
+
+    Authorization: Requires admin role. Cannot inactivate self,
+    service users, or the last super_admin.
+
+    Args:
+        requesting_user: The authenticated user making the request
+        user_id: UUID of the user to inactivate
+
+    Returns:
+        UserDetail for the inactivated user
+
+    Raises:
+        ForbiddenError: If user lacks admin permissions
+        NotFoundError: If user does not exist
+        ValidationError: If inactivation would violate constraints
+    """
+    _require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Get user
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+            details={"user_id": user_id},
+        )
+
+    # Cannot inactivate yourself
+    if str(user["id"]) == requesting_user["id"]:
+        raise ValidationError(
+            message="Cannot inactivate your own account",
+            code="self_inactivation",
+        )
+
+    # Cannot inactivate service users
+    if database.users.is_service_user(tenant_id, user_id):
+        raise ValidationError(
+            message="Cannot inactivate service user. Delete the associated OAuth2 client first.",
+            code="service_user_inactivation",
+        )
+
+    # Already inactivated?
+    if user.get("is_inactivated"):
+        raise ValidationError(
+            message="User is already inactivated",
+            code="already_inactivated",
+        )
+
+    # Cannot inactivate last super_admin
+    if user["role"] == "super_admin":
+        active_super_admins = database.users.count_active_super_admins(tenant_id)
+        if active_super_admins <= 1:
+            raise ValidationError(
+                message="Cannot inactivate the last super_admin",
+                code="last_super_admin",
+            )
+
+    # Perform inactivation
+    database.users.inactivate_user(tenant_id, user_id)
+
+    # Return updated user
+    return get_user(requesting_user, user_id)
+
+
+def reactivate_user(
+    requesting_user: RequestingUser,
+    user_id: str,
+) -> UserDetail:
+    """
+    Reactivate an inactivated user account.
+
+    Authorization: Requires admin role. Cannot reactivate anonymized users
+    (anonymization is irreversible).
+
+    Args:
+        requesting_user: The authenticated user making the request
+        user_id: UUID of the user to reactivate
+
+    Returns:
+        UserDetail for the reactivated user
+
+    Raises:
+        ForbiddenError: If user lacks admin permissions
+        NotFoundError: If user does not exist
+        ValidationError: If user is anonymized or not inactivated
+    """
+    _require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+            details={"user_id": user_id},
+        )
+
+    if user.get("is_anonymized"):
+        raise ValidationError(
+            message="Cannot reactivate anonymized user - anonymization is irreversible",
+            code="anonymized_user",
+        )
+
+    if not user.get("is_inactivated"):
+        raise ValidationError(
+            message="User is not inactivated",
+            code="not_inactivated",
+        )
+
+    database.users.reactivate_user(tenant_id, user_id)
+
+    return get_user(requesting_user, user_id)
+
+
+def anonymize_user(
+    requesting_user: RequestingUser,
+    user_id: str,
+) -> UserDetail:
+    """
+    Anonymize a user account (GDPR right to be forgotten).
+
+    This is IRREVERSIBLE. Scrubs all PII:
+    - User name becomes "[Anonymized] User"
+    - Email addresses are anonymized
+    - MFA data is deleted
+    - Password is cleared
+
+    The user record is preserved for audit log integrity.
+
+    Authorization: Requires super_admin role. Cannot anonymize self,
+    service users, or the last super_admin.
+
+    Args:
+        requesting_user: The authenticated user making the request
+        user_id: UUID of the user to anonymize
+
+    Returns:
+        UserDetail for the anonymized user
+
+    Raises:
+        ForbiddenError: If user lacks super_admin permissions
+        NotFoundError: If user does not exist
+        ValidationError: If anonymization would violate constraints
+    """
+    _require_super_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+            details={"user_id": user_id},
+        )
+
+    # Cannot anonymize yourself
+    if str(user["id"]) == requesting_user["id"]:
+        raise ValidationError(
+            message="Cannot anonymize your own account",
+            code="self_anonymization",
+        )
+
+    # Cannot anonymize service users
+    if database.users.is_service_user(tenant_id, user_id):
+        raise ValidationError(
+            message="Cannot anonymize service user. Delete the associated OAuth2 client first.",
+            code="service_user_anonymization",
+        )
+
+    # Already anonymized?
+    if user.get("is_anonymized"):
+        raise ValidationError(
+            message="User is already anonymized",
+            code="already_anonymized",
+        )
+
+    # Cannot anonymize last super_admin (if they're a super_admin)
+    if user["role"] == "super_admin":
+        active_super_admins = database.users.count_active_super_admins(tenant_id)
+        if active_super_admins <= 1:
+            raise ValidationError(
+                message="Cannot anonymize the last super_admin",
+                code="last_super_admin",
+            )
+
+    # Perform anonymization (order matters)
+    # 1. Anonymize emails
+    database.user_emails.anonymize_user_emails(tenant_id, user_id)
+
+    # 2. Delete MFA data
+    database.mfa.delete_all_user_mfa_data(tenant_id, user_id)
+
+    # 3. Anonymize user record
+    database.users.anonymize_user(tenant_id, user_id)
+
+    return get_user(requesting_user, user_id)
 
 
 # =============================================================================

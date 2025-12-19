@@ -133,6 +133,9 @@
                         {{ sort_header('name', 'Name') }}
                         {{ sort_header('email', 'Email') }}
                         {{ sort_header('role', 'Role') }}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
                         {{ sort_header('last_login', 'Last Login') }}
                         {{ sort_header('created_at', 'Created') }}
                         {% if user.role in ['admin', 'super_admin'] %}
@@ -147,7 +150,13 @@
                         {% for u in users %}
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ u.last_name }}, {{ u.first_name }}</div>
+                                <div class="text-sm font-medium text-gray-900">
+                                    {% if u.is_anonymized %}
+                                    <span class="text-gray-500 italic">[Anonymized User]</span>
+                                    {% else %}
+                                    {{ u.last_name }}, {{ u.first_name }}
+                                    {% endif %}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900">{{ u.email }}</div>
@@ -159,6 +168,21 @@
                                     {% else %}bg-gray-100 text-gray-800{% endif %}">
                                     {{ u.role }}
                                 </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if u.is_anonymized %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                    Anonymized
+                                </span>
+                                {% elif u.is_inactivated %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                    Inactivated
+                                </span>
+                                {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    Active
+                                </span>
+                                {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ fmt_datetime(u.last_login) if u.last_login else 'Never' }}
@@ -179,7 +203,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}6{% else %}5{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
+                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}7{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
                                 {% if search %}
                                     No users found matching "{{ search }}"
                                 {% else %}

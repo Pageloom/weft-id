@@ -29,6 +29,12 @@
                 Email promoted to primary successfully.
                 {% elif success == 'user_created' %}
                 User created successfully. An invitation email has been sent to the user.
+                {% elif success == 'user_inactivated' %}
+                User has been inactivated and can no longer sign in.
+                {% elif success == 'user_reactivated' %}
+                User has been reactivated and can now sign in.
+                {% elif success == 'user_anonymized' %}
+                User has been anonymized. Personal data has been permanently removed.
                 {% else %}
                 Operation completed successfully.
                 {% endif %}
@@ -62,10 +68,50 @@
                 User must have at least one email address.
                 {% elif error == 'already_primary' %}
                 This email is already the primary email.
+                {% elif error == 'self_inactivation' %}
+                You cannot inactivate your own account.
+                {% elif error == 'service_user_inactivation' %}
+                Cannot inactivate service user. Delete the associated OAuth2 client first.
+                {% elif error == 'already_inactivated' %}
+                User is already inactivated.
+                {% elif error == 'last_super_admin' %}
+                Cannot inactivate or anonymize the last super_admin.
+                {% elif error == 'anonymized_user' %}
+                Cannot reactivate anonymized user - anonymization is irreversible.
+                {% elif error == 'not_inactivated' %}
+                User is not currently inactivated.
+                {% elif error == 'self_anonymization' %}
+                You cannot anonymize your own account.
+                {% elif error == 'service_user_anonymization' %}
+                Cannot anonymize service user. Delete the associated OAuth2 client first.
+                {% elif error == 'already_anonymized' %}
+                User is already anonymized.
                 {% else %}
                 An error occurred. Please try again.
                 {% endif %}
             </p>
+        </div>
+        {% endif %}
+
+        <!-- Account Status Banner -->
+        {% if target_user.is_anonymized %}
+        <div class="mb-6 p-4 border border-gray-300 bg-gray-100 rounded-md">
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-1 text-xs font-semibold bg-gray-600 text-white rounded-full">ANONYMIZED</span>
+                <span class="text-sm text-gray-600">
+                    This user's personal data has been permanently removed (GDPR).
+                    Anonymized {{ fmt_datetime(target_user.anonymized_at) }}.
+                </span>
+            </div>
+        </div>
+        {% elif target_user.is_inactivated %}
+        <div class="mb-6 p-4 border border-yellow-300 bg-yellow-50 rounded-md">
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-1 text-xs font-semibold bg-yellow-600 text-white rounded-full">INACTIVATED</span>
+                <span class="text-sm text-yellow-800">
+                    This user cannot sign in. Inactivated {{ fmt_datetime(target_user.inactivated_at) }}.
+                </span>
+            </div>
         </div>
         {% endif %}
 
@@ -175,6 +221,57 @@
             </form>
         </div>
         {% endif %}
+
+        <!-- Account Status Actions -->
+        <div class="mb-8 border-t border-gray-200 pt-6">
+            <h2 class="text-lg font-medium mb-4">Account Status</h2>
+
+            {% if target_user.is_anonymized %}
+            <p class="text-sm text-gray-600">
+                This account has been anonymized and cannot be modified or reactivated.
+            </p>
+            {% elif target_user.is_inactivated %}
+            <p class="text-sm text-gray-600 mb-4">
+                This user is currently inactivated and cannot sign in.
+            </p>
+            <form method="post" action="/users/{{ target_user.id }}/reactivate" class="inline">
+                <button type="submit"
+                        class="bg-green-600 text-white hover:bg-green-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Reactivate User
+                </button>
+            </form>
+            {% else %}
+            <p class="text-sm text-gray-600 mb-4">
+                This user is active and can sign in.
+            </p>
+
+            {% if target_user.id != user.id and not target_user.is_service_user %}
+            <div class="flex gap-4">
+                <form method="post" action="/users/{{ target_user.id }}/inactivate" class="inline">
+                    <button type="submit"
+                            class="bg-yellow-600 text-white hover:bg-yellow-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                            onclick="return confirm('Are you sure you want to inactivate this user? They will no longer be able to sign in.')">
+                        Inactivate User
+                    </button>
+                </form>
+
+                {% if user.role == 'super_admin' %}
+                <form method="post" action="/users/{{ target_user.id }}/anonymize" class="inline">
+                    <button type="submit"
+                            class="bg-red-600 text-white hover:bg-red-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                            onclick="return confirm('WARNING: This action is IRREVERSIBLE!\n\nAnonymizing this user will permanently delete their personal data (name, email, MFA settings). The user record will be preserved for audit purposes but will show as [Anonymized User].\n\nAre you absolutely sure?')">
+                        Anonymize (GDPR)
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% elif target_user.id == user.id %}
+            <p class="text-sm text-gray-500">You cannot inactivate or anonymize your own account.</p>
+            {% elif target_user.is_service_user %}
+            <p class="text-sm text-gray-500">Service users cannot be inactivated. Delete the associated OAuth2 client first.</p>
+            {% endif %}
+            {% endif %}
+        </div>
 
         <!-- Email Addresses -->
         <div class="mb-8 border-t border-gray-200 pt-6">

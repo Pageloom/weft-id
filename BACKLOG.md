@@ -6,7 +6,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## User Inactivation & GDPR Anonymization
+## User Inactivation & GDPR Anonymization ✅ COMPLETED
 
 **User Story:**
 As a platform operator
@@ -17,31 +17,31 @@ So that I can disable access for departed users while maintaining audit trails, 
 
 **User Inactivation:**
 
-- [ ] Add `is_inactivated` boolean column to users table (default: false)
-- [ ] Inactivated users cannot sign in (blocked at authentication layer)
-- [ ] Inactivated users retain all their data (email, name, etc.)
-- [ ] Admins can reactivate inactivated users
-- [ ] Inactivated users still appear in logs and user lists (marked as inactivated)
+- [x] Add `is_inactivated` boolean column to users table (default: false)
+- [x] Inactivated users cannot sign in (blocked at authentication layer)
+- [x] Inactivated users retain all their data (email, name, etc.)
+- [x] Admins can reactivate inactivated users
+- [x] Inactivated users still appear in logs and user lists (marked as inactivated)
 
 **GDPR Anonymization:**
 
-- [ ] Add `is_anonymized` boolean column to users table (default: false)
-- [ ] Anonymization = inactivation + PII scrubbed
-- [ ] Anonymized users have email, name, and other PII removed/replaced
-- [ ] Anonymized users cannot be reactivated (irreversible)
-- [ ] UUID is preserved - logs continue to reference the anonymized user record
-- [ ] Anonymized user record displays as "[Anonymized User]" or similar in UI contexts
+- [x] Add `is_anonymized` boolean column to users table (default: false)
+- [x] Anonymization = inactivation + PII scrubbed
+- [x] Anonymized users have email, name, and other PII removed/replaced
+- [x] Anonymized users cannot be reactivated (irreversible)
+- [x] UUID is preserved - logs continue to reference the anonymized user record
+- [x] Anonymized user record displays as "[Anonymized User]" or similar in UI contexts
 
 **Admin Controls:**
 
-- [ ] Admin UI to inactivate/reactivate users
-- [ ] Admin UI to anonymize users (with confirmation - irreversible)
-- [ ] Clear visual distinction between inactivated vs anonymized users
+- [x] Admin UI to inactivate/reactivate users
+- [x] Admin UI to anonymize users (with confirmation - irreversible)
+- [x] Clear visual distinction between inactivated vs anonymized users
 
 **Audit Trail Integrity:**
 
-- [ ] Event logs retain user UUID references regardless of inactivation/anonymization
-- [ ] Looking up an anonymized user by UUID returns the anonymized record (not null)
+- [x] Event logs retain user UUID references regardless of inactivation/anonymization
+- [x] Looking up an anonymized user by UUID returns the anonymized record (not null)
 
 **Out of Scope:**
 

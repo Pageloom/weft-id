@@ -127,8 +127,8 @@ def session(*, tenant_id: TenantArg):
 def execute(tenant_id: TenantArg, query: str, params: Params = None) -> int:
     """Executes a statement and returns the number of affected rows."""
     with session(tenant_id=tenant_id) as cur:
-        result = cur.execute(_convert_query(query), _validate_params(params))
-        return cast(int, result)
+        cur.execute(_convert_query(query), _validate_params(params))
+        return cur.rowcount
 
 
 def fetchone(tenant_id: TenantArg, query: str, params: Params = None) -> dict | None:

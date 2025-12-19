@@ -179,6 +179,8 @@ class UserSummary(BaseModel):
     role: str = Field(..., description="User role (member, admin, super_admin)")
     created_at: datetime = Field(..., description="Account creation timestamp")
     last_login: datetime | None = Field(None, description="Last login timestamp")
+    is_inactivated: bool = Field(False, description="Whether user is inactivated")
+    is_anonymized: bool = Field(False, description="Whether user is anonymized (GDPR)")
 
 
 class UserListResponse(BaseModel):
@@ -206,6 +208,10 @@ class UserDetail(BaseModel):
     last_login: datetime | None = Field(None, description="Last login timestamp")
     emails: list[EmailInfo] = Field(default_factory=list, description="User's email addresses")
     is_service_user: bool = Field(False, description="Whether this is a B2B service account")
+    is_inactivated: bool = Field(False, description="Whether user is inactivated")
+    is_anonymized: bool = Field(False, description="Whether user is anonymized (GDPR)")
+    inactivated_at: datetime | None = Field(None, description="When user was inactivated")
+    anonymized_at: datetime | None = Field(None, description="When user was anonymized")
 
 
 class UserCreate(BaseModel):

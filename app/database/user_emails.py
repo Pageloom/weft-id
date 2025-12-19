@@ -259,3 +259,31 @@ def count_user_emails(tenant_id: TenantArg, user_id: str) -> int:
         {"user_id": user_id},
     )
     return result["count"] if result else 0
+
+
+def anonymize_user_emails(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Anonymize all email addresses for a user (GDPR anonymization).
+
+    Replaces email addresses with anonymized placeholders using the email record ID.
+    Format: anon-{email_id}@anonymized.local
+
+    This preserves the email records for referential integrity while removing PII.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID whose emails to anonymize
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update user_emails
+        set email = 'anon-' || cast(id as text) || '@anonymized.example.com',
+            verified_at = null
+        where user_id = :user_id
+        """,
+        {"user_id": user_id},
+    )

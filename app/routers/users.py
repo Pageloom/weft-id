@@ -527,3 +527,83 @@ def promote_user_email_route(
         send_primary_email_changed_notification(old_primary_email, new_primary_email, admin_name)
 
     return RedirectResponse(url=f"/users/{user_id}?success=email_promoted", status_code=303)
+
+
+# =============================================================================
+# User Inactivation & GDPR Anonymization Routes
+# =============================================================================
+
+
+@router.post("/{user_id}/inactivate")
+def inactivate_user_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Inactivate a user account (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        users_service.inactivate_user(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=user_inactivated", status_code=303)
+
+
+@router.post("/{user_id}/reactivate")
+def reactivate_user_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Reactivate an inactivated user account (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        users_service.reactivate_user(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=user_reactivated", status_code=303)
+
+
+@router.post("/{user_id}/anonymize")
+def anonymize_user_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Anonymize a user account - GDPR right to be forgotten (super_admin only)."""
+    # Check super_admin permission
+    if user.get("role") != "super_admin":
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _to_requesting_user(user, tenant_id)
+    try:
+        users_service.anonymize_user(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=user_anonymized", status_code=303)

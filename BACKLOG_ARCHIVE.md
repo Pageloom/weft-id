@@ -98,6 +98,108 @@ So that I can build custom applications and integrations without relying on serv
 
 ---
 
+## User Inactivation & GDPR Anonymization
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want to inactivate users (with optional GDPR anonymization)
+So that I can disable access for departed users while maintaining audit trails, and comply with right-to-be-forgotten requests
+
+**Acceptance Criteria:**
+
+**User Inactivation:**
+
+- [x] Add `is_inactivated` boolean column to users table (default: false)
+- [x] Inactivated users cannot sign in (blocked at authentication layer)
+- [x] Inactivated users retain all their data (email, name, etc.)
+- [x] Admins can reactivate inactivated users
+- [x] Inactivated users still appear in logs and user lists (marked as inactivated)
+
+**GDPR Anonymization:**
+
+- [x] Add `is_anonymized` boolean column to users table (default: false)
+- [x] Anonymization = inactivation + PII scrubbed
+- [x] Anonymized users have email, name, and other PII removed/replaced
+- [x] Anonymized users cannot be reactivated (irreversible)
+- [x] UUID is preserved - logs continue to reference the anonymized user record
+- [x] Anonymized user record displays as "[Anonymized User]" or similar in UI contexts
+
+**Admin Controls:**
+
+- [x] Admin UI to inactivate/reactivate users
+- [x] Admin UI to anonymize users (with confirmation - irreversible)
+- [x] Clear visual distinction between inactivated vs anonymized users
+
+**Audit Trail Integrity:**
+
+- [x] Event logs retain user UUID references regardless of inactivation/anonymization
+- [x] Looking up an anonymized user by UUID returns the anonymized record (not null)
+
+**Out of Scope:**
+
+- Self-service GDPR deletion requests
+- Automated anonymization workflows
+- Bulk inactivation/anonymization
+
+**Effort:** M
+**Value:** High (Compliance/GDPR Foundation)
+
+---
+
+## On-Prem Email Reliability & MFA Bypass
+
+**Status:** Complete
+
+**User Story:**
+As an on-prem operator
+I want flexible email delivery options and an optional MFA bypass mode
+So that I can deploy in restrictive network environments where SMTP ports are blocked, and simplify local development/testing
+
+**Context:**
+On-prem and some cloud environments block outbound SMTP ports (25, 465, 587). This makes email-based features (OTP codes, invitations, notifications) non-functional. HTTP-based email APIs (Resend, SendGrid) work over port 443 and bypass these restrictions.
+
+**Acceptance Criteria:**
+
+**MFA Bypass Mode:**
+
+- [x] New `BYPASS_OTP` environment variable (default: false)
+- [x] When `BYPASS_OTP=true`, any valid 6-digit code (000000-999999) passes MFA verification
+- [x] Bypass applies to all MFA methods: email OTP and TOTP
+- [x] Backup codes are NOT bypassed (they remain functional for account recovery)
+- [x] Clear warning logged at startup when bypass mode is enabled
+- [x] Documentation warns this is for dev/on-prem only, never production
+
+**Pluggable Email Backends:**
+
+- [x] Abstract email backend interface supporting multiple providers
+- [x] `EMAIL_BACKEND` environment variable to select provider: `smtp`, `resend`, `sendgrid`
+- [x] SMTP backend (existing implementation, refactored)
+- [x] Resend backend (HTTPS API via `resend` Python package)
+- [x] SendGrid backend (HTTPS API via `sendgrid` Python package)
+- [x] Backend-specific configuration: `RESEND_API_KEY`, `SENDGRID_API_KEY`
+- [x] Graceful error handling with logging for all backends
+- [x] All existing email functions work unchanged (interface preserved)
+
+**Configuration Updates:**
+
+- [x] Update `.env.dev.example` with new variables (documented, commented)
+- [x] Update `.env.onprem.example` with recommended on-prem settings
+- [x] Update `app/settings.py` to load new environment variables
+
+**Out of Scope:**
+
+- AWS SES backend (can be added later)
+- Console/log backend for debugging
+- Webhook-based email delivery
+- Password-based authentication alternative
+
+**Effort:** M
+**Value:** High (Unblocks On-Prem Deployment)
+
+---
+
 ## Service Layer Architecture
 
 **Status:** Complete

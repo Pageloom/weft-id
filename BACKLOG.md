@@ -235,3 +235,78 @@ So that I can guarantee data residency in specific regions and enable future geo
 
 ---
 
+## Internationalization (i18n) Support
+
+**User Story:**
+As a platform operator
+I want to serve the application in multiple languages
+So that users can interact with the platform in their preferred language
+
+**Acceptance Criteria:**
+
+**Core Infrastructure:**
+
+- [ ] Translation framework integrated (Babel + Flask-Babel or similar for FastAPI/Jinja2)
+- [ ] Message extraction configured for Python code and Jinja2 templates
+- [ ] Translation files stored in `locales/` directory using standard `.po`/`.mo` format
+- [ ] English (en) as base language with all strings extracted
+- [ ] At least one additional language fully translated for MVP (suggest: Spanish, French, or German)
+
+**Language Detection & Selection:**
+
+- [ ] User preference stored in database (`preferred_language` column on users table)
+- [ ] Tenant default language setting (fallback when user has no preference)
+- [ ] Browser `Accept-Language` header detection (fallback when no user/tenant preference)
+- [ ] Language switcher UI component (accessible from all pages)
+- [ ] Language preference persists across sessions
+
+**Translated Content:**
+
+- [ ] All UI text in templates (buttons, labels, headings, navigation)
+- [ ] Flash messages and inline validation errors
+- [ ] Email templates (subject lines and body content)
+- [ ] Date/time formatting localized per locale
+- [ ] Number formatting localized per locale (future: currency if needed)
+
+**Developer Experience:**
+
+- [ ] `make extract-messages` command to extract translatable strings
+- [ ] `make compile-messages` command to compile `.po` to `.mo`
+- [ ] Documentation on adding new translatable strings
+- [ ] Documentation on adding a new language
+
+**Out of Scope:**
+
+- API response message translation (API returns English, clients handle i18n)
+- User-generated content translation
+- Right-to-left (RTL) language support (can be added later)
+- Machine translation integration
+- Translation management UI (use external tools like Weblate, POEditor)
+- Pluralization rules beyond basic (singular/plural)
+
+**Technical Implementation:**
+
+- Database migration: Add `preferred_language` to users table, `default_language` to tenant settings
+- Install `Babel` package for extraction and locale management
+- Jinja2 integration with `_()` or `gettext()` function
+- Middleware to set locale per request based on preference hierarchy
+- Update all templates to use translation functions
+- Create `locales/` directory structure
+- Add extraction configuration (`babel.cfg`)
+
+**Dependencies:**
+
+- `Babel` package
+- `python-i18n` or custom FastAPI middleware
+
+**Effort:** L
+**Value:** Medium (Expands Addressable Market)
+
+**Notes:**
+
+- Start with a single additional language to validate the pipeline
+- Keep translation keys close to English text (not abstract keys) for maintainability
+- Consider hiring professional translators for production languages
+
+---
+

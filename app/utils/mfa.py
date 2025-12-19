@@ -50,6 +50,10 @@ def verify_totp_code(secret: str, code: str) -> bool:
     Verify a TOTP code against a secret.
     Returns True if valid, False otherwise.
     """
+    # Bypass mode: accept any valid 6-digit code
+    if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
+        return True
+
     totp = pyotp.TOTP(secret)
     return totp.verify(code, valid_window=1)  # Allow 1 step window (30 sec before/after)
 
@@ -127,6 +131,10 @@ def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
     Verify an email OTP code and mark it as used.
     Returns True if valid and not expired, False otherwise.
     """
+    # Bypass mode: accept any valid 6-digit code
+    if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
+        return True
+
     code_hash = hash_code(code)
     return database.mfa.verify_email_otp(tenant_id, user_id, code_hash)
 

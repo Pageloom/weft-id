@@ -26,6 +26,16 @@ SMTP_TLS = _parse_bool(os.environ.get("SMTP_TLS"))
 
 FROM_EMAIL = os.environ.get("FROM_EMAIL", "no-reply@pageloom.localhost")
 
+# Email backend selection: smtp, resend, or sendgrid
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "smtp")
+
+# API keys for HTTP-based email backends
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
+
+# MFA bypass mode (DEVELOPMENT/ON-PREM ONLY - allows any 6-digit code)
+BYPASS_OTP = _parse_bool(os.environ.get("BYPASS_OTP"))
+
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
 MFA_ENCRYPTION_KEY = os.environ.get(
     "MFA_ENCRYPTION_KEY", "dev-mfa-key-change-in-production-must-be-base64"

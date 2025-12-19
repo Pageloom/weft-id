@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import settings
@@ -13,6 +14,13 @@ from routers import settings as settings_router
 from routers.api.v1 import oauth2_clients
 from routers.api.v1 import settings as settings_api
 from routers.api.v1 import users as users_api
+
+logger = logging.getLogger(__name__)
+
+# Security warnings for dangerous settings
+if settings.BYPASS_OTP:
+    logger.warning("BYPASS_OTP is enabled. Any 6-digit code will pass MFA verification.")
+    logger.warning("This should ONLY be used in development or controlled on-prem environments.")
 
 app = FastAPI(
     title="Loom Identity Platform API",
@@ -96,4 +104,4 @@ def custom_openapi():
     return app.openapi_schema
 
 
-app.openapi = custom_openapi
+app.openapi = custom_openapi  # type: ignore[method-assign]

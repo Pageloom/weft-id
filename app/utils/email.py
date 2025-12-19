@@ -1,57 +1,19 @@
 """Email sending utilities."""
 
-import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from utils.email_backends import get_backend
 
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str | None = None) -> bool:
     """
-    Send an email via SMTP.
+    Send an email using the configured backend.
 
-    In development: uses maildev container (SMTP on port 1025)
-    In production: configure with AWS SES, SendGrid, Mailgun, etc.
+    Backend is selected via EMAIL_BACKEND environment variable:
+    - "smtp" (default): SMTP backend
+    - "resend": Resend API backend (HTTPS)
+    - "sendgrid": SendGrid API backend (HTTPS)
     """
-    # SMTP configuration
-    smtp_host = os.getenv("SMTP_HOST", "maildev")  # maildev is the container name
-    smtp_port = int(os.getenv("SMTP_PORT", "1025"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "")
-    from_email = os.getenv("FROM_EMAIL", "noreply@pageloom.localhost")
-
-    smtp_tls = os.getenv("SMTP_TLS", "false").lower() == "true"
-
-    try:
-        # Create message
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = from_email
-        msg["To"] = to_email
-
-        # Attach text and HTML parts
-        if text_body:
-            msg.attach(MIMEText(text_body, "plain"))
-        msg.attach(MIMEText(html_body, "html"))
-
-        # Send via SMTP with timeout
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            # Enable TLS if configured (required for port 587 on most providers)
-            if smtp_tls:
-                server.starttls()
-
-            # Authenticate if credentials provided
-            if smtp_user and smtp_pass:
-                server.login(smtp_user, smtp_pass)
-
-            server.send_message(msg)
-
-        print(f"✓ Email sent to {to_email}: {subject}")
-        return True
-
-    except Exception as e:
-        print(f"✗ Failed to send email to {to_email}: {e}")
-        return False
+    backend = get_backend()
+    return backend.send(to_email, subject, html_body, text_body)
 
 
 def send_mfa_code_email(to_email: str, code: str) -> bool:

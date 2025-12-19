@@ -44,7 +44,8 @@
       "Bash(devscripts/onprem-setup.sh )",
       "Bash(docker-compose.onprem.yml )",
       "Bash(nginx/conf.d/app.onprem.conf.template)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": []

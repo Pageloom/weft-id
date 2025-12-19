@@ -47,33 +47,38 @@ def test_send_email_without_text_body():
 
 def test_send_email_with_authentication():
     """Test email sending with SMTP authentication."""
-    from utils.email import send_email
+    # Reset the cached backend to pick up new settings
+    import utils.email_backends
 
-    with patch.dict(
-        "os.environ",
-        {
-            "SMTP_HOST": "smtp.example.com",
-            "SMTP_PORT": "587",
-            "SMTP_USER": "user@example.com",
-            "SMTP_PASS": "password123",
-            "SMTP_FROM": "noreply@example.com",
-        },
-    ):
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
+    utils.email_backends._backend_instance = None
 
-            result = send_email(
-                to_email="test@example.com",
-                subject="Test Subject",
-                html_body="<p>Test HTML</p>",
-                text_body="Test Text",
-            )
+    with patch("settings.SMTP_HOST", "smtp.example.com"):
+        with patch("settings.SMTP_PORT", 587):
+            with patch("settings.SMTP_USER", "user@example.com"):
+                with patch("settings.SMTP_PASS", "password123"):
+                    with patch("settings.SMTP_TLS", True):
+                        with patch("smtplib.SMTP") as mock_smtp:
+                            mock_server = MagicMock()
+                            mock_smtp.return_value.__enter__.return_value = mock_server
 
-            assert result is True
-            # Verify STARTTLS and login were called
-            mock_server.starttls.assert_called_once()
-            mock_server.login.assert_called_once_with("user@example.com", "password123")
+                            from utils.email import send_email
+
+                            result = send_email(
+                                to_email="test@example.com",
+                                subject="Test Subject",
+                                html_body="<p>Test HTML</p>",
+                                text_body="Test Text",
+                            )
+
+                            assert result is True
+                            # Verify STARTTLS and login were called
+                            mock_server.starttls.assert_called_once()
+                            mock_server.login.assert_called_once_with(
+                                "user@example.com", "password123"
+                            )
+
+    # Clean up
+    utils.email_backends._backend_instance = None
 
 
 def test_send_email_failure():
@@ -183,25 +188,31 @@ def test_send_email_verification_failure():
         assert result is False
 
 
-def test_send_email_uses_environment_variables():
-    """Test that send_email uses environment variables for configuration."""
-    from utils.email import send_email
+def test_send_email_uses_settings():
+    """Test that send_email uses settings for configuration."""
+    # Reset the cached backend to pick up new settings
+    import utils.email_backends
+
+    utils.email_backends._backend_instance = None
 
     custom_host = "custom.smtp.com"
-    custom_port = "2525"
-    custom_from = "custom@example.com"
+    custom_port = 2525
 
-    with patch.dict(
-        "os.environ", {"SMTP_HOST": custom_host, "SMTP_PORT": custom_port, "SMTP_FROM": custom_from}
-    ):
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
+    with patch("settings.SMTP_HOST", custom_host):
+        with patch("settings.SMTP_PORT", custom_port):
+            with patch("smtplib.SMTP") as mock_smtp:
+                mock_server = MagicMock()
+                mock_smtp.return_value.__enter__.return_value = mock_server
 
-            send_email(to_email="test@example.com", subject="Test", html_body="<p>Test</p>")
+                from utils.email import send_email
 
-            # Verify SMTP was created with custom host and port
-            mock_smtp.assert_called_once_with(custom_host, 2525)
+                send_email(to_email="test@example.com", subject="Test", html_body="<p>Test</p>")
+
+                # Verify SMTP was created with custom host and port
+                mock_smtp.assert_called_once_with(custom_host, custom_port, timeout=10)
+
+    # Clean up
+    utils.email_backends._backend_instance = None
 
 
 def test_send_secondary_email_added_notification():

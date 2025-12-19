@@ -20,6 +20,8 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
     smtp_pass = os.getenv("SMTP_PASS", "")
     from_email = os.getenv("FROM_EMAIL", "noreply@pageloom.localhost")
 
+    smtp_tls = os.getenv("SMTP_TLS", "false").lower() == "true"
+
     try:
         # Create message
         msg = MIMEMultipart("alternative")
@@ -32,11 +34,14 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
             msg.attach(MIMEText(text_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        # Send via SMTP
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            # maildev doesn't need authentication, but production might
-            if smtp_user and smtp_pass:
+        # Send via SMTP with timeout
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            # Enable TLS if configured (required for port 587 on most providers)
+            if smtp_tls:
                 server.starttls()
+
+            # Authenticate if credentials provided
+            if smtp_user and smtp_pass:
                 server.login(smtp_user, smtp_pass)
 
             server.send_message(msg)

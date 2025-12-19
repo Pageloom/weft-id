@@ -244,3 +244,40 @@ def test_unset_primary_emails(test_user):
     # Verify no primary email exists
     emails = database.user_emails.list_user_emails(test_user["tenant_id"], test_user["id"])
     assert not any(e["is_primary"] for e in emails)
+
+
+# =============================================================================
+# Email Anonymization Tests
+# =============================================================================
+
+
+def test_anonymize_user_emails(test_user):
+    """Test anonymizing user email addresses."""
+    import database
+
+    # Add a secondary email
+    new_email = f"secondary-anon-{test_user['id']}@example.com"
+    database.user_emails.add_email(
+        test_user["tenant_id"], test_user["id"], new_email, test_user["tenant_id"]
+    )
+
+    # Get emails before
+    emails_before = database.user_emails.list_user_emails(test_user["tenant_id"], test_user["id"])
+    assert len(emails_before) == 2
+
+    # Anonymize emails
+    rows_affected = database.user_emails.anonymize_user_emails(
+        test_user["tenant_id"], test_user["id"]
+    )
+    assert rows_affected == 2
+
+    # Check emails after
+    emails_after = database.user_emails.list_user_emails(test_user["tenant_id"], test_user["id"])
+    assert len(emails_after) == 2
+
+    for email in emails_after:
+        # Check email format
+        assert email["email"].startswith("anon-")
+        assert email["email"].endswith("@anonymized.example.com")
+        # Check verified_at is cleared
+        assert email["verified_at"] is None

@@ -326,3 +326,35 @@ def delete_backup_codes(tenant_id: TenantArg, user_id: str) -> int:
         "delete from mfa_backup_codes where user_id = :user_id",
         {"user_id": user_id},
     )
+
+
+def delete_email_codes(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Delete all email OTP codes for a user.
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "delete from mfa_email_codes where user_id = :user_id",
+        {"user_id": user_id},
+    )
+
+
+def delete_all_user_mfa_data(tenant_id: TenantArg, user_id: str) -> None:
+    """
+    Delete all MFA-related data for a user (for anonymization).
+
+    Removes:
+    - TOTP secrets
+    - Backup codes
+    - Email OTP codes
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID whose MFA data to delete
+    """
+    delete_totp_secrets(tenant_id, user_id)
+    delete_backup_codes(tenant_id, user_id)
+    delete_email_codes(tenant_id, user_id)

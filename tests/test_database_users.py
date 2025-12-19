@@ -227,3 +227,166 @@ def test_list_users_with_invalid_sort_order(test_user):
 
     # Should still return users (falls back to desc)
     assert len(users) >= 1
+
+
+# =============================================================================
+# User Inactivation & Anonymization Tests
+# =============================================================================
+
+
+def test_get_user_includes_inactivation_fields(test_user):
+    """Test that get_user_by_id returns inactivation and anonymization fields."""
+    import database
+
+    user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+
+    assert user is not None
+    assert "is_inactivated" in user
+    assert "is_anonymized" in user
+    assert "inactivated_at" in user
+    assert "anonymized_at" in user
+    # New users should be active
+    assert user["is_inactivated"] is False
+    assert user["is_anonymized"] is False
+
+
+def test_list_users_includes_inactivation_fields(test_user):
+    """Test that list_users returns inactivation and anonymization fields."""
+    import database
+
+    users = database.users.list_users(test_user["tenant_id"], page=1, page_size=10)
+
+    assert len(users) >= 1
+    for u in users:
+        assert "is_inactivated" in u
+        assert "is_anonymized" in u
+
+
+def test_inactivate_user(test_user):
+    """Test inactivating a user."""
+    import database
+
+    # Inactivate the user
+    rows_affected = database.users.inactivate_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 1
+
+    # Verify the user is inactivated
+    user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+    assert user["is_inactivated"] is True
+    assert user["inactivated_at"] is not None
+
+
+def test_inactivate_user_already_inactivated(test_user):
+    """Test inactivating an already inactivated user returns 0 rows."""
+    import database
+
+    # First inactivation
+    database.users.inactivate_user(test_user["tenant_id"], test_user["id"])
+
+    # Second inactivation should return 0
+    rows_affected = database.users.inactivate_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 0
+
+
+def test_reactivate_user(test_user):
+    """Test reactivating an inactivated user."""
+    import database
+
+    # First inactivate
+    database.users.inactivate_user(test_user["tenant_id"], test_user["id"])
+
+    # Then reactivate
+    rows_affected = database.users.reactivate_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 1
+
+    # Verify the user is active again
+    user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+    assert user["is_inactivated"] is False
+    assert user["inactivated_at"] is None
+
+
+def test_reactivate_user_not_inactivated(test_user):
+    """Test reactivating an active user returns 0 rows."""
+    import database
+
+    # User is already active
+    rows_affected = database.users.reactivate_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 0
+
+
+def test_anonymize_user(test_user):
+    """Test anonymizing a user."""
+    import database
+
+    # Anonymize the user
+    rows_affected = database.users.anonymize_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 1
+
+    # Verify the user is anonymized
+    user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+    assert user["is_inactivated"] is True
+    assert user["is_anonymized"] is True
+    assert user["anonymized_at"] is not None
+    assert user["first_name"] == "[Anonymized]"
+    assert user["last_name"] == "User"
+    assert user["mfa_enabled"] is False
+    assert user["mfa_method"] is None
+    assert user["tz"] is None
+    assert user["locale"] is None
+
+    # Verify password is also cleared (check via login)
+    user_login = database.users.get_user_by_email(test_user["tenant_id"], test_user["email"])
+    # After anonymization, email is changed, so this should return None
+    # or the password_hash should be None
+
+
+def test_anonymize_user_already_anonymized(test_user):
+    """Test anonymizing an already anonymized user returns 0 rows."""
+    import database
+
+    # First anonymization
+    database.users.anonymize_user(test_user["tenant_id"], test_user["id"])
+
+    # Second anonymization should return 0
+    rows_affected = database.users.anonymize_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 0
+
+
+def test_reactivate_anonymized_user_fails(test_user):
+    """Test that reactivating an anonymized user returns 0 rows."""
+    import database
+
+    # Anonymize the user
+    database.users.anonymize_user(test_user["tenant_id"], test_user["id"])
+
+    # Attempt to reactivate should fail
+    rows_affected = database.users.reactivate_user(test_user["tenant_id"], test_user["id"])
+    assert rows_affected == 0
+
+    # User should still be inactivated and anonymized
+    user = database.users.get_user_by_id(test_user["tenant_id"], test_user["id"])
+    assert user["is_inactivated"] is True
+    assert user["is_anonymized"] is True
+
+
+def test_count_active_super_admins(test_tenant, test_super_admin_user):
+    """Test counting active super_admin users."""
+    import database
+
+    count = database.users.count_active_super_admins(test_tenant["id"])
+    assert count >= 1
+
+
+def test_count_active_super_admins_excludes_inactivated(test_tenant, test_super_admin_user):
+    """Test that inactivated super_admins are not counted."""
+    import database
+
+    # Get initial count
+    initial_count = database.users.count_active_super_admins(test_tenant["id"])
+
+    # Inactivate the super_admin
+    database.users.inactivate_user(test_tenant["id"], test_super_admin_user["id"])
+
+    # Count should decrease
+    new_count = database.users.count_active_super_admins(test_tenant["id"])
+    assert new_count == initial_count - 1

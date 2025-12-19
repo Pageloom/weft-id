@@ -6,6 +6,101 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## User Inactivation & GDPR Anonymization
+
+**User Story:**
+As a platform operator
+I want to inactivate users (with optional GDPR anonymization)
+So that I can disable access for departed users while maintaining audit trails, and comply with right-to-be-forgotten requests
+
+**Acceptance Criteria:**
+
+**User Inactivation:**
+
+- [ ] Add `is_inactivated` boolean column to users table (default: false)
+- [ ] Inactivated users cannot sign in (blocked at authentication layer)
+- [ ] Inactivated users retain all their data (email, name, etc.)
+- [ ] Admins can reactivate inactivated users
+- [ ] Inactivated users still appear in logs and user lists (marked as inactivated)
+
+**GDPR Anonymization:**
+
+- [ ] Add `is_anonymized` boolean column to users table (default: false)
+- [ ] Anonymization = inactivation + PII scrubbed
+- [ ] Anonymized users have email, name, and other PII removed/replaced
+- [ ] Anonymized users cannot be reactivated (irreversible)
+- [ ] UUID is preserved - logs continue to reference the anonymized user record
+- [ ] Anonymized user record displays as "[Anonymized User]" or similar in UI contexts
+
+**Admin Controls:**
+
+- [ ] Admin UI to inactivate/reactivate users
+- [ ] Admin UI to anonymize users (with confirmation - irreversible)
+- [ ] Clear visual distinction between inactivated vs anonymized users
+
+**Audit Trail Integrity:**
+
+- [ ] Event logs retain user UUID references regardless of inactivation/anonymization
+- [ ] Looking up an anonymized user by UUID returns the anonymized record (not null)
+
+**Out of Scope:**
+
+- Self-service GDPR deletion requests
+- Automated anonymization workflows
+- Bulk inactivation/anonymization
+
+**Effort:** M
+**Value:** High (Compliance/GDPR Foundation)
+
+---
+
+## Service Layer Event Logging
+
+**User Story:**
+As a platform operator
+I want all write operations in the service layer to be logged to a database table
+So that I have a complete audit trail for compliance, debugging, and future user-facing activity history
+
+**Acceptance Criteria:**
+
+**Core Logging:**
+
+- [ ] New `event_logs` table captures all service layer write operations
+- [ ] Each log entry includes: `tenant_id`, `actor_user_id`, `artifact_type`, `artifact_id`, `event_type`, `metadata` (JSON), `created_at`
+- [ ] Event types are descriptive strings (e.g., `user_created`, `email_updated`, `mfa_enabled`) - not DB-enforced enums
+- [ ] Artifact type identifies the entity (e.g., `user`, `privileged_domain`, `tenant_settings`)
+- [ ] Metadata field captures context-specific details as JSON (optional per event)
+- [ ] Logging is synchronous (write completes before service method returns)
+
+**Actor Tracking:**
+
+- [ ] All events track the `actor_user_id` (who performed the action)
+- [ ] System-initiated actions (background jobs, automated processes) use a predefined UUID constant (e.g., `SYSTEM_ACTOR_ID`)
+- [ ] System actor UUID is defined in code, not a real user row
+
+**Implementation Pattern:**
+
+- [ ] Logging helper/utility that service functions call after successful writes
+- [ ] All existing service layer write operations are instrumented
+- [ ] Culture: "If there is a write, there is a log" - bulk writes produce multiple log entries
+
+**Retention:**
+
+- [ ] Logs retained indefinitely
+- [ ] Logs reference user UUIDs - anonymization happens on user record, not logs
+
+**Out of Scope:**
+
+- UI to browse/search logs
+- API endpoints to query logs
+- User-facing activity history display
+- Read operation logging
+
+**Effort:** M
+**Value:** High (Audit/Compliance Foundation)
+
+---
+
 ## Organizational Structure & Grouping System
 
 **User Story:**

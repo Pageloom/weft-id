@@ -91,6 +91,24 @@ def users_list(
     sort_field = request.query_params.get("sort", "created_at")
     sort_order = request.query_params.get("order", "desc")
 
+    # Parse role filter (comma-separated)
+    role_param = request.query_params.get("role", "").strip()
+    roles: list[str] | None = None
+    if role_param:
+        allowed_roles = {"member", "admin", "super_admin"}
+        roles = [r.strip() for r in role_param.split(",") if r.strip() in allowed_roles]
+        if not roles:
+            roles = None
+
+    # Parse status filter (comma-separated)
+    status_param = request.query_params.get("status", "").strip()
+    statuses: list[str] | None = None
+    if status_param:
+        allowed_statuses = {"active", "inactivated", "anonymized"}
+        statuses = [s.strip() for s in status_param.split(",") if s.strip() in allowed_statuses]
+        if not statuses:
+            statuses = None
+
     try:
         page = max(1, int(request.query_params.get("page", "1")))
     except ValueError:
@@ -104,7 +122,7 @@ def users_list(
         page_size = 25
 
     # Validate sort field and order
-    allowed_sort_fields = ["name", "email", "role", "last_login", "created_at"]
+    allowed_sort_fields = ["name", "email", "role", "status", "last_login", "created_at"]
     if sort_field not in allowed_sort_fields:
         sort_field = "created_at"
 
@@ -113,7 +131,7 @@ def users_list(
         sort_order = "desc"
 
     # Get total count for pagination
-    total_count = users_service.count_users(tenant_id, search if search else None)
+    total_count = users_service.count_users(tenant_id, search if search else None, roles, statuses)
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
     # Ensure page is within bounds
@@ -128,6 +146,8 @@ def users_list(
         page,
         page_size,
         collation,
+        roles,
+        statuses,
     )
 
     # Calculate offset for pagination metadata
@@ -155,6 +175,8 @@ def users_list(
             search=search,
             sort_field=sort_field,
             sort_order=sort_order,
+            roles=roles or [],
+            statuses=statuses or [],
         ),
     )
 

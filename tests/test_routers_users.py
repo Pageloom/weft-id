@@ -87,7 +87,12 @@ def test_users_list_with_search(test_admin_user):
                 app.dependency_overrides.clear()
 
                 assert response.status_code == 200
-                mock_count.assert_called_once_with(test_admin_user["tenant_id"], "john")
+                # count_users now takes (tenant_id, search, roles, statuses)
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[0] == test_admin_user["tenant_id"]
+                assert count_call_args[1] == "john"
+                assert count_call_args[2] is None  # No role filter
+                assert count_call_args[3] is None  # No status filter
 
 
 def test_users_list_with_sorting(test_admin_user):
@@ -1126,3 +1131,388 @@ def test_create_new_user_denied_for_regular_user(test_user):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
+
+
+# =============================================================================
+# User List Filtering Tests
+# =============================================================================
+
+
+def test_users_list_with_single_role_filter(test_admin_user):
+    """Test users list with single role filter."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 3
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=admin")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Verify roles parameter was passed to count_users
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[2] == ["admin"]  # roles parameter
+                # Verify roles parameter was passed to list_users_raw
+                list_call_args = mock_list.call_args[0]
+                assert list_call_args[7] == ["admin"]  # roles parameter
+
+
+def test_users_list_with_multiple_role_filter(test_admin_user):
+    """Test users list with multiple role filter (comma-separated)."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 5
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=admin,super_admin")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert set(count_call_args[2]) == {"admin", "super_admin"}
+
+
+def test_users_list_with_invalid_role_filter(test_admin_user):
+    """Test users list ignores invalid role values."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 0
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=invalid_role")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Invalid role should result in None (no filter)
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[2] is None
+
+
+def test_users_list_with_mixed_valid_invalid_roles(test_admin_user):
+    """Test users list filters only valid roles from mixed input."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 3
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=admin,invalid,member")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert set(count_call_args[2]) == {"admin", "member"}
+
+
+def test_users_list_with_single_status_filter(test_admin_user):
+    """Test users list with single status filter."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 10
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?status=active")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Verify statuses parameter was passed
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[3] == ["active"]  # statuses parameter
+                list_call_args = mock_list.call_args[0]
+                assert list_call_args[8] == ["active"]  # statuses parameter
+
+
+def test_users_list_with_multiple_status_filter(test_admin_user):
+    """Test users list with multiple status filter."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 15
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?status=active,inactivated")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert set(count_call_args[3]) == {"active", "inactivated"}
+
+
+def test_users_list_with_invalid_status_filter(test_admin_user):
+    """Test users list ignores invalid status values."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 0
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?status=invalid_status")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[3] is None
+
+
+def test_users_list_with_role_and_status_filter(test_admin_user):
+    """Test users list with both role and status filters."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 2
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=member&status=active")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[2] == ["member"]
+                assert count_call_args[3] == ["active"]
+
+
+def test_users_list_with_search_and_filters(test_admin_user):
+    """Test users list with search, role, and status filters combined."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 1
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?search=john&role=admin&status=active")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[0] == test_admin_user["tenant_id"]
+                assert count_call_args[1] == "john"
+                assert count_call_args[2] == ["admin"]
+                assert count_call_args[3] == ["active"]
+
+
+def test_users_list_with_status_sort(test_admin_user):
+    """Test users list with status sorting."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 5
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?sort=status&order=asc")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                list_call_args = mock_list.call_args[0]
+                assert list_call_args[2] == "status"  # sort_field
+                assert list_call_args[3] == "asc"  # sort_order
+
+
+def test_users_list_with_status_sort_desc(test_admin_user):
+    """Test users list with status sorting descending."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 5
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?sort=status&order=desc")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                list_call_args = mock_list.call_args[0]
+                assert list_call_args[2] == "status"
+                assert list_call_args[3] == "desc"
+
+
+def test_users_list_empty_role_filter(test_admin_user):
+    """Test users list with empty role filter is treated as no filter."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 10
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[2] is None  # No roles filter
+
+
+def test_users_list_filters_with_pagination(test_admin_user):
+    """Test users list filters work with pagination."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 100
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=admin&status=active&page=2&size=50")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert count_call_args[2] == ["admin"]
+                assert count_call_args[3] == ["active"]
+                list_call_args = mock_list.call_args[0]
+                assert list_call_args[4] == 2  # page
+                assert list_call_args[5] == 50  # page_size
+                assert list_call_args[7] == ["admin"]  # roles
+                assert list_call_args[8] == ["active"]  # statuses
+
+
+def test_users_list_all_three_statuses(test_admin_user):
+    """Test users list with all three status values."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 20
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?status=active,inactivated,anonymized")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert set(count_call_args[3]) == {"active", "inactivated", "anonymized"}
+
+
+def test_users_list_all_three_roles(test_admin_user):
+    """Test users list with all three role values."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.templates.TemplateResponse") as mock_template:
+        from fastapi.responses import HTMLResponse
+
+        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+
+        with patch("services.users.count_users") as mock_count:
+            with patch("services.users.list_users_raw") as mock_list:
+                mock_count.return_value = 20
+                mock_list.return_value = []
+
+                client = TestClient(app)
+                response = client.get("/users/list?role=member,admin,super_admin")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                count_call_args = mock_count.call_args[0]
+                assert set(count_call_args[2]) == {"member", "admin", "super_admin"}

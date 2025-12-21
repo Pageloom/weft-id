@@ -77,20 +77,27 @@ def check_collation_exists(tenant_id: str, collation: str) -> bool:
     return database.users.check_collation_exists(tenant_id, collation)
 
 
-def count_users(tenant_id: str, search: str | None = None) -> int:
+def count_users(
+    tenant_id: str,
+    search: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+) -> int:
     """
-    Count users in a tenant, optionally filtered by search term.
+    Count users in a tenant, optionally filtered by search term, roles, and statuses.
 
     This is a utility function without authorization.
 
     Args:
         tenant_id: Tenant ID
         search: Optional search term
+        roles: Optional list of roles to filter by (member, admin, super_admin)
+        statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
 
     Returns:
         Total count of matching users
     """
-    return database.users.count_users(tenant_id, search)
+    return database.users.count_users(tenant_id, search, roles, statuses)
 
 
 def list_users_raw(
@@ -101,6 +108,8 @@ def list_users_raw(
     page: int = 1,
     page_size: int = 25,
     collation: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
 ) -> list[dict]:
     """
     List users with pagination - returns raw dicts for HTML templates.
@@ -111,11 +120,13 @@ def list_users_raw(
     Args:
         tenant_id: Tenant ID
         search: Optional search term
-        sort_field: Field to sort by
+        sort_field: Field to sort by (name, email, role, status, last_login, created_at)
         sort_order: Sort order (asc or desc)
         page: Page number (1-indexed)
         page_size: Results per page
         collation: Optional collation for locale-aware sorting
+        roles: Optional list of roles to filter by (member, admin, super_admin)
+        statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
 
     Returns:
         List of user dicts
@@ -128,6 +139,8 @@ def list_users_raw(
         page=page,
         page_size=page_size,
         collation=collation,
+        roles=roles,
+        statuses=statuses,
     )
 
 

@@ -4,6 +4,72 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## User List Filtering & Sorting Enhancements
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to filter the user list by role and status, and sort by status
+So that I can quickly find specific groups of users (e.g., all inactive admins)
+
+**Acceptance Criteria:**
+
+**Role Filtering:**
+
+- [x] Add multi-select role filter with options: Member, Admin, Super Admin
+- [x] Filter persists in URL query params (e.g., `?role=admin,super_admin`)
+- [x] Role filter combines with existing text search
+- [x] Clear filter option to reset role selection
+
+**Status Filtering:**
+
+- [x] Add multi-select status filter with options: Active, Inactivated, Anonymized
+- [x] Filter persists in URL query params (e.g., `?status=active,inactivated`)
+- [x] Status filter combines with existing text search and role filter
+- [x] Clear filter option to reset status selection
+
+**Status Sorting:**
+
+- [x] Add "Status" to allowed sort fields in user list
+- [x] Status sort order: Active → Inactivated → Anonymized (or reverse for desc)
+
+**UI/UX:**
+
+- [x] Filter controls displayed above user list table
+- [x] Visual indication when filters are active
+- [x] Filters and search work together (AND logic)
+- [x] Pagination respects active filters
+- [x] Total count updates to reflect filtered results
+
+**API Layer:**
+
+- [x] `list_users_raw` service function accepts optional `roles` and `statuses` filter params
+- [x] `count_users` function updated to support role and status filters
+- [x] Database queries efficiently filter by role and status
+
+**Documentation (Critical):**
+
+- [x] Document API query parameter semantics for combining search, filters, sorting, and pagination
+- [x] Include examples: `?search=john&role=admin,member&status=active&sort=status&order=asc&page=2&size=25`
+- [x] Document filter value formats (comma-separated for multi-select)
+- [x] Document interaction between filters (AND logic) and pagination behavior
+- [x] Add inline code comments explaining filter/sort query construction
+
+**Testing (Comprehensive):**
+
+- [x] Unit tests for service layer filter combinations (role only, status only, role+status)
+- [x] Unit tests for filter + search combinations
+- [x] Unit tests for filter + sort combinations (including status sorting)
+- [x] Integration tests for pagination with active filters (correct counts, page boundaries)
+- [x] Edge case tests: empty filters, invalid filter values, all filters active simultaneously
+- [x] Test that URL query params round-trip correctly through the UI
+
+**Effort:** S
+**Value:** High
+
+---
+
 ## API-First Architecture: RESTful API Layer with OpenAPI Specification
 
 **Status:** Complete

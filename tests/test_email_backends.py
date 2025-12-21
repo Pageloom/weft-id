@@ -151,9 +151,7 @@ class TestSendGridBackend:
 
     def test_send_success(self):
         """Test successful email sending via SendGrid."""
-        with patch(
-            "utils.email_backends.sendgrid_backend.SendGridAPIClient"
-        ) as mock_client_class:
+        with patch("utils.email_backends.sendgrid_backend.SendGridAPIClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
             mock_client.send.return_value = MagicMock(status_code=202)
@@ -173,9 +171,7 @@ class TestSendGridBackend:
 
     def test_send_without_text_body(self):
         """Test SendGrid sending without text body."""
-        with patch(
-            "utils.email_backends.sendgrid_backend.SendGridAPIClient"
-        ) as mock_client_class:
+        with patch("utils.email_backends.sendgrid_backend.SendGridAPIClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
             mock_client.send.return_value = MagicMock(status_code=202)
@@ -194,9 +190,7 @@ class TestSendGridBackend:
 
     def test_send_failure(self):
         """Test SendGrid sending failure handling."""
-        with patch(
-            "utils.email_backends.sendgrid_backend.SendGridAPIClient"
-        ) as mock_client_class:
+        with patch("utils.email_backends.sendgrid_backend.SendGridAPIClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
             mock_client.send.side_effect = Exception("API Error")

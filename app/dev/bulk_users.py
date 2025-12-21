@@ -217,9 +217,7 @@ def create_bulk_users(subdomain: str, count: int, password: str, email_domain: s
             if attempt == 0:
                 email = f"{first_name.lower()}.{last_name.lower()}@{domain}"
             else:
-                email = (
-                    f"{first_name.lower()}.{last_name.lower()}{attempt}@{domain}"
-                )
+                email = f"{first_name.lower()}.{last_name.lower()}{attempt}@{domain}"
 
             if email not in used_emails:
                 used_emails.add(email)

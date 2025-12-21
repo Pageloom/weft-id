@@ -1,5 +1,13 @@
 # Project Instructions
 
+## Git commits
+- Keep them short and to the point
+- The summary should be short
+- The description should include a short definition of what problem
+  was addressed
+- The description should thenafter explain, tersely, how it was done
+- Do NOT include claude attributions in commit messages
+
 ## Architecture Overview
 
 This project follows a layered architecture:

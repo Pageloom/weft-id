@@ -53,6 +53,54 @@ So that I have a complete audit trail for compliance, debugging, and future user
 
 ---
 
+## User Activity Tracking
+
+**User Story:**
+As a platform operator
+I want to track when users are actively using the system
+So that I can understand usage patterns and identify inactive accounts without logging every single request
+
+**Acceptance Criteria:**
+
+**Sign-in Event Logging:**
+
+- [ ] Successful sign-ins logged to `event_logs` table (event_type: `user_signed_in`)
+- [ ] Sign-in defined as: user completing the authentication flow (not session refresh or token renewal)
+- [ ] Failed sign-in attempts are NOT logged (requires rate-limiting first - future scope)
+- [ ] Sign-in event also updates `last_active_at` on the user record
+
+**Last Activity Tracking:**
+
+- [ ] New `last_active_at` timestamp column on users table
+- [ ] Any service layer write operation updates `last_active_at`
+- [ ] Any service layer read operation updates `last_active_at` only if 24+ hours have passed (rolling window)
+- [ ] Activity check uses memcached to avoid constant DB reads for the 24-hour check
+- [ ] Cache key pattern: `user_activity:{user_id}` with 24-hour TTL
+- [ ] If cache miss or expired, check DB and update if needed
+
+**Implementation Pattern:**
+
+- [ ] Automatic middleware-level tracking (no per-function instrumentation)
+- [ ] Synchronous updates (tiny latency, rare writes)
+- [ ] Memcached as new infrastructure dependency
+
+**Technical Implementation:**
+
+- Database migration: Add `last_active_at` column to users table
+- Memcached setup in Docker Compose and production infrastructure
+- Service layer middleware/decorator for automatic activity tracking
+- Integration with auth flow for sign-in event logging
+
+**Dependencies:**
+
+- Service Layer Event Logging (for `event_logs` table)
+- Memcached (new infrastructure dependency)
+
+**Effort:** M
+**Value:** High (Usage Analytics, Account Lifecycle Management)
+
+---
+
 ## Organizational Structure & Grouping System
 
 **User Story:**

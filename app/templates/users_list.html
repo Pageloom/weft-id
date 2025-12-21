@@ -3,6 +3,9 @@
 {% block title %}Users - Loom{% endblock %}
 
 {% block content %}
+<!-- Filter Params Macro - generates query string for role and status filters -->
+{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% endmacro %}
+
 <!-- Pagination Controls Macro -->
 {% macro pagination_controls(border_class="border-t") %}
 {% if pagination.total_count > 0 %}
@@ -20,7 +23,7 @@
             <label for="page-size" class="text-sm text-gray-700">Per page:</label>
             <select
                 id="page-size"
-                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}'"
+                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}'"
                 class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
@@ -34,7 +37,7 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}"
+            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
             class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}onclick="return false;"{% endif %}
         >
@@ -46,7 +49,7 @@
         </span>
 
         <a
-            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}"
+            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
             class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}onclick="return false;"{% endif %}
         >
@@ -67,6 +70,8 @@
                 <input type="hidden" name="sort" value="{{ sort_field }}">
                 <input type="hidden" name="order" value="{{ sort_order }}">
                 <input type="hidden" name="size" value="{{ pagination.page_size }}">
+                {% if roles %}<input type="hidden" name="role" value="{{ roles|join(',') }}">{% endif %}
+                {% if statuses %}<input type="hidden" name="status" value="{{ statuses|join(',') }}">{% endif %}
 
                 <input
                     type="text"
@@ -83,7 +88,7 @@
                 </button>
                 {% if search %}
                 <a
-                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}"
+                    href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
                     class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 >
                     Clear
@@ -91,6 +96,125 @@
                 {% endif %}
             </form>
         </div>
+
+        <!-- Filter Controls -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex flex-wrap gap-6 items-end">
+                <!-- Role Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <div class="flex gap-3">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-member" value="member"
+                                   {% if 'member' in roles %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Member</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-admin" value="admin"
+                                   {% if 'admin' in roles %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Admin</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-super_admin" value="super_admin"
+                                   {% if 'super_admin' in roles %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Super Admin</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Status Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <div class="flex gap-3">
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-active" value="active"
+                                   {% if 'active' in statuses %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Active</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-inactivated" value="inactivated"
+                                   {% if 'inactivated' in statuses %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Inactivated</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" id="filter-anonymized" value="anonymized"
+                                   {% if 'anonymized' in statuses %}checked{% endif %}
+                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Anonymized</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Apply/Clear Buttons -->
+                <div class="flex gap-2">
+                    <button
+                        type="button"
+                        onclick="applyFilters()"
+                        class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Apply Filters
+                    </button>
+                    {% if roles or statuses %}
+                    <a
+                        href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                        Clear Filters
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <script>
+        function applyFilters() {
+            const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
+            const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
+
+            const selectedRoles = roleCheckboxes
+                .filter(id => document.getElementById(id).checked)
+                .map(id => document.getElementById(id).value);
+
+            const selectedStatuses = statusCheckboxes
+                .filter(id => document.getElementById(id).checked)
+                .map(id => document.getElementById(id).value);
+
+            let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
+            {% if search %}url += '&search={{ search }}';{% endif %}
+            if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
+            if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
+
+            window.location.href = url;
+        }
+        </script>
+
+        <!-- Active Filters Indicator -->
+        {% if roles or statuses %}
+        <div class="mb-4 flex flex-wrap gap-2 items-center">
+            <span class="text-sm text-gray-600">Active filters:</span>
+            {% for role in roles %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if role == 'super_admin' %}bg-red-100 text-red-800
+                {% elif role == 'admin' %}bg-purple-100 text-purple-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ role }}
+            </span>
+            {% endfor %}
+            {% for status in statuses %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if status == 'active' %}bg-green-100 text-green-800
+                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ status }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         <!-- Results count -->
         {% if search %}
@@ -108,7 +232,7 @@
                     <tr>
                         {% macro sort_header(field, label) %}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
+                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
                                class="group inline-flex items-center space-x-1 hover:text-gray-700">
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}
@@ -133,9 +257,7 @@
                         {{ sort_header('name', 'Name') }}
                         {{ sort_header('email', 'Email') }}
                         {{ sort_header('role', 'Role') }}
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                        </th>
+                        {{ sort_header('status', 'Status') }}
                         {{ sort_header('last_login', 'Last Login') }}
                         {{ sort_header('created_at', 'Created') }}
                         {% if user.role in ['admin', 'super_admin'] %}

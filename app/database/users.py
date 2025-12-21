@@ -145,27 +145,56 @@ def check_collation_exists(tenant_id: TenantArg, collation: str) -> bool:
     return result is not None
 
 
-def count_users(tenant_id: TenantArg, search: str | None = None) -> int:
+def count_users(
+    tenant_id: TenantArg,
+    search: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+) -> int:
     """
-    Count users, optionally filtered by search term.
+    Count users, optionally filtered by search term, roles, and statuses.
 
     Args:
         tenant_id: Tenant ID
         search: Search term to filter by (searches first_name, last_name, email)
+        roles: List of roles to filter by (member, admin, super_admin)
+        statuses: List of statuses to filter by (active, inactivated, anonymized)
 
     Returns:
         Total count of matching users
     """
-    where_clause = ""
+    where_clauses: list[str] = []
     params: dict[str, Any] = {}
 
     if search:
-        where_clause = """
-            where u.first_name ilike :search
-               or u.last_name ilike :search
-               or ue.email ilike :search
-        """
+        where_clauses.append(
+            "(u.first_name ilike :search or u.last_name ilike :search or ue.email ilike :search)"
+        )
         params["search"] = f"%{search}%"
+
+    if roles:
+        # Filter by roles using ANY for array matching
+        allowed_roles = {"member", "admin", "super_admin"}
+        valid_roles = [r for r in roles if r in allowed_roles]
+        if valid_roles:
+            where_clauses.append("u.role = ANY(:roles)")
+            params["roles"] = valid_roles
+
+    if statuses:
+        # Build status conditions based on boolean flags
+        status_conditions: list[str] = []
+        if "active" in statuses:
+            status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
+        if "inactivated" in statuses:
+            status_conditions.append("(u.is_inactivated = true and u.is_anonymized = false)")
+        if "anonymized" in statuses:
+            status_conditions.append("u.is_anonymized = true")
+        if status_conditions:
+            where_clauses.append(f"({' or '.join(status_conditions)})")
+
+    where_clause = ""
+    if where_clauses:
+        where_clause = "where " + " and ".join(where_clauses)
 
     query = f"""
         select count(distinct u.id) as count
@@ -186,41 +215,74 @@ def list_users(
     page: int = 1,
     page_size: int = 25,
     collation: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
 ) -> list[dict]:
     """
-    List users with pagination, sorting, and search.
+    List users with pagination, sorting, search, and filtering.
 
     Args:
         tenant_id: Tenant ID
         search: Search term to filter by (searches first_name, last_name, email)
-        sort_field: Field to sort by (name, email, role, last_login, created_at)
+        sort_field: Field to sort by (name, email, role, status, last_login, created_at)
         sort_order: Sort order (asc or desc)
         page: Page number (1-indexed)
         page_size: Number of results per page
         collation: Optional collation for text sorting (e.g., "sv-SE-x-icu")
+        roles: List of roles to filter by (member, admin, super_admin)
+        statuses: List of statuses to filter by (active, inactivated, anonymized)
 
     Returns:
         List of user dicts with id, first_name, last_name, role, created_at,
-        last_login, and email
+        last_login, is_inactivated, is_anonymized, and email
     """
     # Build WHERE clause
-    where_clause = ""
-    params: dict[str, str | int] = {}
+    where_clauses: list[str] = []
+    params: dict[str, Any] = {}
 
     if search:
-        where_clause = """
-            where u.first_name ilike :search
-               or u.last_name ilike :search
-               or ue.email ilike :search
-        """
+        where_clauses.append(
+            "(u.first_name ilike :search or u.last_name ilike :search or ue.email ilike :search)"
+        )
         params["search"] = f"%{search}%"
+
+    if roles:
+        # Filter by roles using ANY for array matching
+        allowed_roles = {"member", "admin", "super_admin"}
+        valid_roles = [r for r in roles if r in allowed_roles]
+        if valid_roles:
+            where_clauses.append("u.role = ANY(:roles)")
+            params["roles"] = valid_roles
+
+    if statuses:
+        # Build status conditions based on boolean flags
+        status_conditions: list[str] = []
+        if "active" in statuses:
+            status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
+        if "inactivated" in statuses:
+            status_conditions.append("(u.is_inactivated = true and u.is_anonymized = false)")
+        if "anonymized" in statuses:
+            status_conditions.append("u.is_anonymized = true")
+        if status_conditions:
+            where_clauses.append(f"({' or '.join(status_conditions)})")
+
+    where_clause = ""
+    if where_clauses:
+        where_clause = "where " + " and ".join(where_clauses)
 
     # Build ORDER BY clause
     collate_clause = f' COLLATE "{collation}"' if collation else ""
+    # Status sort: Active=1, Inactivated=2, Anonymized=3
+    status_case = """CASE
+        WHEN u.is_anonymized = true THEN 3
+        WHEN u.is_inactivated = true THEN 2
+        ELSE 1
+    END"""
     sort_field_map = {
         "name": f"u.last_name{collate_clause} {{order}}, u.first_name{collate_clause} {{order}}",
         "email": f"ue.email{collate_clause} {{order}}",
         "role": "u.role {order}",  # ENUM type - cannot use COLLATE
+        "status": f"{status_case} {{order}}",
         "last_login": "u.last_login {order}",
         "created_at": "u.created_at {order}",
     }

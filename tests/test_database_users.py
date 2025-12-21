@@ -390,3 +390,225 @@ def test_count_active_super_admins_excludes_inactivated(test_tenant, test_super_
     # Count should decrease
     new_count = database.users.count_active_super_admins(test_tenant["id"])
     assert new_count == initial_count - 1
+
+
+# =============================================================================
+# Role and Status Filtering Tests
+# =============================================================================
+
+
+def test_list_users_with_role_filter(test_tenant, test_user, test_admin_user):
+    """Test listing users filtered by role."""
+    import database
+
+    # Filter by admin role only
+    users = database.users.list_users(test_tenant["id"], roles=["admin"], page=1, page_size=10)
+
+    assert len(users) == 1
+    assert users[0]["id"] == test_admin_user["id"]
+    assert users[0]["role"] == "admin"
+
+
+def test_list_users_with_multiple_roles_filter(test_tenant, test_user, test_admin_user):
+    """Test listing users filtered by multiple roles."""
+    import database
+
+    # Filter by member and admin roles
+    users = database.users.list_users(
+        test_tenant["id"], roles=["member", "admin"], page=1, page_size=10
+    )
+
+    assert len(users) == 2
+    roles = {u["role"] for u in users}
+    assert roles == {"member", "admin"}
+
+
+def test_list_users_with_status_filter_active(test_tenant, test_user, test_admin_user):
+    """Test listing only active users."""
+    import database
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Filter by active status
+    users = database.users.list_users(
+        test_tenant["id"], statuses=["active"], page=1, page_size=10
+    )
+
+    assert len(users) == 1
+    assert users[0]["id"] == test_admin_user["id"]
+    assert users[0]["is_inactivated"] is False
+
+
+def test_list_users_with_status_filter_inactivated(test_tenant, test_user, test_admin_user):
+    """Test listing only inactivated users."""
+    import database
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Filter by inactivated status
+    users = database.users.list_users(
+        test_tenant["id"], statuses=["inactivated"], page=1, page_size=10
+    )
+
+    assert len(users) == 1
+    assert users[0]["id"] == test_user["id"]
+    assert users[0]["is_inactivated"] is True
+    assert users[0]["is_anonymized"] is False
+
+
+def test_list_users_with_status_filter_anonymized(test_tenant, test_user, test_admin_user):
+    """Test listing only anonymized users."""
+    import database
+
+    # Anonymize one user
+    database.users.anonymize_user(test_tenant["id"], test_user["id"])
+
+    # Filter by anonymized status
+    users = database.users.list_users(
+        test_tenant["id"], statuses=["anonymized"], page=1, page_size=10
+    )
+
+    assert len(users) == 1
+    assert users[0]["id"] == test_user["id"]
+    assert users[0]["is_anonymized"] is True
+
+
+def test_list_users_with_multiple_statuses(test_tenant, test_user, test_admin_user):
+    """Test listing users with multiple status values."""
+    import database
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Filter by active and inactivated (should get both)
+    users = database.users.list_users(
+        test_tenant["id"], statuses=["active", "inactivated"], page=1, page_size=10
+    )
+
+    assert len(users) == 2
+
+
+def test_list_users_with_role_and_status_filter(test_tenant, test_user, test_admin_user):
+    """Test listing users with both role and status filters."""
+    import database
+
+    # Inactivate the admin user
+    database.users.inactivate_user(test_tenant["id"], test_admin_user["id"])
+
+    # Filter by member role and active status
+    users = database.users.list_users(
+        test_tenant["id"], roles=["member"], statuses=["active"], page=1, page_size=10
+    )
+
+    assert len(users) == 1
+    assert users[0]["id"] == test_user["id"]
+    assert users[0]["role"] == "member"
+    assert users[0]["is_inactivated"] is False
+
+
+def test_list_users_with_status_sort_asc(test_tenant, test_user, test_admin_user):
+    """Test sorting users by status ascending (Active -> Inactivated -> Anonymized)."""
+    import database
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Sort by status ascending
+    users = database.users.list_users(
+        test_tenant["id"], sort_field="status", sort_order="asc", page=1, page_size=10
+    )
+
+    assert len(users) == 2
+    # Active users should come first
+    assert users[0]["is_inactivated"] is False
+    assert users[1]["is_inactivated"] is True
+
+
+def test_list_users_with_status_sort_desc(test_tenant, test_user, test_admin_user):
+    """Test sorting users by status descending (Anonymized -> Inactivated -> Active)."""
+    import database
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Sort by status descending
+    users = database.users.list_users(
+        test_tenant["id"], sort_field="status", sort_order="desc", page=1, page_size=10
+    )
+
+    assert len(users) == 2
+    # Inactivated users should come first
+    assert users[0]["is_inactivated"] is True
+    assert users[1]["is_inactivated"] is False
+
+
+def test_count_users_with_role_filter(test_tenant, test_user, test_admin_user):
+    """Test counting users filtered by role."""
+    import database
+
+    # Count only admins
+    count = database.users.count_users(test_tenant["id"], roles=["admin"])
+    assert count == 1
+
+    # Count members and admins
+    count = database.users.count_users(test_tenant["id"], roles=["member", "admin"])
+    assert count == 2
+
+
+def test_count_users_with_status_filter(test_tenant, test_user, test_admin_user):
+    """Test counting users filtered by status."""
+    import database
+
+    # Initially all are active
+    count = database.users.count_users(test_tenant["id"], statuses=["active"])
+    assert count == 2
+
+    # Inactivate one user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Count active users
+    count = database.users.count_users(test_tenant["id"], statuses=["active"])
+    assert count == 1
+
+    # Count inactivated users
+    count = database.users.count_users(test_tenant["id"], statuses=["inactivated"])
+    assert count == 1
+
+
+def test_count_users_with_role_and_status_filter(test_tenant, test_user, test_admin_user):
+    """Test counting users with both role and status filters."""
+    import database
+
+    # Inactivate the admin
+    database.users.inactivate_user(test_tenant["id"], test_admin_user["id"])
+
+    # Count active members
+    count = database.users.count_users(
+        test_tenant["id"], roles=["member"], statuses=["active"]
+    )
+    assert count == 1
+
+    # Count inactivated admins
+    count = database.users.count_users(
+        test_tenant["id"], roles=["admin"], statuses=["inactivated"]
+    )
+    assert count == 1
+
+
+def test_list_users_with_search_and_filters(test_tenant, test_user, test_admin_user):
+    """Test combining search with role and status filters."""
+    import database
+
+    # Search with role filter
+    users = database.users.list_users(
+        test_tenant["id"],
+        search=test_user["first_name"],
+        roles=["member"],
+        page=1,
+        page_size=10,
+    )
+
+    assert len(users) >= 1
+    assert all(u["role"] == "member" for u in users)

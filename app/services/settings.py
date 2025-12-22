@@ -18,6 +18,7 @@ from schemas.settings import (
     TenantSecuritySettings,
     TenantSecuritySettingsUpdate,
 )
+from services.activity import track_activity
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -130,6 +131,7 @@ def list_privileged_domains(
         ForbiddenError: If user lacks admin permissions
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     rows = database.settings.list_privileged_domains(tenant_id)
@@ -276,6 +278,7 @@ def get_security_settings(
         ForbiddenError: If user lacks super_admin permissions
     """
     _require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     settings = database.security.get_security_settings(tenant_id)

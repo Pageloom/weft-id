@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 
 import database
 from schemas.api import EmailInfo
+from services.activity import track_activity
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -98,6 +99,7 @@ def list_user_emails(
         )
 
     tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
 
     # Verify user exists (for admin operations)
     if requesting_user["id"] != user_id:

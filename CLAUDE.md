@@ -24,10 +24,11 @@ Request → Router → Service → Database → PostgreSQL
 
 1. **All writes go through the service layer** - routers never call database modules directly
 2. **Every service write must emit an event log** - "if there is a write, there is a log"
-3. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
-4. **New pages must be registered in `app/pages.py`** - each route checks access via this file
-5. **Migrations** go in `db-init/` with sequential numbering (next: `00010_*.sql`)
-6. **Run formatting, linting, and typechecking** before committing code
+3. **Read service functions must track activity** - call `track_activity(tenant_id, user_id)` at the start of read-only service functions
+4. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
+5. **New pages must be registered in `app/pages.py`** - each route checks access via this file
+6. **Migrations** go in `db-init/` with sequential numbering (next: `00013_*.sql`)
+7. **Run formatting, linting, and typechecking** before committing code
 
 ## Testing Requirements
 

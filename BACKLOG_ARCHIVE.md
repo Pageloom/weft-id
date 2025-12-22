@@ -4,6 +4,55 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## User Activity Tracking
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want to track when users are actively using the system
+So that I can understand usage patterns and identify inactive accounts without logging every single request
+
+**Acceptance Criteria:**
+
+**Sign-in Event Logging:**
+
+- [x] Successful sign-ins logged to `event_logs` table (event_type: `user_signed_in`)
+- [x] Sign-in defined as: user completing the authentication flow (not session refresh or token renewal)
+- [x] Failed sign-in attempts are NOT logged (requires rate-limiting first - future scope)
+- [x] Sign-in event also updates `last_activity_at` on the user record
+
+**Last Activity Tracking:**
+
+- [x] New `user_activity` table with `last_activity_at` timestamp (separate from users table)
+- [x] Any service layer write operation updates `last_activity_at` (via `log_event`)
+- [x] Any service layer read operation updates `last_activity_at` only if 3+ hours have passed (rolling window)
+- [x] Activity check uses Memcached to avoid constant DB reads for the 3-hour check
+- [x] Cache key pattern: `user_activity:{user_id}` with 3-hour TTL
+- [x] If cache miss or expired, check DB and update if needed
+
+**Implementation Pattern:**
+
+- [x] Service layer tracking via `track_activity()` function
+- [x] Write operations tracked automatically via `log_event()` integration
+- [x] Read operations require explicit `track_activity()` calls
+- [x] Synchronous updates (tiny latency, rare writes due to caching)
+- [x] Memcached as new infrastructure dependency
+
+**Technical Implementation:**
+
+- Database migration: New `user_activity` table (FK to users, CASCADE delete)
+- Memcached setup in Docker Compose
+- Cache utility module (`app/utils/cache.py`)
+- Activity tracking service (`app/services/activity.py`)
+- Integration with event logging (`app/services/event_log.py`)
+- Sign-in event logging in MFA verification flow
+
+**Effort:** M
+**Value:** High (Usage Analytics, Account Lifecycle Management)
+
+---
+
 ## Service Layer Event Logging
 
 **Status:** Complete

@@ -47,3 +47,10 @@ OAUTH2_AUTHORIZATION_CODE_EXPIRY = 300  # 5 minutes
 OAUTH2_ACCESS_TOKEN_EXPIRY = 3600  # 1 hour
 OAUTH2_REFRESH_TOKEN_EXPIRY = 2592000  # 30 days
 OAUTH2_CLIENT_CREDENTIALS_TOKEN_EXPIRY = 86400  # 24 hours
+
+# Memcached Configuration
+MEMCACHED_HOST = os.environ.get("MEMCACHED_HOST", "memcached")
+MEMCACHED_PORT = int(os.environ.get("MEMCACHED_PORT", "11211"))
+
+# Activity Tracking Configuration
+ACTIVITY_CACHE_TTL_SECONDS = 3 * 60 * 60  # 3 hours

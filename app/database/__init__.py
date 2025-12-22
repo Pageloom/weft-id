@@ -1,5 +1,15 @@
 # Import submodules for convenient access
-from . import event_log, mfa, oauth2, security, settings, tenants, user_emails, users
+from . import (
+    event_log,
+    mfa,
+    oauth2,
+    security,
+    settings,
+    tenants,
+    user_activity,
+    user_emails,
+    users,
+)
 from ._core import (
     UNSCOPED,
     close_pool,
@@ -24,6 +34,7 @@ __all__ = [
     "session",
     "settings",
     "tenants",
+    "user_activity",
     "user_emails",
     "users",
 ]

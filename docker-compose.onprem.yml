@@ -40,6 +40,14 @@ services:
       - onpremnet
     restart: unless-stopped
 
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: onprem_memcached
+    expose:
+      - "11211"
+    networks: [ onpremnet ]
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     container_name: onprem_db

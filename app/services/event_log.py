@@ -82,3 +82,10 @@ def log_event(
             artifact_id,
             event_type,
         )
+
+    # Track activity on every write (force=True bypasses cache)
+    # Skip for system actor since it's not a real user
+    if actor_user_id != SYSTEM_ACTOR_ID:
+        from services.activity import track_activity
+
+        track_activity(tenant_id, actor_user_id, force=True)

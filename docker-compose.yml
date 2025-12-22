@@ -40,6 +40,13 @@ services:
       - "127.0.0.1:1025:1025"   # SMTP
     networks: [ devnet ]
 
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: dev_memcached
+    expose:
+      - "11211"
+    networks: [ devnet ]
+
   db:
     image: postgres:16-alpine
     container_name: dev_db

@@ -1350,6 +1350,18 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pymemcache"
+version = "4.0.0"
+description = "A comprehensive, fast, pure Python memcached client"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "pymemcache-4.0.0-py2.py3-none-any.whl", hash = "sha256:f507bc20e0dc8d562f8df9d872107a278df049fa496805c1431b926f3ddd0eab"},
+    {file = "pymemcache-4.0.0.tar.gz", hash = "sha256:27bf9bd1bbc1e20f83633208620d56de50f14185055e49504f4f5e94e94aff94"},
+]
+
+[[package]]
 name = "pyotp"
 version = "2.9.0"
 description = "Python One Time Password Library"
@@ -2031,4 +2043,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "46ee3e6f1ce337b6375ccb4bd4744ddd38e6183c97d9ff66c0a856bf675e9221"
+content-hash = "6a98502e42ca1054fb7ba3f05618aad2c7786930bcf0d6834bf6fd022342d069"

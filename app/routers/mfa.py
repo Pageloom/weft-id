@@ -92,6 +92,18 @@ def mfa_verify(
     request.session["user_id"] = pending_user_id
     request.session["session_start"] = int(__import__("time").time())
 
+    # Log successful sign-in event (also updates last_activity_at via log_event)
+    from services.event_log import log_event
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=pending_user_id,
+        artifact_type="user",
+        artifact_id=pending_user_id,
+        event_type="user_signed_in",
+        metadata={"mfa_method": pending_method},
+    )
+
     # Fetch tenant security settings to configure session persistence
     security_settings = settings_service.get_session_settings(tenant_id)
 

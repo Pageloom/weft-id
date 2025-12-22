@@ -12,6 +12,7 @@ All functions:
 """
 
 import database
+from services.event_log import log_event
 
 # =============================================================================
 # Client Operations
@@ -219,13 +220,29 @@ def create_normal_client(
     Returns:
         Client dict including plaintext client_secret
     """
-    return database.oauth2.create_normal_client(
+    result = database.oauth2.create_normal_client(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         name=name,
         redirect_uris=redirect_uris,
         created_by=created_by,
     )
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=created_by,
+        artifact_type="oauth2_client",
+        artifact_id=str(result["id"]),
+        event_type="oauth2_client_created",
+        metadata={
+            "name": name,
+            "type": "normal",
+            "client_id": result["client_id"],
+        },
+    )
+
+    return result
 
 
 def create_b2b_client(
@@ -248,13 +265,31 @@ def create_b2b_client(
     Returns:
         Client dict including plaintext client_secret
     """
-    return database.oauth2.create_b2b_client(
+    result = database.oauth2.create_b2b_client(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         name=name,
         role=role,
         created_by=created_by,
     )
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=created_by,
+        artifact_type="oauth2_client",
+        artifact_id=str(result["id"]),
+        event_type="oauth2_client_created",
+        metadata={
+            "name": name,
+            "type": "b2b",
+            "role": role,
+            "client_id": result["client_id"],
+            "service_user_id": str(result.get("service_user_id")),
+        },
+    )
+
+    return result
 
 
 def delete_client(tenant_id: str, client_id: str) -> int:

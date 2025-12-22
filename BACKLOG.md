@@ -6,50 +6,48 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Service Layer Event Logging
+## Admin Event Log Viewer & Export
 
 **User Story:**
-As a platform operator
-I want all write operations in the service layer to be logged to a database table
-So that I have a complete audit trail for compliance, debugging, and future user-facing activity history
+As an admin or super admin
+I want to view all system events in a paginated list and export them
+So that I can audit activity, investigate issues, and maintain compliance records
 
 **Acceptance Criteria:**
 
-**Core Logging:**
+**Event Log Viewer:**
 
-- [ ] New `event_logs` table captures all service layer write operations
-- [ ] Each log entry includes: `tenant_id`, `actor_user_id`, `artifact_type`, `artifact_id`, `event_type`, `metadata` (JSON), `created_at`
-- [ ] Event types are descriptive strings (e.g., `user_created`, `email_updated`, `mfa_enabled`) - not DB-enforced enums
-- [ ] Artifact type identifies the entity (e.g., `user`, `privileged_domain`, `tenant_settings`)
-- [ ] Metadata field captures context-specific details as JSON (optional per event)
-- [ ] Logging is synchronous (write completes before service method returns)
+- [ ] New page accessible to Admins and Super Admins only
+- [ ] Paginated list of events (newest first)
+- [ ] Columns displayed: timestamp, actor (user name), event type, artifact type, artifact ID
+- [ ] Clicking an event row opens a detail view showing full metadata JSON
+- [ ] No filtering for MVP (future enhancement)
 
-**Actor Tracking:**
+**Export Functionality:**
 
-- [ ] All events track the `actor_user_id` (who performed the action)
-- [ ] System-initiated actions (background jobs, automated processes) use a predefined UUID constant (e.g., `SYSTEM_ACTOR_ID`)
-- [ ] System actor UUID is defined in code, not a real user row
+- [ ] "Export All Events" button triggers a background job
+- [ ] Export includes all events as a zipped JSON file
+- [ ] Email sent to initiating user when export is ready
+- [ ] Download available via a dedicated exports page
+- [ ] Exports auto-deleted after 24 hours (both DB record and file)
+- [ ] Worker container runs cleanup check once per hour to delete expired exports
+- [ ] Storage: DigitalOcean Spaces if configured, local filesystem fallback
 
-**Implementation Pattern:**
+**Background Job Infrastructure:**
 
-- [ ] Logging helper/utility that service functions call after successful writes
-- [ ] All existing service layer write operations are instrumented
-- [ ] Culture: "If there is a write, there is a log" - bulk writes produce multiple log entries
+- [ ] New `bg_tasks` table (no RLS - system table for cross-tenant polling)
+- [ ] Schema: `id`, `tenant_id`, `job_type`, `payload` (JSON), `status`, `created_by`, `created_at`, `started_at`, `completed_at`, `error`
+- [ ] Separate worker container (same image, different entrypoint)
+- [ ] Worker polls every 10 seconds for pending jobs
+- [ ] Job handler registry: jobs only execute if a handler is registered for that `job_type`
+- [ ] Worker sets `SET LOCAL app.tenant_id` before executing job handlers (RLS respected in handlers)
 
-**Retention:**
+**Dependencies:**
 
-- [ ] Logs retained indefinitely
-- [ ] Logs reference user UUIDs - anonymization happens on user record, not logs
+- Service Layer Event Logging (must exist first)
 
-**Out of Scope:**
-
-- UI to browse/search logs
-- API endpoints to query logs
-- User-facing activity history display
-- Read operation logging
-
-**Effort:** M
-**Value:** High (Audit/Compliance Foundation)
+**Effort:** L
+**Value:** High (Audit/Compliance)
 
 ---
 
@@ -98,6 +96,67 @@ So that I can understand usage patterns and identify inactive accounts without l
 
 **Effort:** M
 **Value:** High (Usage Analytics, Account Lifecycle Management)
+
+---
+
+## User Activity Display & Automatic Inactivation System
+
+**User Story:**
+As a platform operator
+I want to see user activity status and automatically inactivate dormant users
+So that I can maintain security hygiene and ensure only active users have access to the system
+
+**Acceptance Criteria:**
+
+**User List Enhancements:**
+
+- [ ] `last_activity_at` column added to user list API response
+- [ ] `last_activity_at` displayed in user list UI as absolute timestamp (localized to viewing user's timezone)
+- [ ] `last_activity_at` is sortable (ascending/descending) like existing columns
+- [ ] `last_login` removed from frontend user list view (retained in API for backwards compatibility)
+
+**Tenant Inactivity Settings:**
+
+- [ ] New tenant setting: inactivity threshold with options: Indefinitely (disabled), 14 days, 30 days, 90 days
+- [ ] Setting added to existing `/settings/tenant-security` page
+- [ ] Default value: Indefinitely (no auto-inactivation)
+
+**Automatic Inactivation:**
+
+- [ ] Daily cron job checks all active users against inactivity threshold
+- [ ] Comparison uses `last_activity_at`, falling back to `created_at` if null
+- [ ] Users exceeding threshold are set to inactive status
+- [ ] Upon inactivation: all OAuth tokens for that user are invalidated
+- [ ] Upon inactivation: all web sessions for that user are invalidated
+- [ ] Inactivation logged to event_logs (when event logging is available)
+
+**Reactivation Request Flow:**
+
+- [ ] Inactivated users attempting to log in see a "Request Reactivation" option
+- [ ] User must complete email verification before request is submitted
+- [ ] New `reactivation_requests` table: user_id, requested_at, decided_by, decided_at
+- [ ] Upon request submission: email sent to all Admins and Super Admins in tenant
+- [ ] Email contains CTA linking to reactivation requests list
+- [ ] Reactivation requests list page (Admin/Super Admin only) shows pending requests
+- [ ] Admins can approve or deny each request individually
+- [ ] Approved: user status set to active, request removed from table, user can log in normally
+- [ ] Denied: request removed from table, user cannot request reactivation again via app
+- [ ] To track denial: add `reactivation_denied_at` timestamp column on users table
+- [ ] Users with `reactivation_denied_at` set cannot submit new requests (must contact org out-of-band)
+
+**Max Session Length Change Behavior:**
+
+- [ ] When max session length setting is changed, all active sessions tenant-wide are invalidated immediately
+- [ ] Warning displayed before saving: "Changing this setting will immediately log out all users"
+- [ ] User must confirm before change takes effect
+
+**Dependencies:**
+
+- User Activity Tracking (for `last_activity_at` column)
+- Service Layer Event Logging (for audit trail)
+
+**Effort:** XL
+**Value:** High (Security, Compliance, Account Lifecycle)
 
 ---
 

@@ -18,6 +18,7 @@ from schemas.settings import (
     TenantSecuritySettings,
     TenantSecuritySettingsUpdate,
 )
+from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -185,6 +186,15 @@ def add_privileged_domain(
     rows = database.settings.list_privileged_domains(tenant_id)
     for row in rows:
         if row["domain"] == domain_clean:
+            # Log the event
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="privileged_domain",
+                artifact_id=str(row["id"]),
+                event_type="privileged_domain_added",
+                metadata={"domain": domain_clean},
+            )
             return _domain_row_to_model(row)
 
     # Should not happen, but handle gracefully
@@ -215,9 +225,15 @@ def delete_privileged_domain(
 
     tenant_id = requesting_user["tenant_id"]
 
-    # Verify domain exists before deleting
+    # Verify domain exists and capture info for logging
     rows = database.settings.list_privileged_domains(tenant_id)
-    if not any(str(row["id"]) == domain_id for row in rows):
+    domain_row = None
+    for row in rows:
+        if str(row["id"]) == domain_id:
+            domain_row = row
+            break
+
+    if not domain_row:
         raise NotFoundError(
             message="Domain not found",
             code="domain_not_found",
@@ -225,6 +241,16 @@ def delete_privileged_domain(
         )
 
     database.settings.delete_privileged_domain(tenant_id, domain_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="privileged_domain",
+        artifact_id=domain_id,
+        event_type="privileged_domain_deleted",
+        metadata={"domain": domain_row["domain"]},
+    )
 
 
 # =============================================================================
@@ -416,6 +442,29 @@ def update_security_settings(
         else current.get("allow_users_add_emails", True)
     )
 
+    # Build changes metadata for logging
+    changes: dict = {}
+    if settings_update.session_timeout_seconds is not None:
+        changes["session_timeout_seconds"] = {
+            "old": current.get("session_timeout_seconds"),
+            "new": timeout,
+        }
+    if settings_update.persistent_sessions is not None:
+        changes["persistent_sessions"] = {
+            "old": current.get("persistent_sessions", True),
+            "new": persistent,
+        }
+    if settings_update.allow_users_edit_profile is not None:
+        changes["allow_users_edit_profile"] = {
+            "old": current.get("allow_users_edit_profile", True),
+            "new": allow_edit,
+        }
+    if settings_update.allow_users_add_emails is not None:
+        changes["allow_users_add_emails"] = {
+            "old": current.get("allow_users_add_emails", True),
+            "new": allow_emails,
+        }
+
     # Update in database
     database.security.update_security_settings(
         tenant_id=tenant_id,
@@ -425,6 +474,16 @@ def update_security_settings(
         allow_users_add_emails=allow_emails,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
+    )
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="tenant_settings",
+        artifact_id=tenant_id,
+        event_type="tenant_settings_updated",
+        metadata={"changes": changes} if changes else None,
     )
 
     return TenantSecuritySettings(

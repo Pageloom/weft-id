@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 
 import database
 from schemas.api import EmailInfo
+from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -209,6 +210,20 @@ def add_user_email(
     emails = database.user_emails.list_user_emails(tenant_id, user_id)
     for e in emails:
         if e["email"] == email_lower:
+            # Log the event
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="email_added",
+                metadata={
+                    "email": email_lower,
+                    "email_id": str(e["id"]),
+                    "is_admin_action": is_admin_action,
+                    "auto_verified": is_admin_action,
+                },
+            )
             return _email_row_to_info(e)
 
     # Fallback if fetch fails (shouldn't happen)
@@ -274,7 +289,23 @@ def delete_user_email(
             code="must_keep_one_email",
         )
 
+    # Capture email address for logging before deletion
+    email_address = email["email"]
+
     database.user_emails.delete_email(tenant_id, email_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="email_deleted",
+        metadata={
+            "email_id": email_id,
+            "email": email_address,
+        },
+    )
 
 
 def set_primary_email(
@@ -332,9 +363,25 @@ def set_primary_email(
             if str(e["id"]) == email_id:
                 return _email_row_to_info(e)
 
+    # Capture the new primary email address for logging
+    new_primary_email = email["email"]
+
     # Unset current primary and set new one
     database.user_emails.unset_primary_emails(tenant_id, user_id)
     database.user_emails.set_primary_email(tenant_id, email_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="primary_email_changed",
+        metadata={
+            "email_id": email_id,
+            "email": new_primary_email,
+        },
+    )
 
     # Fetch updated email
     emails = database.user_emails.list_user_emails(tenant_id, user_id)
@@ -424,6 +471,19 @@ def verify_email(
 
     # Mark as verified
     database.user_emails.verify_email(tenant_id, email_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="email_verified",
+        metadata={
+            "email_id": email_id,
+            "email": email["email"],
+        },
+    )
 
     # Fetch updated email
     emails = database.user_emails.list_user_emails(tenant_id, user_id)

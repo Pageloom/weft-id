@@ -22,6 +22,7 @@ from schemas.api import (
     MFAStatus,
     TOTPSetupResponse,
 )
+from services.activity import track_activity
 from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
@@ -123,6 +124,7 @@ def get_mfa_status(
     Returns:
         MFAStatus with current state
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     tenant_id = requesting_user["tenant_id"]
     return _build_mfa_status(tenant_id, user_data)
 
@@ -143,6 +145,7 @@ def get_backup_codes_status(
     Returns:
         BackupCodesStatusResponse with total, used, remaining counts
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     tenant_id = requesting_user["tenant_id"]
     backup_codes = database.mfa.list_backup_codes(tenant_id, user_data["id"])
 

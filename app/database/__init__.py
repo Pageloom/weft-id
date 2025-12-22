@@ -1,5 +1,5 @@
 # Import submodules for convenient access
-from . import mfa, oauth2, security, settings, tenants, user_emails, users
+from . import event_log, mfa, oauth2, security, settings, tenants, user_emails, users
 from ._core import (
     UNSCOPED,
     close_pool,
@@ -13,6 +13,7 @@ from ._core import (
 __all__ = [
     "UNSCOPED",
     "close_pool",
+    "event_log",
     "execute",
     "fetchall",
     "fetchone",

@@ -22,6 +22,7 @@ from schemas.api import (
     UserSummary,
     UserUpdate,
 )
+from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -529,6 +530,19 @@ def create_user(
 
     emails = database.user_emails.list_user_emails(tenant_id, user_id)
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="user_created",
+        metadata={
+            "role": user_data.role,
+            "email": user_data.email,
+        },
+    )
+
     return _user_row_to_detail(user, emails, is_service=False)
 
 
@@ -601,14 +615,23 @@ def update_user(
                     code="last_super_admin",
                 )
 
+    # Track changes for logging
+    changes: dict = {}
+
     # Update name if provided
     if user_update.first_name or user_update.last_name:
         first_name = user_update.first_name or user["first_name"]
         last_name = user_update.last_name or user["last_name"]
+        if user_update.first_name and user_update.first_name != user["first_name"]:
+            changes["first_name"] = {"old": user["first_name"], "new": user_update.first_name}
+        if user_update.last_name and user_update.last_name != user["last_name"]:
+            changes["last_name"] = {"old": user["last_name"], "new": user_update.last_name}
         database.users.update_user_profile(tenant_id, user_id, first_name, last_name)
 
     # Update role if provided
     if user_update.role:
+        if user_update.role != user["role"]:
+            changes["role"] = {"old": user["role"], "new": user_update.role}
         database.users.update_user_role(tenant_id, user_id, user_update.role)
 
     # Fetch updated user
@@ -625,6 +648,17 @@ def update_user(
 
     emails = database.user_emails.list_user_emails(tenant_id, user_id)
     is_service = database.users.is_service_user(tenant_id, user_id)
+
+    # Log the event if there were actual changes
+    if changes:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_updated",
+            metadata={"changes": changes},
+        )
 
     return _user_row_to_detail(updated_user, emails, is_service)
 
@@ -675,8 +709,26 @@ def delete_user(
             code="self_deletion",
         )
 
+    # Capture user info for logging before deletion
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    user_email = primary_email["email"] if primary_email else None
+
     # Delete user
     database.users.delete_user(tenant_id, user_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_deleted",
+        metadata={
+            "deleted_user_name": f"{user['first_name']} {user['last_name']}",
+            "deleted_user_email": user_email,
+            "deleted_user_role": user["role"],
+        },
+    )
 
 
 # =============================================================================
@@ -755,6 +807,15 @@ def inactivate_user(
     # Perform inactivation
     database.users.inactivate_user(tenant_id, user_id)
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_inactivated",
+    )
+
     # Return updated user
     return get_user(requesting_user, user_id)
 
@@ -806,6 +867,15 @@ def reactivate_user(
         )
 
     database.users.reactivate_user(tenant_id, user_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_reactivated",
+    )
 
     return get_user(requesting_user, user_id)
 
@@ -882,6 +952,10 @@ def anonymize_user(
                 code="last_super_admin",
             )
 
+    # Capture user info for logging before anonymization
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    user_email = primary_email["email"] if primary_email else None
+
     # Perform anonymization (order matters)
     # 1. Anonymize emails
     database.user_emails.anonymize_user_emails(tenant_id, user_id)
@@ -891,6 +965,20 @@ def anonymize_user(
 
     # 3. Anonymize user record
     database.users.anonymize_user(tenant_id, user_id)
+
+    # Log the event (with pre-anonymization info for audit trail)
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_anonymized",
+        metadata={
+            "anonymized_user_name": f"{user['first_name']} {user['last_name']}",
+            "anonymized_user_email": user_email,
+            "anonymized_user_role": user["role"],
+        },
+    )
 
     return get_user(requesting_user, user_id)
 
@@ -943,10 +1031,20 @@ def update_current_user_profile(
     tenant_id = requesting_user["tenant_id"]
     user_id = requesting_user["id"]
 
+    # Track changes for logging
+    changes: dict = {}
+
     # Update profile fields if provided
     if profile_update.first_name or profile_update.last_name:
         first_name = profile_update.first_name or user_data["first_name"]
         last_name = profile_update.last_name or user_data["last_name"]
+        if profile_update.first_name and profile_update.first_name != user_data["first_name"]:
+            changes["first_name"] = {
+                "old": user_data["first_name"],
+                "new": profile_update.first_name,
+            }
+        if profile_update.last_name and profile_update.last_name != user_data["last_name"]:
+            changes["last_name"] = {"old": user_data["last_name"], "new": profile_update.last_name}
         database.users.update_user_profile(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -955,6 +1053,10 @@ def update_current_user_profile(
         )
 
     if profile_update.timezone and profile_update.locale:
+        if profile_update.timezone != user_data.get("tz"):
+            changes["timezone"] = {"old": user_data.get("tz"), "new": profile_update.timezone}
+        if profile_update.locale != user_data.get("locale"):
+            changes["locale"] = {"old": user_data.get("locale"), "new": profile_update.locale}
         database.users.update_user_timezone_and_locale(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -962,12 +1064,16 @@ def update_current_user_profile(
             locale=profile_update.locale,
         )
     elif profile_update.timezone:
+        if profile_update.timezone != user_data.get("tz"):
+            changes["timezone"] = {"old": user_data.get("tz"), "new": profile_update.timezone}
         database.users.update_user_timezone(
             tenant_id=tenant_id,
             user_id=user_id,
             timezone=profile_update.timezone,
         )
     elif profile_update.locale:
+        if profile_update.locale != user_data.get("locale"):
+            changes["locale"] = {"old": user_data.get("locale"), "new": profile_update.locale}
         database.users.update_user_locale(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -986,6 +1092,17 @@ def update_current_user_profile(
     primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
     if primary_email:
         updated_user["email"] = primary_email["email"]
+
+    # Log the event if there were actual changes
+    if changes:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_profile_updated",
+            metadata={"changes": changes},
+        )
 
     return _user_row_to_profile(updated_user)
 

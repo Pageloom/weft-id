@@ -99,12 +99,12 @@ def get_email_by_id(tenant_id: TenantArg, email_id: str, user_id: str) -> dict |
     Get an email record by ID for a specific user.
 
     Returns:
-        Dict with id, is_primary, verified_at fields, or None if not found
+        Dict with id, email, is_primary, verified_at fields, or None if not found
     """
     return fetchone(
         tenant_id,
         """
-        select id, is_primary, verified_at
+        select id, email, is_primary, verified_at
         from user_emails
         where id = :email_id and user_id = :user_id
         """,

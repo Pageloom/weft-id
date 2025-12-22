@@ -22,6 +22,7 @@ from schemas.api import (
     UserSummary,
     UserUpdate,
 )
+from services.activity import track_activity
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -378,6 +379,7 @@ def list_users(
         ForbiddenError: If user lacks admin permissions
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -423,6 +425,7 @@ def get_user(
         NotFoundError: If user does not exist
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -1004,6 +1007,7 @@ def get_current_user_profile(
     Returns:
         UserProfile for the current user
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     return _user_row_to_profile(user_data)
 
 

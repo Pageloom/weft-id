@@ -24,3 +24,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Service Functions Missing Activity/Event Tracking (Backstop Test Findings)
+
+**Status:** Resolved (2025-12-22)
+
+**Found in:** `app/services/emails.py`, `app/services/mfa.py`
+
+**Severity:** Low
+
+**Description:** Two service functions with `RequestingUser` parameter were missing required tracking calls:
+
+1. `services.emails.resend_verification()` - Read-like operation that returns email info for resending verification. Should call `track_activity()`.
+
+2. `services.mfa.setup_totp()` - Write operation that generates and stores a new TOTP secret. Should call `log_event()`.
+
+**Resolution:**
+- Added `track_activity()` call to `resend_verification()`
+- Added `log_event()` call with event_type `totp_setup_initiated` to `setup_totp()`
+- Removed exemptions from backstop test `test_all_service_functions_have_activity_or_logging`
+
+---
+

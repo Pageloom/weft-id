@@ -526,6 +526,7 @@ def resend_verification(
         )
 
     tenant_id = requesting_user["tenant_id"]
+    track_activity(tenant_id, requesting_user["id"])
 
     email = database.user_emails.get_email_with_nonce(tenant_id, email_id, user_id)
     if not email:

@@ -208,6 +208,15 @@ def setup_totp(
     # Store unverified secret
     database.mfa.create_totp_secret(tenant_id, user_id, secret_encrypted, tenant_id)
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="totp_setup_initiated",
+    )
+
     return TOTPSetupResponse(secret=secret_display, uri=uri)
 
 

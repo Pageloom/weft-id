@@ -431,9 +431,7 @@ def test_list_users_with_status_filter_active(test_tenant, test_user, test_admin
     database.users.inactivate_user(test_tenant["id"], test_user["id"])
 
     # Filter by active status
-    users = database.users.list_users(
-        test_tenant["id"], statuses=["active"], page=1, page_size=10
-    )
+    users = database.users.list_users(test_tenant["id"], statuses=["active"], page=1, page_size=10)
 
     assert len(users) == 1
     assert users[0]["id"] == test_admin_user["id"]
@@ -585,15 +583,11 @@ def test_count_users_with_role_and_status_filter(test_tenant, test_user, test_ad
     database.users.inactivate_user(test_tenant["id"], test_admin_user["id"])
 
     # Count active members
-    count = database.users.count_users(
-        test_tenant["id"], roles=["member"], statuses=["active"]
-    )
+    count = database.users.count_users(test_tenant["id"], roles=["member"], statuses=["active"])
     assert count == 1
 
     # Count inactivated admins
-    count = database.users.count_users(
-        test_tenant["id"], roles=["admin"], statuses=["inactivated"]
-    )
+    count = database.users.count_users(test_tenant["id"], roles=["admin"], statuses=["inactivated"])
     assert count == 1
 
 

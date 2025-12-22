@@ -4,6 +4,55 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Service Layer Event Logging
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want all write operations in the service layer to be logged to a database table
+So that I have a complete audit trail for compliance, debugging, and future user-facing activity history
+
+**Acceptance Criteria:**
+
+**Core Logging:**
+
+- [x] New `event_logs` table captures all service layer write operations
+- [x] Each log entry includes: `tenant_id`, `actor_user_id`, `artifact_type`, `artifact_id`, `event_type`, `metadata` (JSON), `created_at`
+- [x] Event types are descriptive strings (e.g., `user_created`, `email_updated`, `mfa_enabled`) - not DB-enforced enums
+- [x] Artifact type identifies the entity (e.g., `user`, `privileged_domain`, `tenant_settings`)
+- [x] Metadata field captures context-specific details as JSON (optional per event)
+- [x] Logging is synchronous (write completes before service method returns)
+
+**Actor Tracking:**
+
+- [x] All events track the `actor_user_id` (who performed the action)
+- [x] System-initiated actions (background jobs, automated processes) use a predefined UUID constant (e.g., `SYSTEM_ACTOR_ID`)
+- [x] System actor UUID is defined in code, not a real user row
+
+**Implementation Pattern:**
+
+- [x] Logging helper/utility that service functions call after successful writes
+- [x] All existing service layer write operations are instrumented
+- [x] Culture: "If there is a write, there is a log" - bulk writes produce multiple log entries
+
+**Retention:**
+
+- [x] Logs retained indefinitely
+- [x] Logs reference user UUIDs - anonymization happens on user record, not logs
+
+**Out of Scope:**
+
+- UI to browse/search logs
+- API endpoints to query logs
+- User-facing activity history display
+- Read operation logging
+
+**Effort:** M
+**Value:** High (Audit/Compliance Foundation)
+
+---
+
 ## User List Filtering & Sorting Enhancements
 
 **Status:** Complete

@@ -22,6 +22,7 @@ from schemas.api import (
     MFAStatus,
     TOTPSetupResponse,
 )
+from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
     NotFoundError,
@@ -260,6 +261,15 @@ def verify_totp_and_enable(
     # Generate and store backup codes
     backup_codes = _generate_and_store_backup_codes(tenant_id, user_id)
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="mfa_totp_enabled",
+    )
+
     return BackupCodesResponse(codes=backup_codes, count=len(backup_codes))
 
 
@@ -328,6 +338,15 @@ def enable_email_mfa(
     # Normal case: enable email MFA directly
     database.mfa.enable_mfa(tenant_id, user_id, "email")
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="mfa_email_enabled",
+    )
+
     # Refresh user data
     updated_user = _get_refreshed_user(tenant_id, user_id)
 
@@ -385,6 +404,15 @@ def verify_mfa_downgrade(
     # Delete TOTP secrets
     database.mfa.delete_totp_secrets(tenant_id, user_id)
 
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="mfa_downgraded_to_email",
+    )
+
     # Refresh user data
     updated_user = _get_refreshed_user(tenant_id, user_id)
 
@@ -417,6 +445,9 @@ def disable_mfa(
     tenant_id = requesting_user["tenant_id"]
     user_id = user_data["id"]
 
+    # Capture previous method for logging
+    previous_method = user_data.get("mfa_method")
+
     # Disable MFA
     database.mfa.enable_mfa(tenant_id, user_id, "email")  # Reset method first
     database.users.update_mfa_status(tenant_id, user_id, enabled=False)
@@ -424,6 +455,16 @@ def disable_mfa(
     # Delete TOTP secrets and backup codes
     database.mfa.delete_totp_secrets(tenant_id, user_id)
     database.mfa.delete_backup_codes(tenant_id, user_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="mfa_disabled",
+        metadata={"previous_method": previous_method},
+    )
 
     # Refresh user data
     updated_user = _get_refreshed_user(tenant_id, user_id)
@@ -463,6 +504,15 @@ def regenerate_backup_codes(
 
     # Generate and store new backup codes
     backup_codes = _generate_and_store_backup_codes(tenant_id, user_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user_id),
+        artifact_type="user",
+        artifact_id=str(user_id),
+        event_type="mfa_backup_codes_regenerated",
+    )
 
     return BackupCodesResponse(codes=backup_codes, count=len(backup_codes))
 
@@ -507,12 +557,29 @@ def reset_user_mfa(
             details={"user_id": target_user_id},
         )
 
+    # Capture previous state for logging
+    previous_method = user.get("mfa_method")
+    was_enabled = user.get("mfa_enabled", False)
+
     # Disable MFA
     database.users.update_mfa_status(tenant_id, target_user_id, enabled=False)
 
     # Delete TOTP secrets and backup codes
     database.mfa.delete_totp_secrets(tenant_id, target_user_id)
     database.mfa.delete_backup_codes(tenant_id, target_user_id)
+
+    # Log the event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="user",
+        artifact_id=target_user_id,
+        event_type="mfa_reset_by_admin",
+        metadata={
+            "previous_method": previous_method,
+            "was_enabled": was_enabled,
+        },
+    )
 
     # Refresh user data
     updated_user = _get_refreshed_user(tenant_id, target_user_id)

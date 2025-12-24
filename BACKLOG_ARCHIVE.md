@@ -428,3 +428,50 @@ duplication or HTTP overhead
 **Value:** High (Enables true API-first development, eliminates duplication, improves maintainability)
 
 ---
+
+## Admin Event Log Viewer & Export
+
+**Status:** Complete
+
+**User Story:**
+As an admin or super admin
+I want to view all system events in a paginated list and export them
+So that I can audit activity, investigate issues, and maintain compliance records
+
+**Acceptance Criteria:**
+
+**Event Log Viewer:**
+
+- [x] New page accessible to Admins and Super Admins only
+- [x] Paginated list of events (newest first)
+- [x] Columns displayed: timestamp, actor (user name), event type, artifact type, artifact ID
+- [x] Clicking an event row opens a detail view showing full metadata JSON
+- [x] No filtering for MVP (future enhancement)
+
+**Export Functionality:**
+
+- [x] "Export All Events" button triggers a background job
+- [x] Export includes all events as a zipped JSON file
+- [x] Email sent to initiating user when export is ready
+- [x] Download available via a dedicated exports page
+- [x] Exports auto-deleted after 24 hours (both DB record and file)
+- [x] Worker container runs cleanup check once per hour to delete expired exports
+- [x] Storage: DigitalOcean Spaces if configured, local filesystem fallback
+
+**Background Job Infrastructure:**
+
+- [x] New `bg_tasks` table (no RLS - system table for cross-tenant polling)
+- [x] Schema: `id`, `tenant_id`, `job_type`, `payload` (JSON), `status`, `created_by`, `created_at`, `started_at`, `completed_at`, `error`
+- [x] Separate worker container (same image, different entrypoint)
+- [x] Worker polls every 10 seconds for pending jobs
+- [x] Job handler registry: jobs only execute if a handler is registered for that `job_type`
+- [x] Worker sets `SET LOCAL app.tenant_id` before executing job handlers (RLS respected in handlers)
+
+**Dependencies:**
+
+- Service Layer Event Logging (must exist first)
+
+**Effort:** L
+**Value:** High (Audit/Compliance)
+
+---

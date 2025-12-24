@@ -1,6 +1,8 @@
 # Import submodules for convenient access
 from . import (
+    bg_tasks,
     event_log,
+    export_files,
     mfa,
     oauth2,
     security,
@@ -22,9 +24,11 @@ from ._core import (
 
 __all__ = [
     "UNSCOPED",
+    "bg_tasks",
     "close_pool",
     "event_log",
     "execute",
+    "export_files",
     "fetchall",
     "fetchone",
     "get_pool",

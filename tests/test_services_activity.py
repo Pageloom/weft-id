@@ -287,9 +287,7 @@ def test_list_users_tracks_activity(test_tenant, test_admin_user):
 
     with patch("services.users.track_activity") as mock_track:
         users.list_users(requesting_user)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_admin_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
 
 def test_get_user_tracks_activity(test_tenant, test_admin_user, test_user):
@@ -306,9 +304,7 @@ def test_get_user_tracks_activity(test_tenant, test_admin_user, test_user):
 
     with patch("services.users.track_activity") as mock_track:
         users.get_user(requesting_user, str(test_user["id"]))
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_admin_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
 
 def test_get_current_user_profile_tracks_activity(test_tenant, test_user):
@@ -337,9 +333,7 @@ def test_get_current_user_profile_tracks_activity(test_tenant, test_user):
 
     with patch("services.users.track_activity") as mock_track:
         users.get_current_user_profile(requesting_user, user_data)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_user["id"]))
 
 
 def test_list_privileged_domains_tracks_activity(test_tenant, test_admin_user):
@@ -356,9 +350,7 @@ def test_list_privileged_domains_tracks_activity(test_tenant, test_admin_user):
 
     with patch("services.settings.track_activity") as mock_track:
         settings.list_privileged_domains(requesting_user)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_admin_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
 
 def test_get_security_settings_tracks_activity(test_tenant, test_super_admin_user):
@@ -375,9 +367,7 @@ def test_get_security_settings_tracks_activity(test_tenant, test_super_admin_use
 
     with patch("services.settings.track_activity") as mock_track:
         settings.get_security_settings(requesting_user)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_super_admin_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_super_admin_user["id"]))
 
 
 def test_list_user_emails_tracks_activity(test_tenant, test_admin_user, test_user):
@@ -394,9 +384,7 @@ def test_list_user_emails_tracks_activity(test_tenant, test_admin_user, test_use
 
     with patch("services.emails.track_activity") as mock_track:
         emails.list_user_emails(requesting_user, str(test_user["id"]))
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_admin_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
 
 def test_get_mfa_status_tracks_activity(test_tenant, test_user):
@@ -419,9 +407,7 @@ def test_get_mfa_status_tracks_activity(test_tenant, test_user):
 
     with patch("services.mfa.track_activity") as mock_track:
         mfa.get_mfa_status(requesting_user, user_data)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_user["id"]))
 
 
 def test_get_backup_codes_status_tracks_activity(test_tenant, test_user):
@@ -442,9 +428,7 @@ def test_get_backup_codes_status_tracks_activity(test_tenant, test_user):
 
     with patch("services.mfa.track_activity") as mock_track:
         mfa.get_backup_codes_status(requesting_user, user_data)
-        mock_track.assert_called_once_with(
-            str(test_tenant["id"]), str(test_user["id"])
-        )
+        mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_user["id"]))
 
 
 # =============================================================================
@@ -463,7 +447,6 @@ def test_all_service_functions_have_activity_or_logging():
     """
     import ast
     import inspect
-    from pathlib import Path
 
     from services import emails, mfa, oauth2, settings, users
 

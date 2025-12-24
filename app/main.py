@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from middleware.session import DynamicSessionMiddleware
 from routers import account as account_router
+from routers import admin as admin_router
 from routers import auth, mfa, oauth2, tenants, users
 from routers import settings as settings_router
 from routers.api.v1 import oauth2_clients
@@ -49,6 +50,7 @@ if static_dir.exists():
 app.include_router(auth.router)
 app.include_router(mfa.router)
 app.include_router(account_router.router)
+app.include_router(admin_router.router)
 app.include_router(settings_router.router)
 app.include_router(tenants.router)
 app.include_router(users.router)

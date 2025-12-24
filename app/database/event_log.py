@@ -149,3 +149,26 @@ def count_events(
         params,
     )
     return result["count"] if result else 0
+
+
+def get_event_by_id(tenant_id: TenantArg, event_id: str) -> dict | None:
+    """
+    Get a single event log entry by ID.
+
+    Args:
+        tenant_id: Tenant ID for RLS scoping
+        event_id: The event log ID
+
+    Returns:
+        Event log dict or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        SELECT id, tenant_id, actor_user_id, artifact_type, artifact_id,
+               event_type, metadata, created_at
+        FROM event_logs
+        WHERE id = :event_id
+        """,
+        {"event_id": event_id},
+    )

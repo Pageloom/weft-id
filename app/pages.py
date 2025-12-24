@@ -148,6 +148,35 @@ PAGES = [
             ),
         ],
     ),
+    # Admin tools (audit, exports)
+    Page(
+        path="/admin",
+        title="Admin",
+        permission=PagePermission.ADMIN,
+        icon="shield",
+        show_in_nav=True,
+        children=[
+            Page(
+                path="/admin/events",
+                title="Event Log",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+            ),
+            Page(
+                path="/admin/events/detail",
+                title="Event Details",
+                permission=PagePermission.ADMIN,
+                show_in_nav=False,
+                creates_nav_level=False,
+            ),
+            Page(
+                path="/admin/exports",
+                title="Exports",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+            ),
+        ],
+    ),
     # MFA routes (under /mfa prefix) - these are workflow pages
     Page(
         path="/mfa",

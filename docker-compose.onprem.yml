@@ -35,7 +35,28 @@ services:
       - "8000"
     volumes:
       - ./app:/app:cached
+      - ./storage:/app/storage
     command: uvicorn main:app --host 0.0.0.0 --port 8000
+    networks:
+      - onpremnet
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    image: app:onprem-latest
+    container_name: onprem_worker
+    env_file: .env
+    volumes:
+      - ./app:/app:cached
+      - ./storage:/app/storage
+    entrypoint: []
+    command: ["python", "worker.py"]
+    working_dir: /app
+    depends_on:
+      - db
+      - memcached
     networks:
       - onpremnet
     restart: unless-stopped

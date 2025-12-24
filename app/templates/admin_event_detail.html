@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Event Details - Loom{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="mb-6">
+            <a href="/admin/events" class="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">
+                &larr; Back to Event Log
+            </a>
+            <h1 class="text-2xl font-semibold">Event Details</h1>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1">Timestamp</label>
+                <p class="text-sm text-gray-900">{{ fmt_datetime(event.created_at) }}</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1">Event Type</label>
+                <p class="mt-1">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        {{ event.event_type }}
+                    </span>
+                </p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1">Actor</label>
+                <p class="text-sm text-gray-900">{{ event.actor_name }}</p>
+                <p class="text-xs text-gray-500 font-mono">{{ event.actor_user_id }}</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1">Artifact</label>
+                <p class="text-sm text-gray-900">{{ event.artifact_type }}</p>
+                <p class="text-xs text-gray-500 font-mono">{{ event.artifact_id }}</p>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-500 mb-2">Metadata</label>
+            <pre class="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono text-gray-800">{{ event.metadata | tojson(indent=2) if event.metadata else '{}' }}</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}

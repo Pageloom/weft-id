@@ -54,3 +54,17 @@ MEMCACHED_PORT = int(os.environ.get("MEMCACHED_PORT", "11211"))
 
 # Activity Tracking Configuration
 ACTIVITY_CACHE_TTL_SECONDS = 3 * 60 * 60  # 3 hours
+
+# File Storage Configuration
+STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "local")  # "local" or "spaces"
+LOCAL_STORAGE_PATH = os.environ.get("LOCAL_STORAGE_PATH", "/app/storage")
+
+# DigitalOcean Spaces (S3-compatible) Configuration
+SPACES_ENDPOINT = os.environ.get("SPACES_ENDPOINT", "")
+SPACES_KEY = os.environ.get("SPACES_KEY", "")
+SPACES_SECRET = os.environ.get("SPACES_SECRET", "")
+SPACES_BUCKET = os.environ.get("SPACES_BUCKET", "")
+SPACES_REGION = os.environ.get("SPACES_REGION", "nyc3")
+
+# Export Configuration
+EXPORT_FILE_EXPIRY_HOURS = int(os.environ.get("EXPORT_FILE_EXPIRY_HOURS", "24"))

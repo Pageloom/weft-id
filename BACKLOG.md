@@ -201,47 +201,6 @@ So that downstream applications can bootstrap teams, channels, and access contro
 
 ---
 
-## Privileged Domain Verification via DNS TXT Records
-
-**User Story:**
-As a super admin
-I want to verify ownership of privileged email domains via DNS TXT records
-So that only domains I actually control can bypass email verification, preventing security vulnerabilities
-
-**Acceptance Criteria:**
-
-- [ ] Super admin can add privileged domains which are created in an "unverified" state
-- [ ] System generates a unique verification token (32-char random string) for each domain
-- [ ] UI displays verification instructions: "Add this TXT record to your DNS: `loom-verify=<token>`"
-- [ ] "Verify Domain" button triggers on-demand DNS TXT record lookup
-- [ ] When matching TXT record is found, domain is marked as verified with timestamp
-- [ ] Unverified domains are visible but marked as "pending verification"
-- [ ] Regular admins can view privileged domains and their verification status (read-only)
-- [ ] Periodic background job re-verifies all verified domains (e.g., daily/weekly)
-- [ ] If re-verification fails, domain status changes to "verification failed" (with alert/notification)
-- [ ] Auto-verification of new user emails works regardless of domain verification status (future features may restrict
-  this)
-- [ ] Users who were previously verified remain verified even if domain verification later fails
-- [ ] Database tracks: verification_token, verified (boolean), verified_at (timestamp)
-
-**Technical Implementation:**
-
-- Database migration: `00009_domain_verification.sql`
-- DNS utility: `app/utils/dns.py` (using dnspython package)
-- Update: `app/database/settings.py`
-- New endpoint: verification route in settings router
-- UI updates: settings template showing verification status and instructions
-- Background job: domain re-verification cron task
-
-**Dependencies:**
-
-- `dnspython` package
-
-**Effort:** L (4-6 hours)
-**Value:** High (Security)
-
----
-
 ## Multi-Region Tenant Routing Infrastructure
 
 **User Story:**
@@ -369,3 +328,43 @@ So that users can interact with the platform in their preferred language
 
 ---
 
+## Privileged Domain Verification via DNS TXT Records
+
+**User Story:**
+As a super admin
+I want to verify ownership of privileged email domains via DNS TXT records
+So that only domains I actually control can bypass email verification, preventing security vulnerabilities
+
+**Acceptance Criteria:**
+
+- [ ] Super admin can add privileged domains which are created in an "unverified" state
+- [ ] System generates a unique verification token (32-char random string) for each domain
+- [ ] UI displays verification instructions: "Add this TXT record to your DNS: `loom-verify=<token>`"
+- [ ] "Verify Domain" button triggers on-demand DNS TXT record lookup
+- [ ] When matching TXT record is found, domain is marked as verified with timestamp
+- [ ] Unverified domains are visible but marked as "pending verification"
+- [ ] Regular admins can view privileged domains and their verification status (read-only)
+- [ ] Periodic background job re-verifies all verified domains (e.g., daily/weekly)
+- [ ] If re-verification fails, domain status changes to "verification failed" (with alert/notification)
+- [ ] Auto-verification of new user emails works regardless of domain verification status (future features may restrict
+  this)
+- [ ] Users who were previously verified remain verified even if domain verification later fails
+- [ ] Database tracks: verification_token, verified (boolean), verified_at (timestamp)
+
+**Technical Implementation:**
+
+- Database migration: `00009_domain_verification.sql`
+- DNS utility: `app/utils/dns.py` (using dnspython package)
+- Update: `app/database/settings.py`
+- New endpoint: verification route in settings router
+- UI updates: settings template showing verification status and instructions
+- Background job: domain re-verification cron task
+
+**Dependencies:**
+
+- `dnspython` package
+
+**Effort:** L
+**Value:** Low
+
+---

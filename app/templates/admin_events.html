@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Event Log - Loom{% endblock %}
+
+{% block content %}
+<!-- Pagination Controls Macro -->
+{% macro pagination_controls(border_class="border-t") %}
+{% if pagination.total_count > 0 %}
+<div class="flex items-center justify-between {{ border_class }} border-gray-200 py-4">
+    <!-- Results info -->
+    <div class="flex items-center gap-4">
+        <div class="text-sm text-gray-700">
+            Showing <span class="font-medium">{{ pagination.start_index }}</span> to
+            <span class="font-medium">{{ pagination.end_index }}</span> of
+            <span class="font-medium">{{ pagination.total_count }}</span> event{{ 's' if pagination.total_count != 1 else '' }}
+        </div>
+
+        <!-- Page size selector -->
+        <div class="flex items-center gap-2">
+            <label for="page-size" class="text-sm text-gray-700">Per page:</label>
+            <select
+                id="page-size"
+                onchange="window.location.href='?page=1&size=' + this.value"
+                class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+                <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Page navigation -->
+    <div class="flex items-center gap-2">
+        <a
+            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}"
+            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_previous %}onclick="return false;"{% endif %}
+        >
+            Previous
+        </a>
+
+        <span class="text-sm text-gray-700">
+            Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
+        </span>
+
+        <a
+            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}"
+            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_next %}onclick="return false;"{% endif %}
+        >
+            Next
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+<div class="w-full">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-semibold">Event Log</h1>
+            <form method="post" action="/admin/events/export">
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Export All Events
+                </button>
+            </form>
+        </div>
+
+        {% if success == 'export_started' %}
+        <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
+            <p class="text-green-800">Export started. You will receive an email when it's ready.</p>
+        </div>
+        {% endif %}
+
+        <!-- Pagination Controls - Top -->
+        {{ pagination_controls(border_class="border-b mb-4") }}
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Timestamp
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actor
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Event Type
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Artifact Type
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Artifact ID
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for event in events %}
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/admin/events/{{ event.id }}'">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ fmt_datetime(event.created_at) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ event.actor_name }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                {{ event.event_type }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ event.artifact_type }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                            {{ event.artifact_id[:8] }}...
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <a href="/admin/events/{{ event.id }}" class="text-blue-600 hover:text-blue-900">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">
+                            No events found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls - Bottom -->
+        <div class="mt-6">
+            {{ pagination_controls(border_class="border-t") }}
+        </div>
+    </div>
+</div>
+{% endblock %}

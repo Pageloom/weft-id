@@ -50,9 +50,9 @@ class JobListItem(BaseModel):
         """
         if not self.has_download:
             return False
-        from datetime import UTC, timedelta
+        from datetime import timedelta
 
-        return datetime.now(UTC) - self.created_at > timedelta(hours=24)
+        return datetime.now() - self.created_at > timedelta(hours=24)
 
     @computed_field  # type: ignore[misc]
     @property

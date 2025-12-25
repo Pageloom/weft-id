@@ -455,6 +455,7 @@ def get_user(
 def create_user(
     requesting_user: RequestingUser,
     user_data: UserCreate,
+    auto_create_email: bool = True,
 ) -> UserDetail:
     """
     Create a new user.
@@ -465,6 +466,8 @@ def create_user(
     Args:
         requesting_user: The authenticated user making the request
         user_data: User creation data (first_name, last_name, email, role)
+        auto_create_email: If True, automatically creates a verified email for the user.
+                          If False, caller is responsible for email creation.
 
     Returns:
         UserDetail for the created user
@@ -512,14 +515,15 @@ def create_user(
 
     user_id = result["user_id"]
 
-    # Add verified email
-    database.user_emails.add_verified_email(
-        tenant_id=tenant_id,
-        tenant_id_value=tenant_id,
-        user_id=user_id,
-        email=user_data.email,
-        is_primary=True,
-    )
+    # Add verified email (if auto_create_email is enabled)
+    if auto_create_email:
+        database.user_emails.add_verified_email(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            user_id=user_id,
+            email=user_data.email,
+            is_primary=True,
+        )
 
     # Fetch created user
     user = database.users.get_user_by_id(tenant_id, user_id)
@@ -591,12 +595,12 @@ def update_user(
         current_role = user["role"]
         new_role = user_update.role
 
-        # Only super_admin can change to/from super_admin
-        if (new_role == "super_admin" or current_role == "super_admin") and requesting_user[
+        # Only super_admin can change to/from super_admin or admin
+        if (new_role in ("admin", "super_admin") or current_role == "super_admin") and requesting_user[
             "role"
         ] != "super_admin":
             raise ForbiddenError(
-                message="Only super_admin can change super_admin roles",
+                message="Only super_admin can change admin or super_admin roles",
                 code="super_admin_role_change_denied",
                 required_role="super_admin",
             )

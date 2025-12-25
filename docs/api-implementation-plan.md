@@ -315,7 +315,7 @@ async def get_current_user_api(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
         token_data = validate_token(token)  # DB lookup
-        if token_data and token_data['expires_at'] > datetime.utcnow():
+        if token_data and token_data['expires_at'] > datetime.now():
             # Get user from token's user_id
             user = get_user_by_id(token_data['tenant_id'], token_data['user_id'])
             if user:

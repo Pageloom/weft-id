@@ -70,7 +70,9 @@
 
         {% if success == 'export_started' %}
         <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-            <p class="text-green-800">Export started. You will receive an email when it's ready.</p>
+            <p class="text-green-800">
+                Export started. Check <a href="/account/background-jobs" class="underline font-medium">Background Jobs</a> to view progress and download the file when ready.
+            </p>
         </div>
         {% endif %}
 

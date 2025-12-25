@@ -1,20 +1,24 @@
 """User account routes (profile, emails, MFA)."""
 
+from pathlib import Path
 from typing import Annotated
 
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from schemas.api import UserProfileUpdate
+from services import bg_tasks as bg_tasks_service
 from services import emails as emails_service
+from services import exports as exports_service
 from services import mfa as mfa_service
 from services import settings as settings_service
 from services import users as users_service
-from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.exceptions import ConflictError, NotFoundError, ServiceError, ValidationError
 from services.types import RequestingUser
 from utils.email import send_email_verification, send_mfa_code_email
+from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
 router = APIRouter(
@@ -472,3 +476,123 @@ def mfa_downgrade_verify(
             )
         # Other validation error - redirect back
         return RedirectResponse(url="/account/mfa", status_code=303)
+
+
+# Background Jobs Routes
+
+
+@router.get("/background-jobs", response_class=HTMLResponse)
+def background_jobs_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display user's background jobs with polling."""
+    requesting_user = _to_requesting_user(user)
+
+    try:
+        result = bg_tasks_service.list_user_jobs(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "account_background_jobs.html",
+        get_template_context(
+            request,
+            tenant_id,
+            jobs=result.jobs,
+            has_active_jobs=result.has_active_jobs,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/background-jobs/delete")
+async def delete_background_jobs(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Delete selected background jobs."""
+    requesting_user = _to_requesting_user(user)
+
+    # Get job IDs from form data (checkboxes)
+    form = await request.form()
+    job_ids = [str(val) for val in form.getlist("job_ids") if isinstance(val, str)]
+
+    if not job_ids:
+        return RedirectResponse(
+            url="/account/background-jobs?error=no_jobs_selected", status_code=303
+        )
+
+    try:
+        count = bg_tasks_service.delete_jobs(requesting_user, job_ids)
+        return RedirectResponse(
+            url=f"/account/background-jobs?success=deleted_{count}", status_code=303
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+
+@router.get("/background-jobs/{job_id}/output", response_class=HTMLResponse)
+def job_output_detail(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    job_id: str,
+):
+    """Display job output and metadata."""
+    requesting_user = _to_requesting_user(user)
+
+    try:
+        job = bg_tasks_service.get_job_detail(requesting_user, job_id)
+    except NotFoundError:
+        return RedirectResponse(url="/account/background-jobs?error=job_not_found", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return templates.TemplateResponse(
+        "account_job_output.html",
+        get_template_context(request, tenant_id, job=job),
+    )
+
+
+@router.get("/background-jobs/download/{file_id}")
+def download_background_job_file(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    file_id: str,
+):
+    """Download export file from background job."""
+    requesting_user = _to_requesting_user(user)
+
+    try:
+        download_info = exports_service.get_download(requesting_user, file_id)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/account/background-jobs?error=file_not_found", status_code=303
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    if download_info["storage_type"] == "spaces":
+        # Redirect to signed S3 URL
+        return RedirectResponse(url=download_info["url"], status_code=302)
+    else:
+        # Serve local file
+        file_path = Path(download_info["path"])
+        if not file_path.exists():
+            return RedirectResponse(
+                url="/account/background-jobs?error=file_missing", status_code=303
+            )
+
+        return FileResponse(
+            path=file_path,
+            filename=download_info["filename"],
+            media_type=download_info.get("content_type", "application/gzip"),
+        )

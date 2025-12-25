@@ -164,9 +164,7 @@ def test_get_download_marks_as_downloaded(test_tenant, test_admin_user):
     )
 
     # Verify not downloaded yet
-    before = database.export_files.get_export_file(
-        str(test_tenant["id"]), str(export["id"])
-    )
+    before = database.export_files.get_export_file(str(test_tenant["id"]), str(export["id"]))
     assert before["downloaded_at"] is None
 
     requesting_user: RequestingUser = {
@@ -183,9 +181,7 @@ def test_get_download_marks_as_downloaded(test_tenant, test_admin_user):
         exports.get_download(requesting_user, str(export["id"]))
 
     # Verify now marked as downloaded
-    after = database.export_files.get_export_file(
-        str(test_tenant["id"]), str(export["id"])
-    )
+    after = database.export_files.get_export_file(str(test_tenant["id"]), str(export["id"]))
     assert after["downloaded_at"] is not None
 
 

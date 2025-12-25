@@ -29,4 +29,4 @@ CREATE INDEX idx_bg_tasks_tenant_created ON bg_tasks(tenant_id, created_at DESC)
 CREATE INDEX idx_bg_tasks_tenant_type ON bg_tasks(tenant_id, job_type, created_at DESC);
 
 -- Grant permissions to appuser (worker runs as appuser)
-GRANT SELECT, INSERT, UPDATE ON TABLE bg_tasks TO appuser;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE bg_tasks TO appuser;

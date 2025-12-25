@@ -21,8 +21,8 @@ from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
 router = APIRouter(
-    prefix="/settings",
-    tags=["settings"],
+    prefix="/admin",
+    tags=["admin-settings"],
     dependencies=[Depends(require_admin)],  # All routes require admin role
     include_in_schema=False,
 )
@@ -39,14 +39,14 @@ def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
 
 
 @router.get("/", response_class=HTMLResponse)
-def settings_index(
+def admin_settings_index(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Redirect to the first accessible settings page."""
+    """Redirect to the first accessible admin page."""
     # Get first accessible child page
-    first_child = get_first_accessible_child("/settings", user.get("role"))
+    first_child = get_first_accessible_child("/admin", user.get("role"))
 
     if first_child:
         return RedirectResponse(url=first_child, status_code=303)
@@ -93,7 +93,7 @@ def add_privileged_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/settings/privileged-domains", status_code=303)
+    return RedirectResponse(url="/admin/privileged-domains", status_code=303)
 
 
 @router.post("/privileged-domains/delete/{domain_id}")
@@ -111,13 +111,11 @@ def delete_privileged_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/settings/privileged-domains", status_code=303)
+    return RedirectResponse(url="/admin/privileged-domains", status_code=303)
 
 
-@router.get(
-    "/tenant-security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)]
-)
-def tenant_security(
+@router.get("/security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)])
+def admin_security(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -148,8 +146,8 @@ def tenant_security(
     )
 
 
-@router.post("/tenant-security/update", dependencies=[Depends(require_super_admin)])
-def update_tenant_security(
+@router.post("/security/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
@@ -204,4 +202,4 @@ def update_tenant_security(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/settings/tenant-security?success=1", status_code=303)
+    return RedirectResponse(url="/admin/security?success=1", status_code=303)

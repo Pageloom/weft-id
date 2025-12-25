@@ -12,10 +12,12 @@ from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import (
     ConflictError,
+    ForbiddenError,
     NotFoundError,
     ServiceError,
     ValidationError,
 )
+from schemas.api import UserCreate
 from services.types import RequestingUser
 from utils.email import (
     send_new_user_invitation,
@@ -241,25 +243,37 @@ def create_new_user(
     if role not in ["member", "admin", "super_admin"]:
         return RedirectResponse(url="/users/new?error=invalid_role", status_code=303)
 
-    # Only super_admin can create admin or super_admin users
-    if role in ["admin", "super_admin"] and user.get("role") != "super_admin":
-        return RedirectResponse(url="/users/new?error=insufficient_permissions", status_code=303)
-
-    # Check if email already exists
-    if users_service.email_exists(tenant_id, email):
-        return RedirectResponse(url="/users/new?error=email_exists", status_code=303)
-
     # Extract domain and check if it's privileged
     domain = email.split("@")[1]
     is_privileged = settings_service.is_privileged_domain(tenant_id, domain)
 
-    # Create the user
-    result = users_service.create_user_raw(tenant_id, first_name, last_name, email, role)
+    # Build RequestingUser from session
+    requesting_user: RequestingUser = {
+        "id": user["id"],
+        "tenant_id": tenant_id,
+        "role": user["role"],
+    }
 
-    if not result:
+    # Create user via service layer (with event logging and authorization)
+    try:
+        user_data = UserCreate(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            role=role,
+        )
+        created_user = users_service.create_user(
+            requesting_user=requesting_user,
+            user_data=user_data,
+            auto_create_email=False,  # Router handles email separately based on domain privilege
+        )
+        user_id = created_user.id
+    except ForbiddenError:
+        return RedirectResponse(url="/users/new?error=insufficient_permissions", status_code=303)
+    except ConflictError:
+        return RedirectResponse(url="/users/new?error=email_exists", status_code=303)
+    except (ValidationError, ServiceError):
         return RedirectResponse(url="/users/new?error=creation_failed", status_code=303)
-
-    user_id = result["user_id"]
 
     # Get tenant name for email
     org_name = users_service.get_tenant_name(tenant_id)
@@ -269,12 +283,14 @@ def create_new_user(
 
     if is_privileged:
         # Auto-verify email for privileged domains
-        users_service.add_verified_email_with_nonce(tenant_id, user_id, email, is_primary=True)
+        email_result = users_service.add_verified_email_with_nonce(tenant_id, user_id, email, is_primary=True)
+
+        if not email_result:
+            return RedirectResponse(url="/users/new?error=email_creation_failed", status_code=303)
 
         # Send welcome email with password set link
-        # TODO: For now, we'll use a placeholder URL
-        # This should integrate with password reset flow
-        password_set_url = f"{request.base_url}password-reset?email={email}"
+        email_id = email_result["id"]
+        password_set_url = f"{request.base_url}set-password?email_id={email_id}"
         send_new_user_privileged_domain_notification(email, admin_name, org_name, password_set_url)
     else:
         # Add unverified email for non-privileged domains

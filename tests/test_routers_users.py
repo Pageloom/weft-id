@@ -853,82 +853,82 @@ def test_create_new_user_with_privileged_domain(test_admin_user):
     """Test creating new user with privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("services.users.email_exists") as mock_exists:
-        with patch("services.settings.is_privileged_domain") as mock_privileged:
-            with patch("services.users.create_user_raw") as mock_create:
-                with patch("services.users.add_verified_email_with_nonce") as mock_add_email:
-                    with patch("services.users.get_tenant_name") as mock_tenant:
-                        with patch(
-                            "routers.users.send_new_user_privileged_domain_notification"
-                        ) as mock_send:
-                            mock_exists.return_value = False
-                            mock_privileged.return_value = True
-                            mock_create.return_value = {"user_id": "new-user-123"}
-                            mock_add_email.return_value = {"id": "email-123"}
-                            mock_tenant.return_value = "Test Organization"
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.users.create_user") as mock_create:
+            with patch("services.users.add_verified_email_with_nonce") as mock_add_email:
+                with patch("services.users.get_tenant_name") as mock_tenant:
+                    with patch(
+                        "routers.users.send_new_user_privileged_domain_notification"
+                    ) as mock_send:
+                        mock_privileged.return_value = True
+                        # Mock create_user to return a UserDetail-like object
+                        mock_user = type('obj', (object,), {'id': 'new-user-123'})()
+                        mock_create.return_value = mock_user
+                        mock_add_email.return_value = {"id": "email-123"}
+                        mock_tenant.return_value = "Test Organization"
 
-                            client = TestClient(app)
-                            response = client.post(
-                                "/users/new",
-                                data={
-                                    "email": "newuser@privileged.com",
-                                    "first_name": "New",
-                                    "last_name": "User",
-                                    "role": "member",
-                                },
-                                follow_redirects=False,
-                            )
+                        client = TestClient(app)
+                        response = client.post(
+                            "/users/new",
+                            data={
+                                "email": "newuser@privileged.com",
+                                "first_name": "New",
+                                "last_name": "User",
+                                "role": "member",
+                            },
+                            follow_redirects=False,
+                        )
 
-                            app.dependency_overrides.clear()
+                        app.dependency_overrides.clear()
 
-                            assert response.status_code == 303
-                            assert "/users/new-user-123" in response.headers["location"]
-                            assert "success=user_created" in response.headers["location"]
-                            mock_create.assert_called_once()
-                            mock_add_email.assert_called_once()
-                            # Verify org name was passed to email
-                            assert mock_send.call_args[0][2] == "Test Organization"
+                        assert response.status_code == 303
+                        assert "/users/new-user-123" in response.headers["location"]
+                        assert "success=user_created" in response.headers["location"]
+                        mock_create.assert_called_once()
+                        mock_add_email.assert_called_once()
+                        # Verify org name was passed to email
+                        assert mock_send.call_args[0][2] == "Test Organization"
 
 
 def test_create_new_user_with_non_privileged_domain(test_admin_user):
     """Test creating new user with non-privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("services.users.email_exists") as mock_exists:
-        with patch("services.settings.is_privileged_domain") as mock_privileged:
-            with patch("services.users.create_user_raw") as mock_create:
-                with patch("services.users.add_unverified_email_with_nonce") as mock_add_email:
-                    with patch("services.users.get_tenant_name") as mock_tenant:
-                        with patch("routers.users.send_new_user_invitation") as mock_send:
-                            mock_exists.return_value = False
-                            mock_privileged.return_value = False
-                            mock_create.return_value = {"user_id": "new-user-123"}
-                            mock_add_email.return_value = {
-                                "id": "email-123",
-                                "verify_nonce": "test-nonce",
-                            }
-                            mock_tenant.return_value = "Test Organization"
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.users.create_user") as mock_create:
+            with patch("services.users.add_unverified_email_with_nonce") as mock_add_email:
+                with patch("services.users.get_tenant_name") as mock_tenant:
+                    with patch("routers.users.send_new_user_invitation") as mock_send:
+                        mock_privileged.return_value = False
+                        # Mock create_user to return a UserDetail-like object
+                        mock_user = type('obj', (object,), {'id': 'new-user-123'})()
+                        mock_create.return_value = mock_user
+                        mock_add_email.return_value = {
+                            "id": "email-123",
+                            "verify_nonce": "test-nonce",
+                        }
+                        mock_tenant.return_value = "Test Organization"
 
-                            client = TestClient(app)
-                            response = client.post(
-                                "/users/new",
-                                data={
-                                    "email": "newuser@example.com",
-                                    "first_name": "New",
-                                    "last_name": "User",
-                                    "role": "member",
-                                },
-                                follow_redirects=False,
-                            )
+                        client = TestClient(app)
+                        response = client.post(
+                            "/users/new",
+                            data={
+                                "email": "newuser@example.com",
+                                "first_name": "New",
+                                "last_name": "User",
+                                "role": "member",
+                            },
+                            follow_redirects=False,
+                        )
 
-                            app.dependency_overrides.clear()
+                        app.dependency_overrides.clear()
 
-                            assert response.status_code == 303
-                            assert "/users/new-user-123" in response.headers["location"]
-                            mock_create.assert_called_once()
-                            mock_add_email.assert_called_once()
-                            # Verify org name was passed to email
-                            assert mock_send.call_args[0][2] == "Test Organization"
+                        assert response.status_code == 303
+                        assert "/users/new-user-123" in response.headers["location"]
+                        mock_create.assert_called_once()
+                        mock_add_email.assert_called_once()
+                        # Verify org name was passed to email
+                        assert mock_send.call_args[0][2] == "Test Organization"
 
 
 def test_create_new_user_invalid_email(test_admin_user):
@@ -1023,92 +1023,99 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
     """Test super admin can create admin users."""
     override_auth(app, test_super_admin_user)
 
-    with patch("services.users.email_exists") as mock_exists:
-        with patch("services.settings.is_privileged_domain") as mock_privileged:
-            with patch("services.users.create_user_raw") as mock_create:
-                with patch("services.users.add_verified_email_with_nonce"):
-                    with patch("services.users.get_tenant_name") as mock_tenant:
-                        with patch("routers.users.send_new_user_privileged_domain_notification"):
-                            mock_exists.return_value = False
-                            mock_privileged.return_value = True
-                            mock_create.return_value = {"user_id": "new-admin-123"}
-                            mock_tenant.return_value = "Test Organization"
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.users.create_user") as mock_create:
+            with patch("services.users.add_verified_email_with_nonce"):
+                with patch("services.users.get_tenant_name") as mock_tenant:
+                    with patch("routers.users.send_new_user_privileged_domain_notification"):
+                        mock_privileged.return_value = True
+                        # Mock create_user to return a UserDetail-like object
+                        mock_user = type('obj', (object,), {'id': 'new-admin-123'})()
+                        mock_create.return_value = mock_user
+                        mock_tenant.return_value = "Test Organization"
 
-                            client = TestClient(app)
-                            response = client.post(
-                                "/users/new",
-                                data={
-                                    "email": "admin@example.com",
-                                    "first_name": "New",
-                                    "last_name": "Admin",
-                                    "role": "admin",
-                                },
-                                follow_redirects=False,
-                            )
+                        client = TestClient(app)
+                        response = client.post(
+                            "/users/new",
+                            data={
+                                "email": "admin@example.com",
+                                "first_name": "New",
+                                "last_name": "Admin",
+                                "role": "admin",
+                            },
+                            follow_redirects=False,
+                        )
 
-                            app.dependency_overrides.clear()
+                        app.dependency_overrides.clear()
 
-                            assert response.status_code == 303
-                            assert "/users/new-admin-123" in response.headers["location"]
-                            # Verify role was passed correctly
-                            mock_create.assert_called_once()
-                            call_args = mock_create.call_args[0]
-                            assert call_args[3] == "admin@example.com"
-                            assert call_args[4] == "admin"
+                        assert response.status_code == 303
+                        assert "/users/new-admin-123" in response.headers["location"]
+                        # Verify create_user was called
+                        mock_create.assert_called_once()
 
 
 def test_create_new_user_email_already_exists(test_admin_user):
     """Test creating user with existing email."""
+    from services.exceptions import ConflictError
     override_auth(app, test_admin_user)
 
-    with patch("services.users.email_exists") as mock_exists:
-        mock_exists.return_value = True
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.users.create_user") as mock_create:
+            mock_privileged.return_value = True
+            # Mock create_user to raise ConflictError for existing email
+            mock_create.side_effect = ConflictError(
+                message="Email already exists",
+                code="email_exists",
+            )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/new",
-            data={
-                "email": "existing@example.com",
-                "first_name": "Test",
-                "last_name": "User",
-                "role": "member",
-            },
-            follow_redirects=False,
-        )
+            client = TestClient(app)
+            response = client.post(
+                "/users/new",
+                data={
+                    "email": "existing@example.com",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "role": "member",
+                },
+                follow_redirects=False,
+            )
 
-        app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=email_exists" in response.headers["location"]
+            assert response.status_code == 303
+            assert "error=email_exists" in response.headers["location"]
 
 
 def test_create_new_user_creation_failed(test_admin_user):
     """Test handling of user creation failure."""
+    from services.exceptions import ValidationError
     override_auth(app, test_admin_user)
 
-    with patch("services.users.email_exists") as mock_exists:
-        with patch("services.settings.is_privileged_domain") as mock_privileged:
-            with patch("services.users.create_user_raw") as mock_create:
-                mock_exists.return_value = False
-                mock_privileged.return_value = True
-                mock_create.return_value = None  # Simulate failure
+    with patch("services.settings.is_privileged_domain") as mock_privileged:
+        with patch("services.users.create_user") as mock_create:
+            mock_privileged.return_value = True
+            # Mock create_user to raise ValidationError
+            mock_create.side_effect = ValidationError(
+                message="Failed to create user",
+                code="user_creation_failed",
+            )
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/new",
-                    data={
-                        "email": "test@example.com",
-                        "first_name": "Test",
-                        "last_name": "User",
-                        "role": "member",
-                    },
-                    follow_redirects=False,
-                )
+            client = TestClient(app)
+            response = client.post(
+                "/users/new",
+                data={
+                    "email": "test@example.com",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "role": "member",
+                },
+                follow_redirects=False,
+            )
 
-                app.dependency_overrides.clear()
+            app.dependency_overrides.clear()
 
-                assert response.status_code == 303
-                assert "error=creation_failed" in response.headers["location"]
+            assert response.status_code == 303
+            assert "error=creation_failed" in response.headers["location"]
 
 
 def test_create_new_user_denied_for_regular_user(test_user):

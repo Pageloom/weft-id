@@ -125,30 +125,24 @@ PAGES = [
                     ),
                 ],
             ),
-        ],
-    ),
-    Page(
-        path="/settings",
-        title="Settings",
-        permission=PagePermission.ADMIN,
-        icon="settings",
-        show_in_nav=True,
-        children=[
             Page(
-                path="/settings/tenant-security",
-                title="Security",
-                permission=PagePermission.SUPER_ADMIN,
+                path="/account/background-jobs",
+                title="Background Jobs",
+                permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
-            ),
-            Page(
-                path="/settings/privileged-domains",
-                title="Privileged Domains",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/account/background-jobs/job",
+                        title="Job Output",
+                        permission=PagePermission.AUTHENTICATED,
+                        show_in_nav=False,
+                        creates_nav_level=False,
+                    ),
+                ],
             ),
         ],
     ),
-    # Admin tools (audit, exports)
+    # Admin menu (merged Settings + Admin)
     Page(
         path="/admin",
         title="Admin",
@@ -156,6 +150,18 @@ PAGES = [
         icon="shield",
         show_in_nav=True,
         children=[
+            Page(
+                path="/admin/security",
+                title="Security",
+                permission=PagePermission.SUPER_ADMIN,
+                show_in_nav=True,
+            ),
+            Page(
+                path="/admin/privileged-domains",
+                title="Privileged Domains",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+            ),
             Page(
                 path="/admin/events",
                 title="Event Log",
@@ -168,12 +174,6 @@ PAGES = [
                 permission=PagePermission.ADMIN,
                 show_in_nav=False,
                 creates_nav_level=False,
-            ),
-            Page(
-                path="/admin/exports",
-                title="Exports",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
             ),
         ],
     ),

@@ -192,3 +192,93 @@ def count_pending_tasks(job_type: str | None = None) -> int:
             {},
         )
     return result["count"] if result else 0
+
+
+def list_tasks_for_user(
+    tenant_id: TenantArg,
+    user_id: str,
+    limit: int = 50,
+) -> list[dict]:
+    """List tasks created by a specific user.
+
+    Args:
+        tenant_id: The tenant ID
+        user_id: The user ID who created the tasks
+        limit: Maximum number of tasks to return
+
+    Returns:
+        List of task dicts with id, job_type, status, result, created_at,
+        started_at, completed_at, error
+    """
+    return fetchall(
+        UNSCOPED,
+        """
+        SELECT id, job_type, status, result, created_at, started_at,
+               completed_at, error, created_by
+        FROM bg_tasks
+        WHERE tenant_id = :tenant_id AND created_by = :user_id
+        ORDER BY created_at DESC
+        LIMIT :limit
+        """,
+        {"tenant_id": tenant_id, "user_id": user_id, "limit": limit},
+    )
+
+
+def get_task_for_user(
+    tenant_id: TenantArg,
+    user_id: str,
+    task_id: str,
+) -> dict | None:
+    """Get a single task if it belongs to the user.
+
+    Args:
+        tenant_id: The tenant ID
+        user_id: The user ID who should own the task
+        task_id: The task ID
+
+    Returns:
+        Full task record or None if not found or not owned by user
+    """
+    return fetchone(
+        UNSCOPED,
+        """
+        SELECT id, tenant_id, job_type, payload, status, result,
+               created_by, created_at, started_at, completed_at, error
+        FROM bg_tasks
+        WHERE id = :task_id AND tenant_id = :tenant_id AND created_by = :user_id
+        """,
+        {"task_id": task_id, "tenant_id": tenant_id, "user_id": user_id},
+    )
+
+
+def delete_tasks(
+    tenant_id: TenantArg,
+    user_id: str,
+    task_ids: list[str],
+) -> int:
+    """Delete completed/failed tasks that belong to the user.
+
+    Only tasks with status 'completed' or 'failed' can be deleted.
+
+    Args:
+        tenant_id: The tenant ID
+        user_id: The user ID who owns the tasks
+        task_ids: List of task IDs to delete
+
+    Returns:
+        Number of tasks deleted
+    """
+    if not task_ids:
+        return 0
+
+    return execute(
+        UNSCOPED,
+        """
+        DELETE FROM bg_tasks
+        WHERE tenant_id = :tenant_id
+          AND created_by = :user_id
+          AND id = ANY(:task_ids)
+          AND status IN ('completed', 'failed')
+        """,
+        {"tenant_id": tenant_id, "user_id": user_id, "task_ids": task_ids},
+    )

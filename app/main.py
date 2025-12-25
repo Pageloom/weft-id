@@ -1,7 +1,13 @@
 import logging
+import os
+import time
 from pathlib import Path
 
 import settings
+
+# Force server timezone to UTC for consistent datetime handling
+os.environ['TZ'] = 'UTC'
+time.tzset()
 from dependencies import RedirectError
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi

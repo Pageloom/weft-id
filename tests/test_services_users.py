@@ -368,9 +368,6 @@ def test_update_user_role_as_admin(test_tenant, test_admin_user, test_user):
     assert result.role == "member"
 
 
-@pytest.mark.xfail(
-    reason="Bug: admin can escalate users to admin role via update_user, but not via create_user"
-)
 def test_update_user_role_as_admin_to_admin_forbidden(test_tenant, test_admin_user, test_user):
     """Test that an admin cannot escalate a user to admin role."""
     from services import users as users_service

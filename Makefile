@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 POETRY := poetry
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% wait-% test lint format typecheck
+.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% wait-% test test-cov lint format typecheck
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -53,6 +53,9 @@ sh-%: ## Open a shell to a service. Example: make sh-app
 
 test: ## Run tests with pytest
 	$(POETRY) run pytest
+
+test-cov: ## Run tests with coverage report
+	$(POETRY) run pytest --cov=app --cov-report=term-missing
 
 lint: ## Run linting with ruff
 	$(POETRY) run ruff check app/ tests/

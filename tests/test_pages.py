@@ -45,7 +45,7 @@ def test_get_all_pages():
     assert "/account" in paths
     assert "/account/profile" in paths
     assert "/account/emails" in paths
-    assert "/settings/tenant-security" in paths
+    assert "/admin/security" in paths
 
 
 def test_has_permission_public():
@@ -68,7 +68,7 @@ def test_has_permission_authenticated():
 
 def test_has_permission_admin():
     """Test admin pages require admin or super_admin role."""
-    settings_page = get_page_by_path("/settings/privileged-domains")
+    settings_page = get_page_by_path("/admin/privileged-domains")
     assert not has_permission(settings_page, None)
     assert not has_permission(settings_page, "member")
     assert has_permission(settings_page, "admin")
@@ -77,7 +77,7 @@ def test_has_permission_admin():
 
 def test_has_permission_super_admin():
     """Test super_admin pages require super_admin role."""
-    security_page = get_page_by_path("/settings/tenant-security")
+    security_page = get_page_by_path("/admin/security")
     assert not has_permission(security_page, None)
     assert not has_permission(security_page, "member")
     assert not has_permission(security_page, "admin")
@@ -94,18 +94,18 @@ def test_has_page_access_dashboard():
 
 def test_has_page_access_admin_page():
     """Test page access check for admin pages."""
-    assert not has_page_access("/settings/privileged-domains", None)
-    assert not has_page_access("/settings/privileged-domains", "member")
-    assert has_page_access("/settings/privileged-domains", "admin")
-    assert has_page_access("/settings/privileged-domains", "super_admin")
+    assert not has_page_access("/admin/privileged-domains", None)
+    assert not has_page_access("/admin/privileged-domains", "member")
+    assert has_page_access("/admin/privileged-domains", "admin")
+    assert has_page_access("/admin/privileged-domains", "super_admin")
 
 
 def test_has_page_access_super_admin_page():
     """Test page access check for super_admin pages."""
-    assert not has_page_access("/settings/tenant-security", None)
-    assert not has_page_access("/settings/tenant-security", "member")
-    assert not has_page_access("/settings/tenant-security", "admin")
-    assert has_page_access("/settings/tenant-security", "super_admin")
+    assert not has_page_access("/admin/security", None)
+    assert not has_page_access("/admin/security", "member")
+    assert not has_page_access("/admin/security", "admin")
+    assert has_page_access("/admin/security", "super_admin")
 
 
 def test_has_page_access_undefined_page():
@@ -133,7 +133,7 @@ def test_get_nav_items_member():
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
     assert "/users" in paths
-    assert "/settings" not in paths  # Admin only
+    assert "/admin" not in paths  # Admin only
 
 
 def test_get_nav_items_admin():
@@ -143,7 +143,7 @@ def test_get_nav_items_admin():
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
     assert "/users" in paths
-    assert "/settings" in paths  # Admin can see settings
+    assert "/admin" in paths  # Admin can see admin menu
 
 
 def test_get_nav_items_super_admin():
@@ -153,7 +153,7 @@ def test_get_nav_items_super_admin():
     paths = [item.path for item in nav_items]
     assert "/dashboard" in paths
     assert "/users" in paths
-    assert "/settings" in paths
+    assert "/admin" in paths
 
 
 def test_get_first_accessible_child_account_member():
@@ -169,22 +169,22 @@ def test_get_first_accessible_child_users_member():
 
 
 def test_get_first_accessible_child_settings_admin():
-    """Test getting first accessible child for settings as admin."""
-    first_child = get_first_accessible_child("/settings", "admin")
-    # Admin can see privileged-domains but not tenant-security
-    assert first_child == "/settings/privileged-domains"
+    """Test getting first accessible child for admin menu as admin."""
+    first_child = get_first_accessible_child("/admin", "admin")
+    # Admin can see security or privileged-domains (security is first but requires super_admin)
+    assert first_child == "/admin/privileged-domains"
 
 
 def test_get_first_accessible_child_settings_super_admin():
-    """Test getting first accessible child for settings as super_admin."""
-    first_child = get_first_accessible_child("/settings", "super_admin")
-    # Super admin sees tenant-security first (it's listed first in children)
-    assert first_child == "/settings/tenant-security"
+    """Test getting first accessible child for admin menu as super_admin."""
+    first_child = get_first_accessible_child("/admin", "super_admin")
+    # Super admin sees security first (it's listed first in children)
+    assert first_child == "/admin/security"
 
 
 def test_get_first_accessible_child_no_permission():
     """Test getting None when user has no permission to any children."""
-    first_child = get_first_accessible_child("/settings", "member")
+    first_child = get_first_accessible_child("/admin", "member")
     assert first_child is None
 
 
@@ -261,7 +261,7 @@ def test_get_navigation_context_top_level_items():
     top_level_paths = [item.path for item in context["top_level_items"]]
     assert "/dashboard" in top_level_paths
     assert "/users" in top_level_paths
-    assert "/settings" in top_level_paths
+    assert "/admin" in top_level_paths
 
 
 def test_get_navigation_context_unknown_path():
@@ -317,7 +317,7 @@ def test_pages_structure_account():
     assert account_page.permission == PagePermission.AUTHENTICATED
     assert account_page.icon == "user"
     assert account_page.children is not None
-    assert len(account_page.children) == 3  # profile, emails, mfa
+    assert len(account_page.children) == 4  # profile, emails, mfa, background-jobs
 
 
 def test_pages_structure_mfa_workflow():
@@ -333,8 +333,8 @@ def test_has_permission_hierarchy():
     # A super_admin user should have access to all permission levels
     public_page = get_page_by_path("/login")
     auth_page = get_page_by_path("/dashboard")
-    admin_page = get_page_by_path("/settings/privileged-domains")
-    super_admin_page = get_page_by_path("/settings/tenant-security")
+    admin_page = get_page_by_path("/admin/privileged-domains")
+    super_admin_page = get_page_by_path("/admin/security")
 
     # Super admin can access everything
     assert has_permission(public_page, "super_admin")
@@ -356,17 +356,17 @@ def test_has_permission_hierarchy():
 
 
 def test_settings_children_permissions():
-    """Test that settings children have appropriate permissions."""
-    settings_page = get_page_by_path("/settings")
-    assert settings_page is not None
+    """Test that admin page children have appropriate permissions."""
+    admin_page = get_page_by_path("/admin")
+    assert admin_page is not None
 
-    # Find tenant-security (super_admin only)
-    tenant_security = get_page_by_path("/settings/tenant-security")
-    assert tenant_security is not None
-    assert tenant_security.permission == PagePermission.SUPER_ADMIN
+    # Find security (super_admin only)
+    admin_security = get_page_by_path("/admin/security")
+    assert admin_security is not None
+    assert admin_security.permission == PagePermission.SUPER_ADMIN
 
     # Find privileged-domains (admin)
-    privileged_domains = get_page_by_path("/settings/privileged-domains")
+    privileged_domains = get_page_by_path("/admin/privileged-domains")
     assert privileged_domains is not None
     assert privileged_domains.permission == PagePermission.ADMIN
 

@@ -111,19 +111,17 @@ def handle_export_events(task: dict) -> dict[str, Any]:
 
     logger.info("Created export file record: %s", export_file["id"] if export_file else "None")
 
-    # Send notification email
-    _send_export_notification(
-        tenant_id=tenant_id,
-        user_id=created_by,
-        filename=filename,
-        event_count=len(all_events),
-        expires_at=expires_at,
-    )
+    # Note: Email notifications removed per requirements - users check Background Jobs page instead
 
+    # Return structured result with output for UI display
+    size_kb = file_size // 1024
+    output_msg = f"Exported {len(all_events):,} events to {filename} ({size_kb:,} KB compressed)"
     return {
-        "export_file_id": str(export_file["id"]) if export_file else None,
-        "event_count": len(all_events),
+        "output": output_msg,
+        "file_id": str(export_file["id"]) if export_file else None,
+        "records_processed": len(all_events),
         "filename": filename,
+        "file_size": file_size,
     }
 
 

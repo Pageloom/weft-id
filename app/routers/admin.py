@@ -1,6 +1,5 @@
-"""Admin routes for event log viewer and exports."""
+"""Admin routes for event log viewer."""
 
-from pathlib import Path
 from typing import Annotated
 
 from dependencies import (
@@ -9,12 +8,11 @@ from dependencies import (
     require_admin,
 )
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
 from services import event_log as event_log_service
-from services import exports as exports_service
 from services.exceptions import NotFoundError, ServiceError
 from services.types import RequestingUser
 from utils.service_errors import render_error_page
@@ -155,66 +153,4 @@ def trigger_export(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/admin/exports?success=export_started", status_code=303)
-
-
-@router.get("/exports", response_class=HTMLResponse)
-def exports_list(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Display list of available exports."""
-    requesting_user = _to_requesting_user(user, tenant_id)
-
-    try:
-        result = exports_service.list_exports(requesting_user)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    success = request.query_params.get("success")
-    error = request.query_params.get("error")
-
-    return templates.TemplateResponse(
-        "admin_exports.html",
-        get_template_context(
-            request,
-            tenant_id,
-            exports=result.items,
-            success=success,
-            error=error,
-        ),
-    )
-
-
-@router.get("/exports/download/{export_id}")
-def download_export(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    export_id: str,
-):
-    """Download an export file."""
-    requesting_user = _to_requesting_user(user, tenant_id)
-
-    try:
-        download_info = exports_service.get_download(requesting_user, export_id)
-    except NotFoundError:
-        return RedirectResponse(url="/admin/exports?error=not_found", status_code=303)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    if download_info["storage_type"] == "spaces":
-        # Redirect to signed S3 URL
-        return RedirectResponse(url=download_info["url"], status_code=302)
-    else:
-        # Serve local file
-        file_path = Path(download_info["path"])
-        if not file_path.exists():
-            return RedirectResponse(url="/admin/exports?error=file_missing", status_code=303)
-
-        return FileResponse(
-            path=file_path,
-            filename=download_info["filename"],
-            media_type=download_info.get("content_type", "application/gzip"),
-        )
+    return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)

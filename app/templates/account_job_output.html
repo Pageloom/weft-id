@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Job Output - Loom{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-semibold">Job Output</h1>
+            <a href="/account/background-jobs" class="text-sm text-blue-600 hover:text-blue-800">
+                &larr; Back to Background Jobs
+            </a>
+        </div>
+
+        <!-- Job Metadata -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Job Type</h3>
+                <p class="text-lg text-gray-900">{{ job.job_type }}</p>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Status</h3>
+                <div>
+                    {% if job.status.value == 'pending' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                        Requested
+                    </span>
+                    {% elif job.status.value == 'processing' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        Ongoing
+                    </span>
+                    {% elif job.status.value == 'completed' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                        Completed
+                    </span>
+                    {% elif job.status.value == 'failed' %}
+                    <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                        Failed
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Created</h3>
+                <p class="text-sm text-gray-900">{{ fmt_datetime(job.created_at) }}</p>
+            </div>
+
+            {% if job.started_at %}
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Started</h3>
+                <p class="text-sm text-gray-900">{{ fmt_datetime(job.started_at) }}</p>
+            </div>
+            {% endif %}
+
+            {% if job.completed_at %}
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-gray-500 mb-1">Completed</h3>
+                <p class="text-sm text-gray-900">{{ fmt_datetime(job.completed_at) }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Error Message (if failed) -->
+        {% if job.error %}
+        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <h3 class="text-sm font-medium text-red-800 mb-2">Error</h3>
+            <pre class="text-sm text-red-700 whitespace-pre-wrap font-mono">{{ job.error }}</pre>
+        </div>
+        {% endif %}
+
+        <!-- Output Display -->
+        {% if job.result and job.result.output %}
+        <div class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Output</h2>
+            <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                <pre class="text-sm text-gray-100 whitespace-pre-wrap font-mono">{{ job.result.output }}</pre>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Download Link (if available) -->
+        {% if job.has_download %}
+        <div class="mt-6">
+            {% if job.download_expired %}
+            <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p class="text-yellow-800">Download file has expired (>24 hours old).</p>
+            </div>
+            {% else %}
+            <a href="/account/background-jobs/download/{{ job.result.file_id }}"
+               class="inline-flex items-center px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Download Export File
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

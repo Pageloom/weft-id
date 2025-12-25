@@ -475,3 +475,65 @@ So that I can audit activity, investigate issues, and maintain compliance record
 **Value:** High (Audit/Compliance)
 
 ---
+
+## Background Jobs UI Refinement & Navigation Restructuring
+
+**Status:** Complete
+
+**User Story:**
+As a user of the platform
+I want to view and manage all my background jobs in one place
+So that I can track progress, access outputs, download results, and clean up completed tasks
+
+**Acceptance Criteria:**
+
+**Navigation Changes:**
+
+- [x] Merge "Settings" and "Administration" tabs into a single "Admin" menu with subsections
+- [x] Move "Exports" page from admin area to User menu
+- [x] Rename "Exports" to "Background Jobs"
+
+**Background Jobs Page:**
+
+- [x] Display job list with columns: Checkbox, Job Type, Status, Output, Download
+- [x] Checkbox appears only for completed (success/failed) jobs
+- [x] Status column shows: Requested / Ongoing / Completed / Failed (includes timestamp info)
+- [x] Output column shows link to view output if available, otherwise "N/A"
+- [x] Download column shows link to download file if available and < 24 hours old, otherwise "N/A"
+- [x] Downloads older than 24 hours show "File expired" (no file existence check)
+- [x] Multi-select deletion via checkboxes (only for completed jobs)
+- [x] "Delete Selected" button removes checked job records
+- [x] Page polls every 10 seconds while any job is in Requested/Ongoing state
+- [x] Polling stops when all visible jobs are completed/failed
+- [x] No email notifications sent on job completion
+
+**Output Display:**
+
+- [x] Clicking output link navigates to dedicated page showing raw text output
+- [x] Output page shows job metadata (type, status, timestamps) above output content
+
+**Database Changes:**
+
+- [x] Output stored in `result` JSONB column (as `result.output`) - more flexible than separate TEXT column
+- [x] Job records are NOT auto-deleted (persist indefinitely until user deletes)
+- [x] Download files are cleaned up after 24 hours (existing behavior)
+
+**Authorization:**
+
+- [x] Users can only see and delete their own background jobs
+- [x] Admins see only their own jobs (no tenant-wide job visibility)
+
+**Technical Implementation:**
+
+- Database migration: `00013_bg_tasks.sql` and `00014_export_files.sql`
+- Service layer: `app/services/bg_tasks.py` with `list_user_jobs()`, `get_job_detail()`, `delete_jobs()`
+- Router: `app/routers/account.py` with background jobs routes
+- Templates: `account_background_jobs.html` and `account_job_output.html`
+- Schemas: `app/schemas/bg_tasks.py` with `JobListItem`, `JobDetail`, `JobListResponse`
+- Page registration: `app/pages.py` with `/account/background-jobs` hierarchy
+- Auto-polling: JavaScript in template polls every 10s when `has_active_jobs` is true
+
+**Effort:** M
+**Value:** Medium (UX improvement, infrastructure foundation)
+
+---

@@ -6,56 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Background Jobs UI Refinement & Navigation Restructuring
-
-**User Story:**
-As a user of the platform
-I want to view and manage all my background jobs in one place
-So that I can track progress, access outputs, download results, and clean up completed tasks
-
-**Acceptance Criteria:**
-
-**Navigation Changes:**
-
-- [ ] Merge "Settings" and "Administration" tabs into a single "Admin" menu with subsections
-- [ ] Move "Exports" page from admin area to User menu
-- [ ] Rename "Exports" to "Background Jobs"
-
-**Background Jobs Page:**
-
-- [ ] Display job list with columns: Checkbox, Job Type, Status, Output, Download
-- [ ] Checkbox appears only for completed (success/failed) jobs
-- [ ] Status column shows: Requested / Ongoing / Completed / Failed (includes timestamp info)
-- [ ] Output column shows link to view output if available, otherwise "N/A"
-- [ ] Download column shows link to download file if available and < 24 hours old, otherwise "N/A"
-- [ ] Downloads older than 24 hours show "File expired" (no file existence check)
-- [ ] Multi-select deletion via checkboxes (only for completed jobs)
-- [ ] "Delete Selected" button removes checked job records
-- [ ] Page polls every 10 seconds while any job is in Requested/Ongoing state
-- [ ] Polling stops when all visible jobs are completed/failed
-- [ ] No email notifications sent on job completion
-
-**Output Display:**
-
-- [ ] Clicking output link navigates to dedicated page showing raw text output
-- [ ] Output page shows job metadata (type, status, timestamps) above output content
-
-**Database Changes:**
-
-- [ ] Add `output` column to `bg_tasks` table (TEXT, nullable)
-- [ ] Job records are NOT auto-deleted (persist indefinitely until user deletes)
-- [ ] Download files are cleaned up after 24 hours (existing behavior)
-
-**Authorization:**
-
-- [ ] Users can only see and delete their own background jobs
-- [ ] Admins see only their own jobs (no tenant-wide job visibility)
-
-**Effort:** M
-**Value:** Medium (UX improvement, infrastructure foundation)
-
----
-
 ## User Activity Display & Automatic Inactivation System
 
 **User Story:**

@@ -19,6 +19,8 @@ You are a senior software developer with many years of experience and a keen eye
 6. **Find bugs in production code** - ASK THE USER before fixing these
 7. **Suggest manual tests** verbally when Playwright can't cover (don't store these)
 
+**Note**: For architectural compliance verification (activity tracking, event logging, tenant isolation, authorization patterns), use the `/compliance` agent instead.
+
 ## Source of Truth
 
 - **ISSUES_ARCHIVE.md** should be checked first to understand recently resolved issues and their fixes

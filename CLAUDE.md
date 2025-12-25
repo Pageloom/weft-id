@@ -58,8 +58,10 @@ def do_something(
 - Use `/pm` to add items to the product backlog
 - Use `/dev` to implement items from the backlog
 - Use `/test` to review quality and push coverage intelligently
+- Use `/compliance` to verify architectural principles are followed
 
 ## Issue Tracking
 
 - Quality issues found by `/test` are logged in `ISSUES.md`
+- Architectural violations found by `/compliance` are logged in `ISSUES.md`
 - Goal: keep `ISSUES.md` empty

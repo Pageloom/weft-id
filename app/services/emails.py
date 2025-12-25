@@ -12,7 +12,7 @@ All functions:
 - Have no knowledge of HTTP concepts
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 import database
 from schemas.api import EmailInfo
@@ -233,8 +233,8 @@ def add_user_email(
         id=str(result["id"]),
         email=email_lower,
         is_primary=False,
-        verified_at=datetime.now(UTC) if is_admin_action else None,
-        created_at=datetime.now(UTC),
+        verified_at=datetime.now() if is_admin_action else None,
+        created_at=datetime.now(),
     )
 
 

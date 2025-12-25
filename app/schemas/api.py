@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # ============================================================================
 # Error Response Schemas
@@ -24,6 +24,8 @@ class ErrorDetail(BaseModel):
 class UserProfile(BaseModel):
     """User profile response schema."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: str
     first_name: str
@@ -35,9 +37,6 @@ class UserProfile(BaseModel):
     mfa_method: str | None = None
     created_at: datetime
     last_login: datetime | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class UserProfileUpdate(BaseModel):
@@ -57,14 +56,13 @@ class UserProfileUpdate(BaseModel):
 class EmailInfo(BaseModel):
     """Email address information."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     email: EmailStr
     is_primary: bool
     verified_at: datetime | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class EmailList(BaseModel):

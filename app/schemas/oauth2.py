@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================================================
 # OAuth2 Client Management Schemas
@@ -34,6 +34,8 @@ class B2BClientCreate(BaseModel):
 class ClientResponse(BaseModel):
     """Response schema for OAuth2 client (without secret)."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     client_id: str
     client_type: str
@@ -41,9 +43,6 @@ class ClientResponse(BaseModel):
     redirect_uris: list[str] | None
     service_user_id: str | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class ClientWithSecret(ClientResponse):

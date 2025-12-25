@@ -145,5 +145,9 @@ def calculate_expires_at(expiry_delta: timedelta) -> datetime:
 
     Returns:
         UTC datetime when the token/code expires
+
+    Note:
+        Server timezone is forced to UTC at startup (see main.py),
+        so datetime.now() returns UTC time.
     """
-    return datetime.utcnow() + expiry_delta
+    return datetime.now() + expiry_delta

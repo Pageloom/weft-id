@@ -3,11 +3,13 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EventLogItem(BaseModel):
     """Single event log entry."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     actor_user_id: str
@@ -17,9 +19,6 @@ class EventLogItem(BaseModel):
     event_type: str
     metadata: dict[str, Any] | None = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class EventLogListResponse(BaseModel):
@@ -34,6 +33,8 @@ class EventLogListResponse(BaseModel):
 class ExportFileItem(BaseModel):
     """Single export file entry."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     filename: str
     storage_type: str
@@ -42,9 +43,6 @@ class ExportFileItem(BaseModel):
     expires_at: datetime
     created_at: datetime
     downloaded_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class ExportListResponse(BaseModel):

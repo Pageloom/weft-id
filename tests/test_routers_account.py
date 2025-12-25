@@ -764,3 +764,264 @@ def test_mfa_downgrade_verify_invalid_code(test_user):
             # Test verifies error handling
             assert mock_template is not None
             app.dependency_overrides.clear()
+
+
+# Background Jobs Tests
+
+
+def test_background_jobs_list_page(test_user):
+    """Test background jobs list page renders with jobs."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
+        with patch("routers.account.templates.TemplateResponse") as mock_template:
+            from datetime import datetime
+            from fastapi.responses import HTMLResponse
+            from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
+
+            mock_list.return_value = JobListResponse(
+                jobs=[
+                    JobListItem(
+                        id="job1",
+                        job_type="export_events",
+                        status=JobStatus.COMPLETED,
+                        created_at=datetime.now(),
+                        completed_at=datetime.now(),
+                        created_by=str(test_user["id"]),
+                        result={"file_id": "file123"},
+                    ),
+                    JobListItem(
+                        id="job2",
+                        job_type="export_events",
+                        status=JobStatus.PENDING,
+                        created_at=datetime.now(),
+                        created_by=str(test_user["id"]),
+                    ),
+                ],
+                has_active_jobs=True,
+            )
+            mock_template.return_value = HTMLResponse(content="<html>Background Jobs</html>")
+
+            client = TestClient(app)
+            response = client.get("/account/background-jobs")
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 200
+            mock_list.assert_called_once()
+            # Verify template was called with correct template name
+            template_call = mock_template.call_args
+            assert template_call[0][0] == "account_background_jobs.html"
+            # Context is the second positional argument
+            context = template_call[0][1]
+            assert "jobs" in context
+            assert context["has_active_jobs"] is True
+
+
+def test_background_jobs_list_no_active_jobs(test_user):
+    """Test background jobs list when no active jobs (polling should stop)."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
+        with patch("routers.account.templates.TemplateResponse") as mock_template:
+            from datetime import datetime
+            from fastapi.responses import HTMLResponse
+            from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
+
+            mock_list.return_value = JobListResponse(
+                jobs=[
+                    JobListItem(
+                        id="job1",
+                        job_type="export_events",
+                        status=JobStatus.COMPLETED,
+                        created_at=datetime.now(),
+                        completed_at=datetime.now(),
+                        created_by=str(test_user["id"]),
+                        result={"file_id": "file123"},
+                    ),
+                ],
+                has_active_jobs=False,
+            )
+            mock_template.return_value = HTMLResponse(content="<html>Background Jobs</html>")
+
+            client = TestClient(app)
+            response = client.get("/account/background-jobs")
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 200
+            # Verify has_active_jobs is False (polling should not run)
+            template_call = mock_template.call_args
+            context = template_call[0][1]
+            assert context["has_active_jobs"] is False
+
+
+def test_delete_background_jobs_success(test_user):
+    """Test deleting background jobs via checkboxes."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.delete_jobs") as mock_delete:
+        mock_delete.return_value = 2  # 2 jobs deleted
+
+        client = TestClient(app)
+        response = client.post(
+            "/account/background-jobs/delete",
+            data={"job_ids": ["job1", "job2"]},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/background-jobs?success=deleted_2"
+        mock_delete.assert_called_once()
+        # Verify job IDs were passed correctly
+        call_args = mock_delete.call_args
+        assert call_args[0][1] == ["job1", "job2"]
+
+
+def test_delete_background_jobs_no_selection(test_user):
+    """Test deleting background jobs with no checkboxes selected."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/background-jobs/delete",
+        data={},  # No job_ids
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/background-jobs?error=no_jobs_selected"
+
+
+def test_job_output_detail_success(test_user):
+    """Test viewing job output detail page."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
+        with patch("routers.account.templates.TemplateResponse") as mock_template:
+            from datetime import datetime
+            from fastapi.responses import HTMLResponse
+            from schemas.bg_tasks import JobDetail, JobStatus
+
+            mock_get.return_value = JobDetail(
+                id="job1",
+                job_type="export_events",
+                status=JobStatus.COMPLETED,
+                created_at=datetime.now(),
+                started_at=datetime.now(),
+                completed_at=datetime.now(),
+                created_by=str(test_user["id"]),
+                result={"output": "Job completed successfully\nExported 100 events"},
+            )
+            mock_template.return_value = HTMLResponse(content="<html>Job Output</html>")
+
+            client = TestClient(app)
+            response = client.get("/account/background-jobs/job1/output")
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 200
+            mock_get.assert_called_once_with(
+                {"id": test_user["id"], "tenant_id": test_user["tenant_id"], "role": test_user["role"]},
+                "job1",
+            )
+            # Verify template was called with job details
+            template_call = mock_template.call_args
+            assert template_call[0][0] == "account_job_output.html"
+            context = template_call[0][1]
+            assert "job" in context
+
+
+def test_job_output_detail_not_found(test_user):
+    """Test viewing job output for non-existent job."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import NotFoundError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
+        mock_get.side_effect = NotFoundError(message="Job not found", code="job_not_found")
+
+        client = TestClient(app)
+        response = client.get("/account/background-jobs/nonexistent/output", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/background-jobs?error=job_not_found"
+
+
+def test_download_background_job_file_success(test_user):
+    """Test downloading background job file (cloud storage redirect)."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.exports_service.get_download") as mock_get_download:
+        # Mock cloud storage download (redirects to signed URL)
+        mock_get_download.return_value = {
+            "storage_type": "spaces",
+            "url": "https://example.s3.amazonaws.com/file123.json.gz?signature=abc",
+        }
+
+        client = TestClient(app)
+        response = client.get("/account/background-jobs/download/file123", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 302
+        assert "example.s3.amazonaws.com" in response.headers["location"]
+        mock_get_download.assert_called_once()
+
+
+def test_background_jobs_service_error_handling(test_user):
+    """Test background jobs list page handles service errors."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+    from services.exceptions import ServiceError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
+        with patch("routers.account.render_error_page") as mock_error:
+            from fastapi.responses import HTMLResponse
+
+            mock_list.side_effect = ServiceError(message="Database error", code="db_error")
+            mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+            client = TestClient(app)
+            response = client.get("/account/background-jobs")
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error.assert_called_once()

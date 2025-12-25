@@ -21,6 +21,7 @@ You are a senior software developer with many years of experience and a keen eye
 
 ## Source of Truth
 
+- **ISSUES_ARCHIVE.md** should be checked first to understand recently resolved issues and their fixes
 - **BACKLOG_ARCHIVE.md** is your starting point to understand what the app should do
 - Archived items are pointers, not exhaustive - they may fall out of relevance
 - You are encouraged to explore beyond archived items

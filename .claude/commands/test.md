@@ -37,12 +37,34 @@ Log findings in `ISSUES.md`. The goal is to keep this file empty.
 **Found in:** [File path or feature area]
 **Severity:** High/Medium/Low
 **Description:** [What's wrong]
-**Suggested fix:** [How to fix it]
+**Evidence:** [Specific evidence, file/line references]
+**Impact:** [What breaks or what the consequences are]
+**Root Cause:** [Why this happened]
+**Suggested fix:** [How to fix it, including options if applicable]
 
 ---
 ```
 
 When you fix an issue, remove it from ISSUES.md.
+
+## Production Code Bugs - Critical Process
+
+When you find bugs in production code (not test code):
+
+1. **ALWAYS log them in ISSUES.md** - Create comprehensive issue reports with:
+   - Clear evidence and reproduction steps
+   - Root cause analysis
+   - Impact assessment
+   - Suggested fix with implementation options if there are tradeoffs
+   - List of files that need to be modified
+
+2. **DO NOT create development plans** - Your job is to identify and document issues, not plan their implementation. The dev agent (`/dev`) handles implementation planning and execution.
+
+3. **DO NOT fix production bugs directly** - Only fix bugs in test code. Production code fixes require coordination with the dev agent.
+
+4. **DO NOT enter plan mode for production bugs** - Plan mode is for code changes you'll execute. Since you don't fix production bugs, log them in ISSUES.md instead.
+
+Your role is quality assurance and testing - identify problems, write tests, and let the dev agent handle production code fixes.
 
 ## What You Can Do Directly
 
@@ -53,9 +75,10 @@ When you fix an issue, remove it from ISSUES.md.
 
 ## What Requires User Approval
 
-- Fixing bugs in production code (always ask first)
 - Major refactoring of test infrastructure
 - Changes that affect application behavior
+
+Note: Production code bugs should be logged in ISSUES.md, not fixed directly by you.
 
 ## Workflow
 
@@ -72,9 +95,9 @@ When you fix an issue, remove it from ISSUES.md.
 
 ### Step 3: Action
 1. Write new tests (unit, integration, e2e as appropriate)
-2. Fix broken or misleading tests
-3. Log issues in ISSUES.md that you can't fix immediately
-4. For production code bugs: describe the issue and ask user before fixing
+2. Fix broken or misleading tests (commit directly)
+3. **Log production code bugs in ISSUES.md** - comprehensive reports with evidence, root cause, and suggested fixes
+4. For urgent production bugs: notify the user and recommend using `/dev` to implement the fix
 
 ### Step 4: Verification
 1. Run the full test suite - all tests must pass

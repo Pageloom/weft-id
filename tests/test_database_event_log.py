@@ -1,5 +1,6 @@
 """Tests for database.event_log module."""
 
+import pytest
 from uuid import uuid4
 
 
@@ -469,3 +470,164 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     # Verify request metadata was captured
     assert event["metadata"]["remote_address"] == "127.0.0.1"
     assert "Test Browser" in event["metadata"]["user_agent"]
+
+
+@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
+def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user):
+    """Edge case: Test metadata hash computation with complex nested structures.
+
+    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
+    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
+    """
+    from services.event_log import log_event
+    from uuid import uuid4
+
+    # Create metadata with nested dicts, arrays, and special characters
+    event_id = str(uuid4())
+    complex_metadata = {
+        "nested_dict": {
+            "level_1": {
+                "level_2": {"value": "deep nesting"},
+                "array": [1, 2, 3, {"key": "value"}],
+            }
+        },
+        "special_chars": "Test with émojis 🚀 and símbolos",
+        "array_of_objects": [
+            {"id": 1, "name": "First"},
+            {"id": 2, "name": "Second"},
+        ],
+        "unicode": "日本語テスト",
+    }
+
+    # Log event with complex metadata
+    log_event(
+        tenant_id=str(test_tenant["id"]),
+        actor_user_id=str(test_user["id"]),
+        artifact_type="test_artifact",
+        artifact_id=event_id,
+        event_type="test_complex_metadata",
+        metadata=complex_metadata,
+    )
+
+    # Verify event was created successfully
+    import database
+    events = database.event_log.list_events(
+        test_tenant["id"],
+        artifact_type="test_artifact",
+        artifact_id=event_id,
+    )
+    assert len(events) == 1
+
+    # Verify nested metadata was preserved
+    event = events[0]
+    assert event["metadata"]["nested_dict"]["level_1"]["level_2"]["value"] == "deep nesting"
+    assert event["metadata"]["special_chars"] == "Test with émojis 🚀 and símbolos"
+    assert len(event["metadata"]["array_of_objects"]) == 2
+
+
+@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
+def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
+    """Edge case: Test that identical metadata produces identical hashes.
+
+    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
+    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
+    """
+    from services.event_log import log_event
+    from uuid import uuid4
+    import database
+
+    # Create two events with identical custom metadata
+    metadata = {
+        "key1": "value1",
+        "key2": 12345,
+        "key3": {"nested": "data"},
+    }
+
+    event_id_1 = str(uuid4())
+    event_id_2 = str(uuid4())
+
+    # Log two events with same metadata
+    log_event(
+        tenant_id=str(test_tenant["id"]),
+        actor_user_id=str(test_user["id"]),
+        artifact_type="test_artifact",
+        artifact_id=event_id_1,
+        event_type="test_deterministic_hash_1",
+        metadata=metadata.copy(),
+    )
+
+    log_event(
+        tenant_id=str(test_tenant["id"]),
+        actor_user_id=str(test_user["id"]),
+        artifact_type="test_artifact",
+        artifact_id=event_id_2,
+        event_type="test_deterministic_hash_2",
+        metadata=metadata.copy(),
+    )
+
+    # Fetch both events
+    events = database.fetchall(
+        test_tenant["id"],
+        """
+        SELECT metadata_hash FROM event_logs
+        WHERE artifact_id IN (:id1, :id2)
+        ORDER BY created_at
+        """,
+        {"id1": event_id_1, "id2": event_id_2},
+    )
+
+    # Both events should have the same metadata_hash (deduplication)
+    assert len(events) == 2
+    assert events[0]["metadata_hash"] == events[1]["metadata_hash"]
+
+
+@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
+def test_metadata_hash_with_boolean_and_null_values(test_tenant, test_user):
+    """Edge case: Test metadata hash with boolean true/false and null values.
+
+    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
+    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
+    """
+    from services.event_log import log_event
+    from uuid import uuid4
+    import database
+
+    # Create metadata with various value types including null, true, false
+    event_id = str(uuid4())
+    metadata_with_nulls = {
+        "bool_true": True,
+        "bool_false": False,
+        "null_value": None,
+        "zero": 0,
+        "empty_string": "",
+        "empty_array": [],
+        "empty_dict": {},
+    }
+
+    # Log event
+    log_event(
+        tenant_id=str(test_tenant["id"]),
+        actor_user_id=str(test_user["id"]),
+        artifact_type="test_artifact",
+        artifact_id=event_id,
+        event_type="test_null_boolean_values",
+        metadata=metadata_with_nulls,
+    )
+
+    # Verify event was created and metadata preserved
+    events = database.event_log.list_events(
+        test_tenant["id"],
+        artifact_type="test_artifact",
+        artifact_id=event_id,
+    )
+    assert len(events) == 1
+
+    event = events[0]
+    # Verify boolean and null values are correctly stored
+    assert event["metadata"]["bool_true"] is True
+    assert event["metadata"]["bool_false"] is False
+    assert event["metadata"]["null_value"] is None
+    assert event["metadata"]["zero"] == 0
+    assert event["metadata"]["empty_string"] == ""
+    assert event["metadata"]["empty_array"] == []
+    assert event["metadata"]["empty_dict"] == {}

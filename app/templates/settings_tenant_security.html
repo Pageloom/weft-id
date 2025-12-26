@@ -27,7 +27,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="/settings/tenant-security/update">
+        <form method="post" action="/admin/security/update">
             <div class="border-t border-gray-200 pt-6">
                 <h2 class="text-lg font-medium mb-4">Session Configuration</h2>
                 <div class="mb-6">
@@ -140,8 +140,8 @@
 
         <div class="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
             <p class="text-sm text-blue-800">
-                <strong>Note:</strong> Changes to session timeout will apply to new login sessions.
-                Existing sessions will continue until they naturally expire or the user logs out.
+                <strong>Note:</strong> Changes to session timeout apply immediately to all active sessions.
+                Users with sessions exceeding the new timeout will be signed out on their next request.
             </p>
         </div>
     </div>

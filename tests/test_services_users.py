@@ -823,3 +823,138 @@ def test_update_current_user_profile_tracks_changes(test_tenant, test_user):
     assert "first_name" in events[0]["metadata"]["changes"]
     assert events[0]["metadata"]["changes"]["first_name"]["old"] == old_first_name
     assert events[0]["metadata"]["changes"]["first_name"]["new"] == "TrackedChange"
+
+
+def test_create_user_with_auto_create_email_false(test_super_admin_user, test_tenant):
+    """Test create_user with auto_create_email=False does not create email record."""
+    from services import users as users_service
+    import database
+
+    requesting_user: RequestingUser = {
+        "id": str(test_super_admin_user["id"]),
+        "tenant_id": str(test_tenant["id"]),
+        "role": "super_admin",
+    }
+
+    user_data = UserCreate(
+        first_name="Test",
+        last_name="NoEmail",
+        email="noemail@example.com",
+        role="member",
+    )
+
+    # Create user with auto_create_email=False
+    result = users_service.create_user(
+        requesting_user=requesting_user,
+        user_data=user_data,
+        auto_create_email=False,
+    )
+
+    # Verify user was created
+    assert result.id is not None
+    assert result.first_name == "Test"
+    assert result.last_name == "NoEmail"
+
+    # Verify NO email record was created
+    emails = database.fetchall(
+        test_tenant["id"],
+        "SELECT * FROM user_emails WHERE user_id = :user_id",
+        {"user_id": result.id},
+    )
+    assert len(emails) == 0
+
+
+def test_create_user_with_auto_create_email_true_default(test_super_admin_user, test_tenant):
+    """Test create_user without auto_create_email parameter (defaults to True) creates verified email."""
+    from services import users as users_service
+    import database
+
+    requesting_user: RequestingUser = {
+        "id": str(test_super_admin_user["id"]),
+        "tenant_id": str(test_tenant["id"]),
+        "role": "super_admin",
+    }
+
+    user_data = UserCreate(
+        first_name="Test",
+        last_name="WithEmail",
+        email="withemail@example.com",
+        role="member",
+    )
+
+    # Create user without specifying auto_create_email (should default to True)
+    result = users_service.create_user(
+        requesting_user=requesting_user,
+        user_data=user_data,
+        # auto_create_email not specified, defaults to True
+    )
+
+    # Verify user was created
+    assert result.id is not None
+
+    # Verify email record was created with is_verified=True
+    emails = database.fetchall(
+        test_tenant["id"],
+        "SELECT * FROM user_emails WHERE user_id = :user_id",
+        {"user_id": result.id},
+    )
+    assert len(emails) == 1
+    assert emails[0]["email"] == "withemail@example.com"
+    assert emails[0]["is_primary"] is True
+    assert emails[0]["verified_at"] is not None  # Should be verified
+
+
+def test_create_user_auto_create_email_false_then_add_email(test_super_admin_user, test_tenant):
+    """Integration test: Create user with auto_create_email=False, then manually add email."""
+    from services import users as users_service
+    import database
+
+    requesting_user: RequestingUser = {
+        "id": str(test_super_admin_user["id"]),
+        "tenant_id": str(test_tenant["id"]),
+        "role": "super_admin",
+    }
+
+    # Step 1: Create user without email
+    user_data = UserCreate(
+        first_name="Test",
+        last_name="ManualEmail",
+        email="manualemail@example.com",
+        role="member",
+    )
+
+    user = users_service.create_user(
+        requesting_user=requesting_user,
+        user_data=user_data,
+        auto_create_email=False,
+    )
+
+    # Verify no email exists yet
+    emails_before = database.fetchall(
+        test_tenant["id"],
+        "SELECT * FROM user_emails WHERE user_id = :user_id",
+        {"user_id": user.id},
+    )
+    assert len(emails_before) == 0
+
+    # Step 2: Manually add email using add_verified_email_with_nonce
+    email_result = users_service.add_verified_email_with_nonce(
+        tenant_id=str(test_tenant["id"]),
+        user_id=user.id,
+        email="manualemail@example.com",
+        is_primary=True,
+    )
+
+    # Verify email was added
+    assert email_result is not None
+    assert email_result["email"] == "manualemail@example.com"
+
+    # Verify both user and email exist now
+    emails_after = database.fetchall(
+        test_tenant["id"],
+        "SELECT * FROM user_emails WHERE user_id = :user_id",
+        {"user_id": user.id},
+    )
+    assert len(emails_after) == 1
+    assert emails_after[0]["email"] == "manualemail@example.com"
+    assert emails_after[0]["is_primary"] is True

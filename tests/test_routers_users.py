@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 
@@ -1523,3 +1524,241 @@ def test_users_list_all_three_roles(test_admin_user):
                 assert response.status_code == 200
                 count_call_args = mock_count.call_args[0]
                 assert set(count_call_args[2]) == {"member", "admin", "super_admin"}
+
+
+@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
+def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_tenant):
+    """Integration test: Verify event log created when creating user via HTML router with privileged domain.
+
+    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
+    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
+    """
+    import database
+    from uuid import uuid4
+
+    override_auth(app, test_admin_user)
+
+    # Add a privileged domain for the tenant
+    domain = "privileged.com"
+    database.execute(
+        test_tenant["id"],
+        "INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by) VALUES (:tenant_id, :domain, :created_by)",
+        {"tenant_id": test_tenant["id"], "domain": domain, "created_by": test_admin_user["id"]},
+    )
+
+    # Create user via HTML router
+    unique_suffix = str(uuid4())[:8]
+    new_email = f"newuser-{unique_suffix}@{domain}"
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": new_email,
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    # Verify redirect indicates success
+    assert response.status_code == 303
+    assert "success=user_created" in response.headers["location"]
+
+    # Extract user_id from redirect URL
+    location = response.headers["location"]
+    user_id = location.split("/users/")[1].split("?")[0]
+
+    # Query event_logs table to verify event was created
+    event = database.fetchone(
+        test_tenant["id"],
+        """
+        SELECT event_type, artifact_type, artifact_id, actor_user_id, metadata_hash
+        FROM event_logs
+        WHERE artifact_type = 'user' AND artifact_id = :user_id
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        {"user_id": user_id},
+    )
+
+    # Verify event exists
+    assert event is not None
+    assert event["event_type"] == "user_created"
+    assert event["artifact_type"] == "user"
+    assert event["artifact_id"] == user_id
+    assert event["actor_user_id"] == test_admin_user["id"]
+
+    # Verify metadata was stored (metadata_hash should not be null)
+    assert event["metadata_hash"] is not None
+
+    # Get metadata to verify it includes role and email
+    metadata = database.fetchone(
+        database.UNSCOPED,
+        "SELECT metadata FROM event_log_metadata WHERE metadata_hash = :hash",
+        {"hash": event["metadata_hash"]},
+    )
+    assert metadata is not None
+    assert "role" in metadata["metadata"]
+    assert metadata["metadata"]["role"] == "member"
+    assert "email" in metadata["metadata"]
+    assert metadata["metadata"]["email"] == new_email
+
+
+@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
+def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, test_tenant):
+    """Integration test: Verify event log created when creating user via HTML router with non-privileged domain.
+
+    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
+    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
+    """
+    import database
+    from uuid import uuid4
+
+    override_auth(app, test_admin_user)
+
+    # Use a non-privileged domain (no entry in privileged_domains table)
+    domain = "nonprivileged.com"
+
+    # Create user via HTML router
+    unique_suffix = str(uuid4())[:8]
+    new_email = f"newuser-{unique_suffix}@{domain}"
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": new_email,
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    # Verify redirect indicates success
+    assert response.status_code == 303
+    assert "success=user_created" in response.headers["location"]
+
+    # Extract user_id from redirect URL
+    location = response.headers["location"]
+    user_id = location.split("/users/")[1].split("?")[0]
+
+    # Query event_logs table to verify event was created
+    event = database.fetchone(
+        test_tenant["id"],
+        """
+        SELECT event_type, artifact_type, artifact_id, actor_user_id, metadata_hash
+        FROM event_logs
+        WHERE artifact_type = 'user' AND artifact_id = :user_id
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        {"user_id": user_id},
+    )
+
+    # Verify event exists
+    assert event is not None
+    assert event["event_type"] == "user_created"
+    assert event["artifact_type"] == "user"
+    assert event["artifact_id"] == user_id
+    assert event["actor_user_id"] == test_admin_user["id"]
+
+    # Verify metadata was stored
+    assert event["metadata_hash"] is not None
+
+    # Get metadata to verify it includes role and email
+    metadata = database.fetchone(
+        database.UNSCOPED,
+        "SELECT metadata FROM event_log_metadata WHERE metadata_hash = :hash",
+        {"hash": event["metadata_hash"]},
+    )
+    assert metadata is not None
+    assert "role" in metadata["metadata"]
+    assert metadata["metadata"]["role"] == "member"
+    assert "email" in metadata["metadata"]
+    assert metadata["metadata"]["email"] == new_email
+
+
+def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant):
+    """Test password set URL format for privileged domain users."""
+    import database
+    from uuid import uuid4, UUID
+
+    override_auth(app, test_admin_user)
+
+    # Add a privileged domain for the tenant
+    domain = "privileged-test.com"
+    database.execute(
+        test_tenant["id"],
+        "INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by) VALUES (:tenant_id, :domain, :created_by)",
+        {"tenant_id": test_tenant["id"], "domain": domain, "created_by": test_admin_user["id"]},
+    )
+
+    # Patch the email sending function to capture the password_set_url
+    with patch("routers.users.send_new_user_privileged_domain_notification") as mock_send:
+        # Create user via HTML router
+        unique_suffix = str(uuid4())[:8]
+        new_email = f"pwdtest-{unique_suffix}@{domain}"
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/new",
+            data={
+                "email": new_email,
+                "first_name": "Password",
+                "last_name": "Test",
+                "role": "member",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        # Verify redirect indicates success
+        assert response.status_code == 303
+        assert "success=user_created" in response.headers["location"]
+
+        # Verify email was sent with password set link
+        assert mock_send.called
+        call_args = mock_send.call_args[0]
+        password_set_url = call_args[3]  # 4th argument is password_set_url
+
+        # Verify URL format: should contain /set-password?email_id={uuid}
+        assert "/set-password?email_id=" in password_set_url
+
+        # Extract email_id from URL
+        email_id = password_set_url.split("email_id=")[1]
+
+        # Verify email_id is a valid UUID
+        try:
+            UUID(email_id)  # Will raise ValueError if not a valid UUID
+        except ValueError:
+            pytest.fail(f"email_id '{email_id}' is not a valid UUID")
+
+
+def test_set_password_with_invalid_email_id_returns_error(test_tenant):
+    """Test /set-password route with non-existent email_id returns error redirect."""
+    from uuid import uuid4
+
+    client = TestClient(app)
+
+    # Use a valid UUID format that doesn't exist in database
+    non_existent_email_id = str(uuid4())
+
+    # Try to access /set-password with non-existent email_id
+    response = client.get(
+        f"/set-password?email_id={non_existent_email_id}",
+        headers={"host": f"{test_tenant['subdomain']}.pageloom.localhost"},
+        follow_redirects=False,
+    )
+
+    # Should redirect to login with error
+    assert response.status_code == 303
+    assert "/login" in response.headers["location"]
+    assert "error=invalid_link" in response.headers["location"]

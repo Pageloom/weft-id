@@ -536,3 +536,27 @@ def test_update_tenant_security_invalid_timeout_shows_error_page(test_super_admi
         # Route validates timeout and returns error page
         assert response.status_code == 400
         mock_template.assert_called_once()
+
+
+def test_tenant_security_form_action_url_is_correct():
+    """Test that the security settings template form posts to the correct URL.
+
+    This test reads the template file directly and verifies the form
+    action attribute points to the correct endpoint.
+    Regression test for bug where form posted to wrong URL causing 404.
+    """
+    import os
+
+    # Read the template file directly
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+    )
+    with open(template_path, "r") as f:
+        template_content = f.read()
+
+    # Verify the form action points to the correct route
+    assert 'action="/admin/security/update"' in template_content, (
+        "Form should POST to /admin/security/update to match the route at "
+        "app/routers/settings.py:143 (router prefix='/admin', route='/security/update'). "
+        "Found form action does not match the actual route endpoint."
+    )

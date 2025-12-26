@@ -118,12 +118,14 @@ def hash_session_id(session_id: str | None) -> str | None:
 def compute_metadata_hash(metadata: dict[str, Any]) -> str:
     """Compute MD5 hash of metadata for deduplication.
 
-    Uses deterministic JSON serialization to ensure consistent hashing:
-    - Keys sorted alphabetically (sort_keys=True)
-    - Compact format with no spaces (separators=(',', ':'))
+    IMPORTANT: This must match PostgreSQL's jsonb::text output format exactly.
+    PostgreSQL stores JSONB keys in a specific order (not alphabetical).
 
-    This must match the PostgreSQL implementation in the migration:
-    md5(jsonb::text) where JSONB stores keys in sorted order.
+    For compatibility with existing database records created by migration 00015,
+    we manually construct the JSON string to match PostgreSQL's format:
+    - Keys in PostgreSQL's order (not alphabetical)
+    - Spaces after colons and commas
+    - Format: {"key": value, "key2": value2}
 
     Args:
         metadata: Metadata dictionary (must include 4 required fields)
@@ -131,8 +133,43 @@ def compute_metadata_hash(metadata: dict[str, Any]) -> str:
     Returns:
         MD5 hash as hex string (32 characters)
     """
-    # Serialize with deterministic format
-    json_str = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+    # PostgreSQL's jsonb::text produces keys in this specific order for our metadata:
+    # device, user_agent, remote_address, session_id_hash (plus any custom keys alphabetically after)
+
+    # Extract the 4 required base keys in PostgreSQL's order
+    base_keys_in_pg_order = ["device", "user_agent", "remote_address", "session_id_hash"]
+
+    # Get custom keys (anything not in base keys) and sort them alphabetically
+    custom_keys = sorted([k for k in metadata.keys() if k not in base_keys_in_pg_order])
+
+    # Combine: base keys in PG order + custom keys alphabetically
+    all_keys_ordered = base_keys_in_pg_order + custom_keys
+
+    # Manually construct JSON string matching PostgreSQL's format
+    pairs = []
+    for key in all_keys_ordered:
+        if key not in metadata:
+            continue  # Skip if key doesn't exist (though all base keys should exist)
+        value = metadata[key]
+        # Convert value to JSON
+        if value is None:
+            value_str = "null"
+        elif isinstance(value, bool):
+            value_str = "true" if value else "false"
+        elif isinstance(value, str):
+            value_str = json.dumps(value)  # Properly escape strings
+        elif isinstance(value, (int, float)):
+            value_str = str(value)
+        elif isinstance(value, dict):
+            value_str = json.dumps(value, sort_keys=True)
+        elif isinstance(value, list):
+            value_str = json.dumps(value)
+        else:
+            value_str = json.dumps(value)
+
+        pairs.append(f'"{key}": {value_str}')
+
+    json_str = "{" + ", ".join(pairs) + "}"
 
     # Compute MD5 hash
     return hashlib.md5(json_str.encode("utf-8")).hexdigest()

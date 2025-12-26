@@ -2,11 +2,43 @@
 
 import pytest
 from uuid import uuid4
+from typing import Any
+
+
+def _prepare_event_metadata(custom_metadata: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
+    """Helper to prepare combined_metadata and metadata_hash for create_event().
+
+    Args:
+        custom_metadata: Optional custom event metadata
+
+    Returns:
+        Tuple of (combined_metadata, metadata_hash)
+    """
+    from utils.request_metadata import compute_metadata_hash
+
+    # Build combined metadata with required request fields (all null for tests)
+    combined_metadata: dict[str, Any] = {
+        "device": None,
+        "remote_address": None,
+        "session_id_hash": None,
+        "user_agent": None,
+    }
+
+    # Merge in custom metadata if provided
+    if custom_metadata:
+        combined_metadata.update(custom_metadata)
+
+    # Compute hash
+    metadata_hash = compute_metadata_hash(combined_metadata)
+
+    return combined_metadata, metadata_hash
 
 
 def test_create_event(test_tenant, test_user):
     """Test creating an event log entry."""
     import database
+
+    combined_metadata, metadata_hash = _prepare_event_metadata({"role": "member"})
 
     result = database.event_log.create_event(
         tenant_id=test_tenant["id"],
@@ -15,7 +47,8 @@ def test_create_event(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type="user_created",
-        metadata={"role": "member"},
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     assert result is not None
@@ -27,6 +60,8 @@ def test_create_event_without_metadata(test_tenant, test_user):
     """Test creating an event log entry without metadata."""
     import database
 
+    combined_metadata, metadata_hash = _prepare_event_metadata(None)
+
     result = database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -34,7 +69,8 @@ def test_create_event_without_metadata(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type="user_deleted",
-        metadata=None,
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     assert result is not None
@@ -47,6 +83,7 @@ def test_list_events(test_tenant, test_user):
 
     # Create some events
     for i in range(3):
+        combined_metadata, metadata_hash = _prepare_event_metadata()
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=str(test_tenant["id"]),
@@ -54,6 +91,8 @@ def test_list_events(test_tenant, test_user):
             artifact_type="user",
             artifact_id=str(test_user["id"]),
             event_type=f"test_event_{i}_{uuid4().hex[:8]}",
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     events = database.event_log.list_events(test_tenant["id"], limit=10)
@@ -69,6 +108,7 @@ def test_list_events_filter_by_artifact_type(test_tenant, test_user):
     other_artifact_id = str(uuid4())
 
     # Create events for different artifact types
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -76,7 +116,10 @@ def test_list_events_filter_by_artifact_type(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type=f"user_updated_{unique_suffix}",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -84,6 +127,8 @@ def test_list_events_filter_by_artifact_type(test_tenant, test_user):
         artifact_type="privileged_domain",
         artifact_id=other_artifact_id,
         event_type=f"privileged_domain_added_{unique_suffix}",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     # Filter by artifact type
@@ -104,6 +149,7 @@ def test_list_events_filter_by_event_type(test_tenant, test_user):
     event_type = f"unique_event_type_{unique_suffix}"
 
     # Create an event with unique type
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -111,6 +157,8 @@ def test_list_events_filter_by_event_type(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type=event_type,
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     # Filter by event type
@@ -127,6 +175,7 @@ def test_list_events_filter_by_actor(test_tenant, test_user, test_admin_user):
     unique_suffix = uuid4().hex[:8]
 
     # Create events by different actors
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -134,7 +183,10 @@ def test_list_events_filter_by_actor(test_tenant, test_user, test_admin_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type=f"event_by_user_{unique_suffix}",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -142,6 +194,8 @@ def test_list_events_filter_by_actor(test_tenant, test_user, test_admin_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type=f"event_by_admin_{unique_suffix}",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     # Filter by actor
@@ -164,6 +218,7 @@ def test_list_events_pagination(test_tenant, test_user):
 
     # Create 5 events
     for i in range(5):
+        combined_metadata, metadata_hash = _prepare_event_metadata()
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=str(test_tenant["id"]),
@@ -171,6 +226,8 @@ def test_list_events_pagination(test_tenant, test_user):
             artifact_type="test_pagination",
             artifact_id=str(test_user["id"]),
             event_type=f"pagination_test_{i}_{unique_suffix}",
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     # Get first page
@@ -202,6 +259,7 @@ def test_count_events(test_tenant, test_user):
 
     # Create 3 events for this artifact
     for i in range(3):
+        combined_metadata, metadata_hash = _prepare_event_metadata()
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=str(test_tenant["id"]),
@@ -209,6 +267,8 @@ def test_count_events(test_tenant, test_user):
             artifact_type="user",
             artifact_id=unique_artifact_id,
             event_type=f"test_count_{i}",
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     new_count = database.event_log.count_events(test_tenant["id"], artifact_id=unique_artifact_id)
@@ -223,6 +283,7 @@ def test_count_events_filter_by_artifact_type(test_tenant, test_user):
     unique_suffix = uuid4().hex[:8]
 
     # Create events for different types
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -230,7 +291,10 @@ def test_count_events_filter_by_artifact_type(test_tenant, test_user):
         artifact_type=f"type_a_{unique_suffix}",
         artifact_id=str(uuid4()),
         event_type="test",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -238,6 +302,8 @@ def test_count_events_filter_by_artifact_type(test_tenant, test_user):
         artifact_type=f"type_b_{unique_suffix}",
         artifact_id=str(uuid4()),
         event_type="test",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     count_a = database.event_log.count_events(
@@ -261,6 +327,7 @@ def test_event_metadata_stored_correctly(test_tenant, test_user):
         "changes": {"first_name": {"old": "John", "new": "Jane"}},
     }
 
+    combined_metadata, metadata_hash = _prepare_event_metadata(metadata)
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -268,7 +335,8 @@ def test_event_metadata_stored_correctly(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type="metadata_test",
-        metadata=metadata,
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     events = database.event_log.list_events(test_tenant["id"], event_type="metadata_test")
@@ -288,6 +356,7 @@ def test_tenant_isolation(test_tenant, test_user):
     unique_event_type = f"isolated_event_{uuid4().hex[:8]}"
 
     # Create event in test tenant
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -295,6 +364,8 @@ def test_tenant_isolation(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type=unique_event_type,
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     # Create another tenant
@@ -341,6 +412,7 @@ def test_create_event_with_system_actor(test_tenant, test_user):
     import database
     from services.event_log import SYSTEM_ACTOR_ID
 
+    combined_metadata, metadata_hash = _prepare_event_metadata()
     result = database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=str(test_tenant["id"]),
@@ -348,6 +420,8 @@ def test_create_event_with_system_actor(test_tenant, test_user):
         artifact_type="user",
         artifact_id=str(test_user["id"]),
         event_type="system_action",
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     assert result is not None
@@ -472,13 +546,8 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     assert "Test Browser" in event["metadata"]["user_agent"]
 
 
-@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user):
-    """Edge case: Test metadata hash computation with complex nested structures.
-
-    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
-    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
-    """
+    """Edge case: Test metadata hash computation with complex nested structures."""
     from services.event_log import log_event
     from uuid import uuid4
 
@@ -525,13 +594,8 @@ def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user)
     assert len(event["metadata"]["array_of_objects"]) == 2
 
 
-@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
-    """Edge case: Test that identical metadata produces identical hashes.
-
-    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
-    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
-    """
+    """Edge case: Test that identical metadata produces identical hashes."""
     from services.event_log import log_event
     from uuid import uuid4
     import database
@@ -581,13 +645,8 @@ def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
     assert events[0]["metadata_hash"] == events[1]["metadata_hash"]
 
 
-@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_metadata_hash_with_boolean_and_null_values(test_tenant, test_user):
-    """Edge case: Test metadata hash with boolean true/false and null values.
-
-    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
-    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
-    """
+    """Edge case: Test metadata hash with boolean true/false and null values."""
     from services.event_log import log_event
     from uuid import uuid4
     import database

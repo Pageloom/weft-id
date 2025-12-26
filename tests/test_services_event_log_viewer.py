@@ -210,7 +210,12 @@ def test_get_event_as_admin(test_tenant, test_admin_user, test_user):
     assert result.id == event_id
     assert result.event_type == unique_type
     assert result.artifact_id == artifact_id
-    assert result.metadata == {"key": "value"}
+    # Metadata now includes both custom fields and base request metadata fields
+    assert result.metadata["key"] == "value"
+    assert "device" in result.metadata
+    assert "remote_address" in result.metadata
+    assert "session_id_hash" in result.metadata
+    assert "user_agent" in result.metadata
 
 
 def test_get_event_forbidden_for_member(test_tenant, test_user):

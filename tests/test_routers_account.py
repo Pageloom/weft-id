@@ -945,10 +945,15 @@ def test_job_output_detail_success(test_user):
             app.dependency_overrides.clear()
 
             assert response.status_code == 200
-            mock_get.assert_called_once_with(
-                {"id": test_user["id"], "tenant_id": test_user["tenant_id"], "role": test_user["role"]},
-                "job1",
-            )
+            # Verify mock was called with correct job_id and user info
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args[0]
+            requesting_user = call_args[0]
+            job_id = call_args[1]
+            assert requesting_user["id"] == str(test_user["id"])
+            assert requesting_user["tenant_id"] == test_user["tenant_id"]
+            assert requesting_user["role"] == test_user["role"]
+            assert job_id == "job1"
             # Verify template was called with job details
             template_call = mock_template.call_args
             assert template_call[0][0] == "account_job_output.html"

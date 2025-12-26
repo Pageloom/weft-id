@@ -112,3 +112,43 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Event Logging Completely Broken - Hash Mismatch Between Python and PostgreSQL
+
+**Status:** Resolved (2025-12-26)
+
+**Found in:** `app/utils/request_metadata.py` and `db-init/00015_event_log_metadata.sql`
+
+**Severity:** Critical
+
+**Description:** ALL event logging was broken since migration 00015 was deployed. Events were not being recorded in the database due to foreign key constraint violations. The metadata hash computed by Python code didn't match the hash computed by PostgreSQL during migration, causing INSERT failures.
+
+**Root Cause:**
+JSON key ordering mismatch between Python and PostgreSQL:
+1. Python's `json.dumps(sort_keys=True)` produces keys in alphabetical order
+2. PostgreSQL's `jsonb::text` produces keys in implementation-specific order (NOT alphabetical)
+3. For the 4 base metadata keys, PostgreSQL uses order: `device, user_agent, remote_address, session_id_hash`
+4. Python would produce alphabetical order: `device, remote_address, session_id_hash, user_agent`
+5. Different JSON strings → different MD5 hashes → foreign key constraint violations
+
+**Resolution:**
+- Modified `compute_metadata_hash()` in `app/utils/request_metadata.py` (lines 118-175) to manually construct JSON strings matching PostgreSQL's exact format:
+  - Base keys in PostgreSQL's order: `device, user_agent, remote_address, session_id_hash`
+  - Custom keys alphabetically after base keys
+  - Spaces after colons and commas: `{"key": value, "key2": value2}`
+- Fixed `create_event()` in `app/database/event_log.py` (line 42) to use `UNSCOPED` for inserting into the global `event_log_metadata` table (which has no tenant_id column)
+- Fixed test mock in `tests/test_database_event_log.py` (line 419) to use `mock_request.cookies` instead of `mock_request.session`
+
+**Verification:**
+- Test `test_hash_computation_matches_postgresql` now passes
+- Python and PostgreSQL produce identical hashes for the same metadata
+
+**Files Modified:**
+- `/root/code/loom/app/utils/request_metadata.py` - Hash computation logic
+- `/root/code/loom/app/database/event_log.py` - Use UNSCOPED for metadata table
+- `/root/code/loom/tests/test_database_event_log.py` - Fix test mock
+- `/root/code/loom/db-init/00016_fix_metadata_hashes.sql` - Migration file created (not needed since hash fix makes Python match PostgreSQL)
+
+**Note:** Additional test failures exist due to pre-existing RLS configuration issues in the test environment and database function signature changes from migration 00015. These are separate issues that don't impact the core hash mismatch fix.
+
+---
+

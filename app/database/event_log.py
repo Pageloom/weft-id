@@ -8,7 +8,7 @@ from typing import Any
 
 from psycopg.types.json import Json
 
-from ._core import TenantArg, fetchall, fetchone, UNSCOPED
+from ._core import TenantArg, execute, fetchall, fetchone, UNSCOPED
 
 
 def create_event(
@@ -39,7 +39,8 @@ def create_event(
     """
     # First, insert metadata into event_log_metadata table (ON CONFLICT DO NOTHING for dedup)
     # Note: event_log_metadata is a global table (no tenant_id), so use UNSCOPED
-    fetchone(
+    # Use execute() instead of fetchone() because INSERT without RETURNING doesn't have a result set
+    execute(
         UNSCOPED,
         """
         INSERT INTO event_log_metadata (metadata_hash, metadata)

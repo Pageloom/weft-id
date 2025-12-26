@@ -4,6 +4,35 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Event Logging Completely Broken - fetchone() Used with INSERT Without RETURNING
+
+**Status:** Resolved (2025-12-26)
+
+**Found in:** `app/database/event_log.py:42-53` (create_event metadata insert)
+
+**Severity:** Critical
+
+**Description:** ALL event logging was failing in the test environment with error "the last operation didn't produce records (command status: INSERT 0 1)". This affected every test that attempted to log events.
+
+**Root Cause:** The metadata insert used `fetchone()` for an INSERT query with `ON CONFLICT DO NOTHING` that didn't have a RETURNING clause. When the conflict occurred (metadata already existed), PostgreSQL returned 0 rows, and psycopg3's `fetchone()` raised a `ProgrammingError` because there was no result set to fetch from.
+
+**Resolution:**
+- Changed metadata insert in `app/database/event_log.py` to use `execute()` instead of `fetchone()` since we don't need the result
+- Added import for `execute` function from `._core`
+- Added explanatory comment about why `execute()` is used instead of `fetchone()`
+- Updated all database-level tests in `tests/test_database_event_log.py` to use new `create_event()` signature with `combined_metadata` and `metadata_hash` parameters
+- Added helper function `_prepare_event_metadata()` to simplify test code
+- Removed `@pytest.mark.xfail` decorators from 3 edge case tests that now pass
+
+**Initial Misdiagnosis:** The error message suggested an RLS (Row Level Security) policy issue, and a migration was created to split the RLS policy. However, manual psql tests showed the RLS policy was working correctly. The real issue was discovered through debug logging - the exception occurred during the metadata insert, not the event insert.
+
+**Files Modified:**
+- `app/database/event_log.py` - Changed fetchone() to execute() for metadata insert
+- `tests/test_database_event_log.py` - Updated all tests to use new create_event() signature
+- `db-init/00017_fix_event_log_rls.sql` - Created but not needed (RLS policy was not the issue)
+
+---
+
 ## Service Read Functions Missing track_activity() Calls
 
 **Status:** Resolved (2025-12-22)

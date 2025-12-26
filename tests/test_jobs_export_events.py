@@ -12,8 +12,38 @@ import json
 import pytest
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 from uuid import UUID, uuid4
+
+
+def _prepare_event_metadata(custom_metadata: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
+    """Helper to prepare combined_metadata and metadata_hash for create_event().
+
+    Args:
+        custom_metadata: Optional custom event metadata
+
+    Returns:
+        Tuple of (combined_metadata, metadata_hash)
+    """
+    from utils.request_metadata import compute_metadata_hash
+
+    # Build combined metadata with required request fields (all null for tests)
+    combined_metadata: dict[str, Any] = {
+        "device": None,
+        "remote_address": None,
+        "session_id_hash": None,
+        "user_agent": None,
+    }
+
+    # Merge in custom metadata if provided
+    if custom_metadata:
+        combined_metadata.update(custom_metadata)
+
+    # Compute hash
+    metadata_hash = compute_metadata_hash(combined_metadata)
+
+    return combined_metadata, metadata_hash
 
 
 # =============================================================================
@@ -61,6 +91,7 @@ def test_handle_export_events_success(test_tenant, test_admin_user):
 
     # Create some test events
     for i in range(5):
+        combined_metadata, metadata_hash = _prepare_event_metadata({"index": i})
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=test_tenant["id"],
@@ -68,7 +99,8 @@ def test_handle_export_events_success(test_tenant, test_admin_user):
             artifact_type="test",
             artifact_id=str(uuid4()),
             actor_user_id=test_admin_user["id"],
-            metadata={"index": i},
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     # Create background task record (needed for foreign key)
@@ -158,6 +190,7 @@ def test_handle_export_events_pagination(test_tenant, test_admin_user):
 
     # Create 2500 events to force pagination (batch size is 1000)
     for i in range(2500):
+        combined_metadata, metadata_hash = _prepare_event_metadata()
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=test_tenant["id"],
@@ -165,6 +198,8 @@ def test_handle_export_events_pagination(test_tenant, test_admin_user):
             artifact_type="test",
             artifact_id=str(uuid4()),
             actor_user_id=test_admin_user["id"],
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     # Create background task record (needed for foreign key)
@@ -198,6 +233,7 @@ def test_handle_export_events_json_structure(test_tenant, test_admin_user):
     import database
 
     # Create test event
+    combined_metadata, metadata_hash = _prepare_event_metadata({"key": "value"})
     database.event_log.create_event(
         tenant_id=test_tenant["id"],
         tenant_id_value=test_tenant["id"],
@@ -205,7 +241,8 @@ def test_handle_export_events_json_structure(test_tenant, test_admin_user):
         artifact_type="test",
         artifact_id=str(uuid4()),
         actor_user_id=test_admin_user["id"],
-        metadata={"key": "value"},
+        combined_metadata=combined_metadata,
+        metadata_hash=metadata_hash,
     )
 
     # Create background task record (needed for foreign key)
@@ -257,6 +294,7 @@ def test_handle_export_events_compression(test_tenant, test_admin_user):
 
     # Create several events
     for i in range(10):
+        combined_metadata, metadata_hash = _prepare_event_metadata()
         database.event_log.create_event(
             tenant_id=test_tenant["id"],
             tenant_id_value=test_tenant["id"],
@@ -264,6 +302,8 @@ def test_handle_export_events_compression(test_tenant, test_admin_user):
             artifact_type="test",
             artifact_id=str(uuid4()),
             actor_user_id=test_admin_user["id"],
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
 
     # Create background task record (needed for foreign key)

@@ -226,7 +226,7 @@ def test_update_user_name(client, test_tenant_host, oauth2_admin_authorization_h
 def test_update_user_role_as_admin(
     client, test_tenant_host, oauth2_admin_authorization_header, test_user
 ):
-    """Test updating a user's role from member to admin."""
+    """Test that promoting to admin requires super_admin (not just admin)."""
     response = client.patch(
         f"/api/v1/users/{test_user['id']}",
         headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
@@ -235,10 +235,8 @@ def test_update_user_role_as_admin(
         },
     )
 
-    assert response.status_code == 200
-    data = response.json()
-
-    assert data["role"] == "admin"
+    assert response.status_code == 403
+    assert "admin" in response.json()["detail"]
 
 
 def test_update_user_role_to_super_admin_requires_super_admin(

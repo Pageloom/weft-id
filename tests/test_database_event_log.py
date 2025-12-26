@@ -355,3 +355,117 @@ def test_create_event_with_system_actor(test_tenant, test_user):
     events = database.event_log.list_events(test_tenant["id"], actor_user_id=SYSTEM_ACTOR_ID)
     assert len(events) >= 1
     assert str(events[0]["actor_user_id"]) == SYSTEM_ACTOR_ID
+
+
+def test_hash_computation_matches_postgresql():
+    """Test that Python hash computation matches PostgreSQL JSONB hash.
+
+    This is a critical regression test for the event logging system.
+    Python and PostgreSQL must compute identical hashes for the same metadata
+    to avoid foreign key constraint violations when inserting events.
+
+    Bug history: Migration 00015 used PostgreSQL's md5(jsonb::text) which produces
+    JSON with spaces after colons. Python's json.dumps(separators=(',', ':'))
+    produces compact JSON without spaces. This mismatch broke ALL event logging.
+    """
+    import database
+    from psycopg.types.json import Json
+
+    # Test metadata (system metadata with all null values)
+    metadata = {
+        "device": None,
+        "remote_address": None,
+        "session_id_hash": None,
+        "user_agent": None,
+    }
+
+    # Compute hash using Python (how the application does it)
+    from utils.request_metadata import compute_metadata_hash
+    python_hash = compute_metadata_hash(metadata)
+
+    # Compute hash using PostgreSQL (how migration 00015 did it)
+    # PostgreSQL's JSONB to text conversion adds spaces after colons
+    with database.session(tenant_id=database.UNSCOPED) as cur:
+        cur.execute(
+            "SELECT md5(%s::jsonb::text) as pg_hash",
+            (Json(metadata),)
+        )
+        result = cur.fetchone()
+        pg_hash = result["pg_hash"]
+
+    # They MUST match
+    assert python_hash == pg_hash, (
+        f"Hash mismatch! Python={python_hash}, PostgreSQL={pg_hash}. "
+        f"This will cause foreign key violations when logging events. "
+        f"Check that Python's json.dumps() separator matches PostgreSQL's jsonb::text format."
+    )
+
+
+def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
+    """Integration test: Verify event logging creates both metadata and event records.
+
+    This test ensures that log_event() successfully creates records in both
+    event_log_metadata and event_logs tables without foreign key violations.
+    """
+    import database
+    from services.event_log import log_event
+    from dependencies import build_requesting_user
+    from unittest.mock import Mock
+
+    # Create a mock request with metadata
+    mock_request = Mock()
+    mock_request.client.host = "127.0.0.1"
+    mock_request.headers = {"user-agent": "Test Browser"}
+    mock_request.session = {"session_id": "test-session"}
+
+    # Build requesting user with request metadata
+    requesting_user = build_requesting_user(test_user, str(test_tenant["id"]), mock_request)
+
+    # Get initial counts
+    initial_metadata_count = database.fetchone(
+        database.UNSCOPED,
+        "SELECT COUNT(*) as count FROM event_log_metadata",
+        None
+    )["count"]
+
+    initial_events_count = database.event_log.count_events(test_tenant["id"])
+
+    # Log an event
+    event_id = str(uuid4())
+    log_event(
+        tenant_id=str(test_tenant["id"]),
+        actor_user_id=str(test_user["id"]),
+        artifact_type="test_artifact",
+        artifact_id=event_id,
+        event_type="test_event_with_metadata",
+        metadata={"test_key": "test_value"},
+        request_metadata=requesting_user.get("request_metadata"),
+    )
+
+    # Verify metadata was created (may be deduplicated, so count >= initial)
+    new_metadata_count = database.fetchone(
+        database.UNSCOPED,
+        "SELECT COUNT(*) as count FROM event_log_metadata",
+        None
+    )["count"]
+    assert new_metadata_count >= initial_metadata_count
+
+    # Verify event was created
+    new_events_count = database.event_log.count_events(test_tenant["id"])
+    assert new_events_count == initial_events_count + 1
+
+    # Verify the event can be retrieved and has correct metadata
+    events = database.event_log.list_events(
+        test_tenant["id"],
+        artifact_type="test_artifact",
+        artifact_id=event_id
+    )
+    assert len(events) == 1
+    event = events[0]
+
+    # Verify custom metadata was preserved
+    assert event["metadata"]["test_key"] == "test_value"
+
+    # Verify request metadata was captured
+    assert event["metadata"]["remote_address"] == "127.0.0.1"
+    assert "Test Browser" in event["metadata"]["user_agent"]

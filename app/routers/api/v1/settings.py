@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from api_dependencies import require_admin_api, require_super_admin_api
-from dependencies import get_tenant_id_from_request
+from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends
 from schemas.settings import (
     PrivilegedDomain,
@@ -19,13 +19,6 @@ from utils.service_errors import translate_to_http_exception
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
 
-def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
-    """Convert route user dict to RequestingUser for service layer."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=user.get("role", "user"),
-    )
 
 
 # =============================================================================
@@ -46,7 +39,7 @@ def list_privileged_domains(
     Returns:
         List of privileged domains with metadata
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
 
     try:
         return settings_service.list_privileged_domains(requesting_user)
@@ -71,7 +64,7 @@ def add_privileged_domain(
     Returns:
         The created privileged domain
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
 
     try:
         return settings_service.add_privileged_domain(requesting_user, domain_data)
@@ -96,7 +89,7 @@ def delete_privileged_domain(
     Returns:
         204 No Content on success
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
 
     try:
         settings_service.delete_privileged_domain(requesting_user, domain_id)
@@ -123,7 +116,7 @@ def get_tenant_security(
     Returns:
         Current security settings
     """
-    requesting_user = _to_requesting_user(super_admin, tenant_id)
+    requesting_user = build_requesting_user(super_admin, tenant_id, None)
 
     try:
         return settings_service.get_security_settings(requesting_user)
@@ -151,7 +144,7 @@ def update_tenant_security(
     Returns:
         Updated security settings
     """
-    requesting_user = _to_requesting_user(super_admin, tenant_id)
+    requesting_user = build_requesting_user(super_admin, tenant_id, None)
 
     try:
         return settings_service.update_security_settings(requesting_user, settings_update)

@@ -548,6 +548,7 @@ def create_user(
             "role": user_data.role,
             "email": user_data.email,
         },
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _user_row_to_detail(user, emails, is_service=False)
@@ -665,6 +666,7 @@ def update_user(
             artifact_id=user_id,
             event_type="user_updated",
             metadata={"changes": changes},
+            request_metadata=requesting_user.get("request_metadata"),
         )
 
     return _user_row_to_detail(updated_user, emails, is_service)
@@ -735,6 +737,7 @@ def delete_user(
             "deleted_user_email": user_email,
             "deleted_user_role": user["role"],
         },
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
 
@@ -821,6 +824,7 @@ def inactivate_user(
         artifact_type="user",
         artifact_id=user_id,
         event_type="user_inactivated",
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Return updated user
@@ -882,6 +886,7 @@ def reactivate_user(
         artifact_type="user",
         artifact_id=user_id,
         event_type="user_reactivated",
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return get_user(requesting_user, user_id)
@@ -985,6 +990,7 @@ def anonymize_user(
             "anonymized_user_email": user_email,
             "anonymized_user_role": user["role"],
         },
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return get_user(requesting_user, user_id)
@@ -1110,6 +1116,7 @@ def update_current_user_profile(
             artifact_id=user_id,
             event_type="user_profile_updated",
             metadata={"changes": changes},
+            request_metadata=requesting_user.get("request_metadata"),
         )
 
     return _user_row_to_profile(updated_user)

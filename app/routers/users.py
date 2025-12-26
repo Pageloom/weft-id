@@ -2,7 +2,12 @@
 
 from typing import Annotated
 
-from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+from dependencies import (
+    build_requesting_user,
+    get_current_user,
+    get_tenant_id_from_request,
+    require_current_user,
+)
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -38,13 +43,6 @@ router = APIRouter(
 templates = Jinja2Templates(directory="templates")
 
 
-def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
-    """Convert route user dict to RequestingUser for service layer."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=user.get("role", "member"),
-    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -319,7 +317,7 @@ def user_detail(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         user_detail_data = users_service.get_user(requesting_user, user_id)
@@ -373,7 +371,7 @@ def update_user_name(
     # Update the user's name via service layer
     from schemas.api import UserUpdate
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         users_service.update_user(
             requesting_user, user_id, UserUpdate(first_name=first_name, last_name=last_name)
@@ -412,7 +410,7 @@ def update_user_role_route(
     # Update the user's role via service layer
     from schemas.api import UserUpdate
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         users_service.update_user(requesting_user, user_id, UserUpdate(role=role))
     except NotFoundError:
@@ -457,7 +455,7 @@ def add_user_email_route(
         )
 
     # Add the email via service layer (admin action = auto-verified)
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         emails_service.add_user_email(requesting_user, user_id, email_lower, is_admin_action=True)
     except NotFoundError:
@@ -493,7 +491,7 @@ def remove_user_email_route(
     email_address = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
 
     # Delete via service layer
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         emails_service.delete_user_email(requesting_user, user_id, email_id)
     except NotFoundError:
@@ -541,7 +539,7 @@ def promote_user_email_route(
     new_primary_email = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
 
     # Set primary via service layer
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         emails_service.set_primary_email(requesting_user, user_id, email_id)
         # If already primary, the service returns the email without error
@@ -584,7 +582,7 @@ def inactivate_user_route(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         users_service.inactivate_user(requesting_user, user_id)
     except NotFoundError:
@@ -609,7 +607,7 @@ def reactivate_user_route(
     if not has_page_access("/users/user", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         users_service.reactivate_user(requesting_user, user_id)
     except NotFoundError:
@@ -634,7 +632,7 @@ def anonymize_user_route(
     if user.get("role") != "super_admin":
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     try:
         users_service.anonymize_user(requesting_user, user_id)
     except NotFoundError:

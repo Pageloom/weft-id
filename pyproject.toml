@@ -25,6 +25,7 @@ pydantic = {extras = ["email"], version = "^2.0.0"}
 resend = "^2.0.0"
 sendgrid = "^6.11.0"
 pymemcache = "^4.0.0"
+user-agents = "^2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"

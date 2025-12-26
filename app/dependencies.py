@@ -5,7 +5,9 @@ from typing import Annotated, cast
 import database
 import settings
 from fastapi import Depends, HTTPException, Request
+from services.types import RequestingUser
 from utils import auth
+from utils import request_metadata
 
 
 class RedirectError(Exception):
@@ -131,3 +133,37 @@ def require_super_admin(
         raise RedirectError(url="/dashboard", status_code=303)
 
     return user
+
+
+def build_requesting_user(
+    user: dict,
+    tenant_id: str,
+    request: Request | None = None,
+) -> RequestingUser:
+    """Build RequestingUser from user dict, tenant ID, and optional request.
+
+    This helper extracts request metadata when a Request is provided
+    (for web requests) and builds a complete RequestingUser object.
+
+    For background jobs or system actions where there's no Request,
+    pass None to exclude request metadata.
+
+    Args:
+        user: User dict from auth (contains id, role, etc.)
+        tenant_id: Tenant ID
+        request: Optional FastAPI Request for extracting metadata
+
+    Returns:
+        RequestingUser with request metadata (if request provided)
+    """
+    requesting_user: RequestingUser = {
+        "id": str(user["id"]),
+        "tenant_id": tenant_id,
+        "role": user.get("role", "member"),
+    }
+
+    # Extract request metadata if request is provided
+    if request is not None:
+        requesting_user["request_metadata"] = request_metadata.extract_request_metadata(request)
+
+    return requesting_user

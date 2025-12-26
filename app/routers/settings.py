@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from dependencies import (
+    build_requesting_user,
     get_current_user,
     get_tenant_id_from_request,
     require_admin,
@@ -29,13 +30,6 @@ router = APIRouter(
 templates = Jinja2Templates(directory="templates")
 
 
-def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
-    """Convert route user dict to RequestingUser for service layer."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=user.get("role", "user"),
-    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -62,7 +56,7 @@ def privileged_domains(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display and manage privileged domains for the tenant."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         domains = settings_service.list_privileged_domains(requesting_user)
@@ -85,7 +79,7 @@ def add_privileged_domain(
     domain: Annotated[str, Form()],
 ):
     """Add a new privileged domain."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
     domain_data = PrivilegedDomainCreate(domain=domain)
 
     try:
@@ -104,7 +98,7 @@ def delete_privileged_domain(
     domain_id: str,
 ):
     """Delete a privileged domain."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         settings_service.delete_privileged_domain(requesting_user, domain_id)
@@ -121,7 +115,7 @@ def admin_security(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display security settings for the tenant."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         settings = settings_service.get_security_settings(requesting_user)
@@ -157,7 +151,7 @@ def update_admin_security(
     allow_users_add_emails: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     # Parse session timeout (empty string means indefinite/NULL)
     timeout_seconds: int | None = None

@@ -196,6 +196,7 @@ def add_privileged_domain(
                 artifact_id=str(row["id"]),
                 event_type="privileged_domain_added",
                 metadata={"domain": domain_clean},
+                request_metadata=requesting_user.get("request_metadata"),
             )
             return _domain_row_to_model(row)
 
@@ -252,6 +253,7 @@ def delete_privileged_domain(
         artifact_id=domain_id,
         event_type="privileged_domain_deleted",
         metadata={"domain": domain_row["domain"]},
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
 
@@ -487,6 +489,7 @@ def update_security_settings(
         artifact_id=tenant_id,
         event_type="tenant_settings_updated",
         metadata={"changes": changes} if changes else None,
+        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return TenantSecuritySettings(

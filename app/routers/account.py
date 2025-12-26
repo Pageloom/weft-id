@@ -3,7 +3,12 @@
 from pathlib import Path
 from typing import Annotated
 
-from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+from dependencies import (
+    build_requesting_user,
+    get_current_user,
+    get_tenant_id_from_request,
+    require_current_user,
+)
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -30,13 +35,6 @@ router = APIRouter(
 templates = Jinja2Templates(directory="templates")
 
 
-def _to_requesting_user(user: dict) -> RequestingUser:
-    """Convert user dict to RequestingUser TypedDict."""
-    return RequestingUser(
-        id=user["id"],
-        tenant_id=user["tenant_id"],
-        role=user["role"],
-    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -83,7 +81,7 @@ def update_profile(
             return RedirectResponse(url="/account/profile", status_code=303)
 
     # Update user's name via service
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     profile_update = UserProfileUpdate(
         first_name=first_name.strip(),
         last_name=last_name.strip(),
@@ -109,7 +107,7 @@ def update_timezone(
         ZoneInfo(timezone)
 
         # Update user's timezone via service
-        requesting_user = _to_requesting_user(user)
+        requesting_user = build_requesting_user(user, user["tenant_id"], request)
         profile_update = UserProfileUpdate(timezone=timezone)
         users_service.update_current_user_profile(requesting_user, user, profile_update)
     except ZoneInfoNotFoundError:
@@ -141,7 +139,7 @@ def update_regional(
         pass
 
     # Build profile update with valid fields
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     profile_update = UserProfileUpdate(
         timezone=timezone if tz_valid else None,
         locale=locale if locale else None,
@@ -162,7 +160,7 @@ def email_settings(
 ):
     """Display and manage user email addresses."""
     # Fetch all email addresses for this user via service
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     emails = emails_service.list_user_emails(requesting_user, user["id"])
 
     return templates.TemplateResponse(
@@ -205,7 +203,7 @@ def add_email(
     if user.get("role") != "super_admin" and not allow_add:
         return RedirectResponse(url="/account/emails", status_code=303)
 
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         # Add email via service (non-admin action, requires verification)
         created_email = emails_service.add_user_email(
@@ -240,7 +238,7 @@ def set_primary_email(
     email_id: str,
 ):
     """Set an email as the primary email for the user."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         emails_service.set_primary_email(requesting_user, user["id"], email_id)
     except (NotFoundError, ValidationError):
@@ -258,7 +256,7 @@ def delete_email(
     email_id: str,
 ):
     """Delete an email address from the user's account."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         emails_service.delete_user_email(requesting_user, user["id"], email_id)
     except (NotFoundError, ValidationError):
@@ -276,7 +274,7 @@ def resend_verification_route(
     email_id: str,
 ):
     """Resend verification email for an unverified email address."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         verification_info = emails_service.resend_verification(
             requesting_user, user["id"], email_id
@@ -328,7 +326,7 @@ def mfa_setup_totp(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Start TOTP (authenticator app) setup process."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         setup_response = mfa_service.setup_totp(requesting_user, user)
     except ValidationError:
@@ -350,7 +348,7 @@ def mfa_setup_email(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Enable email-only MFA (or downgrade from TOTP - requires re-verification)."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     response, notification_info = mfa_service.enable_email_mfa(requesting_user, user)
 
     if response.pending_verification and notification_info:
@@ -375,7 +373,7 @@ def mfa_setup_verify(
     if method != "totp":
         return RedirectResponse(url="/account/mfa", status_code=303)
 
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         backup_codes_response = mfa_service.verify_totp_and_enable(requesting_user, user, code)
         # Show backup codes
@@ -406,7 +404,7 @@ def mfa_regenerate_backup_codes(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Regenerate backup codes for the current user."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         backup_codes_response = mfa_service.regenerate_backup_codes(requesting_user, user)
         # Show backup codes
@@ -462,7 +460,7 @@ def mfa_downgrade_verify(
     if not pending_method:
         return RedirectResponse(url="/account/mfa", status_code=303)
 
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
     try:
         mfa_service.verify_mfa_downgrade(requesting_user, user, code)
         # Clear session
@@ -488,7 +486,7 @@ def background_jobs_list(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display user's background jobs with polling."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
 
     try:
         result = bg_tasks_service.list_user_jobs(requesting_user)
@@ -518,7 +516,7 @@ async def delete_background_jobs(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Delete selected background jobs."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
 
     # Get job IDs from form data (checkboxes)
     form = await request.form()
@@ -546,7 +544,7 @@ def job_output_detail(
     job_id: str,
 ):
     """Display job output and metadata."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
 
     try:
         job = bg_tasks_service.get_job_detail(requesting_user, job_id)
@@ -569,7 +567,7 @@ def download_background_job_file(
     file_id: str,
 ):
     """Download export file from background job."""
-    requesting_user = _to_requesting_user(user)
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
 
     try:
         download_info = exports_service.get_download(requesting_user, file_id)

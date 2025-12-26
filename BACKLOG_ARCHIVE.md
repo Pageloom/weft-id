@@ -537,3 +537,80 @@ So that I can track progress, access outputs, download results, and clean up com
 **Value:** Medium (UX improvement, infrastructure foundation)
 
 ---
+
+## Enhanced Event Log Audit Trail & Human-Readable Display
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want event logs to capture comprehensive request metadata and display human-readable information
+So that I can conduct thorough security investigations and understand who did what, from where, and on which accounts
+
+**Acceptance Criteria:**
+
+**Request Metadata Capture:**
+
+- [x] Event logs capture IP address (remote_address) from request
+- [x] Event logs capture full user agent string
+- [x] Event logs parse device information from user agent (using user-agents library)
+- [x] Event logs capture session ID hash (SHA-256 one-way hash for security)
+- [x] IP extraction logic: X-Forwarded-For → X-Real-IP → request.client.host → null
+- [x] Request metadata fields always present in metadata (even if null)
+- [x] Background jobs and system events have null request metadata (no HTTP context)
+
+**Metadata Storage & Deduplication:**
+
+- [x] New `event_log_metadata` table with metadata_hash as primary key
+- [x] Metadata hash computed via MD5 of deterministic JSON serialization
+- [x] INSERT...ON CONFLICT DO NOTHING for efficient deduplication
+- [x] event_logs references metadata via metadata_hash foreign key
+- [x] Metadata combines 4 required request fields + optional custom event data
+- [x] Hash computed on entire metadata object (request + custom fields)
+- [x] Same request context reuses single metadata record
+- [x] Different custom data creates different metadata records
+- [x] Migration backfills existing events with system metadata (all nulls)
+
+**Human-Readable Display:**
+
+- [x] Event list shows artifact name when artifact_type='user'
+- [x] Artifact name formatted as "First Last" from joined users table
+- [x] Event detail shows actor as clickable link to user settings page
+- [x] Event detail shows target user section for user artifacts (name, email, link)
+- [x] Event detail displays request context section: IP, user agent, device, session hash
+- [x] Event detail maintains full metadata display (request fields + custom data)
+
+**Service & Database Layer:**
+
+- [x] RequestingUser TypedDict includes optional request_metadata field
+- [x] dependencies.py extracts request metadata using new utility module
+- [x] Web routes pass Request object, API routes pass None for request_metadata
+- [x] log_event() accepts request_metadata parameter
+- [x] log_event() merges request_metadata + custom metadata into combined dict
+- [x] log_event() computes hash on combined metadata
+- [x] create_event() performs metadata deduplication and foreign key storage
+- [x] list_events() and get_event_by_id() LEFT JOIN metadata and user tables
+- [x] EventLogItem schema includes extracted convenience fields for templates
+- [x] All ~20 service layer log_event() calls updated to pass request_metadata
+
+**Technical Implementation:**
+
+- Database migration: `00015_event_log_metadata.sql`
+- New utility module: `app/utils/request_metadata.py`
+- Updated: `app/services/types.py`, `app/dependencies.py`
+- Updated: All routers (admin, users, account, settings, API v1)
+- Updated: `app/services/event_log.py`, `app/database/event_log.py`
+- Updated: `app/schemas/event_log.py`
+- Updated: All services with log_event() calls (users, emails, settings, oauth2, bg_tasks)
+- Updated: `app/templates/admin_events.html`, `app/templates/admin_event_detail.html`
+- Added dependency: `user-agents = "^2.2.0"`
+
+**Dependencies:**
+
+- Service Layer Event Logging (required)
+- User Activity Tracking (for last_activity_at in future)
+
+**Effort:** L
+**Value:** High (Security, Compliance, Audit Trail)
+
+---

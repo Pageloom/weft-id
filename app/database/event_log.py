@@ -18,10 +18,11 @@ def create_event(
     artifact_type: str,
     artifact_id: str,
     event_type: str,
-    metadata: dict[str, Any] | None = None,
+    combined_metadata: dict[str, Any],
+    metadata_hash: str,
 ) -> dict | None:
     """
-    Create an event log entry.
+    Create an event log entry with deduplicated metadata.
 
     Args:
         tenant_id: Tenant ID for RLS scoping
@@ -30,18 +31,34 @@ def create_event(
         artifact_type: Type of entity (e.g., "user", "privileged_domain")
         artifact_id: UUID of the affected entity
         event_type: Descriptive event type (e.g., "user_created")
-        metadata: Optional dict with additional context
+        combined_metadata: Full metadata dict (request fields + custom event data)
+        metadata_hash: MD5 hash of combined_metadata for deduplication
 
     Returns:
         Dict with id and created_at, or None if insert failed
     """
+    # First, insert metadata into event_log_metadata table (ON CONFLICT DO NOTHING for dedup)
+    fetchone(
+        tenant_id,
+        """
+        INSERT INTO event_log_metadata (metadata_hash, metadata)
+        VALUES (:metadata_hash, :metadata)
+        ON CONFLICT (metadata_hash) DO NOTHING
+        """,
+        {
+            "metadata_hash": metadata_hash,
+            "metadata": Json(combined_metadata),
+        },
+    )
+
+    # Then insert event with metadata_hash reference
     return fetchone(
         tenant_id,
         """
         INSERT INTO event_logs
-            (tenant_id, actor_user_id, artifact_type, artifact_id, event_type, metadata)
+            (tenant_id, actor_user_id, artifact_type, artifact_id, event_type, metadata_hash)
         VALUES
-            (:tenant_id, :actor_user_id, :artifact_type, :artifact_id, :event_type, :metadata)
+            (:tenant_id, :actor_user_id, :artifact_type, :artifact_id, :event_type, :metadata_hash)
         RETURNING id, created_at
         """,
         {
@@ -50,7 +67,7 @@ def create_event(
             "artifact_type": artifact_type,
             "artifact_id": artifact_id,
             "event_type": event_type,
-            "metadata": Json(metadata) if metadata else None,
+            "metadata_hash": metadata_hash,
         },
     )
 
@@ -102,11 +119,18 @@ def list_events(
     return fetchall(
         tenant_id,
         f"""
-        SELECT id, tenant_id, actor_user_id, artifact_type, artifact_id,
-               event_type, metadata, created_at
-        FROM event_logs
+        SELECT e.id, e.tenant_id, e.actor_user_id, e.artifact_type, e.artifact_id,
+               e.event_type, e.created_at, e.metadata_hash,
+               m.metadata,
+               u.first_name as artifact_first_name,
+               u.last_name as artifact_last_name,
+               ue.email as artifact_email
+        FROM event_logs e
+        LEFT JOIN event_log_metadata m ON e.metadata_hash = m.metadata_hash
+        LEFT JOIN users u ON (e.artifact_type = 'user' AND e.artifact_id = u.id)
+        LEFT JOIN user_emails ue ON (e.artifact_type = 'user' AND e.artifact_id = ue.user_id AND ue.is_primary = true)
         {where_clause}
-        ORDER BY created_at DESC
+        ORDER BY e.created_at DESC
         LIMIT :limit OFFSET :offset
         """,
         params,
@@ -165,10 +189,17 @@ def get_event_by_id(tenant_id: TenantArg, event_id: str) -> dict | None:
     return fetchone(
         tenant_id,
         """
-        SELECT id, tenant_id, actor_user_id, artifact_type, artifact_id,
-               event_type, metadata, created_at
-        FROM event_logs
-        WHERE id = :event_id
+        SELECT e.id, e.tenant_id, e.actor_user_id, e.artifact_type, e.artifact_id,
+               e.event_type, e.created_at, e.metadata_hash,
+               m.metadata,
+               u.first_name as artifact_first_name,
+               u.last_name as artifact_last_name,
+               ue.email as artifact_email
+        FROM event_logs e
+        LEFT JOIN event_log_metadata m ON e.metadata_hash = m.metadata_hash
+        LEFT JOIN users u ON (e.artifact_type = 'user' AND e.artifact_id = u.id)
+        LEFT JOIN user_emails ue ON (e.artifact_type = 'user' AND e.artifact_id = ue.user_id AND ue.is_primary = true)
+        WHERE e.id = :event_id
         """,
         {"event_id": event_id},
     )

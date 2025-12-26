@@ -240,6 +240,7 @@ def create_normal_client(
             "type": "normal",
             "client_id": result["client_id"],
         },
+        request_metadata=None,
     )
 
     return result
@@ -287,6 +288,7 @@ def create_b2b_client(
             "client_id": result["client_id"],
             "service_user_id": str(result.get("service_user_id")),
         },
+        request_metadata=None,
     )
 
     return result

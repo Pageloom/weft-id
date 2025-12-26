@@ -3,8 +3,8 @@
 from typing import Annotated
 
 from api_dependencies import get_current_user_api, require_admin_api
-from dependencies import get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Query
+from dependencies import build_requesting_user, get_tenant_id_from_request
+from fastapi import APIRouter, Depends, Query, Request
 from schemas.api import (
     BackupCodesResponse,
     BackupCodesStatusResponse,
@@ -43,13 +43,6 @@ from utils.service_errors import translate_to_http_exception
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 
-def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
-    """Convert route user dict to RequestingUser for service layer."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=user.get("role", "member"),
-    )
 
 
 def _user_to_profile(user: dict) -> UserProfile:
@@ -141,7 +134,7 @@ def get_current_user_profile(
     Returns:
         User profile including id, email, name, role, timezone, locale, MFA status
     """
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, None)
     return users_service.get_current_user_profile(requesting_user, user)
 
 
@@ -170,7 +163,7 @@ def update_current_user_profile(
     Note:
         Only provided fields are updated. Omitted fields remain unchanged.
     """
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, None)
     try:
         return users_service.update_current_user_profile(requesting_user, user, profile_update)
     except ServiceError as exc:
@@ -205,7 +198,7 @@ def list_current_user_emails(
         List of email addresses with their verification status
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         emails = emails_service.list_user_emails(requesting_user, str(user["id"]))
         return EmailList(items=emails)
     except ServiceError as e:
@@ -235,7 +228,7 @@ def add_current_user_email(
         Super admins can always add emails.
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         user_id = str(user["id"])
 
         # Get tenant setting for user email add permission
@@ -286,7 +279,7 @@ def delete_current_user_email(
         Cannot delete the primary email address.
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         emails_service.delete_user_email(requesting_user, str(user["id"]), email_id)
         return None
     except ServiceError as e:
@@ -312,7 +305,7 @@ def set_current_user_primary_email(
         Email must be verified before it can be set as primary.
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return emails_service.set_primary_email(requesting_user, str(user["id"]), email_id)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -334,7 +327,7 @@ def resend_current_user_email_verification(
         Success message
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         verification_info = emails_service.resend_verification(
             requesting_user, str(user["id"]), email_id
         )
@@ -410,7 +403,7 @@ def list_users(
     Returns:
         Paginated list of users
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return users_service.list_users(
             requesting_user,
@@ -441,7 +434,7 @@ def get_user(
     Returns:
         Detailed user information including emails and service user status
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return users_service.get_user(requesting_user, user_id)
     except ServiceError as exc:
@@ -471,7 +464,7 @@ def create_user(
     Returns:
         Created user details
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return users_service.create_user(requesting_user, user_data)
     except ServiceError as exc:
@@ -501,7 +494,7 @@ def update_user(
     Returns:
         Updated user details
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return users_service.update_user(requesting_user, user_id, user_update)
     except ServiceError as exc:
@@ -525,7 +518,7 @@ def delete_user(
     Returns:
         204 No Content on success
     """
-    requesting_user = _to_requesting_user(admin, tenant_id)
+    requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         users_service.delete_user(requesting_user, user_id)
         return None
@@ -556,7 +549,7 @@ def list_user_emails(
         List of email addresses with their verification status
     """
     try:
-        requesting_user = _to_requesting_user(admin, tenant_id)
+        requesting_user = build_requesting_user(admin, tenant_id, None)
         emails = emails_service.list_user_emails(requesting_user, user_id)
         return EmailList(items=emails)
     except ServiceError as e:
@@ -588,7 +581,7 @@ def add_user_email(
         Sends notification to user's primary email about the added address.
     """
     try:
-        requesting_user = _to_requesting_user(admin, tenant_id)
+        requesting_user = build_requesting_user(admin, tenant_id, None)
 
         # Get primary email before adding (for notification)
         primary_email = emails_service.get_primary_email(tenant_id, user_id)
@@ -635,7 +628,7 @@ def delete_user_email(
         Sends notification to user's primary email about the removal.
     """
     try:
-        requesting_user = _to_requesting_user(admin, tenant_id)
+        requesting_user = build_requesting_user(admin, tenant_id, None)
 
         # Get email address before deletion for notification
         email_address = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
@@ -679,7 +672,7 @@ def set_user_primary_email(
         Sends notification to the old primary email about the change.
     """
     try:
-        requesting_user = _to_requesting_user(admin, tenant_id)
+        requesting_user = build_requesting_user(admin, tenant_id, None)
 
         # Get current primary email for notification before change
         old_primary = emails_service.get_primary_email(tenant_id, user_id)
@@ -714,7 +707,7 @@ def get_current_user_mfa_status(
         MFA status including enabled state, method, and backup codes availability
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.get_mfa_status(requesting_user, user)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -738,7 +731,7 @@ def setup_current_user_totp(
         If TOTP is already active, user must downgrade to email MFA first.
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.setup_totp(requesting_user, user)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -763,7 +756,7 @@ def verify_current_user_totp(
         Backup codes (save these securely, only shown once)
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.verify_totp_and_enable(requesting_user, user, verify_request.code)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -787,7 +780,7 @@ def enable_current_user_email_mfa(
         MFA status if enabled directly, or pending_verification=true if downgrade required
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         response, notification_info = mfa_service.enable_email_mfa(requesting_user, user)
 
         # Send OTP email if downgrade is in progress
@@ -818,7 +811,7 @@ def verify_current_user_mfa_downgrade(
         Updated MFA status
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.verify_mfa_downgrade(requesting_user, user, verify_request.code)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -839,7 +832,7 @@ def disable_current_user_mfa(
         Updated MFA status
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.disable_mfa(requesting_user, user)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -860,7 +853,7 @@ def get_current_user_backup_codes_status(
         Backup codes status (total, used, remaining)
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.get_backup_codes_status(requesting_user, user)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -884,7 +877,7 @@ def regenerate_current_user_backup_codes(
         MFA must be enabled to regenerate backup codes.
     """
     try:
-        requesting_user = _to_requesting_user(user, tenant_id)
+        requesting_user = build_requesting_user(user, tenant_id, None)
         return mfa_service.regenerate_backup_codes(requesting_user, user)
     except ServiceError as e:
         raise translate_to_http_exception(e)
@@ -916,7 +909,7 @@ def reset_user_mfa(
         Updated MFA status
     """
     try:
-        requesting_user = _to_requesting_user(admin, tenant_id)
+        requesting_user = build_requesting_user(admin, tenant_id, None)
         return mfa_service.reset_user_mfa(requesting_user, user_id)
     except ServiceError as e:
         raise translate_to_http_exception(e)

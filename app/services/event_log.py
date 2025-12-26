@@ -32,6 +32,7 @@ from schemas.event_log import EventLogItem, EventLogListResponse
 from services.activity import track_activity
 from services.exceptions import ForbiddenError, NotFoundError
 from services.types import RequestingUser
+from utils import request_metadata as req_meta
 
 # System actor UUID for automated/background processes.
 # This is a well-known constant, not a real user record.
@@ -48,6 +49,7 @@ def log_event(
     artifact_id: str,
     event_type: str,
     metadata: dict[str, Any] | None = None,
+    request_metadata: dict[str, Any] | None = None,
 ) -> None:
     """
     Log a service layer write operation.
@@ -61,13 +63,35 @@ def log_event(
         artifact_type: Entity type (e.g., "user", "privileged_domain", "tenant_settings")
         artifact_id: UUID of the affected entity
         event_type: Descriptive event (e.g., "user_created", "password_changed")
-        metadata: Optional context-specific details as dict
+        metadata: Optional context-specific details as dict (custom event data)
+        request_metadata: Optional request metadata (IP, user agent, device, session) from RequestingUser
 
     Note:
         This function is synchronous - the log entry is written before returning.
         It does not raise on failure to avoid disrupting the main business operation.
     """
     try:
+        # Build combined metadata: required request fields + custom event data
+        # Start with required request fields (all null if no request_metadata)
+        combined_metadata: dict[str, Any] = {
+            "device": None,
+            "remote_address": None,
+            "session_id_hash": None,
+            "user_agent": None,
+        }
+
+        # Merge in actual request metadata if provided
+        if request_metadata:
+            combined_metadata.update(request_metadata)
+
+        # Merge in custom event metadata if provided
+        if metadata:
+            combined_metadata.update(metadata)
+
+        # Compute hash on combined metadata
+        metadata_hash = req_meta.compute_metadata_hash(combined_metadata)
+
+        # Create event with combined metadata and hash
         database.event_log.create_event(
             tenant_id=tenant_id,
             tenant_id_value=tenant_id,
@@ -75,7 +99,8 @@ def log_event(
             artifact_type=artifact_type,
             artifact_id=artifact_id,
             event_type=event_type,
-            metadata=metadata,
+            combined_metadata=combined_metadata,
+            metadata_hash=metadata_hash,
         )
     except Exception as e:
         # Log the error but don't fail the main operation
@@ -152,10 +177,25 @@ def list_events(
     events = database.event_log.list_events(tenant_id, limit=limit, offset=offset)
     total = database.event_log.count_events(tenant_id)
 
-    # Enrich with actor names
+    # Enrich with actor names and artifact names
     items = []
     for e in events:
         actor_name = _get_actor_name(tenant_id, str(e["actor_user_id"]))
+
+        # Build artifact name for user artifacts
+        artifact_name = None
+        if e["artifact_type"] == "user" and e.get("artifact_first_name"):
+            first = e.get("artifact_first_name", "")
+            last = e.get("artifact_last_name", "")
+            artifact_name = f"{first} {last}".strip() or None
+
+        # Extract request metadata fields from metadata dict
+        metadata_dict = e.get("metadata") or {}
+        remote_address = metadata_dict.get("remote_address")
+        user_agent = metadata_dict.get("user_agent")
+        device = metadata_dict.get("device")
+        session_id_hash = metadata_dict.get("session_id_hash")
+
         items.append(
             EventLogItem(
                 id=str(e["id"]),
@@ -163,9 +203,15 @@ def list_events(
                 actor_name=actor_name,
                 artifact_type=e["artifact_type"],
                 artifact_id=str(e["artifact_id"]),
+                artifact_name=artifact_name,
+                artifact_email=e.get("artifact_email"),
                 event_type=e["event_type"],
-                metadata=e["metadata"],
+                metadata=metadata_dict,
                 created_at=e["created_at"],
+                remote_address=remote_address,
+                user_agent=user_agent,
+                device=device,
+                session_id_hash=session_id_hash,
             )
         )
 
@@ -210,13 +256,33 @@ def get_event(
 
     actor_name = _get_actor_name(tenant_id, str(event["actor_user_id"]))
 
+    # Build artifact name for user artifacts
+    artifact_name = None
+    if event["artifact_type"] == "user" and event.get("artifact_first_name"):
+        first = event.get("artifact_first_name", "")
+        last = event.get("artifact_last_name", "")
+        artifact_name = f"{first} {last}".strip() or None
+
+    # Extract request metadata fields from metadata dict
+    metadata_dict = event.get("metadata") or {}
+    remote_address = metadata_dict.get("remote_address")
+    user_agent = metadata_dict.get("user_agent")
+    device = metadata_dict.get("device")
+    session_id_hash = metadata_dict.get("session_id_hash")
+
     return EventLogItem(
         id=str(event["id"]),
         actor_user_id=str(event["actor_user_id"]),
         actor_name=actor_name,
         artifact_type=event["artifact_type"],
         artifact_id=str(event["artifact_id"]),
+        artifact_name=artifact_name,
+        artifact_email=event.get("artifact_email"),
         event_type=event["event_type"],
-        metadata=event["metadata"],
+        metadata=metadata_dict,
         created_at=event["created_at"],
+        remote_address=remote_address,
+        user_agent=user_agent,
+        device=device,
+        session_id_hash=session_id_hash,
     )

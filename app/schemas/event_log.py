@@ -16,9 +16,16 @@ class EventLogItem(BaseModel):
     actor_name: str = Field(..., description="Display name of the actor")
     artifact_type: str
     artifact_id: str
+    artifact_name: str | None = Field(None, description="Human-readable artifact name (for user artifacts)")
+    artifact_email: str | None = Field(None, description="Email of artifact user (if artifact is a user)")
     event_type: str
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = Field(None, description="Full metadata (request fields + custom event data)")
     created_at: datetime
+    # Convenience fields extracted from metadata for template display
+    remote_address: str | None = Field(None, description="IP address from request metadata")
+    user_agent: str | None = Field(None, description="User agent from request metadata")
+    device: str | None = Field(None, description="Device from request metadata")
+    session_id_hash: str | None = Field(None, description="Hashed session ID from request metadata")
 
 
 class EventLogListResponse(BaseModel):

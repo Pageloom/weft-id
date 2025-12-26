@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from dependencies import (
+    build_requesting_user,
     get_current_user,
     get_tenant_id_from_request,
     require_admin,
@@ -27,13 +28,6 @@ router = APIRouter(
 templates = Jinja2Templates(directory="templates")
 
 
-def _to_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
-    """Convert route user dict to RequestingUser for service layer."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=user.get("role", "member"),
-    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -58,7 +52,7 @@ def event_log_list(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Display paginated event log list."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     # Parse pagination params
     try:
@@ -120,7 +114,7 @@ def event_log_detail(
     event_id: str,
 ):
     """Display single event log detail with full metadata."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         event = event_log_service.get_event(requesting_user, event_id)
@@ -146,7 +140,7 @@ def trigger_export(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Trigger event log export job."""
-    requesting_user = _to_requesting_user(user, tenant_id)
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         bg_tasks_service.create_export_task(requesting_user)

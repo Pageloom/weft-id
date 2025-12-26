@@ -6,6 +6,89 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Enhanced Event Log Audit Trail & Human-Readable Display
+
+**User Story:**
+As a platform operator reviewing audit logs
+I want comprehensive request metadata (IP, device, user agent, session) and human-readable names
+So that I can conduct thorough security investigations and compliance audits
+
+**Acceptance Criteria:**
+
+**Metadata Deduplication & Storage:**
+
+- [ ] New table `event_log_metadata` with columns: `metadata_hash` (VARCHAR(32) PRIMARY KEY), `metadata` (JSONB), `created_at`
+- [ ] Metadata JSON contains: `remote_address`, `user_agent`, `device`, `session_id_hash`
+- [ ] All metadata keys included even if null (e.g., `{"remote_address": null, ...}`)
+- [ ] Metadata hash computed using MD5 of deterministic JSON: `json.dumps(obj, sort_keys=True, separators=(',', ':'))`
+- [ ] On event creation: compute hash, INSERT metadata ON CONFLICT DO NOTHING, store hash reference in event_logs
+- [ ] `event_logs` table updated: replace `metadata` JSONB with `metadata_hash` VARCHAR(32) foreign key
+- [ ] Migration script to backfill existing events: extract metadata, deduplicate, populate new table
+
+**Additional Metadata Capture:**
+
+- [ ] `remote_address` (IP address) captured and stored with every logged event
+- [ ] `user_agent` (full user agent string) captured and stored with every logged event
+- [ ] `device` (parsed device type/name from user agent) captured and stored with every logged event
+- [ ] `session_id_hash` captured with every logged event, **hashed before storage** to prevent session hijacking
+- [ ] All service layer write functions updated to extract and pass these fields to event logging
+- [ ] System/background job events have null values for these fields (stored as single shared metadata record)
+
+**Human-Readable Names in Event Listing:**
+
+- [ ] New column `artifact_name` added to event listing UI
+- [ ] When `artifact_type='user'`, LEFT JOIN with users table on `artifact_id` to display user's full name
+- [ ] For other artifact types (future), display "N/A" or leave blank
+- [ ] Artifact name displayed alongside existing artifact_type and artifact_id columns
+- [ ] Pagination and query performance remain acceptable with joined data
+
+**Enhanced Event Details Page:**
+
+- [ ] When `artifact_type='user'`, display:
+  - Full name of the target user
+  - Current primary email address
+  - Clickable link to user settings page (`/settings/users/{user_id}`)
+- [ ] Actor name (already displayed) should also link to actor's user settings page
+- [ ] IP address, user agent, device, and hashed session ID displayed in details view (joined from metadata table)
+- [ ] Soft-deleted or anonymized users display whatever data remains in their user record
+
+**Out of Scope:**
+
+- Change delta tracking (handled case-by-case in existing event metadata field)
+- Geolocation derivation from IP address
+- Filtering or searching by IP, device, session, or user agent
+- Success/failure event status (only successful events are logged)
+- Cleanup/deletion of orphaned metadata records
+
+**Technical Implementation:**
+
+- Database migration: Create `event_log_metadata` table, add `metadata_hash` column to `event_logs`, backfill data
+- Update `app/services/event_log.py` to compute metadata hash and store deduplicated metadata
+- Add session ID hashing utility (SHA-256 one-way hash)
+- Update all service layer functions to extract request metadata (IP, user agent, session) and pass to event logging
+- Parse user agent string to extract device information (use library like `user-agents` or `ua-parser`)
+- Update event listing query to LEFT JOIN users table when artifact_type='user' AND LEFT JOIN event_log_metadata
+- Update event listing template to display artifact_name column
+- Update event details template to show enhanced user information, links, and metadata fields
+- Ensure deterministic JSON serialization for consistent hashing
+
+**Dependencies:**
+
+- Event logging infrastructure (already exists)
+- User-agent parsing library (e.g., `user-agents` Python package)
+
+**Effort:** M
+**Value:** High (Security, Compliance, Audit Trail)
+
+**Notes:**
+
+- Metadata deduplication significantly reduces storage overhead for large audit logs
+- Same user/device/session combination reuses single metadata record
+- Schema evolution supported: new metadata fields create new hashes, old events retain old structure
+- No performance impact: metadata table queries are by primary key (hash)
+
+---
+
 ## User Activity Display & Automatic Inactivation System
 
 **User Story:**

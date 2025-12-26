@@ -416,7 +416,7 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     mock_request = Mock()
     mock_request.client.host = "127.0.0.1"
     mock_request.headers = {"user-agent": "Test Browser"}
-    mock_request.session = {"session_id": "test-session"}
+    mock_request.cookies = {"session": "test-session"}
 
     # Build requesting user with request metadata
     requesting_user = build_requesting_user(test_user, str(test_tenant["id"]), mock_request)

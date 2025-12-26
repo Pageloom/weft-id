@@ -27,7 +27,13 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-500 mb-1">Actor</label>
-                <p class="text-sm text-gray-900">{{ event.actor_name }}</p>
+                <p class="text-sm text-gray-900">
+                    {% if event.actor_user_id != '00000000-0000-0000-0000-000000000000' %}
+                    <a href="/settings/users/{{ event.actor_user_id }}" class="text-blue-600 hover:text-blue-800">{{ event.actor_name }}</a>
+                    {% else %}
+                    {{ event.actor_name }}
+                    {% endif %}
+                </p>
                 <p class="text-xs text-gray-500 font-mono">{{ event.actor_user_id }}</p>
             </div>
             <div>
@@ -35,10 +41,45 @@
                 <p class="text-sm text-gray-900">{{ event.artifact_type }}</p>
                 <p class="text-xs text-gray-500 font-mono">{{ event.artifact_id }}</p>
             </div>
+            {% if event.artifact_type == 'user' and event.artifact_name %}
+            <div>
+                <label class="block text-sm font-medium text-gray-500 mb-1">Target User</label>
+                <p class="text-sm text-gray-900">
+                    <a href="/settings/users/{{ event.artifact_id }}" class="text-blue-600 hover:text-blue-800">{{ event.artifact_name }}</a>
+                </p>
+                {% if event.artifact_email %}
+                <p class="text-xs text-gray-500">{{ event.artifact_email }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-500 mb-2">Request Context</label>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">IP Address</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-mono">{{ event.remote_address or 'N/A' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">Device</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ event.device or 'N/A' }}</dd>
+                    </div>
+                    <div class="md:col-span-2">
+                        <dt class="text-xs font-medium text-gray-500 uppercase">User Agent</dt>
+                        <dd class="mt-1 text-sm text-gray-900 break-all">{{ event.user_agent or 'N/A' }}</dd>
+                    </div>
+                    <div class="md:col-span-2">
+                        <dt class="text-xs font-medium text-gray-500 uppercase">Session ID Hash</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-mono break-all">{{ event.session_id_hash or 'N/A' }}</dd>
+                    </div>
+                </dl>
+            </div>
         </div>
 
         <div>
-            <label class="block text-sm font-medium text-gray-500 mb-2">Metadata</label>
+            <label class="block text-sm font-medium text-gray-500 mb-2">Event Metadata</label>
             <pre class="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono text-gray-800">{{ event.metadata | tojson(indent=2) if event.metadata else '{}' }}</pre>
         </div>
     </div>

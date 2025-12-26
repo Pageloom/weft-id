@@ -112,6 +112,35 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Tenant Security Settings Form Returns 404 When Saving
+
+**Status:** Resolved (2025-12-26)
+
+**Found in:** `app/templates/settings_tenant_security.html:30`
+
+**Severity:** High
+
+**Description:** The tenant security settings form submitted to an incorrect URL, causing all save attempts to return 404 errors. Users could not update security settings through the web interface.
+
+**Root Cause:**
+Template used hardcoded URL path `/settings/tenant-security/update` that didn't match the router's prefix + route combination. The actual route was `/admin/security/update` (router prefix `/admin` + route path `/security/update`).
+
+**Resolution:**
+- Fixed form action URL in `app/templates/settings_tenant_security.html` line 30
+- Changed from: `<form method="post" action="/settings/tenant-security/update">`
+- Changed to: `<form method="post" action="/admin/security/update">`
+- Also updated session timeout note to reflect that changes apply immediately to all active sessions
+
+**Verification:**
+- Router prefix confirmed at `app/routers/settings.py:25` - `/admin`
+- Route path confirmed at `app/routers/settings.py:143` - `/security/update`
+- Form now correctly submits to `/admin/security/update`
+
+**Files Modified:**
+- `/root/code/loom/app/templates/settings_tenant_security.html` - Fixed form action URL and updated session timeout note
+
+---
+
 ## Event Logging Completely Broken - Hash Mismatch Between Python and PostgreSQL
 
 **Status:** Resolved (2025-12-26)

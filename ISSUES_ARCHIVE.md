@@ -4,6 +4,37 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Pydantic Validation Error When Re-detecting Regional Settings
+
+**Status:** Resolved (2026-01-01)
+
+**Found in:** `app/schemas/api.py:48`
+
+**Severity:** High
+
+**Description:** Clicking "Re-detect Regional Settings" on the profile page caused a 500 error. The browser's JavaScript detected full locale strings like `en_US`, but the Pydantic schema only accepted two-letter codes like `en`.
+
+**Root Cause:** Schema/frontend mismatch. The `UserProfileUpdate.locale` field had a regex pattern `^[a-z]{2}$` that was too restrictive. Both the frontend JavaScript and database design expected full POSIX locale format (`ll_CC` where `ll` is language and `CC` is country/region).
+
+**Resolution:**
+Updated the regex pattern in `app/schemas/api.py` to accept both formats:
+- Before: `pattern="^[a-z]{2}$"`
+- After: `pattern="^[a-z]{2}(_[A-Z]{2})?$"`
+
+This now accepts both two-letter language codes (`en`, `sv`, `fr`) and full POSIX locales (`en_US`, `sv_SE`, `fr_FR`).
+
+**Tests Added:**
+- `test_update_regional_full_locale_format` - Tests `en_US` format at router level
+- `test_update_regional_swedish_locale` - Tests `sv_SE` format at router level
+- `test_update_current_user_profile_full_posix_locale` - Tests full POSIX format at service level
+
+**Files Modified:**
+- `app/schemas/api.py` - Updated locale pattern
+- `tests/test_routers_account.py` - Added 2 new tests
+- `tests/test_services_users.py` - Added 1 new test
+
+---
+
 ## Naive Datetime Usage Causes 500 Errors When Interacting with DB Timestamps
 
 **Status:** Resolved (2026-01-01)

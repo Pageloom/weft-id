@@ -227,6 +227,58 @@ def test_update_regional_locale_only(test_user):
         assert profile_update.locale == "fr"
 
 
+def test_update_regional_full_locale_format(test_user):
+    """Test updating locale with full POSIX format (e.g., en_US)."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-regional",
+            data={"timezone": "America/New_York", "locale": "en_US"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone == "America/New_York"
+        assert profile_update.locale == "en_US"
+
+
+def test_update_regional_swedish_locale(test_user):
+    """Test updating locale with Swedish POSIX format (sv_SE)."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-regional",
+            data={"timezone": "Europe/Stockholm", "locale": "sv_SE"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.timezone == "Europe/Stockholm"
+        assert profile_update.locale == "sv_SE"
+
+
 def test_email_settings_page(test_user):
     """Test email settings page renders."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user

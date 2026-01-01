@@ -134,7 +134,8 @@ def compute_metadata_hash(metadata: dict[str, Any]) -> str:
         MD5 hash as hex string (32 characters)
     """
     # PostgreSQL's jsonb::text produces keys in this specific order for our metadata:
-    # device, user_agent, remote_address, session_id_hash (plus any custom keys alphabetically after)
+    # device, user_agent, remote_address, session_id_hash
+    # (plus any custom keys alphabetically after)
 
     # Extract the 4 required base keys in PostgreSQL's order
     base_keys_in_pg_order = ["device", "user_agent", "remote_address", "session_id_hash"]
@@ -158,7 +159,7 @@ def compute_metadata_hash(metadata: dict[str, Any]) -> str:
             value_str = "true" if value else "false"
         elif isinstance(value, str):
             value_str = json.dumps(value)  # Properly escape strings
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int | float):
             value_str = str(value)
         elif isinstance(value, dict):
             value_str = json.dumps(value, sort_keys=True)

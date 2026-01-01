@@ -345,7 +345,6 @@ def test_admin_routes_require_admin_role(test_user):
 
     # Mock require_admin to raise ForbiddenError
     def mock_require_admin():
-
         raise ForbiddenError(message="Admin required", code="admin_required")
 
     from dependencies import require_admin

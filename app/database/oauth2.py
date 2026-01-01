@@ -15,7 +15,7 @@ def create_normal_client(
     name: str,
     redirect_uris: list[str],
     created_by: str,
-) -> dict:
+) -> dict | None:
     """
     Create a normal OAuth2 client for authorization code flow.
 
@@ -72,7 +72,7 @@ def create_b2b_client(
     name: str,
     role: str,
     created_by: str,
-) -> dict:
+) -> dict | None:
     """
     Create a B2B OAuth2 client for client credentials flow.
 
@@ -503,6 +503,9 @@ def create_refresh_token(
             "expires_at": expires_at,
         },
     )
+
+    if result is None:
+        raise ValueError("Failed to create refresh token")
 
     return token, result["id"]
 

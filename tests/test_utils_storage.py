@@ -8,10 +8,9 @@ Tests include:
 """
 
 import io
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
+import pytest
 
 # =============================================================================
 # LocalStorageBackend Tests
@@ -232,14 +231,16 @@ def test_spaces_storage_init_missing_boto3():
 
     # Also need to clear any cached SpacesStorageBackend class
     import importlib
+
     import utils.storage
+
     importlib.reload(utils.storage)
 
     try:
         from utils.storage import SpacesStorageBackend
 
         with pytest.raises(ImportError) as exc_info:
-            backend = SpacesStorageBackend()
+            SpacesStorageBackend()
 
         assert "boto3 is required" in str(exc_info.value)
     finally:
@@ -294,7 +295,9 @@ def test_spaces_storage_get_download_url():
 
                             backend = SpacesStorageBackend()
 
-                            url = backend.get_download_url("test.txt", "download.txt", expires_in=1800)
+                            url = backend.get_download_url(
+                                "test.txt", "download.txt", expires_in=1800
+                            )
 
                             assert url == "https://signed-url.example.com"
                             mock_client.generate_presigned_url.assert_called_once_with(
@@ -302,7 +305,9 @@ def test_spaces_storage_get_download_url():
                                 Params={
                                     "Bucket": "mybucket",
                                     "Key": "test.txt",
-                                    "ResponseContentDisposition": 'attachment; filename="download.txt"',
+                                    "ResponseContentDisposition": (
+                                        'attachment; filename="download.txt"'
+                                    ),
                                 },
                                 ExpiresIn=1800,
                             )
@@ -427,23 +432,24 @@ def test_spaces_storage_get_file_path_returns_none():
 # =============================================================================
 
 
-def test_get_backend_default_local():
+def test_get_backend_default_local(tmp_path):
     """Test get_backend returns LocalStorageBackend by default."""
-    from utils.storage import get_backend, reset_backend, LocalStorageBackend
+    from utils.storage import LocalStorageBackend, get_backend, reset_backend
 
     reset_backend()
 
     with patch("settings.STORAGE_BACKEND", "local"):
-        backend = get_backend()
+        with patch("settings.LOCAL_STORAGE_PATH", str(tmp_path)):
+            backend = get_backend()
 
-        assert isinstance(backend, LocalStorageBackend)
+            assert isinstance(backend, LocalStorageBackend)
 
     reset_backend()
 
 
 def test_get_backend_spaces_when_configured():
     """Test get_backend returns SpacesStorageBackend when configured."""
-    from utils.storage import get_backend, reset_backend, SpacesStorageBackend
+    from utils.storage import SpacesStorageBackend, get_backend, reset_backend
 
     reset_backend()
 
@@ -464,45 +470,48 @@ def test_get_backend_spaces_when_configured():
     reset_backend()
 
 
-def test_get_backend_falls_back_to_local_without_bucket():
+def test_get_backend_falls_back_to_local_without_bucket(tmp_path):
     """Test get_backend falls back to local when Spaces bucket not configured."""
-    from utils.storage import get_backend, reset_backend, LocalStorageBackend
+    from utils.storage import LocalStorageBackend, get_backend, reset_backend
 
     reset_backend()
 
     with patch("settings.STORAGE_BACKEND", "spaces"):
         with patch("settings.SPACES_BUCKET", ""):  # No bucket configured
-            backend = get_backend()
+            with patch("settings.LOCAL_STORAGE_PATH", str(tmp_path)):
+                backend = get_backend()
 
-            assert isinstance(backend, LocalStorageBackend)
+                assert isinstance(backend, LocalStorageBackend)
 
     reset_backend()
 
 
-def test_get_backend_caches_instance():
+def test_get_backend_caches_instance(tmp_path):
     """Test that get_backend caches the backend instance."""
     from utils.storage import get_backend, reset_backend
 
     reset_backend()
 
     with patch("settings.STORAGE_BACKEND", "local"):
-        backend1 = get_backend()
-        backend2 = get_backend()
+        with patch("settings.LOCAL_STORAGE_PATH", str(tmp_path)):
+            backend1 = get_backend()
+            backend2 = get_backend()
 
-        assert backend1 is backend2
+            assert backend1 is backend2
 
     reset_backend()
 
 
-def test_reset_backend_clears_cache():
+def test_reset_backend_clears_cache(tmp_path):
     """Test that reset_backend clears the cached instance."""
     from utils.storage import get_backend, reset_backend
 
     with patch("settings.STORAGE_BACKEND", "local"):
-        backend1 = get_backend()
-        reset_backend()
-        backend2 = get_backend()
+        with patch("settings.LOCAL_STORAGE_PATH", str(tmp_path)):
+            backend1 = get_backend()
+            reset_backend()
+            backend2 = get_backend()
 
-        assert backend1 is not backend2
+            assert backend1 is not backend2
 
     reset_backend()

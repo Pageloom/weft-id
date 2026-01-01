@@ -863,7 +863,7 @@ def test_create_new_user_with_privileged_domain(test_admin_user):
                     ) as mock_send:
                         mock_privileged.return_value = True
                         # Mock create_user to return a UserDetail-like object
-                        mock_user = type('obj', (object,), {'id': 'new-user-123'})()
+                        mock_user = type("obj", (object,), {"id": "new-user-123"})()
                         mock_create.return_value = mock_user
                         mock_add_email.return_value = {"id": "email-123"}
                         mock_tenant.return_value = "Test Organization"
@@ -902,7 +902,7 @@ def test_create_new_user_with_non_privileged_domain(test_admin_user):
                     with patch("routers.users.send_new_user_invitation") as mock_send:
                         mock_privileged.return_value = False
                         # Mock create_user to return a UserDetail-like object
-                        mock_user = type('obj', (object,), {'id': 'new-user-123'})()
+                        mock_user = type("obj", (object,), {"id": "new-user-123"})()
                         mock_create.return_value = mock_user
                         mock_add_email.return_value = {
                             "id": "email-123",
@@ -1031,7 +1031,7 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
                     with patch("routers.users.send_new_user_privileged_domain_notification"):
                         mock_privileged.return_value = True
                         # Mock create_user to return a UserDetail-like object
-                        mock_user = type('obj', (object,), {'id': 'new-admin-123'})()
+                        mock_user = type("obj", (object,), {"id": "new-admin-123"})()
                         mock_create.return_value = mock_user
                         mock_tenant.return_value = "Test Organization"
 
@@ -1058,6 +1058,7 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
 def test_create_new_user_email_already_exists(test_admin_user):
     """Test creating user with existing email."""
     from services.exceptions import ConflictError
+
     override_auth(app, test_admin_user)
 
     with patch("services.settings.is_privileged_domain") as mock_privileged:
@@ -1090,6 +1091,7 @@ def test_create_new_user_email_already_exists(test_admin_user):
 def test_create_new_user_creation_failed(test_admin_user):
     """Test handling of user creation failure."""
     from services.exceptions import ValidationError
+
     override_auth(app, test_admin_user)
 
     with patch("services.settings.is_privileged_domain") as mock_privileged:
@@ -1528,13 +1530,14 @@ def test_users_list_all_three_roles(test_admin_user):
 
 @pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_tenant):
-    """Integration test: Verify event log created when creating user via HTML router with privileged domain.
+    """Verify event log created when creating user via HTML router with privileged domain.
 
     NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
     See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
     """
-    import database
     from uuid import uuid4
+
+    import database
 
     override_auth(app, test_admin_user)
 
@@ -1542,8 +1545,13 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     domain = "privileged.com"
     database.execute(
         test_tenant["id"],
-        "INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by) VALUES (:tenant_id, :domain, :created_by)",
-        {"tenant_id": test_tenant["id"], "domain": domain, "created_by": test_admin_user["id"]},
+        """INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by)
+        VALUES (:tenant_id, :domain, :created_by)""",
+        {
+            "tenant_id": test_tenant["id"],
+            "domain": domain,
+            "created_by": test_admin_user["id"],
+        },
     )
 
     # Create user via HTML router
@@ -1610,13 +1618,14 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
 
 @pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, test_tenant):
-    """Integration test: Verify event log created when creating user via HTML router with non-privileged domain.
+    """Verify event log created when creating user via HTML router with non-privileged domain.
 
     NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
     See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
     """
-    import database
     from uuid import uuid4
+
+    import database
 
     override_auth(app, test_admin_user)
 
@@ -1687,8 +1696,9 @@ def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, te
 
 def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant):
     """Test password set URL format for privileged domain users."""
+    from uuid import UUID, uuid4
+
     import database
-    from uuid import uuid4, UUID
 
     override_auth(app, test_admin_user)
 
@@ -1696,8 +1706,13 @@ def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant
     domain = "privileged-test.com"
     database.execute(
         test_tenant["id"],
-        "INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by) VALUES (:tenant_id, :domain, :created_by)",
-        {"tenant_id": test_tenant["id"], "domain": domain, "created_by": test_admin_user["id"]},
+        """INSERT INTO tenant_privileged_domains (tenant_id, domain, created_by)
+        VALUES (:tenant_id, :domain, :created_by)""",
+        {
+            "tenant_id": test_tenant["id"],
+            "domain": domain,
+            "created_by": test_admin_user["id"],
+        },
     )
 
     # Patch the email sending function to capture the password_set_url

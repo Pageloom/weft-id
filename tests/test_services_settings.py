@@ -10,11 +10,10 @@ Tests include:
 - Activity tracking
 """
 
+import database
 import pytest
 from services import settings as settings_service
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
-import database
-
 
 # =============================================================================
 # Helper Functions
@@ -231,7 +230,9 @@ def test_delete_privileged_domain_not_found(test_tenant, test_admin_user):
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
     with pytest.raises(NotFoundError) as exc_info:
-        settings_service.delete_privileged_domain(requesting_user, "00000000-0000-0000-0000-000000000000")
+        settings_service.delete_privileged_domain(
+            requesting_user, "00000000-0000-0000-0000-000000000000"
+        )
 
     assert exc_info.value.code == "domain_not_found"
 

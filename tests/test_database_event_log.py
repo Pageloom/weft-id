@@ -1,11 +1,12 @@
 """Tests for database.event_log module."""
 
-import pytest
-from uuid import uuid4
 from typing import Any
+from uuid import uuid4
 
 
-def _prepare_event_metadata(custom_metadata: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
+def _prepare_event_metadata(
+    custom_metadata: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str]:
     """Helper to prepare combined_metadata and metadata_hash for create_event().
 
     Args:
@@ -456,15 +457,13 @@ def test_hash_computation_matches_postgresql():
 
     # Compute hash using Python (how the application does it)
     from utils.request_metadata import compute_metadata_hash
+
     python_hash = compute_metadata_hash(metadata)
 
     # Compute hash using PostgreSQL (how migration 00015 did it)
     # PostgreSQL's JSONB to text conversion adds spaces after colons
     with database.session(tenant_id=database.UNSCOPED) as cur:
-        cur.execute(
-            "SELECT md5(%s::jsonb::text) as pg_hash",
-            (Json(metadata),)
-        )
+        cur.execute("SELECT md5(%s::jsonb::text) as pg_hash", (Json(metadata),))
         result = cur.fetchone()
         pg_hash = result["pg_hash"]
 
@@ -482,10 +481,11 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     This test ensures that log_event() successfully creates records in both
     event_log_metadata and event_logs tables without foreign key violations.
     """
-    import database
-    from services.event_log import log_event
-    from dependencies import build_requesting_user
     from unittest.mock import Mock
+
+    import database
+    from dependencies import build_requesting_user
+    from services.event_log import log_event
 
     # Create a mock request with metadata
     mock_request = Mock()
@@ -498,9 +498,7 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
 
     # Get initial counts
     initial_metadata_count = database.fetchone(
-        database.UNSCOPED,
-        "SELECT COUNT(*) as count FROM event_log_metadata",
-        None
+        database.UNSCOPED, "SELECT COUNT(*) as count FROM event_log_metadata", None
     )["count"]
 
     initial_events_count = database.event_log.count_events(test_tenant["id"])
@@ -519,9 +517,7 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
 
     # Verify metadata was created (may be deduplicated, so count >= initial)
     new_metadata_count = database.fetchone(
-        database.UNSCOPED,
-        "SELECT COUNT(*) as count FROM event_log_metadata",
-        None
+        database.UNSCOPED, "SELECT COUNT(*) as count FROM event_log_metadata", None
     )["count"]
     assert new_metadata_count >= initial_metadata_count
 
@@ -531,9 +527,7 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
 
     # Verify the event can be retrieved and has correct metadata
     events = database.event_log.list_events(
-        test_tenant["id"],
-        artifact_type="test_artifact",
-        artifact_id=event_id
+        test_tenant["id"], artifact_type="test_artifact", artifact_id=event_id
     )
     assert len(events) == 1
     event = events[0]
@@ -548,8 +542,9 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
 
 def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user):
     """Edge case: Test metadata hash computation with complex nested structures."""
-    from services.event_log import log_event
     from uuid import uuid4
+
+    from services.event_log import log_event
 
     # Create metadata with nested dicts, arrays, and special characters
     event_id = str(uuid4())
@@ -580,6 +575,7 @@ def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user)
 
     # Verify event was created successfully
     import database
+
     events = database.event_log.list_events(
         test_tenant["id"],
         artifact_type="test_artifact",
@@ -596,9 +592,10 @@ def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user)
 
 def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
     """Edge case: Test that identical metadata produces identical hashes."""
-    from services.event_log import log_event
     from uuid import uuid4
+
     import database
+    from services.event_log import log_event
 
     # Create two events with identical custom metadata
     metadata = {
@@ -647,9 +644,10 @@ def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
 
 def test_metadata_hash_with_boolean_and_null_values(test_tenant, test_user):
     """Edge case: Test metadata hash with boolean true/false and null values."""
-    from services.event_log import log_event
     from uuid import uuid4
+
     import database
+    from services.event_log import log_event
 
     # Create metadata with various value types including null, true, false
     event_id = str(uuid4())

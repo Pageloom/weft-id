@@ -5,9 +5,9 @@ for the services/users.py module.
 """
 
 import pytest
-from services.exceptions import ForbiddenError, NotFoundError, ValidationError, ConflictError
+from schemas.api import UserCreate, UserProfileUpdate, UserUpdate
+from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from services.types import RequestingUser
-from schemas.api import UserCreate, UserUpdate, UserProfileUpdate
 
 
 def _make_requesting_user(user: dict, tenant_id: str, role: str = None) -> RequestingUser:
@@ -50,9 +50,7 @@ def test_list_users_as_super_admin_success(test_tenant, test_super_admin_user, t
     """Test that a super_admin can list users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     result = users_service.list_users(requesting_user)
 
     assert result.total >= 2
@@ -116,9 +114,7 @@ def test_get_user_as_super_admin_success(test_tenant, test_super_admin_user, tes
     """Test that a super_admin can get user details."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     result = users_service.get_user(requesting_user, str(test_user["id"]))
 
     assert result.id == str(test_user["id"])
@@ -138,8 +134,9 @@ def test_get_user_as_member_forbidden(test_tenant, test_user, test_admin_user):
 
 def test_get_user_not_found(test_tenant, test_admin_user):
     """Test getting a non-existent user."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     fake_user_id = str(uuid4())
@@ -181,8 +178,9 @@ def test_get_user_service_user_flag(test_tenant, test_admin_user, b2b_oauth2_cli
 
 def test_create_user_as_admin_success(test_tenant, test_admin_user):
     """Test that an admin can create a regular member user."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     user_data = UserCreate(
@@ -208,8 +206,9 @@ def test_create_user_as_admin_success(test_tenant, test_admin_user):
 
 def test_create_user_as_admin_creates_admin_forbidden(test_tenant, test_admin_user):
     """Test that a regular admin cannot create admin users (role escalation)."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     user_data = UserCreate(
@@ -227,12 +226,11 @@ def test_create_user_as_admin_creates_admin_forbidden(test_tenant, test_admin_us
 
 def test_create_user_as_super_admin_creates_admin(test_tenant, test_super_admin_user):
     """Test that a super_admin can create admin users."""
-    from services import users as users_service
     from uuid import uuid4
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     user_data = UserCreate(
         first_name="New",
         last_name="Admin",
@@ -248,12 +246,11 @@ def test_create_user_as_super_admin_creates_admin(test_tenant, test_super_admin_
 
 def test_create_user_as_super_admin_creates_super_admin(test_tenant, test_super_admin_user):
     """Test that a super_admin can create other super_admin users."""
-    from services import users as users_service
     from uuid import uuid4
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     user_data = UserCreate(
         first_name="New",
         last_name="SuperAdmin",
@@ -269,8 +266,8 @@ def test_create_user_as_super_admin_creates_super_admin(test_tenant, test_super_
 
 def test_create_user_email_already_exists(test_tenant, test_admin_user, test_user):
     """Test that creating a user with an existing email fails."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
@@ -292,8 +289,9 @@ def test_create_user_email_already_exists(test_tenant, test_admin_user, test_use
 
 def test_create_user_as_member_forbidden(test_tenant, test_user):
     """Test that a regular member cannot create users."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = UserCreate(
@@ -311,9 +309,10 @@ def test_create_user_as_member_forbidden(test_tenant, test_user):
 
 def test_create_user_emits_event_log(test_tenant, test_admin_user):
     """Test that creating a user emits an event log."""
-    from services import users as users_service
-    import database
     from uuid import uuid4
+
+    import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     user_data = UserCreate(
@@ -386,9 +385,7 @@ def test_update_user_role_as_super_admin_to_admin(test_tenant, test_super_admin_
     """Test that a super_admin can promote a user to admin."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     update_data = UserUpdate(role="admin")
 
     result = users_service.update_user(requesting_user, str(test_user["id"]), update_data)
@@ -401,24 +398,21 @@ def test_update_user_demote_last_super_admin_fails(test_tenant, test_super_admin
     """Test that demoting the last super_admin is blocked."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     # Try to demote self (assuming this is the only super_admin)
     update_data = UserUpdate(role="admin")
 
     with pytest.raises(ValidationError) as exc_info:
-        users_service.update_user(
-            requesting_user, str(test_super_admin_user["id"]), update_data
-        )
+        users_service.update_user(requesting_user, str(test_super_admin_user["id"]), update_data)
 
     assert exc_info.value.code == "last_super_admin"
 
 
 def test_update_user_not_found(test_tenant, test_admin_user):
     """Test updating a non-existent user."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     update_data = UserUpdate(first_name="Ghost")
@@ -445,8 +439,8 @@ def test_update_user_as_member_forbidden(test_tenant, test_user, test_admin_user
 
 def test_update_user_no_changes_no_event(test_tenant, test_admin_user, test_user):
     """Test that updating a user with no changes doesn't emit an event."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
@@ -455,9 +449,7 @@ def test_update_user_no_changes_no_event(test_tenant, test_admin_user, test_user
     count_before = len(events_before)
 
     # Update with same values (no change)
-    update_data = UserUpdate(
-        first_name=test_user["first_name"], last_name=test_user["last_name"]
-    )
+    update_data = UserUpdate(first_name=test_user["first_name"], last_name=test_user["last_name"])
     users_service.update_user(requesting_user, str(test_user["id"]), update_data)
 
     # Check event count didn't change
@@ -469,8 +461,8 @@ def test_update_user_no_changes_no_event(test_tenant, test_admin_user, test_user
 
 def test_update_user_tracks_changes_metadata(test_tenant, test_admin_user, test_user):
     """Test that update_user includes change tracking in event metadata."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     old_first_name = test_user["first_name"]
@@ -493,9 +485,10 @@ def test_update_user_tracks_changes_metadata(test_tenant, test_admin_user, test_
 
 def test_delete_user_as_admin_success(test_tenant, test_admin_user):
     """Test that an admin can delete a user."""
-    from services import users as users_service
-    import database
     from uuid import uuid4
+
+    import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
@@ -531,13 +524,12 @@ def test_delete_user_as_admin_success(test_tenant, test_admin_user):
 
 def test_delete_user_as_super_admin_success(test_tenant, test_super_admin_user):
     """Test that a super_admin can delete a user."""
-    from services import users as users_service
-    import database
     from uuid import uuid4
 
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, test_tenant["id"], "super_admin"
-    )
+    import database
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
 
     # Create a user to delete
     user = database.users.create_user(
@@ -578,8 +570,9 @@ def test_delete_user_as_member_forbidden(test_tenant, test_user, test_admin_user
 
 def test_delete_user_not_found(test_tenant, test_admin_user):
     """Test deleting a non-existent user."""
-    from services import users as users_service
     from uuid import uuid4
+
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
     fake_user_id = str(uuid4())
@@ -617,9 +610,10 @@ def test_delete_user_service_user_fails(test_tenant, test_admin_user, b2b_oauth2
 
 def test_delete_user_captures_user_info_before_deletion(test_tenant, test_admin_user):
     """Test that user info is captured in event metadata before deletion."""
-    from services import users as users_service
-    import database
     from uuid import uuid4
+
+    import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
@@ -661,16 +655,14 @@ def test_delete_user_captures_user_info_before_deletion(test_tenant, test_admin_
 
 def test_get_current_user_profile_success(test_tenant, test_user):
     """Test that any authenticated user can get their own profile."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
 
     # Get full user data including email
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
@@ -683,21 +675,17 @@ def test_get_current_user_profile_success(test_tenant, test_user):
 
 def test_update_current_user_profile_name(test_tenant, test_user):
     """Test that a user can update their own name."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
     profile_update = UserProfileUpdate(first_name="NewFirst", last_name="NewLast")
-    result = users_service.update_current_user_profile(
-        requesting_user, user_data, profile_update
-    )
+    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
     assert result.first_name == "NewFirst"
     assert result.last_name == "NewLast"
@@ -706,65 +694,51 @@ def test_update_current_user_profile_name(test_tenant, test_user):
 
 def test_update_current_user_profile_timezone(test_tenant, test_user):
     """Test that a user can update their timezone."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
     profile_update = UserProfileUpdate(timezone="America/New_York")
-    result = users_service.update_current_user_profile(
-        requesting_user, user_data, profile_update
-    )
+    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
     assert result.timezone == "America/New_York"
 
 
 def test_update_current_user_profile_locale(test_tenant, test_user):
     """Test that a user can update their locale."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
     profile_update = UserProfileUpdate(locale="en")
-    result = users_service.update_current_user_profile(
-        requesting_user, user_data, profile_update
-    )
+    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
     assert result.locale == "en"
 
 
 def test_update_current_user_profile_timezone_and_locale(test_tenant, test_user):
     """Test that a user can update both timezone and locale together."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
-    profile_update = UserProfileUpdate(
-        timezone="Europe/Stockholm", locale="sv"
-    )
-    result = users_service.update_current_user_profile(
-        requesting_user, user_data, profile_update
-    )
+    profile_update = UserProfileUpdate(timezone="Europe/Stockholm", locale="sv")
+    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
     assert result.timezone == "Europe/Stockholm"
     assert result.locale == "sv"
@@ -772,14 +746,12 @@ def test_update_current_user_profile_timezone_and_locale(test_tenant, test_user)
 
 def test_update_current_user_profile_no_changes_no_event(test_tenant, test_user):
     """Test that no event is logged when profile isn't actually changed."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
@@ -802,14 +774,12 @@ def test_update_current_user_profile_no_changes_no_event(test_tenant, test_user)
 
 def test_update_current_user_profile_tracks_changes(test_tenant, test_user):
     """Test that profile update includes change tracking in metadata."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
     if primary_email:
         user_data["email"] = primary_email["email"]
 
@@ -827,8 +797,8 @@ def test_update_current_user_profile_tracks_changes(test_tenant, test_user):
 
 def test_create_user_with_auto_create_email_false(test_super_admin_user, test_tenant):
     """Test create_user with auto_create_email=False does not create email record."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user: RequestingUser = {
         "id": str(test_super_admin_user["id"]),
@@ -865,9 +835,9 @@ def test_create_user_with_auto_create_email_false(test_super_admin_user, test_te
 
 
 def test_create_user_with_auto_create_email_true_default(test_super_admin_user, test_tenant):
-    """Test create_user without auto_create_email parameter (defaults to True) creates verified email."""
-    from services import users as users_service
+    """Test create_user without auto_create_email creates verified email."""
     import database
+    from services import users as users_service
 
     requesting_user: RequestingUser = {
         "id": str(test_super_admin_user["id"]),
@@ -906,8 +876,8 @@ def test_create_user_with_auto_create_email_true_default(test_super_admin_user, 
 
 def test_create_user_auto_create_email_false_then_add_email(test_super_admin_user, test_tenant):
     """Integration test: Create user with auto_create_email=False, then manually add email."""
-    from services import users as users_service
     import database
+    from services import users as users_service
 
     requesting_user: RequestingUser = {
         "id": str(test_super_admin_user["id"]),

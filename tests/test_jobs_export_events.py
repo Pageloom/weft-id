@@ -9,15 +9,18 @@ Tests include:
 
 import gzip
 import json
-import pytest
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
+
+import pytest
 
 
-def _prepare_event_metadata(custom_metadata: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
+def _prepare_event_metadata(
+    custom_metadata: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str]:
     """Helper to prepare combined_metadata and metadata_hash for create_event().
 
     Args:
@@ -86,8 +89,8 @@ def test_json_serializer_with_unsupported_type():
 
 def test_handle_export_events_success(test_tenant, test_admin_user):
     """Test successful event export with data."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create some test events
     for i in range(5):
@@ -143,9 +146,7 @@ def test_handle_export_events_success(test_tenant, test_admin_user):
         assert storage_key.endswith(".json.gz")
 
         # Verify database record was created
-        export_file = database.export_files.get_export_file(
-            test_tenant["id"], result["file_id"]
-        )
+        export_file = database.export_files.get_export_file(test_tenant["id"], result["file_id"])
         assert export_file is not None
         assert export_file["filename"] == result["filename"]
         assert export_file["created_by"] == test_admin_user["id"]
@@ -153,8 +154,8 @@ def test_handle_export_events_success(test_tenant, test_admin_user):
 
 def test_handle_export_events_with_no_events(test_tenant, test_admin_user):
     """Test export with no events creates empty export."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create background task record (needed for foreign key)
     bg_task = database.bg_tasks.create_task(
@@ -185,8 +186,8 @@ def test_handle_export_events_with_no_events(test_tenant, test_admin_user):
 
 def test_handle_export_events_pagination(test_tenant, test_admin_user):
     """Test export pagination with large number of events."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create 2500 events to force pagination (batch size is 1000)
     for i in range(2500):
@@ -229,8 +230,8 @@ def test_handle_export_events_pagination(test_tenant, test_admin_user):
 
 def test_handle_export_events_json_structure(test_tenant, test_admin_user):
     """Test that exported JSON has correct structure."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create test event
     combined_metadata, metadata_hash = _prepare_event_metadata({"key": "value"})
@@ -274,7 +275,7 @@ def test_handle_export_events_json_structure(test_tenant, test_admin_user):
         mock_backend.save.side_effect = capture_save
         mock_get_backend.return_value = mock_backend
 
-        result = handle_export_events(task)
+        handle_export_events(task)
 
         # Verify JSON structure
         assert captured_data is not None
@@ -289,8 +290,8 @@ def test_handle_export_events_json_structure(test_tenant, test_admin_user):
 
 def test_handle_export_events_compression(test_tenant, test_admin_user):
     """Test that exported file is properly gzip compressed."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create several events
     for i in range(10):
@@ -332,7 +333,7 @@ def test_handle_export_events_compression(test_tenant, test_admin_user):
         mock_backend.save.side_effect = capture_save
         mock_get_backend.return_value = mock_backend
 
-        result = handle_export_events(task)
+        handle_export_events(task)
 
         # Verify file can be decompressed
         captured_file.seek(0)
@@ -344,8 +345,8 @@ def test_handle_export_events_compression(test_tenant, test_admin_user):
 
 def test_handle_export_events_storage_type_local(test_tenant, test_admin_user):
     """Test export uses local storage type when not using Spaces."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create background task record (needed for foreign key)
     bg_task = database.bg_tasks.create_task(
@@ -378,8 +379,8 @@ def test_handle_export_events_storage_type_local(test_tenant, test_admin_user):
 
 def test_handle_export_events_expiry_calculation(test_tenant, test_admin_user):
     """Test that export file expiry is calculated correctly."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create background task record (needed for foreign key)
     bg_task = database.bg_tasks.create_task(
@@ -419,8 +420,8 @@ def test_handle_export_events_expiry_calculation(test_tenant, test_admin_user):
 
 def test_handle_export_events_filename_format(test_tenant, test_admin_user):
     """Test that filename follows expected format."""
-    from jobs.export_events import handle_export_events
     import database
+    from jobs.export_events import handle_export_events
 
     # Create background task record (needed for foreign key)
     bg_task = database.bg_tasks.create_task(
@@ -458,13 +459,11 @@ def test_handle_export_events_filename_format(test_tenant, test_admin_user):
 
 def test_send_export_notification_success(test_tenant, test_admin_user):
     """Test successful export notification email."""
-    from jobs.export_events import _send_export_notification
     import database
+    from jobs.export_events import _send_export_notification
 
     # Ensure user has primary email
-    primary_email = database.user_emails.get_primary_email(
-        test_tenant["id"], test_admin_user["id"]
-    )
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_admin_user["id"])
     assert primary_email is not None
 
     expires_at = datetime.now(UTC) + timedelta(hours=48)
@@ -483,7 +482,7 @@ def test_send_export_notification_success(test_tenant, test_admin_user):
         call_args = mock_send_email.call_args
         to_email = call_args[0][0]
         subject = call_args[0][1]
-        html_body = call_args[0][2]
+        _html_body = call_args[0][2]  # noqa: F841
         text_body = call_args[0][3]
 
         assert to_email == primary_email["email"]
@@ -514,8 +513,8 @@ def test_send_export_notification_user_not_found(test_tenant):
 
 def test_send_export_notification_no_primary_email(test_tenant, test_user):
     """Test notification handles user without primary email."""
-    from jobs.export_events import _send_export_notification
     import database
+    from jobs.export_events import _send_export_notification
 
     # Delete all emails for test user
     emails = database.user_emails.list_user_emails(test_tenant["id"], test_user["id"])

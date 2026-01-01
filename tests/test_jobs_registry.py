@@ -8,9 +8,6 @@ Tests include:
 - Handler execution
 """
 
-import pytest
-from unittest.mock import MagicMock
-
 
 # =============================================================================
 # Handler Registration Tests
@@ -19,7 +16,7 @@ from unittest.mock import MagicMock
 
 def test_register_handler_decorator():
     """Test that register_handler decorator registers a handler."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_job")
     def test_handler(task: dict) -> dict:
@@ -33,7 +30,7 @@ def test_register_handler_decorator():
 
 def test_register_handler_executes_function():
     """Test that registered handler can be executed."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_execution")
     def execute_handler(task: dict) -> dict:
@@ -62,7 +59,7 @@ def test_register_handler_preserves_function():
 
 def test_register_multiple_handlers():
     """Test registering multiple different handlers."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("handler_one")
     def handler_one(task: dict) -> dict:
@@ -79,7 +76,7 @@ def test_register_multiple_handlers():
 
 def test_register_handler_override():
     """Test that registering same job type twice overrides previous handler."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_override")
     def first_handler(task: dict) -> dict:
@@ -111,7 +108,7 @@ def test_get_handler_not_found():
 
 def test_get_handler_returns_correct_handler():
     """Test get_handler returns the correct handler for a job type."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("specific_job")
     def specific_handler(task: dict) -> dict:
@@ -141,7 +138,7 @@ def test_get_registered_handlers_empty():
 
 def test_get_registered_handlers_returns_list():
     """Test get_registered_handlers returns a list of handler names."""
-    from jobs.registry import register_handler, get_registered_handlers, _handlers
+    from jobs.registry import _handlers, get_registered_handlers, register_handler
 
     # Clear handlers first
     _handlers.clear()
@@ -163,7 +160,7 @@ def test_get_registered_handlers_returns_list():
 
 def test_get_registered_handlers_with_real_handler():
     """Test get_registered_handlers after registering a handler."""
-    from jobs.registry import register_handler, get_registered_handlers, _handlers
+    from jobs.registry import _handlers, get_registered_handlers, register_handler
 
     # Clear handlers first to avoid interference from other imports
     _handlers.clear()
@@ -185,7 +182,7 @@ def test_get_registered_handlers_with_real_handler():
 
 def test_handler_with_return_value():
     """Test handler that returns a dict."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_return")
     def handler_with_return(task: dict) -> dict:
@@ -201,7 +198,7 @@ def test_handler_with_return_value():
 
 def test_handler_with_none_return():
     """Test handler that returns None."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_none")
     def handler_with_none(task: dict) -> None:
@@ -216,7 +213,7 @@ def test_handler_with_none_return():
 
 def test_handler_receives_task_parameter():
     """Test that handler receives the task parameter correctly."""
-    from jobs.registry import register_handler, get_handler
+    from jobs.registry import get_handler, register_handler
 
     @register_handler("test_task_param")
     def handler_with_task(task: dict) -> dict:
@@ -227,11 +224,13 @@ def test_handler_receives_task_parameter():
         }
 
     handler = get_handler("test_task_param")
-    result = handler({
-        "id": "123",
-        "tenant_id": "tenant-456",
-        "job_type": "test",
-    })
+    result = handler(
+        {
+            "id": "123",
+            "tenant_id": "tenant-456",
+            "job_type": "test",
+        }
+    )
 
     assert result["task_id"] == "123"
     assert result["tenant_id"] == "tenant-456"

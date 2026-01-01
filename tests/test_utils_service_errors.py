@@ -7,8 +7,8 @@ Tests include:
 - Template rendering with correct context
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from services.exceptions import (
@@ -18,7 +18,6 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
-
 
 # =============================================================================
 # translate_to_http_exception Tests
@@ -262,7 +261,7 @@ def test_render_error_page_passes_context_to_template():
                 content="<html>404</html>", status_code=404
             )
 
-            result = render_error_page(mock_request, "tenant-123", exc)
+            render_error_page(mock_request, "tenant-123", exc)
 
             # Verify context was passed to template
             call_args = mock_templates.TemplateResponse.call_args

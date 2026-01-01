@@ -13,12 +13,9 @@ from schemas.settings import (
 )
 from services import settings as settings_service
 from services.exceptions import ServiceError
-from services.types import RequestingUser
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
-
-
 
 
 # =============================================================================

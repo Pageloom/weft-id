@@ -14,12 +14,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 # Force server timezone to UTC for consistent datetime handling
-os.environ['TZ'] = 'UTC'
+os.environ["TZ"] = "UTC"
 time.tzset()
 
-import database
-from database._core import session
-from jobs.registry import get_handler, get_registered_handlers
+import database  # noqa: E402
+from database._core import session  # noqa: E402
+from jobs.registry import get_handler, get_registered_handlers  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,

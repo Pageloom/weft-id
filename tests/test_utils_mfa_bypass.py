@@ -25,8 +25,8 @@ def test_verify_email_otp_bypass_rejects_invalid_codes():
         importlib.reload(utils.mfa)
 
         # These should fall through to the real verification (which will fail without DB)
-        # Since we can't easily test the rejection without a real DB, we'll test the validation logic
-        # by checking that the bypass condition isn't met for invalid codes
+        # Since we can't easily test the rejection without a real DB, we'll test the
+        # validation logic by checking that the bypass condition isn't met
 
         # 5-digit code - bypass condition not met
         code = "12345"

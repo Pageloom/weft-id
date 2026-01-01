@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
+from schemas.api import UserCreate
 from services import emails as emails_service
 from services import settings as settings_service
 from services import users as users_service
@@ -22,7 +23,6 @@ from services.exceptions import (
     ServiceError,
     ValidationError,
 )
-from schemas.api import UserCreate
 from services.types import RequestingUser
 from utils.email import (
     send_new_user_invitation,
@@ -41,8 +41,6 @@ router = APIRouter(
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
-
-
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -281,7 +279,9 @@ def create_new_user(
 
     if is_privileged:
         # Auto-verify email for privileged domains
-        email_result = users_service.add_verified_email_with_nonce(tenant_id, user_id, email, is_primary=True)
+        email_result = users_service.add_verified_email_with_nonce(
+            tenant_id, user_id, email, is_primary=True
+        )
 
         if not email_result:
             return RedirectResponse(url="/users/new?error=email_creation_failed", status_code=303)

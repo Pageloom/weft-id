@@ -335,9 +335,12 @@ def test_anonymize_user(test_user):
     assert user["locale"] is None
 
     # Verify password is also cleared (check via login)
-    user_login = database.users.get_user_by_email(test_user["tenant_id"], test_user["email"])
-    # After anonymization, email is changed, so this should return None
-    # or the password_hash should be None
+    # get_user_by_email returns the user_emails entry which still exists
+    # but password_hash should be None after anonymization
+    login_result = database.users.get_user_by_email(test_user["tenant_id"], test_user["email"])
+    if login_result is not None:
+        # If the email still exists, verify password_hash is None
+        assert login_result.get("password_hash") is None
 
 
 def test_anonymize_user_already_anonymized(test_user):

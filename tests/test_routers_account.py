@@ -779,7 +779,7 @@ def test_background_jobs_list_page(test_user):
 
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
-            from datetime import datetime
+            from datetime import UTC, datetime
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
 
@@ -789,8 +789,8 @@ def test_background_jobs_list_page(test_user):
                         id="job1",
                         job_type="export_events",
                         status=JobStatus.COMPLETED,
-                        created_at=datetime.now(),
-                        completed_at=datetime.now(),
+                        created_at=datetime.now(UTC),
+                        completed_at=datetime.now(UTC),
                         created_by=str(test_user["id"]),
                         result={"file_id": "file123"},
                     ),
@@ -798,7 +798,7 @@ def test_background_jobs_list_page(test_user):
                         id="job2",
                         job_type="export_events",
                         status=JobStatus.PENDING,
-                        created_at=datetime.now(),
+                        created_at=datetime.now(UTC),
                         created_by=str(test_user["id"]),
                     ),
                 ],
@@ -832,7 +832,7 @@ def test_background_jobs_list_no_active_jobs(test_user):
 
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
-            from datetime import datetime
+            from datetime import UTC, datetime
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
 
@@ -842,8 +842,8 @@ def test_background_jobs_list_no_active_jobs(test_user):
                         id="job1",
                         job_type="export_events",
                         status=JobStatus.COMPLETED,
-                        created_at=datetime.now(),
-                        completed_at=datetime.now(),
+                        created_at=datetime.now(UTC),
+                        completed_at=datetime.now(UTC),
                         created_by=str(test_user["id"]),
                         result={"file_id": "file123"},
                     ),
@@ -923,7 +923,7 @@ def test_job_output_detail_success(test_user):
 
     with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
-            from datetime import datetime
+            from datetime import UTC, datetime
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobDetail, JobStatus
 
@@ -931,9 +931,9 @@ def test_job_output_detail_success(test_user):
                 id="job1",
                 job_type="export_events",
                 status=JobStatus.COMPLETED,
-                created_at=datetime.now(),
-                started_at=datetime.now(),
-                completed_at=datetime.now(),
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
                 created_by=str(test_user["id"]),
                 result={"output": "Job completed successfully\nExported 100 events"},
             )

@@ -3,7 +3,7 @@
 import gzip
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from typing import Any
 from uuid import uuid4
@@ -67,7 +67,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     # Convert to JSON
     export_data = {
         "events": all_events,
-        "exported_at": datetime.now().isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
         "count": len(all_events),
         "tenant_id": tenant_id,
     }
@@ -81,7 +81,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     file_size = compressed.getbuffer().nbytes
 
     # Generate unique filename and storage key
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     filename = f"event-export-{timestamp}-{uuid4().hex[:8]}.json.gz"
     storage_key = f"exports/{tenant_id}/{filename}"
 
@@ -95,7 +95,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     logger.info("Saved export to: %s", storage_path)
 
     # Calculate expiry
-    expires_at = datetime.now() + timedelta(hours=settings.EXPORT_FILE_EXPIRY_HOURS)
+    expires_at = datetime.now(UTC) + timedelta(hours=settings.EXPORT_FILE_EXPIRY_HOURS)
 
     # Record in database
     export_file = database.export_files.create_export_file(

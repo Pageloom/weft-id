@@ -2,7 +2,7 @@
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import settings
 from argon2 import PasswordHasher
@@ -147,7 +147,6 @@ def calculate_expires_at(expiry_delta: timedelta) -> datetime:
         UTC datetime when the token/code expires
 
     Note:
-        Server timezone is forced to UTC at startup (see main.py),
-        so datetime.now() returns UTC time.
+        Returns timezone-aware UTC datetime.
     """
-    return datetime.now() + expiry_delta
+    return datetime.now(UTC) + expiry_delta

@@ -64,7 +64,8 @@ def log_event(
         artifact_id: UUID of the affected entity
         event_type: Descriptive event (e.g., "user_created", "password_changed")
         metadata: Optional context-specific details as dict (custom event data)
-        request_metadata: Optional request metadata (IP, user agent, device, session) from RequestingUser
+        request_metadata: Optional request metadata from RequestingUser
+            (IP, user agent, device, session)
 
     Note:
         This function is synchronous - the log entry is written before returning.

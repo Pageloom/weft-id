@@ -3,24 +3,25 @@ import os
 import time
 from pathlib import Path
 
-import settings
-
 # Force server timezone to UTC for consistent datetime handling
-os.environ['TZ'] = 'UTC'
+# This must happen before any other imports that might use datetime
+os.environ["TZ"] = "UTC"
 time.tzset()
-from dependencies import RedirectError
-from fastapi import FastAPI, Request
-from fastapi.openapi.utils import get_openapi
-from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from middleware.session import DynamicSessionMiddleware
-from routers import account as account_router
-from routers import admin as admin_router
-from routers import auth, mfa, oauth2, tenants, users
-from routers import settings as settings_router
-from routers.api.v1 import oauth2_clients
-from routers.api.v1 import settings as settings_api
-from routers.api.v1 import users as users_api
+
+import settings  # noqa: E402
+from dependencies import RedirectError  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.openapi.utils import get_openapi  # noqa: E402
+from fastapi.responses import RedirectResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from middleware.session import DynamicSessionMiddleware  # noqa: E402
+from routers import account as account_router  # noqa: E402
+from routers import admin as admin_router  # noqa: E402
+from routers import auth, mfa, oauth2, tenants, users  # noqa: E402
+from routers import settings as settings_router  # noqa: E402
+from routers.api.v1 import oauth2_clients  # noqa: E402
+from routers.api.v1 import settings as settings_api  # noqa: E402
+from routers.api.v1 import users as users_api  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

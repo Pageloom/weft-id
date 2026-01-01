@@ -6,7 +6,6 @@ Tests include:
 - Root endpoint redirects for unauthenticated users
 """
 
-import pytest
 from unittest.mock import patch
 
 

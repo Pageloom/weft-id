@@ -59,7 +59,7 @@ def test_claim_next_task_no_pending(test_tenant, test_user):
     import database
 
     # Create and claim a task to ensure it's no longer pending
-    created = database.bg_tasks.create_task(
+    database.bg_tasks.create_task(
         tenant_id=str(test_tenant["id"]),
         job_type=f"test_claim_{uuid4().hex[:8]}",
         created_by=str(test_user["id"]),
@@ -68,7 +68,7 @@ def test_claim_next_task_no_pending(test_tenant, test_user):
 
     # Try to claim again - should find the one we claimed (it's now processing)
     # Create a unique job type to avoid conflicts
-    result = database.bg_tasks.claim_next_task()
+    database.bg_tasks.claim_next_task()
     # Result depends on whether there are other pending tasks in the DB
     # This is more of an integration test - just verify it doesn't error
 

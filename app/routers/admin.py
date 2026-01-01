@@ -15,7 +15,6 @@ from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
 from services import event_log as event_log_service
 from services.exceptions import NotFoundError, ServiceError
-from services.types import RequestingUser
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
@@ -26,8 +25,6 @@ router = APIRouter(
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
-
-
 
 
 @router.get("/", response_class=HTMLResponse)

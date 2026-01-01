@@ -174,7 +174,7 @@ def test_users_list_invalid_sort_field(test_admin_user):
 
 def test_user_detail_page(test_admin_user):
     """Test user detail page renders."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from schemas.api import UserDetail
 
@@ -190,7 +190,7 @@ def test_user_detail_page(test_admin_user):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[],
         is_service_user=False,

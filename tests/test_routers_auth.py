@@ -343,7 +343,7 @@ def test_verify_email_public_success_existing_user(test_tenant):
 
 def test_verify_email_public_already_verified_no_password(test_tenant):
     """Test verification of already verified email for user without password."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
 
@@ -356,7 +356,7 @@ def test_verify_email_public_already_verified_no_password(test_tenant):
                     "id": "email-123",
                     "user_id": "user-123",
                     "email": "test@example.com",
-                    "verified_at": datetime.now(),  # Already verified
+                    "verified_at": datetime.now(UTC),  # Already verified
                     "verify_nonce": 1,
                 }
                 mock_get_user.return_value = {
@@ -377,7 +377,7 @@ def test_verify_email_public_already_verified_no_password(test_tenant):
 
 def test_verify_email_public_already_verified_with_password(test_tenant):
     """Test verification of already verified email for user with password."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
 
@@ -390,7 +390,7 @@ def test_verify_email_public_already_verified_with_password(test_tenant):
                     "id": "email-123",
                     "user_id": "user-123",
                     "email": "test@example.com",
-                    "verified_at": datetime.now(),  # Already verified
+                    "verified_at": datetime.now(UTC),  # Already verified
                     "verify_nonce": 1,
                 }
                 mock_get_user.return_value = {
@@ -457,7 +457,7 @@ def test_verify_email_public_email_not_found(test_tenant):
 
 def test_set_password_page_renders(test_tenant):
     """Test set password page renders for verified user without password."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
     from fastapi.responses import HTMLResponse
@@ -471,7 +471,7 @@ def test_set_password_page_renders(test_tenant):
                     "id": "email-123",
                     "user_id": "user-123",
                     "email": "test@example.com",
-                    "verified_at": datetime.now(),
+                    "verified_at": datetime.now(UTC),
                 }
                 mock_get_user.return_value = {
                     "id": "user-123",
@@ -490,7 +490,7 @@ def test_set_password_page_renders(test_tenant):
 
 def test_set_password_success(test_tenant):
     """Test successful password setting and auto-login."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
 
@@ -507,7 +507,7 @@ def test_set_password_success(test_tenant):
                                     "id": "email-123",
                                     "user_id": "user-123",
                                     "email": "test@example.com",
-                                    "verified_at": datetime.now(),
+                                    "verified_at": datetime.now(UTC),
                                 }
                                 mock_get_user.return_value = {
                                     "id": "user-123",
@@ -543,7 +543,7 @@ def test_set_password_success(test_tenant):
 
 def test_set_password_passwords_dont_match(test_tenant):
     """Test password setting with mismatched passwords."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
 
@@ -556,7 +556,7 @@ def test_set_password_passwords_dont_match(test_tenant):
                     "id": "email-123",
                     "user_id": "user-123",
                     "email": "test@example.com",
-                    "verified_at": datetime.now(),
+                    "verified_at": datetime.now(UTC),
                 }
                 mock_get_user.return_value = {
                     "id": "user-123",
@@ -583,7 +583,7 @@ def test_set_password_passwords_dont_match(test_tenant):
 
 def test_set_password_too_short(test_tenant):
     """Test password setting with password too short."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_tenant_id_from_request
 
@@ -596,7 +596,7 @@ def test_set_password_too_short(test_tenant):
                     "id": "email-123",
                     "user_id": "user-123",
                     "email": "test@example.com",
-                    "verified_at": datetime.now(),
+                    "verified_at": datetime.now(UTC),
                 }
                 mock_get_user.return_value = {
                     "id": "user-123",

@@ -1,6 +1,6 @@
 """Background tasks schemas."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field, computed_field
@@ -52,7 +52,7 @@ class JobListItem(BaseModel):
             return False
         from datetime import timedelta
 
-        return datetime.now() - self.created_at > timedelta(hours=24)
+        return datetime.now(UTC) - self.created_at > timedelta(hours=24)
 
     @computed_field  # type: ignore[misc]
     @property

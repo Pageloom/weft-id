@@ -50,7 +50,7 @@ def test_settings_index_fallback_to_dashboard(test_admin_user):
 
 def test_privileged_domains_list(test_admin_user):
     """Test privileged domains page displays list."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
@@ -67,14 +67,14 @@ def test_privileged_domains_list(test_admin_user):
                     {
                         "id": "1",
                         "domain": "example.com",
-                        "created_at": datetime.now(),
+                        "created_at": datetime.now(UTC),
                         "first_name": "Admin",
                         "last_name": "User",
                     },
                     {
                         "id": "2",
                         "domain": "test.org",
-                        "created_at": datetime.now(),
+                        "created_at": datetime.now(UTC),
                         "first_name": None,
                         "last_name": None,
                     },
@@ -122,7 +122,7 @@ def test_privileged_domains_with_error_param(test_admin_user):
 
 def test_add_privileged_domain_success(test_admin_user):
     """Test adding a valid privileged domain."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_current_user, get_tenant_id_from_request, require_admin
 
@@ -139,7 +139,7 @@ def test_add_privileged_domain_success(test_admin_user):
                     {
                         "id": "1",
                         "domain": "example.com",
-                        "created_at": datetime.now(),
+                        "created_at": datetime.now(UTC),
                         "first_name": "Admin",
                         "last_name": "User",
                     },
@@ -161,7 +161,7 @@ def test_add_privileged_domain_success(test_admin_user):
 
 def test_add_privileged_domain_with_at_prefix(test_admin_user):
     """Test adding domain with @ prefix (should be stripped)."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_current_user, get_tenant_id_from_request, require_admin
 
@@ -177,7 +177,7 @@ def test_add_privileged_domain_with_at_prefix(test_admin_user):
                     {
                         "id": "1",
                         "domain": "example.com",
-                        "created_at": datetime.now(),
+                        "created_at": datetime.now(UTC),
                         "first_name": None,
                         "last_name": None,
                     },
@@ -287,7 +287,7 @@ def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user):
 
 def test_delete_privileged_domain(test_admin_user):
     """Test deleting a privileged domain."""
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from dependencies import get_current_user, get_tenant_id_from_request, require_admin
 
@@ -302,7 +302,7 @@ def test_delete_privileged_domain(test_admin_user):
                 {
                     "id": "domain-id-123",
                     "domain": "example.com",
-                    "created_at": datetime.now(),
+                    "created_at": datetime.now(UTC),
                     "first_name": None,
                     "last_name": None,
                 },

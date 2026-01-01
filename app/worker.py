@@ -10,7 +10,7 @@ import logging
 import os
 import signal
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 # Force server timezone to UTC for consistent datetime handling
@@ -89,7 +89,7 @@ class Worker:
 
     def _maybe_run_cleanup(self) -> None:
         """Run cleanup if enough time has passed since last run."""
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         if self.last_cleanup is None:
             # Run cleanup on first iteration

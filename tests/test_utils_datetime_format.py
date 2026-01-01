@@ -47,7 +47,7 @@ def test_format_datetime_with_different_locales():
 
 def test_format_datetime_naive_datetime():
     """Test formatting naive datetime (assumes UTC)."""
-    dt_naive = datetime(2025, 10, 19, 14, 30, 0)
+    dt_naive = datetime(2025, 10, 19, 14, 30, 0)  # noqa: DTZ001 - Testing naive datetime handling
 
     result = format_datetime(dt_naive)
 

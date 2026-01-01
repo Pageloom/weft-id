@@ -119,7 +119,7 @@ def create_email_otp(tenant_id: str, user_id: str, expiry_minutes: int = 10) -> 
     """
     code = generate_email_otp()
     code_hash = hash_code(code)
-    expires_at = datetime.datetime.now() + datetime.timedelta(minutes=expiry_minutes)
+    expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=expiry_minutes)
 
     database.mfa.create_email_otp(tenant_id, user_id, code_hash, expires_at, tenant_id)
 

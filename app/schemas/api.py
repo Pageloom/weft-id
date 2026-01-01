@@ -45,7 +45,11 @@ class UserProfileUpdate(BaseModel):
     first_name: str | None = Field(None, min_length=1, max_length=255)
     last_name: str | None = Field(None, min_length=1, max_length=255)
     timezone: str | None = Field(None, description="IANA timezone (e.g., 'America/New_York')")
-    locale: str | None = Field(None, pattern="^[a-z]{2}$", description="Two-letter locale code")
+    locale: str | None = Field(
+        None,
+        pattern="^[a-z]{2}(_[A-Z]{2})?$",
+        description="Locale code (e.g., 'en' or 'en_US')",
+    )
 
 
 # ============================================================================

@@ -744,6 +744,24 @@ def test_update_current_user_profile_timezone_and_locale(test_tenant, test_user)
     assert result.locale == "sv"
 
 
+def test_update_current_user_profile_full_posix_locale(test_tenant, test_user):
+    """Test that a user can update locale using full POSIX format (e.g., en_US, sv_SE)."""
+    import database
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
+    if primary_email:
+        user_data["email"] = primary_email["email"]
+
+    profile_update = UserProfileUpdate(timezone="America/New_York", locale="en_US")
+    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
+
+    assert result.timezone == "America/New_York"
+    assert result.locale == "en_US"
+
+
 def test_update_current_user_profile_no_changes_no_event(test_tenant, test_user):
     """Test that no event is logged when profile isn't actually changed."""
     import database

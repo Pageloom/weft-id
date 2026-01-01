@@ -4,6 +4,45 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Naive Datetime Usage Causes 500 Errors When Interacting with DB Timestamps
+
+**Status:** Resolved (2026-01-01)
+
+**Found in:** Multiple files across `app/` and `tests/`
+
+**Severity:** High
+
+**Description:** The codebase used `datetime.now()` which returns timezone-naive datetimes, but PostgreSQL with psycopg3 returns timezone-aware datetimes (`TIMESTAMPTZ`). Python does not allow arithmetic between naive and aware datetimes, causing 500 errors on pages like `/account/background-jobs`.
+
+**Error:** `TypeError: can't subtract offset-naive and offset-aware datetimes`
+
+**Root Cause:** Even though containers run in UTC, `datetime.now()` returns a **naive** datetime (tzinfo=None), not an **aware** UTC datetime.
+
+**Resolution:**
+1. Replaced all `datetime.now()` with `datetime.now(UTC)` using the Python 3.11+ `UTC` constant
+2. Added `DTZ` rules to Ruff config (`pyproject.toml`) to prevent future naive datetime commits
+3. Added `# noqa: DTZ001` comment to one legitimate test that tests naive datetime handling
+
+**Files Modified:**
+- `app/oauth2.py` - Added `UTC` import, changed `datetime.now()` to `datetime.now(UTC)`
+- `app/schemas/bg_tasks.py` - Added `UTC` import, changed `datetime.now()` to `datetime.now(UTC)`
+- `app/utils/mfa.py` - Changed `datetime.datetime.now()` to `datetime.datetime.now(datetime.UTC)`
+- `app/jobs/export_events.py` - Added `UTC` import, changed 3 instances of `datetime.now()` to `datetime.now(UTC)`
+- `app/services/emails.py` - Added `UTC` import, changed 2 instances of `datetime.now()` to `datetime.now(UTC)`
+- `app/worker.py` - Added `UTC` import, changed `datetime.now()` to `datetime.now(UTC)`
+- `tests/test_routers_users.py` - Added `UTC` import, updated datetime calls
+- `tests/test_database_mfa.py` - Updated 2 instances to use `datetime.now(UTC)`
+- `tests/test_routers_settings.py` - Added `UTC` import, updated 5 instances
+- `tests/test_routers_account.py` - Added `UTC` import, updated 8 instances
+- `tests/test_services_activity.py` - Added `UTC` import, updated 1 instance
+- `tests/test_routers_auth.py` - Added `UTC` import, updated 6 instances
+- `tests/test_utils_datetime_format.py` - Added `# noqa: DTZ001` for test testing naive datetime handling
+- `pyproject.toml` - Added `"DTZ"` to Ruff lint rules
+
+**Note:** Localization is unaffected - `datetime_format.py` utility properly converts UTC datetimes to user timezones for display.
+
+---
+
 ## Event Logging Completely Broken - fetchone() Used with INSERT Without RETURNING
 
 **Status:** Resolved (2025-12-26)

@@ -309,7 +309,7 @@ def test_get_user_tracks_activity(test_tenant, test_admin_user, test_user):
 
 def test_get_current_user_profile_tracks_activity(test_tenant, test_user):
     """Test that get_current_user_profile() triggers activity tracking."""
-    from datetime import datetime
+    from datetime import UTC, datetime
     from unittest.mock import patch
 
     from services import users
@@ -328,7 +328,7 @@ def test_get_current_user_profile_tracks_activity(test_tenant, test_user):
         "email": test_user["email"],
         "tz": "UTC",
         "locale": "en",
-        "created_at": datetime.now(),
+        "created_at": datetime.now(UTC),
     }
 
     with patch("services.users.track_activity") as mock_track:

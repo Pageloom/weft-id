@@ -154,7 +154,7 @@ def test_create_and_verify_email_otp(test_user):
 
     code = "123456"
     code_hash = hashlib.sha256(code.encode()).hexdigest()
-    expires_at = datetime.now() + timedelta(minutes=10)
+    expires_at = datetime.now(UTC) + timedelta(minutes=10)
 
     # Create email OTP
     database.mfa.create_email_otp(
@@ -207,7 +207,7 @@ def test_email_otp_cannot_be_reused(test_user):
 
     code = "654321"
     code_hash = hashlib.sha256(code.encode()).hexdigest()
-    expires_at = datetime.now() + timedelta(minutes=10)
+    expires_at = datetime.now(UTC) + timedelta(minutes=10)
 
     # Create and verify OTP
     database.mfa.create_email_otp(

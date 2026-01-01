@@ -780,6 +780,7 @@ def test_background_jobs_list_page(test_user):
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from datetime import UTC, datetime
+
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
 
@@ -833,6 +834,7 @@ def test_background_jobs_list_no_active_jobs(test_user):
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from datetime import UTC, datetime
+
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobListItem, JobListResponse, JobStatus
 
@@ -924,6 +926,7 @@ def test_job_output_detail_success(test_user):
     with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
             from datetime import UTC, datetime
+
             from fastapi.responses import HTMLResponse
             from schemas.bg_tasks import JobDetail, JobStatus
 

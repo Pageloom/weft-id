@@ -6,8 +6,7 @@ import database
 import settings
 from fastapi import Depends, HTTPException, Request
 from services.types import RequestingUser
-from utils import auth
-from utils import request_metadata
+from utils import auth, request_metadata
 
 
 class RedirectError(Exception):

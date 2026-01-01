@@ -4,10 +4,8 @@ This test file covers all OAuth2 client, authorization code, and token
 operations for the database/oauth2.py module.
 """
 
-import pytest
 import database
 import oauth2
-
 
 # =============================================================================
 # Client Operations Tests
@@ -93,9 +91,7 @@ def test_create_b2b_client_success(test_tenant, test_admin_user):
     assert "client_secret" in client
 
     # Verify service user was created
-    service_user = database.users.get_user_by_id(
-        test_tenant["id"], client["service_user_id"]
-    )
+    service_user = database.users.get_user_by_id(test_tenant["id"], client["service_user_id"])
     assert service_user is not None
     assert service_user["first_name"] == "B2B Service"
     assert service_user["last_name"] == "Service Account"
@@ -112,9 +108,7 @@ def test_create_b2b_client_with_admin_role(test_tenant, test_admin_user):
         created_by=test_admin_user["id"],
     )
 
-    service_user = database.users.get_user_by_id(
-        test_tenant["id"], client["service_user_id"]
-    )
+    service_user = database.users.get_user_by_id(test_tenant["id"], client["service_user_id"])
     assert service_user["role"] == "admin"
 
 
@@ -133,9 +127,7 @@ def test_get_client_by_client_id_success(test_tenant, normal_oauth2_client):
 
 def test_get_client_by_client_id_not_found(test_tenant):
     """Test getting a non-existent client."""
-    client = database.oauth2.get_client_by_client_id(
-        test_tenant["id"], "nonexistent_client_id"
-    )
+    client = database.oauth2.get_client_by_client_id(test_tenant["id"], "nonexistent_client_id")
 
     assert client is None
 
@@ -162,16 +154,12 @@ def test_delete_client_success(test_tenant, test_admin_user):
     )
 
     # Delete it
-    deleted_count = database.oauth2.delete_client(
-        test_tenant["id"], client["client_id"]
-    )
+    deleted_count = database.oauth2.delete_client(test_tenant["id"], client["client_id"])
 
     assert deleted_count == 1
 
     # Verify deletion
-    found_client = database.oauth2.get_client_by_client_id(
-        test_tenant["id"], client["client_id"]
-    )
+    found_client = database.oauth2.get_client_by_client_id(test_tenant["id"], client["client_id"])
     assert found_client is None
 
 
@@ -228,12 +216,10 @@ def test_create_authorization_code_success(test_tenant, normal_oauth2_client, te
     assert len(code) > 20  # Should be a long random string
 
 
-def test_create_authorization_code_with_pkce_s256(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_create_authorization_code_with_pkce_s256(test_tenant, normal_oauth2_client, test_user):
     """Test creating an authorization code with PKCE S256 challenge."""
-    import hashlib
     import base64
+    import hashlib
 
     code_verifier = "test_verifier_" + "a" * 43  # Min 43 chars
     # S256: BASE64URL(SHA256(ASCII(code_verifier)))
@@ -256,9 +242,7 @@ def test_create_authorization_code_with_pkce_s256(
     assert code is not None
 
 
-def test_create_authorization_code_with_pkce_plain(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_create_authorization_code_with_pkce_plain(test_tenant, normal_oauth2_client, test_user):
     """Test creating an authorization code with PKCE plain challenge."""
     code_verifier = "test_verifier_plain_method"
     code_challenge = code_verifier  # Plain method: challenge = verifier
@@ -276,9 +260,7 @@ def test_create_authorization_code_with_pkce_plain(
     assert code is not None
 
 
-def test_validate_and_consume_code_success(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_success(test_tenant, normal_oauth2_client, test_user):
     """Test validating and consuming an authorization code."""
     code = database.oauth2.create_authorization_code(
         tenant_id=test_tenant["id"],
@@ -311,12 +293,10 @@ def test_validate_and_consume_code_success(
     assert result2 is None  # Already consumed
 
 
-def test_validate_and_consume_code_with_pkce_success(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_with_pkce_success(test_tenant, normal_oauth2_client, test_user):
     """Test PKCE code validation with correct verifier."""
-    import hashlib
     import base64
+    import hashlib
 
     code_verifier = "test_verifier_" + "a" * 43
     code_challenge = (
@@ -352,8 +332,8 @@ def test_validate_and_consume_code_with_pkce_invalid_verifier(
     test_tenant, normal_oauth2_client, test_user
 ):
     """Test PKCE code validation fails with wrong verifier."""
-    import hashlib
     import base64
+    import hashlib
 
     code_verifier = "test_verifier_" + "a" * 43
     code_challenge = (
@@ -429,9 +409,7 @@ def test_validate_and_consume_code_wrong_client(
     assert result is None
 
 
-def test_validate_and_consume_code_wrong_redirect_uri(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_wrong_redirect_uri(test_tenant, normal_oauth2_client, test_user):
     """Test code validation fails with wrong redirect URI."""
     code = database.oauth2.create_authorization_code(
         tenant_id=test_tenant["id"],
@@ -508,9 +486,7 @@ def test_create_access_token_success(test_tenant, normal_oauth2_client, test_use
     assert len(token) > 20
 
 
-def test_create_access_token_linked_to_refresh(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_create_access_token_linked_to_refresh(test_tenant, normal_oauth2_client, test_user):
     """Test creating an access token linked to a refresh token."""
     refresh_token, refresh_token_id = database.oauth2.create_refresh_token(
         tenant_id=test_tenant["id"],
@@ -530,9 +506,7 @@ def test_create_access_token_linked_to_refresh(
     assert access_token is not None
 
 
-def test_create_access_token_client_credentials(
-    test_tenant, b2b_oauth2_client
-):
+def test_create_access_token_client_credentials(test_tenant, b2b_oauth2_client):
     """Test creating a client credentials access token (24h expiry)."""
     token = database.oauth2.create_access_token(
         tenant_id=test_tenant["id"],
@@ -618,9 +592,7 @@ def test_validate_refresh_token_wrong_client(
     )
 
     # Try to validate with wrong client
-    result = database.oauth2.validate_refresh_token(
-        test_tenant["id"], token, other_client["id"]
-    )
+    result = database.oauth2.validate_refresh_token(test_tenant["id"], token, other_client["id"])
 
     assert result is None
 
@@ -651,9 +623,7 @@ def test_revoke_all_client_tokens(test_tenant, normal_oauth2_client, test_user):
     assert revoked_count >= 2  # At least refresh and access
 
     # Verify tokens no longer valid
-    assert (
-        database.oauth2.validate_token(access_token, test_tenant["id"]) is None
-    )
+    assert database.oauth2.validate_token(access_token, test_tenant["id"]) is None
     assert (
         database.oauth2.validate_refresh_token(
             test_tenant["id"], refresh_token, normal_oauth2_client["id"]
@@ -720,9 +690,7 @@ def test_clients_isolated_by_tenant(test_tenant, test_admin_user):
     )
 
     # Tenant1 should not see tenant2's client
-    found = database.oauth2.get_client_by_client_id(
-        test_tenant["id"], client2["client_id"]
-    )
+    found = database.oauth2.get_client_by_client_id(test_tenant["id"], client2["client_id"])
     assert found is None
 
     # Tenant2 should not see tenant1's client
@@ -806,9 +774,7 @@ def test_tokens_isolated_by_tenant(test_tenant, normal_oauth2_client, test_user)
     assert result is None
 
 
-def test_authorization_codes_isolated_by_tenant(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_authorization_codes_isolated_by_tenant(test_tenant, normal_oauth2_client, test_user):
     """Test that authorization codes are isolated by tenant (RLS)."""
     from uuid import uuid4
 
@@ -889,9 +855,7 @@ def test_authorization_codes_isolated_by_tenant(
     assert result is None
 
 
-def test_cross_tenant_token_validation_blocked(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_cross_tenant_token_validation_blocked(test_tenant, normal_oauth2_client, test_user):
     """Test that cross-tenant token validation is blocked."""
     from uuid import uuid4
 

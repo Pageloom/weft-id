@@ -7,10 +7,8 @@ Most functions are thin wrappers over database operations, so tests focus on:
 - Return value formatting
 """
 
-import pytest
-from services import oauth2 as oauth2_service
 import database
-
+from services import oauth2 as oauth2_service
 
 # =============================================================================
 # Client Operations Tests
@@ -30,9 +28,7 @@ def test_get_client_by_client_id_success(test_tenant, normal_oauth2_client):
 
 def test_get_client_by_client_id_not_found(test_tenant):
     """Test getting a non-existent client returns None."""
-    result = oauth2_service.get_client_by_client_id(
-        test_tenant["id"], "nonexistent_client_id"
-    )
+    result = oauth2_service.get_client_by_client_id(test_tenant["id"], "nonexistent_client_id")
 
     assert result is None
 
@@ -120,9 +116,7 @@ def test_create_b2b_client_logs_event(test_tenant, test_admin_user):
     assert events[0]["metadata"]["type"] == "b2b"
     assert events[0]["metadata"]["role"] == "admin"
     assert events[0]["metadata"]["client_id"] == result["client_id"]
-    assert str(events[0]["metadata"]["service_user_id"]) == str(
-        result["service_user_id"]
-    )
+    assert str(events[0]["metadata"]["service_user_id"]) == str(result["service_user_id"])
 
 
 def test_delete_client_success(test_tenant, test_admin_user):
@@ -136,24 +130,18 @@ def test_delete_client_success(test_tenant, test_admin_user):
     )
 
     # Delete it
-    deleted_count = oauth2_service.delete_client(
-        test_tenant["id"], client["client_id"]
-    )
+    deleted_count = oauth2_service.delete_client(test_tenant["id"], client["client_id"])
 
     assert deleted_count == 1
 
     # Verify deletion
-    found = oauth2_service.get_client_by_client_id(
-        test_tenant["id"], client["client_id"]
-    )
+    found = oauth2_service.get_client_by_client_id(test_tenant["id"], client["client_id"])
     assert found is None
 
 
 def test_delete_client_not_found(test_tenant):
     """Test deleting a non-existent client returns 0."""
-    deleted_count = oauth2_service.delete_client(
-        test_tenant["id"], "nonexistent_client_id"
-    )
+    deleted_count = oauth2_service.delete_client(test_tenant["id"], "nonexistent_client_id")
 
     assert deleted_count == 0
 
@@ -199,12 +187,10 @@ def test_create_authorization_code_success(test_tenant, normal_oauth2_client, te
     assert len(code) > 20
 
 
-def test_create_authorization_code_with_pkce(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_create_authorization_code_with_pkce(test_tenant, normal_oauth2_client, test_user):
     """Test creating an authorization code with PKCE."""
-    import hashlib
     import base64
+    import hashlib
 
     code_verifier = "test_verifier_" + "a" * 43
     code_challenge = (
@@ -226,9 +212,7 @@ def test_create_authorization_code_with_pkce(
     assert isinstance(code, str)
 
 
-def test_validate_and_consume_code_success(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_success(test_tenant, normal_oauth2_client, test_user):
     """Test validating and consuming an authorization code."""
     # Create code
     code = oauth2_service.create_authorization_code(
@@ -251,12 +235,10 @@ def test_validate_and_consume_code_success(
     assert str(result["tenant_id"]) == str(test_tenant["id"])
 
 
-def test_validate_and_consume_code_with_pkce(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_with_pkce(test_tenant, normal_oauth2_client, test_user):
     """Test PKCE code validation."""
-    import hashlib
     import base64
+    import hashlib
 
     code_verifier = "test_verifier_" + "a" * 43
     code_challenge = (
@@ -300,9 +282,7 @@ def test_validate_and_consume_code_invalid(test_tenant, normal_oauth2_client):
     assert result is None
 
 
-def test_validate_and_consume_code_single_use(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_validate_and_consume_code_single_use(test_tenant, normal_oauth2_client, test_user):
     """Test that authorization codes are single-use."""
     # Create code
     code = oauth2_service.create_authorization_code(
@@ -350,9 +330,7 @@ def test_create_refresh_token_success(test_tenant, normal_oauth2_client, test_us
     assert token_id is not None
 
 
-def test_create_refresh_token_returns_tuple(
-    test_tenant, normal_oauth2_client, test_user
-):
+def test_create_refresh_token_returns_tuple(test_tenant, normal_oauth2_client, test_user):
     """Test that create_refresh_token returns a tuple."""
     result = oauth2_service.create_refresh_token(
         tenant_id=test_tenant["id"],

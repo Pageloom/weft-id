@@ -597,9 +597,9 @@ def update_user(
         new_role = user_update.role
 
         # Only super_admin can change to/from super_admin or admin
-        if (new_role in ("admin", "super_admin") or current_role == "super_admin") and requesting_user[
-            "role"
-        ] != "super_admin":
+        if (
+            new_role in ("admin", "super_admin") or current_role == "super_admin"
+        ) and requesting_user["role"] != "super_admin":
             raise ForbiddenError(
                 message="Only super_admin can change admin or super_admin roles",
                 code="super_admin_role_change_denied",

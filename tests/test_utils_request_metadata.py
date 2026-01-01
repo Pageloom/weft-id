@@ -3,8 +3,6 @@
 import hashlib
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.utils import request_metadata
 
 
@@ -73,7 +71,11 @@ class TestParseDeviceFromUserAgent:
 
     def test_parse_device_from_user_agent_mobile(self):
         """Verify mobile device detection."""
-        ua_string = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+        ua_string = (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 "
+            "Mobile/15E148 Safari/604.1"
+        )
 
         result = request_metadata.parse_device_from_user_agent(ua_string)
 
@@ -82,7 +84,11 @@ class TestParseDeviceFromUserAgent:
 
     def test_parse_device_from_user_agent_tablet(self):
         """Verify tablet device detection."""
-        ua_string = "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+        ua_string = (
+            "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 "
+            "Mobile/15E148 Safari/604.1"
+        )
 
         result = request_metadata.parse_device_from_user_agent(ua_string)
 
@@ -91,7 +97,10 @@ class TestParseDeviceFromUserAgent:
 
     def test_parse_device_from_user_agent_desktop(self):
         """Verify desktop/PC detection."""
-        ua_string = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        ua_string = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        )
 
         result = request_metadata.parse_device_from_user_agent(ua_string)
 
@@ -164,9 +173,10 @@ class TestExtractRequestMetadata:
     def test_extract_request_metadata_full_integration(self):
         """Verify full metadata extraction with all fields present."""
         request = MagicMock()
+        ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15"
         request.headers.get.side_effect = lambda key: {
             "x-forwarded-for": "203.0.113.1",
-            "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15",
+            "user-agent": ua,
         }.get(key)
         request.cookies.get.return_value = "test-session-abc123"
         request.client.host = "192.0.2.1"
@@ -181,7 +191,10 @@ class TestExtractRequestMetadata:
 
         # Verify values
         assert result["remote_address"] == "203.0.113.1"
-        assert result["user_agent"] == "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15"
+        assert (
+            result["user_agent"]
+            == "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15"
+        )
         assert result["device"] is not None
         assert result["session_id_hash"] is not None
         assert len(result["session_id_hash"]) == 64  # SHA-256 hash
@@ -306,7 +319,9 @@ class TestComputeMetadataHash:
 
         # Expected JSON string format matching PostgreSQL:
         # {"device": null, "user_agent": null, "remote_address": null, "session_id_hash": null}
-        expected_json = '{"device": null, "user_agent": null, "remote_address": null, "session_id_hash": null}'
+        expected_json = (
+            '{"device": null, "user_agent": null, "remote_address": null, "session_id_hash": null}'
+        )
         expected_hash = hashlib.md5(expected_json.encode("utf-8")).hexdigest()
 
         assert result == expected_hash

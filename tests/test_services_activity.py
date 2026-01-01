@@ -18,12 +18,11 @@ def test_track_activity_force_always_updates_db(test_tenant, test_user):
 
 def test_track_activity_force_sets_cache(test_tenant, test_user):
     """Test that track_activity with force=True sets the cache."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import patch
 
     from services.activity import ACTIVITY_CACHE_KEY_PREFIX, track_activity
 
-    cache_key = f"{ACTIVITY_CACHE_KEY_PREFIX}{test_user['id']}"
-    mock_client = MagicMock()
+    cache_key = f"{ACTIVITY_CACHE_KEY_PREFIX}{test_user['id']}"  # noqa: F841
 
     # Mock cache.set to verify it's called with correct arguments
     with patch("services.activity.cache.set") as mock_set:
@@ -452,7 +451,7 @@ def test_all_service_functions_have_activity_or_logging():
 
     # Functions that are explicitly exempt from this requirement
     # (e.g., internal helpers, or functions that don't need tracking)
-    EXEMPT_FUNCTIONS = {
+    exempt_functions = {
         # Internal helpers that are called by other service functions
         "_require_admin",
         "_require_super_admin",
@@ -488,7 +487,7 @@ def test_all_service_functions_have_activity_or_logging():
     }
 
     # All exemptions (only internal helpers and functions without RequestingUser)
-    ALL_EXEMPT = EXEMPT_FUNCTIONS
+    all_exempt = exempt_functions
 
     class ActivityCallFinder(ast.NodeVisitor):
         """AST visitor to find calls to log_event or track_activity."""
@@ -497,7 +496,7 @@ def test_all_service_functions_have_activity_or_logging():
             self.has_log_event = False
             self.has_track_activity = False
 
-        def visit_Call(self, node):
+        def visit_Call(self, node):  # noqa: N802
             # Check for direct function calls: log_event() or track_activity()
             if isinstance(node.func, ast.Name):
                 if node.func.id == "log_event":
@@ -550,7 +549,7 @@ def test_all_service_functions_have_activity_or_logging():
         # Get all functions from the module
         for name, func in inspect.getmembers(module, inspect.isfunction):
             # Skip private functions and exempt functions
-            if name.startswith("_") or name in ALL_EXEMPT:
+            if name.startswith("_") or name in all_exempt:
                 continue
 
             # Skip functions not defined in this module (imports)
@@ -570,9 +569,11 @@ def test_all_service_functions_have_activity_or_logging():
     if missing_tracking:
         missing_list = "\n  - ".join(missing_tracking)
         raise AssertionError(
-            f"Service functions with RequestingUser missing log_event or track_activity:\n  - {missing_list}\n\n"
+            "Service functions with RequestingUser missing log_event or "
+            f"track_activity:\n  - {missing_list}\n\n"
             "All service functions that receive RequestingUser must call either:\n"
             "  - log_event() for write operations\n"
             "  - track_activity() for read operations\n\n"
-            "If a function is intentionally exempt, add it to EXEMPT_FUNCTIONS in this test."
+            "If a function is intentionally exempt, add it to exempt_functions in "
+            "this test."
         )

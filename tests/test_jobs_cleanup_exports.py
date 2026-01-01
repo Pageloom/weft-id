@@ -8,11 +8,8 @@ Tests include:
 - Database cleanup
 """
 
-import pytest
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
-
 
 # =============================================================================
 # Cleanup Expired Exports Tests
@@ -23,7 +20,9 @@ def test_cleanup_expired_exports_no_expired_files():
     """Test cleanup when there are no expired exports."""
     from jobs.cleanup_exports import cleanup_expired_exports
 
-    with patch("jobs.cleanup_exports.database.export_files.get_expired_exports") as mock_get_expired:
+    with patch(
+        "jobs.cleanup_exports.database.export_files.get_expired_exports"
+    ) as mock_get_expired:
         mock_get_expired.return_value = []
 
         result = cleanup_expired_exports()
@@ -34,8 +33,8 @@ def test_cleanup_expired_exports_no_expired_files():
 
 def test_cleanup_expired_exports_success(test_tenant, test_admin_user):
     """Test successful cleanup of expired export."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task and export file
     bg_task = database.bg_tasks.create_task(
@@ -80,8 +79,8 @@ def test_cleanup_expired_exports_success(test_tenant, test_admin_user):
 
 def test_cleanup_expired_exports_file_not_found(test_tenant, test_admin_user):
     """Test cleanup when file doesn't exist in storage."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task and export file
     bg_task = database.bg_tasks.create_task(
@@ -124,8 +123,8 @@ def test_cleanup_expired_exports_file_not_found(test_tenant, test_admin_user):
 
 def test_cleanup_expired_exports_delete_failure(test_tenant, test_admin_user):
     """Test cleanup when storage delete fails."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task and export file
     bg_task = database.bg_tasks.create_task(
@@ -165,8 +164,8 @@ def test_cleanup_expired_exports_delete_failure(test_tenant, test_admin_user):
 
 def test_cleanup_expired_exports_exception_handling(test_tenant, test_admin_user):
     """Test cleanup continues on exception."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task and export file
     bg_task = database.bg_tasks.create_task(
@@ -176,7 +175,7 @@ def test_cleanup_expired_exports_exception_handling(test_tenant, test_admin_user
     )
 
     expires_at = datetime.now(UTC) - timedelta(hours=1)
-    export_file = database.export_files.create_export_file(
+    database.export_files.create_export_file(
         tenant_id=test_tenant["id"],
         filename="exception-test.json.gz",
         storage_type="local",
@@ -201,8 +200,8 @@ def test_cleanup_expired_exports_exception_handling(test_tenant, test_admin_user
 
 def test_cleanup_expired_exports_multiple_files(test_tenant, test_admin_user):
     """Test cleanup with multiple expired files."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task
     bg_task = database.bg_tasks.create_task(
@@ -240,8 +239,8 @@ def test_cleanup_expired_exports_multiple_files(test_tenant, test_admin_user):
 
 def test_cleanup_expired_exports_mixed_success_and_failure(test_tenant, test_admin_user):
     """Test cleanup with some successes and some failures."""
-    from jobs.cleanup_exports import cleanup_expired_exports
     import database
+    from jobs.cleanup_exports import cleanup_expired_exports
 
     # Create background task
     bg_task = database.bg_tasks.create_task(
@@ -291,7 +290,9 @@ def test_cleanup_expired_exports_return_format():
     """Test that cleanup returns correct format."""
     from jobs.cleanup_exports import cleanup_expired_exports
 
-    with patch("jobs.cleanup_exports.database.export_files.get_expired_exports") as mock_get_expired:
+    with patch(
+        "jobs.cleanup_exports.database.export_files.get_expired_exports"
+    ) as mock_get_expired:
         mock_get_expired.return_value = []
 
         result = cleanup_expired_exports()

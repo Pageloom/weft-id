@@ -8,7 +8,7 @@ from typing import Any
 
 from psycopg.types.json import Json
 
-from ._core import TenantArg, execute, fetchall, fetchone, UNSCOPED
+from ._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def create_event(
@@ -130,7 +130,11 @@ def list_events(
         FROM event_logs e
         LEFT JOIN event_log_metadata m ON e.metadata_hash = m.metadata_hash
         LEFT JOIN users u ON (e.artifact_type = 'user' AND e.artifact_id = u.id)
-        LEFT JOIN user_emails ue ON (e.artifact_type = 'user' AND e.artifact_id = ue.user_id AND ue.is_primary = true)
+        LEFT JOIN user_emails ue ON (
+            e.artifact_type = 'user'
+            AND e.artifact_id = ue.user_id
+            AND ue.is_primary = true
+        )
         {where_clause}
         ORDER BY e.created_at DESC
         LIMIT :limit OFFSET :offset
@@ -200,7 +204,11 @@ def get_event_by_id(tenant_id: TenantArg, event_id: str) -> dict | None:
         FROM event_logs e
         LEFT JOIN event_log_metadata m ON e.metadata_hash = m.metadata_hash
         LEFT JOIN users u ON (e.artifact_type = 'user' AND e.artifact_id = u.id)
-        LEFT JOIN user_emails ue ON (e.artifact_type = 'user' AND e.artifact_id = ue.user_id AND ue.is_primary = true)
+        LEFT JOIN user_emails ue ON (
+            e.artifact_type = 'user'
+            AND e.artifact_id = ue.user_id
+            AND ue.is_primary = true
+        )
         WHERE e.id = :event_id
         """,
         {"event_id": event_id},

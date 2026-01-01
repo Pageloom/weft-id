@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import get_current_user_api, require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from schemas.api import (
     BackupCodesResponse,
     BackupCodesStatusResponse,
@@ -30,7 +30,6 @@ from services import mfa as mfa_service
 from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import ServiceError
-from services.types import RequestingUser
 from utils.email import (
     send_email_verification,
     send_mfa_code_email,
@@ -41,8 +40,6 @@ from utils.email import (
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
-
-
 
 
 def _user_to_profile(user: dict) -> UserProfile:
@@ -72,6 +69,8 @@ def _user_to_summary(user: dict) -> UserSummary:
         role=user["role"],
         created_at=user["created_at"],
         last_login=user.get("last_login"),
+        is_inactivated=user.get("is_inactivated", False),
+        is_anonymized=user.get("is_anonymized", False),
     )
 
 
@@ -101,6 +100,10 @@ def _user_to_detail(user: dict, emails: list[dict], is_service: bool) -> UserDet
         last_login=user.get("last_login"),
         emails=email_list,
         is_service_user=is_service,
+        is_inactivated=user.get("is_inactivated", False),
+        is_anonymized=user.get("is_anonymized", False),
+        inactivated_at=user.get("inactivated_at"),
+        anonymized_at=user.get("anonymized_at"),
     )
 
 

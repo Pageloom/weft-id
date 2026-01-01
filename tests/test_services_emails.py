@@ -9,12 +9,11 @@ Tests focus on:
 - Error cases
 """
 
+import database
 import pytest
 from services import emails as emails_service
-from services.exceptions import ForbiddenError, NotFoundError, ValidationError, ConflictError
+from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from services.types import RequestingUser
-import database
-
 
 # =============================================================================
 # Test Helpers
@@ -180,8 +179,8 @@ def test_add_user_email_conflict(test_tenant, test_user):
 
     with pytest.raises(ConflictError) as exc_info:
         emails_service.add_user_email(
-        requesting_user,
-        str(test_user["id"]),
+            requesting_user,
+            str(test_user["id"]),
             test_user["email"],  # Existing email
             is_admin_action=False,
         )
@@ -195,8 +194,8 @@ def test_add_user_email_disabled_by_tenant(test_tenant, test_user):
 
     with pytest.raises(ForbiddenError) as exc_info:
         emails_service.add_user_email(
-        requesting_user,
-        str(test_user["id"]),
+            requesting_user,
+            str(test_user["id"]),
             "disabled@example.com",
             is_admin_action=False,
             allow_users_add_emails=False,  # Tenant setting
@@ -298,7 +297,9 @@ def test_delete_user_email_forbidden_for_other_user(test_tenant, test_user, test
     admin_email_id = str(admin_emails[0]["id"])
 
     with pytest.raises(ForbiddenError) as exc_info:
-        emails_service.delete_user_email(requesting_user, str(test_admin_user["id"]), admin_email_id)
+        emails_service.delete_user_email(
+            requesting_user, str(test_admin_user["id"]), admin_email_id
+        )
 
     assert exc_info.value.code == "email_access_denied"
 
@@ -326,7 +327,9 @@ def test_delete_primary_email_forbidden(test_tenant, test_user):
     primary_email = next(e for e in emails if e["is_primary"])
 
     with pytest.raises(ValidationError) as exc_info:
-        emails_service.delete_user_email(requesting_user, str(test_user["id"]), str(primary_email["id"]))
+        emails_service.delete_user_email(
+            requesting_user, str(test_user["id"]), str(primary_email["id"])
+        )
 
     assert exc_info.value.code == "cannot_delete_primary"
 
@@ -340,7 +343,9 @@ def test_delete_last_email_forbidden(test_tenant, test_user):
     assert len(emails) == 1
 
     with pytest.raises(ValidationError) as exc_info:
-        emails_service.delete_user_email(requesting_user, str(test_user["id"]), str(emails[0]["id"]))
+        emails_service.delete_user_email(
+            requesting_user, str(test_user["id"]), str(emails[0]["id"])
+        )
 
     assert exc_info.value.code in ("cannot_delete_primary", "must_keep_one_email")
 
@@ -365,7 +370,9 @@ def test_set_primary_email_as_admin(test_tenant, test_admin_user, test_user):
     )
 
     # Set as primary
-    result = emails_service.set_primary_email(requesting_user, str(test_user["id"]), str(added["id"]))
+    result = emails_service.set_primary_email(
+        requesting_user, str(test_user["id"]), str(added["id"])
+    )
 
     assert result.email == new_email
     assert result.is_primary is True
@@ -391,7 +398,9 @@ def test_set_primary_email_as_self(test_tenant, test_user):
     )
 
     # Set as primary
-    result = emails_service.set_primary_email(requesting_user, str(test_user["id"]), str(added["id"]))
+    result = emails_service.set_primary_email(
+        requesting_user, str(test_user["id"]), str(added["id"])
+    )
 
     assert result.email == new_email
     assert result.is_primary is True
@@ -450,7 +459,9 @@ def test_set_primary_email_already_primary_idempotent(test_tenant, test_user):
     emails = database.user_emails.list_user_emails(test_tenant["id"], test_user["id"])
     primary_email = next(e for e in emails if e["is_primary"])
 
-    result = emails_service.set_primary_email(requesting_user, str(test_user["id"]), str(primary_email["id"]))
+    result = emails_service.set_primary_email(
+        requesting_user, str(test_user["id"]), str(primary_email["id"])
+    )
 
     assert result.email == primary_email["email"]
     assert result.is_primary is True
@@ -506,9 +517,9 @@ def test_verify_email_wrong_user(test_tenant, test_user, test_admin_user):
     # Try to verify as admin_user
     with pytest.raises(NotFoundError) as exc_info:
         emails_service.verify_email(
-        test_tenant["id"],
-        str(added["id"]),
-        str(test_admin_user["id"]),  # Wrong user
+            test_tenant["id"],
+            str(added["id"]),
+            str(test_admin_user["id"]),  # Wrong user
             added["verify_nonce"],
         )
 
@@ -545,9 +556,9 @@ def test_verify_email_invalid_nonce(test_tenant, test_user):
 
     with pytest.raises(ValidationError) as exc_info:
         emails_service.verify_email(
-        test_tenant["id"],
-        str(added["id"]),
-        str(test_user["id"]),
+            test_tenant["id"],
+            str(added["id"]),
+            str(test_user["id"]),
             added["verify_nonce"] + 1,  # Wrong nonce
         )
 
@@ -567,7 +578,9 @@ def test_resend_verification_as_self(test_tenant, test_user):
     new_email = f"resend-self-{str(test_user['id'])[:8]}@example.com"
     added = _add_unverified_email(test_tenant["id"], test_user["id"], new_email)
 
-    result = emails_service.resend_verification(requesting_user, str(test_user["id"]), str(added["id"]))
+    result = emails_service.resend_verification(
+        requesting_user, str(test_user["id"]), str(added["id"])
+    )
 
     assert result["email"] == new_email
     assert "verify_nonce" in result
@@ -582,7 +595,9 @@ def test_resend_verification_as_admin(test_tenant, test_admin_user, test_user):
     new_email = f"resend-admin-{str(test_user['id'])[:8]}@example.com"
     added = _add_unverified_email(test_tenant["id"], test_user["id"], new_email)
 
-    result = emails_service.resend_verification(requesting_user, str(test_user["id"]), str(added["id"]))
+    result = emails_service.resend_verification(
+        requesting_user, str(test_user["id"]), str(added["id"])
+    )
 
     assert result["email"] == new_email
     assert "verify_nonce" in result
@@ -597,7 +612,9 @@ def test_resend_verification_forbidden_for_other_user(test_tenant, test_user, te
     added = _add_unverified_email(test_tenant["id"], test_admin_user["id"], new_email)
 
     with pytest.raises(ForbiddenError) as exc_info:
-        emails_service.resend_verification(requesting_user, str(test_admin_user["id"]), str(added["id"]))
+        emails_service.resend_verification(
+            requesting_user, str(test_admin_user["id"]), str(added["id"])
+        )
 
     assert exc_info.value.code == "email_access_denied"
 
@@ -667,7 +684,9 @@ def test_get_email_address_by_id(test_tenant, test_user):
     emails = database.user_emails.list_user_emails(test_tenant["id"], test_user["id"])
     email_id = str(emails[0]["id"])
 
-    result = emails_service.get_email_address_by_id(test_tenant["id"], str(test_user["id"]), email_id)
+    result = emails_service.get_email_address_by_id(
+        test_tenant["id"], str(test_user["id"]), email_id
+    )
 
     assert result == test_user["email"]
 

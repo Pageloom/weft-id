@@ -3,8 +3,6 @@
 This test file covers all OAuth2 client management API operations.
 """
 
-import pytest
-
 
 # =============================================================================
 # List Clients Tests
@@ -35,9 +33,7 @@ def test_list_clients_as_admin(
         assert "client_secret" not in client_data  # Secret not returned in list
 
 
-def test_list_clients_as_member_forbidden(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_list_clients_as_member_forbidden(client, test_tenant_host, oauth2_authorization_header):
     """Test that a regular member cannot list OAuth2 clients."""
     response = client.get(
         "/api/v1/oauth2/clients",
@@ -251,9 +247,7 @@ def test_create_b2b_client_invalid_role(
 # =============================================================================
 
 
-def test_delete_client_as_admin(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_delete_client_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
     """Test that an admin can delete an OAuth2 client."""
     # First create a client
     create_response = client.post(
@@ -363,8 +357,6 @@ def test_regenerate_client_secret_invalidates_old_secret(
     client, test_tenant_host, oauth2_admin_authorization_header
 ):
     """Test that regenerating a secret invalidates the old one."""
-    import oauth2 as oauth2_module
-    import database
 
     # Create a client
     create_response = client.post(

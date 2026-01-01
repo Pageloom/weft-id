@@ -10,12 +10,11 @@ Tests focus on:
 - Event logging
 """
 
+import database
 import pytest
 from services import mfa as mfa_service
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.types import RequestingUser
-import database
-
 
 # =============================================================================
 # Test Helpers
@@ -41,7 +40,7 @@ def _verify_event_logged(tenant_id: str, event_type: str, artifact_id: str):
 
 def _setup_user_with_totp(tenant_id: str, user_id: str):
     """Helper to set up a user with TOTP enabled."""
-    from utils.mfa import generate_totp_secret, encrypt_secret
+    from utils.mfa import encrypt_secret, generate_totp_secret
 
     # Create and verify TOTP secret
     secret = generate_totp_secret()
@@ -87,10 +86,13 @@ def test_get_mfa_status_totp_enabled(test_tenant, test_user):
 
     # Generate backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     backup_codes = generate_backup_codes()
     for code in backup_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     # Get fresh user data
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
@@ -109,10 +111,13 @@ def test_get_backup_codes_status(test_tenant, test_user):
 
     # Create some backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     backup_codes = generate_backup_codes()
     for code in backup_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     # Mark first 3 as used via SQL
     codes_list = database.mfa.list_backup_codes(test_tenant["id"], test_user["id"])
@@ -150,7 +155,8 @@ def test_setup_totp_success(test_tenant, test_user):
     assert "otpauth://totp/" in result.uri
     # Email is URL-encoded in URI (@ becomes %40)
     import urllib.parse
-    encoded_email = urllib.parse.quote(test_user["email"], safe='')
+
+    encoded_email = urllib.parse.quote(test_user["email"], safe="")
     assert encoded_email in result.uri
 
     # Verify event logged
@@ -188,11 +194,12 @@ def test_verify_totp_and_enable_success(test_tenant, test_user, monkeypatch):
 
     # First setup TOTP
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    setup_result = mfa_service.setup_totp(requesting_user, user_data)
+    mfa_service.setup_totp(requesting_user, user_data)
 
     # Mock TOTP verification to always succeed
     def mock_verify_totp(secret, code):
         return True
+
     monkeypatch.setattr("services.mfa.verify_totp_code", mock_verify_totp)
 
     # Get fresh user data
@@ -236,6 +243,7 @@ def test_verify_totp_and_enable_invalid_code(test_tenant, test_user, monkeypatch
     # Mock TOTP verification to fail
     def mock_verify_totp(secret, code):
         return False
+
     monkeypatch.setattr("services.mfa.verify_totp_code", mock_verify_totp)
 
     # Get fresh user data
@@ -279,6 +287,7 @@ def test_enable_email_mfa_downgrade_from_totp(test_tenant, test_user, monkeypatc
     # Mock create_email_otp to return a known code
     def mock_create_otp(tenant_id, user_id):
         return "123456"
+
     monkeypatch.setattr("services.mfa.create_email_otp", mock_create_otp)
 
     # Get fresh user data
@@ -321,6 +330,7 @@ def test_verify_mfa_downgrade_success(test_tenant, test_user, monkeypatch):
     # Mock email OTP verification to succeed
     def mock_verify_otp(tenant_id, user_id, code):
         return True
+
     monkeypatch.setattr("services.mfa.verify_email_otp", mock_verify_otp)
 
     # Get fresh user data
@@ -362,6 +372,7 @@ def test_verify_mfa_downgrade_invalid_code(test_tenant, test_user, monkeypatch):
     # Mock email OTP verification to fail
     def mock_verify_otp(tenant_id, user_id, code):
         return False
+
     monkeypatch.setattr("services.mfa.verify_email_otp", mock_verify_otp)
 
     # Get fresh user data
@@ -387,10 +398,13 @@ def test_disable_mfa_success(test_tenant, test_user):
 
     # Generate backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     backup_codes = generate_backup_codes()
     for code in backup_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     # Get fresh user data
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
@@ -433,10 +447,13 @@ def test_regenerate_backup_codes_success(test_tenant, test_user):
 
     # Create initial backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     old_codes = generate_backup_codes()
     for code in old_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     # Get fresh user data
     user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
@@ -484,10 +501,13 @@ def test_reset_user_mfa_as_admin(test_tenant, test_admin_user, test_user):
 
     # Generate backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     backup_codes = generate_backup_codes()
     for code in backup_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     result = mfa_service.reset_user_mfa(requesting_user, str(test_user["id"]))
 
@@ -534,10 +554,13 @@ def test_list_backup_codes_raw(test_tenant, test_user):
     """Test listing raw backup codes."""
     # Create backup codes
     from utils.mfa import generate_backup_codes, hash_code
+
     backup_codes = generate_backup_codes()
     for code in backup_codes:
         code_hash = hash_code(code.replace("-", ""))
-        database.mfa.create_backup_code(test_tenant["id"], test_user["id"], code_hash, test_tenant["id"])
+        database.mfa.create_backup_code(
+            test_tenant["id"], test_user["id"], code_hash, test_tenant["id"]
+        )
 
     result = mfa_service.list_backup_codes_raw(test_tenant["id"], str(test_user["id"]))
 
@@ -548,12 +571,14 @@ def test_list_backup_codes_raw(test_tenant, test_user):
 
 def test_get_pending_totp_setup(test_tenant, test_user):
     """Test getting pending TOTP setup info."""
-    from utils.mfa import generate_totp_secret, encrypt_secret
+    from utils.mfa import encrypt_secret, generate_totp_secret
 
     # Create unverified TOTP secret
     secret = generate_totp_secret()
     secret_encrypted = encrypt_secret(secret)
-    database.mfa.create_totp_secret(test_tenant["id"], test_user["id"], secret_encrypted, test_tenant["id"])
+    database.mfa.create_totp_secret(
+        test_tenant["id"], test_user["id"], secret_encrypted, test_tenant["id"]
+    )
 
     result = mfa_service.get_pending_totp_setup(test_tenant["id"], str(test_user["id"]))
 

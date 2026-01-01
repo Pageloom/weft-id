@@ -228,6 +228,9 @@ def create_normal_client(
         created_by=created_by,
     )
 
+    if result is None:
+        raise ValueError("Failed to create OAuth2 client")
+
     # Log the event
     log_event(
         tenant_id=tenant_id,
@@ -273,6 +276,9 @@ def create_b2b_client(
         role=role,
         created_by=created_by,
     )
+
+    if result is None:
+        raise ValueError("Failed to create B2B OAuth2 client")
 
     # Log the event
     log_event(

@@ -14,6 +14,7 @@ All functions:
 
 import database
 from schemas.reactivation import ReactivationRequest
+from services.activity import track_activity
 from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
@@ -204,6 +205,7 @@ def list_pending_requests(
         ForbiddenError: If user lacks admin permissions
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     rows = database.reactivation.list_pending_requests(tenant_id)
@@ -238,6 +240,7 @@ def count_pending_requests(requesting_user: RequestingUser) -> int:
         ForbiddenError: If user lacks admin permissions
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     return database.reactivation.count_pending_requests(requesting_user["tenant_id"])
 
 
@@ -259,6 +262,7 @@ def list_previous_requests(
         ForbiddenError: If user lacks admin permissions
     """
     _require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     rows = database.reactivation.list_decided_requests(tenant_id)

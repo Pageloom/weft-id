@@ -4,6 +4,30 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Reactivation Service Missing track_activity() Calls
+
+**Status:** Resolved (2026-01-03)
+
+**Found in:** `app/services/reactivation.py`
+
+**Severity:** Medium
+
+**Description:** The reactivation service had three read-only functions that received `RequestingUser` but did not call `track_activity()`. This violated the architecture principle: "Any service layer read operation updates `last_activity_at` only if 3+ hours have passed."
+
+**Affected functions:**
+- `list_pending_requests` (line 189)
+- `count_pending_requests` (line 225)
+- `list_previous_requests` (line 244)
+
+**Impact:** Admins viewing reactivation requests weren't having their activity tracked, which could incorrectly flag them as inactive.
+
+**Resolution:** Added `track_activity(requesting_user["tenant_id"], requesting_user["id"])` call at the start of each read-only function, immediately after the `_require_admin()` check.
+
+**Files Modified:**
+- `app/services/reactivation.py` - Added import for `track_activity` and calls to 3 functions
+
+---
+
 ## Pydantic Validation Error When Re-detecting Regional Settings
 
 **Status:** Resolved (2026-01-01)

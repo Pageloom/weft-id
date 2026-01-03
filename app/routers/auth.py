@@ -12,6 +12,7 @@ import database
 from utils.auth import verify_login_with_status
 from utils.email import send_mfa_code_email, send_reactivation_request_admin_notification
 from utils.mfa import create_email_otp
+from utils.request_metadata import extract_request_metadata
 
 router = APIRouter(prefix="", tags=["auth"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
@@ -147,7 +148,8 @@ def request_reactivation(
 
     # Create a reactivation request directly (simplified flow without email verification)
     # In a production system, you might want email verification first
-    reactivation_service.create_request(tenant_id, user_id)
+    request_metadata = extract_request_metadata(request)
+    reactivation_service.create_request(tenant_id, user_id, request_metadata=request_metadata)
 
     # Notify admins about the reactivation request
     admin_emails = database.users.get_admin_emails(tenant_id)

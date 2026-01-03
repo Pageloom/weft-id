@@ -679,6 +679,8 @@ So that I can maintain security hygiene and ensure only active users have access
   - GET `/history` list decided requests
   - POST `/{id}/approve` approve a request
   - POST `/{id}/deny` deny a request
+- [x] Event log metadata includes user_id for all reactivation events (UUID only, no PII for GDPR compliance)
+- [x] Request metadata (IP, user agent, device) captured for reactivation requests
 
 **Dependencies:**
 

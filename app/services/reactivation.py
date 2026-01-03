@@ -45,6 +45,7 @@ def _require_admin(user: RequestingUser) -> None:
 def create_request(
     tenant_id: str,
     user_id: str,
+    request_metadata: dict | None = None,
 ) -> ReactivationRequest:
     """
     Create a reactivation request for an inactivated user.
@@ -55,6 +56,7 @@ def create_request(
     Args:
         tenant_id: Tenant ID
         user_id: User ID requesting reactivation
+        request_metadata: Optional request metadata for event logging
 
     Returns:
         ReactivationRequest object
@@ -120,6 +122,8 @@ def create_request(
         artifact_type="reactivation_request",
         artifact_id=str(result["id"]),
         event_type="reactivation_requested",
+        metadata={"user_id": user_id},
+        request_metadata=request_metadata,
     )
 
     return ReactivationRequest(

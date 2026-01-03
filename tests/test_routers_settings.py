@@ -27,27 +27,6 @@ def test_settings_index_redirects_to_first_child(test_admin_user):
         assert response.headers["location"] == "/admin/privileged-domains"
 
 
-@pytest.mark.skip(reason="Mock not working correctly; edge case shouldn't occur in practice")
-def test_settings_index_fallback_to_dashboard(test_admin_user):
-    """Test settings index falls back to dashboard when no accessible children."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    with patch("routers.settings.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = None  # No accessible children
-
-        client = TestClient(app)
-        response = client.get("/admin/", follow_redirects=False)
-
-        app.dependency_overrides.clear()
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-
-
 def test_privileged_domains_list(test_admin_user):
     """Test privileged domains page displays list."""
     from datetime import UTC, datetime

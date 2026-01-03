@@ -1528,13 +1528,9 @@ def test_users_list_all_three_roles(test_admin_user):
                 assert set(count_call_args[2]) == {"member", "admin", "super_admin"}
 
 
-@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_tenant):
-    """Verify event log created when creating user via HTML router with privileged domain.
-
-    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
-    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
-    """
+    """Verify event log created when creating user via HTML router with privileged domain."""
+    from unittest.mock import patch
     from uuid import uuid4
 
     import database
@@ -1558,17 +1554,21 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     unique_suffix = str(uuid4())[:8]
     new_email = f"newuser-{unique_suffix}@{domain}"
 
-    client = TestClient(app)
-    response = client.post(
-        "/users/new",
-        data={
-            "email": new_email,
-            "first_name": "New",
-            "last_name": "User",
-            "role": "member",
-        },
-        follow_redirects=False,
-    )
+    # Mock email sending and cache to avoid warnings
+    with patch("routers.users.send_new_user_privileged_domain_notification"):
+        with patch("services.activity.cache.get", return_value=None):
+            with patch("services.activity.cache.set", return_value=True):
+                client = TestClient(app)
+                response = client.post(
+                    "/users/new",
+                    data={
+                        "email": new_email,
+                        "first_name": "New",
+                        "last_name": "User",
+                        "role": "member",
+                    },
+                    follow_redirects=False,
+                )
 
     app.dependency_overrides.clear()
 
@@ -1597,8 +1597,8 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     assert event is not None
     assert event["event_type"] == "user_created"
     assert event["artifact_type"] == "user"
-    assert event["artifact_id"] == user_id
-    assert event["actor_user_id"] == test_admin_user["id"]
+    assert str(event["artifact_id"]) == user_id
+    assert str(event["actor_user_id"]) == str(test_admin_user["id"])
 
     # Verify metadata was stored (metadata_hash should not be null)
     assert event["metadata_hash"] is not None
@@ -1616,13 +1616,9 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     assert metadata["metadata"]["email"] == new_email
 
 
-@pytest.mark.xfail(reason="Event logging broken due to RLS policy issue - see ISSUES.md")
 def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, test_tenant):
-    """Verify event log created when creating user via HTML router with non-privileged domain.
-
-    NOTE: This test is currently failing due to a critical RLS policy issue with event_logs table.
-    See ISSUES.md for details. Once the RLS issue is fixed, remove the @pytest.mark.xfail decorator.
-    """
+    """Verify event log created when creating user via HTML router with non-privileged domain."""
+    from unittest.mock import patch
     from uuid import uuid4
 
     import database
@@ -1636,17 +1632,21 @@ def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, te
     unique_suffix = str(uuid4())[:8]
     new_email = f"newuser-{unique_suffix}@{domain}"
 
-    client = TestClient(app)
-    response = client.post(
-        "/users/new",
-        data={
-            "email": new_email,
-            "first_name": "New",
-            "last_name": "User",
-            "role": "member",
-        },
-        follow_redirects=False,
-    )
+    # Mock email sending and cache to avoid warnings
+    with patch("routers.users.send_new_user_invitation"):
+        with patch("services.activity.cache.get", return_value=None):
+            with patch("services.activity.cache.set", return_value=True):
+                client = TestClient(app)
+                response = client.post(
+                    "/users/new",
+                    data={
+                        "email": new_email,
+                        "first_name": "New",
+                        "last_name": "User",
+                        "role": "member",
+                    },
+                    follow_redirects=False,
+                )
 
     app.dependency_overrides.clear()
 
@@ -1675,8 +1675,8 @@ def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, te
     assert event is not None
     assert event["event_type"] == "user_created"
     assert event["artifact_type"] == "user"
-    assert event["artifact_id"] == user_id
-    assert event["actor_user_id"] == test_admin_user["id"]
+    assert str(event["artifact_id"]) == user_id
+    assert str(event["actor_user_id"]) == str(test_admin_user["id"])
 
     # Verify metadata was stored
     assert event["metadata_hash"] is not None

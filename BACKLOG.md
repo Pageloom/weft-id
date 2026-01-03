@@ -67,6 +67,61 @@ So that I can maintain security hygiene and ensure only active users have access
 
 ---
 
+## Integration Management Frontend (Apps & B2B)
+
+**User Story:**
+As a super admin
+I want to manage OAuth2 clients (Apps) and B2B service accounts through a web UI
+So that I can configure integrations without using API calls directly
+
+**Acceptance Criteria:**
+
+**Navigation & Page Structure:**
+
+- [ ] New "Integration" item in Admin navigation
+- [ ] Two sub-tabs: "Apps" and "B2B"
+- [ ] Super Admin only access
+
+**Apps Tab (Normal OAuth2 Clients):**
+
+- [ ] List view showing: Name, Client ID, Created At
+- [ ] "Create App" button opens creation form
+- [ ] Creation form: Name (required), Description (optional), Redirect URIs (multiple allowed)
+- [ ] On successful creation: show credentials once with checkbox "I have copied the information and stored it securely" to enable proceed button
+- [ ] Edit existing app: Name, Description, Redirect URIs
+- [ ] Regenerate secret with confirmation, same "copied securely" checkbox flow
+- [ ] Delete app with confirmation dialog
+
+**B2B Tab (Service Accounts):**
+
+- [ ] List view showing: Name, Client ID, Role, Created At
+- [ ] "Create B2B Client" button opens creation form
+- [ ] Creation form: Name (required), Description (optional), Role (member/admin/super_admin)
+- [ ] On successful creation: show credentials once with same "copied securely" checkbox flow
+- [ ] Edit existing B2B client: Name, Description
+- [ ] Change service user role (any super admin can do this)
+- [ ] Regenerate secret with confirmation, same flow
+- [ ] Delete B2B client with confirmation dialog
+
+**Credentials Display (both tabs):**
+
+- [ ] After create or regenerate: modal shows Client ID and Client Secret
+- [ ] Checkbox: "I have copied the information and stored it securely"
+- [ ] Checkbox must be checked to enable "Proceed" button
+- [ ] Proceeding returns to the list view
+
+**Backend Changes Required:**
+
+- Database migration: Add `description TEXT` column to `oauth2_clients` table
+- `PATCH /api/v1/oauth2/clients/{client_id}` endpoint for updating name, description, redirect_uris
+- Endpoint to update B2B service user role
+- Modify create/list endpoints to include description field
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Organizational Structure & Grouping System
 
 **User Story:**

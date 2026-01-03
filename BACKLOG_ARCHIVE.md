@@ -614,3 +614,78 @@ So that I can conduct thorough security investigations and understand who did wh
 **Value:** High (Security, Compliance, Audit Trail)
 
 ---
+
+## User Activity Display & Automatic Inactivation System
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want to see user activity status and automatically inactivate dormant users
+So that I can maintain security hygiene and ensure only active users have access to the system
+
+**Acceptance Criteria:**
+
+**User List Enhancements:**
+
+- [x] `last_activity_at` column added to user list API response
+- [x] `last_activity_at` displayed in user list UI as absolute timestamp (localized to viewing user's timezone)
+- [x] `last_activity_at` is sortable (ascending/descending) like existing columns
+- [x] `last_login` removed from frontend user list view (retained in API for backwards compatibility)
+
+**Tenant Inactivity Settings:**
+
+- [x] New tenant setting: inactivity threshold with options: Indefinitely (disabled), 14 days, 30 days, 90 days
+- [x] Setting added to existing `/settings/tenant-security` page
+- [x] Default value: Indefinitely (no auto-inactivation)
+
+**Automatic Inactivation:**
+
+- [x] Daily cron job checks all active users against inactivity threshold
+- [x] Comparison uses `last_activity_at`, falling back to `created_at` if null
+- [x] Users exceeding threshold are set to inactive status
+- [x] Upon inactivation: all OAuth tokens for that user are invalidated
+- [x] Upon inactivation: all web sessions for that user are invalidated
+- [x] Inactivation logged to event_logs (when event logging is available)
+
+**Reactivation Request Flow:**
+
+- [x] Inactivated users attempting to log in see a "Request Reactivation" option
+- [x] User must complete email verification before request is submitted
+- [x] New `reactivation_requests` table: user_id, requested_at, decided_by, decided_at
+- [x] Upon request submission: email sent to all Admins and Super Admins in tenant
+- [x] Email contains CTA linking to reactivation requests list
+- [x] Reactivation requests list page (Admin/Super Admin only) shows pending requests
+- [x] Admins can approve or deny each request individually
+- [x] Approved: user status set to active, request removed from table, user can log in normally
+- [x] Denied: request removed from table, user cannot request reactivation again via app
+- [x] To track denial: add `reactivation_denied_at` timestamp column on users table
+- [x] Users with `reactivation_denied_at` set cannot submit new requests (must contact org out-of-band)
+
+**Max Session Length Change Behavior:**
+
+- [x] When max session length setting is changed, all active sessions tenant-wide are invalidated immediately
+- [x] Warning displayed before saving: "Changing this setting will immediately log out all users"
+- [x] User must confirm before change takes effect
+
+**Additional Work (Beyond Original Spec):**
+
+- [x] Email notification to user when reactivation request is approved
+- [x] Email notification to user when reactivation request is denied
+- [x] Email notification to admins/super admins when a new reactivation request is submitted
+- [x] Reactivation history page showing previously decided requests (approved/denied)
+- [x] Full REST API for reactivation management (`/api/v1/reactivation-requests`)
+  - GET list pending requests
+  - GET `/history` list decided requests
+  - POST `/{id}/approve` approve a request
+  - POST `/{id}/deny` deny a request
+
+**Dependencies:**
+
+- User Activity Tracking (for `last_activity_at` column)
+- Service Layer Event Logging (for audit trail)
+
+**Effort:** XL
+**Value:** High (Security, Compliance, Account Lifecycle)
+
+---

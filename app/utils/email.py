@@ -387,3 +387,157 @@ If you have any questions, please contact your administrator.
     # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_account_reactivated_notification(to_email: str, login_url: str) -> bool:
+    """Send notification when an account has been reactivated."""
+    # ruff: noqa: E501
+    subject = "Your account has been reactivated"
+
+    text_body = f"""
+Your account has been reactivated.
+
+An administrator has approved your reactivation request. You can now sign in to your account:
+
+{login_url}
+
+If you have any questions, please contact your administrator.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .success-box {{ background: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Your Account Has Been Reactivated</h1>
+        <div class="success-box">
+            <p>An administrator has approved your reactivation request.</p>
+        </div>
+        <p>You can now sign in to your account:</p>
+        <a href="{login_url}" class="button">Sign In</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{login_url}</p>
+        <div class="footer">
+            <p>If you have any questions, please contact your administrator.</p>
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_reactivation_denied_notification(to_email: str) -> bool:
+    """Send notification when a reactivation request has been denied."""
+    # ruff: noqa: E501
+    subject = "Your reactivation request was denied"
+
+    text_body = """
+Your reactivation request was denied.
+
+An administrator has reviewed your request to reactivate your account and has decided not to approve it at this time.
+
+If you believe this decision was made in error or have questions, please contact your administrator directly.
+"""
+
+    # fmt: off
+    html_body = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .denied-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reactivation Request Denied</h1>
+        <div class="denied-box">
+            <p>An administrator has reviewed your request to reactivate your account and has decided not to approve it at this time.</p>
+        </div>
+        <p>If you believe this decision was made in error or have questions, please contact your administrator directly.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_reactivation_request_admin_notification(
+    to_email: str,
+    user_name: str,
+    user_email: str,
+    requests_url: str,
+) -> bool:
+    """Send notification to admin about new reactivation request."""
+    # ruff: noqa: E501
+    subject = "Reactivation request received"
+
+    text_body = f"""
+A user has requested account reactivation.
+
+User: {user_name}
+Email: {user_email}
+
+Please review this request at:
+{requests_url}
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .info-box {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reactivation Request Received</h1>
+        <div class="info-box">
+            <p><strong>User:</strong> {user_name}</p>
+            <p><strong>Email:</strong> {user_email}</p>
+        </div>
+        <p>A user whose account was inactivated has requested reactivation. Please review this request:</p>
+        <a href="{requests_url}" class="button">Review Request</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{requests_url}</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)

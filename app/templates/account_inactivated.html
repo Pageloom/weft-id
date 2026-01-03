@@ -43,7 +43,7 @@
                     After verification, your request will be sent to an administrator for approval.
                 </p>
                 <form method="post" action="/request-reactivation">
-                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                    <input type="hidden" name="user_id" value="{{ inactivated_user.id }}">
                     <button type="submit"
                             class="w-full bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
                         Request Reactivation

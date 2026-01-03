@@ -204,3 +204,32 @@ def count_pending_requests(tenant_id: TenantArg) -> int:
         {},
     )
     return result["count"] if result else 0
+
+
+def list_decided_requests(tenant_id: TenantArg) -> list[dict]:
+    """
+    List all decided (approved/denied) reactivation requests for a tenant.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+
+    Returns:
+        List of dicts with request, user, and decision details
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select r.id, r.user_id, r.requested_at, r.decision, r.decided_at,
+               u.first_name, u.last_name,
+               ue.email,
+               d.first_name as decided_by_first_name,
+               d.last_name as decided_by_last_name
+        from reactivation_requests r
+        join users u on r.user_id = u.id
+        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        left join users d on r.decided_by = d.id
+        where r.decision is not null
+        order by r.decided_at desc
+        """,
+        {},
+    )

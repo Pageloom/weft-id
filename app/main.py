@@ -20,6 +20,7 @@ from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, tenants, users  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
+from routers.api.v1 import reactivation as reactivation_api  # noqa: E402
 from routers.api.v1 import settings as settings_api  # noqa: E402
 from routers.api.v1 import users as users_api  # noqa: E402
 
@@ -67,6 +68,7 @@ app.include_router(oauth2.router)
 
 # Include API routers (JSON)
 app.include_router(oauth2_clients.router)
+app.include_router(reactivation_api.router)
 app.include_router(settings_api.router)
 app.include_router(users_api.router)
 

@@ -274,7 +274,8 @@ def list_previous_requests(
             decision=row.get("decision"),
             decided_at=row.get("decided_at"),
             decided_by_name=(
-                f"{row.get('decided_by_first_name', '')} {row.get('decided_by_last_name', '')}".strip()
+                f"{row.get('decided_by_first_name', '')} "
+                f"{row.get('decided_by_last_name', '')}".strip()
                 if row.get("decided_by_first_name")
                 else None
             ),

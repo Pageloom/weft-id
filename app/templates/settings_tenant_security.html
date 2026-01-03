@@ -80,6 +80,31 @@
             </div>
 
             <div class="border-t border-gray-200 pt-6 mt-6">
+                <h2 class="text-lg font-medium mb-4">Automatic Inactivation</h2>
+                <div class="mb-6">
+                    <label for="inactivity_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+                        Inactivate users after period of inactivity
+                    </label>
+                    <p class="text-sm text-gray-500 mb-3">
+                        Users who haven't been active for this period will be automatically inactivated.
+                        Inactivated users cannot sign in until an admin reactivates them.
+                    </p>
+
+                    <select
+                        name="inactivity_threshold"
+                        id="inactivity_threshold"
+                        class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="" {% if inactivity_threshold_days is none %}selected{% endif %}>Indefinitely (never auto-inactivate)</option>
+                        <option value="14" {% if inactivity_threshold_days == 14 %}selected{% endif %}>14 days</option>
+                        <option value="30" {% if inactivity_threshold_days == 30 %}selected{% endif %}>30 days</option>
+                        <option value="60" {% if inactivity_threshold_days == 60 %}selected{% endif %}>60 days</option>
+                        <option value="90" {% if inactivity_threshold_days == 90 %}selected{% endif %}>90 days</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 pt-6 mt-6">
                 <h2 class="text-lg font-medium mb-4">User Permissions</h2>
                 <p class="text-sm text-gray-500 mb-4">
                     Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.

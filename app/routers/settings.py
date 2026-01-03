@@ -131,6 +131,7 @@ def admin_security(
             persistent_sessions=settings.persistent_sessions,
             allow_users_edit_profile=settings.allow_users_edit_profile,
             allow_users_add_emails=settings.allow_users_add_emails,
+            inactivity_threshold_days=settings.inactivity_threshold_days,
             success=success,
             error=error,
         ),
@@ -146,6 +147,7 @@ def update_admin_security(
     persistent_sessions: Annotated[str, Form()] = "",
     allow_users_edit_profile: Annotated[str, Form()] = "",
     allow_users_add_emails: Annotated[str, Form()] = "",
+    inactivity_threshold: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -172,6 +174,26 @@ def update_admin_security(
             )
             return render_error_page(request, tenant_id, exc)
 
+    # Parse inactivity threshold (empty string means disabled/NULL)
+    inactivity_days: int | None = None
+    if inactivity_threshold:
+        try:
+            inactivity_days = int(inactivity_threshold)
+            if inactivity_days <= 0:
+                exc = ValidationError(
+                    message="Inactivity threshold must be positive",
+                    code="invalid_threshold",
+                    field="inactivity_threshold_days",
+                )
+                return render_error_page(request, tenant_id, exc)
+        except ValueError:
+            exc = ValidationError(
+                message="Inactivity threshold must be a number",
+                code="invalid_threshold",
+                field="inactivity_threshold_days",
+            )
+            return render_error_page(request, tenant_id, exc)
+
     # Parse checkboxes (checked = "true", unchecked = "")
     try:
         settings_update = TenantSecuritySettingsUpdate(
@@ -179,6 +201,7 @@ def update_admin_security(
             persistent_sessions=persistent_sessions == "true",
             allow_users_edit_profile=allow_users_edit_profile == "true",
             allow_users_add_emails=allow_users_add_emails == "true",
+            inactivity_threshold_days=inactivity_days,
         )
     except PydanticValidationError as e:
         # Convert Pydantic validation error to service error

@@ -14,7 +14,8 @@ from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
 from services import event_log as event_log_service
-from services.exceptions import NotFoundError, ServiceError
+from services import reactivation as reactivation_service
+from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
@@ -145,3 +146,99 @@ def trigger_export(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/account/background-jobs?success=export_started", status_code=303)
+
+
+# =============================================================================
+# Reactivation Requests
+# =============================================================================
+
+
+@router.get("/reactivation-requests", response_class=HTMLResponse)
+def reactivation_requests_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display pending reactivation requests."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        requests = reactivation_service.list_pending_requests(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "admin_reactivation_requests.html",
+        get_template_context(
+            request,
+            tenant_id,
+            requests=requests,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/reactivation-requests/{request_id}/approve")
+def approve_reactivation_request(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    request_id: str,
+):
+    """Approve a reactivation request."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        reactivation_service.approve_request(requesting_user, request_id)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/admin/reactivation-requests?error=request_not_found",
+            status_code=303,
+        )
+    except ValidationError as exc:
+        return RedirectResponse(
+            url=f"/admin/reactivation-requests?error={exc.code}",
+            status_code=303,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/reactivation-requests?success=approved",
+        status_code=303,
+    )
+
+
+@router.post("/reactivation-requests/{request_id}/deny")
+def deny_reactivation_request(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    request_id: str,
+):
+    """Deny a reactivation request."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        reactivation_service.deny_request(requesting_user, request_id)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/admin/reactivation-requests?error=request_not_found",
+            status_code=303,
+        )
+    except ValidationError as exc:
+        return RedirectResponse(
+            url=f"/admin/reactivation-requests?error={exc.code}",
+            status_code=303,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/reactivation-requests?success=denied",
+        status_code=303,
+    )

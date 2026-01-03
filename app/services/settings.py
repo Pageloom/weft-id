@@ -292,6 +292,7 @@ def get_security_settings(
             persistent_sessions=True,
             allow_users_edit_profile=True,
             allow_users_add_emails=True,
+            inactivity_threshold_days=None,
         )
 
     return TenantSecuritySettings(
@@ -299,6 +300,7 @@ def get_security_settings(
         persistent_sessions=settings.get("persistent_sessions", True),
         allow_users_edit_profile=settings.get("allow_users_edit_profile", True),
         allow_users_add_emails=settings.get("allow_users_add_emails", True),
+        inactivity_threshold_days=settings.get("inactivity_threshold_days"),
     )
 
 
@@ -387,6 +389,21 @@ def can_user_edit_profile(tenant_id: str) -> bool:
     return bool(settings.get("allow_users_edit_profile", True))
 
 
+def get_inactivity_threshold(tenant_id: str) -> int | None:
+    """
+    Get the inactivity threshold in days for a tenant.
+
+    This is a utility function that does not require authorization.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Number of days before auto-inactivation, or None if disabled
+    """
+    return database.security.get_inactivity_threshold(tenant_id)
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,
@@ -446,6 +463,11 @@ def update_security_settings(
         if settings_update.allow_users_add_emails is not None
         else current.get("allow_users_add_emails", True)
     )
+    inactivity_days = (
+        settings_update.inactivity_threshold_days
+        if settings_update.inactivity_threshold_days is not None
+        else current.get("inactivity_threshold_days")
+    )
 
     # Build changes metadata for logging
     changes: dict = {}
@@ -469,6 +491,11 @@ def update_security_settings(
             "old": current.get("allow_users_add_emails", True),
             "new": allow_emails,
         }
+    if settings_update.inactivity_threshold_days is not None:
+        changes["inactivity_threshold_days"] = {
+            "old": current.get("inactivity_threshold_days"),
+            "new": inactivity_days,
+        }
 
     # Update in database
     database.security.update_security_settings(
@@ -477,6 +504,7 @@ def update_security_settings(
         persistent_sessions=persistent,
         allow_users_edit_profile=allow_edit,
         allow_users_add_emails=allow_emails,
+        inactivity_threshold_days=inactivity_days,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -497,4 +525,5 @@ def update_security_settings(
         persistent_sessions=persistent,
         allow_users_edit_profile=allow_edit,
         allow_users_add_emails=allow_emails,
+        inactivity_threshold_days=inactivity_days,
     )

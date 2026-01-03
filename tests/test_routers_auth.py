@@ -58,9 +58,9 @@ def test_login_post_invalid_credentials(test_tenant):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
 
-    with patch("routers.auth.verify_login") as mock_verify:
+    with patch("routers.auth.verify_login_with_status") as mock_verify:
         with patch("routers.auth.templates.TemplateResponse") as mock_template:
-            mock_verify.return_value = None
+            mock_verify.return_value = {"status": "invalid_credentials", "user": None}
             mock_template.return_value = HTMLResponse(
                 content="<html>Invalid email or password</html>"
             )
@@ -92,11 +92,11 @@ def test_login_post_valid_credentials_with_email_mfa(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch("routers.auth.verify_login") as mock_verify:
+    with patch("routers.auth.verify_login_with_status") as mock_verify:
         with patch("routers.auth.create_email_otp") as mock_create_otp:
             with patch("services.emails.get_primary_email") as mock_get_email:
                 with patch("routers.auth.send_mfa_code_email") as mock_send_email:
-                    mock_verify.return_value = test_user_with_mfa
+                    mock_verify.return_value = {"status": "success", "user": test_user_with_mfa}
                     mock_create_otp.return_value = "123456"
                     mock_get_email.return_value = test_user["email"]  # Service returns string
 
@@ -128,11 +128,11 @@ def test_login_post_valid_credentials_without_email_row(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch("routers.auth.verify_login") as mock_verify:
+    with patch("routers.auth.verify_login_with_status") as mock_verify:
         with patch("routers.auth.create_email_otp") as mock_create_otp:
             with patch("services.emails.get_primary_email") as mock_get_email:
                 with patch("routers.auth.send_mfa_code_email") as mock_send_email:
-                    mock_verify.return_value = test_user_with_mfa
+                    mock_verify.return_value = {"status": "success", "user": test_user_with_mfa}
                     mock_create_otp.return_value = "123456"
                     mock_get_email.return_value = None  # No email
 
@@ -160,8 +160,8 @@ def test_login_post_with_totp_mfa(test_user):
 
     app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
 
-    with patch("routers.auth.verify_login") as mock_verify:
-        mock_verify.return_value = test_user_with_totp
+    with patch("routers.auth.verify_login_with_status") as mock_verify:
+        mock_verify.return_value = {"status": "success", "user": test_user_with_totp}
 
         client = TestClient(app)
         response = client.post(

@@ -258,7 +258,7 @@
                         {{ sort_header('email', 'Email') }}
                         {{ sort_header('role', 'Role') }}
                         {{ sort_header('status', 'Status') }}
-                        {{ sort_header('last_login', 'Last Login') }}
+                        {{ sort_header('last_activity_at', 'Last Activity') }}
                         {{ sort_header('created_at', 'Created') }}
                         {% if user.role in ['admin', 'super_admin'] %}
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -307,7 +307,7 @@
                                 {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ fmt_datetime(u.last_login) if u.last_login else 'Never' }}
+                                {{ fmt_datetime(u.last_activity_at) if u.last_activity_at else 'Never' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ fmt_datetime(u.created_at) }}

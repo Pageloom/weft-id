@@ -13,15 +13,34 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
 
     Returns None if user is inactivated (cannot log in).
     """
+    result = verify_login_with_status(tenant_id, email, password)
+    if result["status"] == "success":
+        user = result.get("user")
+        return dict(user) if user else None
+    return None
+
+
+def verify_login_with_status(tenant_id: str, email: str, password: str) -> dict:
+    """
+    Verify email and password for a user within a tenant.
+    Returns a dict with status and user/error information.
+
+    Returns:
+        {
+            "status": "success" | "invalid_credentials" | "inactivated" | "denied",
+            "user": dict | None,
+            "can_request_reactivation": bool (only if inactivated)
+        }
+    """
     # Find user by email within tenant
     user_email = database.users.get_user_by_email(tenant_id, email)
 
     if not user_email or not user_email["password_hash"]:
-        return None
+        return {"status": "invalid_credentials", "user": None}
 
     # Verify password
     if not verify_password(user_email["password_hash"], password):
-        return None
+        return {"status": "invalid_credentials", "user": None}
 
     user_id = user_email["user_id"]
 
@@ -30,13 +49,23 @@ def verify_login(tenant_id: str, email: str, password: str) -> dict | None:
 
     # Block login for inactivated users
     if user and user.get("is_inactivated"):
-        return None
+        # Check if they were denied reactivation
+        if user.get("reactivation_denied_at"):
+            return {"status": "denied", "user": user, "can_request_reactivation": False}
+
+        # Check if they have a pending request
+        pending = database.reactivation.get_pending_request(tenant_id, user_id)
+        if pending:
+            return {"status": "pending", "user": user, "can_request_reactivation": False}
+
+        return {"status": "inactivated", "user": user, "can_request_reactivation": True}
 
     # Update last_login and re-fetch to get updated timestamp
     database.users.update_last_login(tenant_id, user_id)
 
     # Re-fetch to include updated last_login
-    return database.users.get_user_by_id(tenant_id, user_id)
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    return {"status": "success", "user": user}
 
 
 def get_current_user(request: Request, tenant_id: str) -> dict | None:

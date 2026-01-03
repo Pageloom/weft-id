@@ -194,142 +194,6 @@ def test_trigger_export_creates_task(test_admin_user):
         mock_create.assert_called_once()
 
 
-@pytest.mark.skip(reason="Exports routes moved to /account/background-jobs")
-def test_exports_list_renders(test_admin_user):
-    """Test exports list page renders successfully."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-    from fastapi.responses import HTMLResponse
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    with patch("services.exports.list_exports") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_result = MagicMock()
-                mock_result.items = []
-                mock_result.total = 0
-                mock_list.return_value = mock_result
-
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>exports</html>")
-
-                client = TestClient(app)
-                response = client.get("/admin/exports")
-
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                mock_list.assert_called_once()
-
-
-@pytest.mark.skip(reason="Exports routes moved to /account/background-jobs")
-def test_download_export_local_file(test_admin_user, tmp_path):
-    """Test downloading a local export file."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    # Create a temporary file
-    test_file = tmp_path / "test-export.json.gz"
-    test_file.write_bytes(b"test content")
-
-    with patch("services.exports.get_download") as mock_download:
-        mock_download.return_value = {
-            "storage_type": "local",
-            "path": str(test_file),
-            "filename": "test-export.json.gz",
-            "content_type": "application/gzip",
-        }
-
-        client = TestClient(app)
-        response = client.get(f"/admin/exports/download/{uuid4()}")
-
-        app.dependency_overrides.clear()
-
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "application/gzip"
-
-
-@pytest.mark.skip(reason="Exports routes moved to /account/background-jobs")
-def test_download_export_spaces_redirect(test_admin_user):
-    """Test downloading a Spaces export redirects to signed URL."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    signed_url = "https://spaces.example.com/exports/test.json.gz?signed=abc123"
-
-    with patch("services.exports.get_download") as mock_download:
-        mock_download.return_value = {
-            "storage_type": "spaces",
-            "url": signed_url,
-            "filename": "test-export.json.gz",
-        }
-
-        client = TestClient(app)
-        response = client.get(f"/admin/exports/download/{uuid4()}", follow_redirects=False)
-
-        app.dependency_overrides.clear()
-
-        assert response.status_code == 302
-        assert response.headers["location"] == signed_url
-
-
-@pytest.mark.skip(reason="Exports routes moved to /account/background-jobs")
-def test_download_export_not_found_redirects(test_admin_user):
-    """Test download export redirects on not found."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-    from services.exceptions import NotFoundError
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    with patch("services.exports.get_download") as mock_download:
-        mock_download.side_effect = NotFoundError(message="Not found", code="export_not_found")
-
-        client = TestClient(app)
-        response = client.get(f"/admin/exports/download/{uuid4()}", follow_redirects=False)
-
-        app.dependency_overrides.clear()
-
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
-
-
-@pytest.mark.skip(reason="Exports routes moved to /account/background-jobs")
-def test_download_export_file_missing_on_disk(test_admin_user, tmp_path):
-    """Test download redirects when file is missing from disk."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
-
-    # Point to a non-existent file
-    missing_file = tmp_path / "missing-file.json.gz"
-
-    with patch("services.exports.get_download") as mock_download:
-        mock_download.return_value = {
-            "storage_type": "local",
-            "path": str(missing_file),
-            "filename": "missing-file.json.gz",
-            "content_type": "application/gzip",
-        }
-
-        client = TestClient(app)
-        response = client.get(f"/admin/exports/download/{uuid4()}", follow_redirects=False)
-
-        app.dependency_overrides.clear()
-
-        assert response.status_code == 303
-        assert "error=file_missing" in response.headers["location"]
 
 
 def test_admin_routes_require_admin_role(test_user):
@@ -358,3 +222,398 @@ def test_admin_routes_require_admin_role(test_user):
 
     # The ForbiddenError should be raised
     assert response.status_code in [403, 500]  # Depends on error handling
+
+
+# =============================================================================
+# Reactivation Requests Routes Tests
+# =============================================================================
+
+
+def test_reactivation_requests_list_admin(test_admin_user):
+    """Test admin can access reactivation requests list page."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("services.reactivation.list_pending_requests") as mock_list:
+        with patch("utils.template_context.get_template_context") as mock_context:
+            with patch("routers.admin.templates.TemplateResponse") as mock_template:
+                mock_list.return_value = []
+                mock_context.return_value = {"request": MagicMock()}
+                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/reactivation-requests")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                mock_list.assert_called_once()
+
+
+def test_reactivation_requests_list_member_forbidden(test_user):
+    """Test members cannot access reactivation requests."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from services.exceptions import ForbiddenError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_user["tenant_id"])
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    def mock_require_admin():
+        raise ForbiddenError(message="Admin required", code="admin_required")
+
+    app.dependency_overrides[require_admin] = mock_require_admin
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/admin/reactivation-requests")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code in [403, 500]
+
+
+def test_reactivation_requests_list_success_message(test_admin_user):
+    """Test success query param is passed to template."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("services.reactivation.list_pending_requests") as mock_list:
+        with patch("routers.admin.get_template_context") as mock_context:
+            with patch("routers.admin.templates.TemplateResponse") as mock_template:
+                mock_list.return_value = []
+                mock_context.return_value = {"request": MagicMock(), "success": "approved"}
+                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/reactivation-requests?success=approved")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Check get_template_context was called with success param
+                mock_context.assert_called_once()
+                _, call_kwargs = mock_context.call_args
+                assert call_kwargs.get("success") == "approved"
+
+
+def test_reactivation_requests_list_error_message(test_admin_user):
+    """Test error query param is passed to template."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("services.reactivation.list_pending_requests") as mock_list:
+        with patch("routers.admin.get_template_context") as mock_context:
+            with patch("routers.admin.templates.TemplateResponse") as mock_template:
+                mock_list.return_value = []
+                mock_context.return_value = {"request": MagicMock(), "error": "request_not_found"}
+                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/reactivation-requests?error=request_not_found")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Check get_template_context was called with error param
+                mock_context.assert_called_once()
+                _, call_kwargs = mock_context.call_args
+                assert call_kwargs.get("error") == "request_not_found"
+
+
+def test_reactivation_history_admin(test_admin_user):
+    """Test admin can access reactivation history page."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("services.reactivation.list_previous_requests") as mock_list:
+        with patch("utils.template_context.get_template_context") as mock_context:
+            with patch("routers.admin.templates.TemplateResponse") as mock_template:
+                mock_list.return_value = []
+                mock_context.return_value = {"request": MagicMock()}
+                mock_template.return_value = HTMLResponse(content="<html>history</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/reactivation-requests/history")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                mock_list.assert_called_once()
+
+
+def test_reactivation_history_member_forbidden(test_user):
+    """Test members cannot access reactivation history."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from services.exceptions import ForbiddenError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_user["tenant_id"])
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    def mock_require_admin():
+        raise ForbiddenError(message="Admin required", code="admin_required")
+
+    app.dependency_overrides[require_admin] = mock_require_admin
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/admin/reactivation-requests/history")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code in [403, 500]
+
+
+def test_approve_request_success(test_admin_user):
+    """Test approving a reactivation request redirects with success."""
+    from datetime import UTC, datetime
+
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from schemas.reactivation import ReactivationRequest
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.approve_request") as mock_approve:
+        with patch("routers.admin.send_account_reactivated_notification"):
+            mock_approve.return_value = ReactivationRequest(
+                id=request_id,
+                user_id=str(uuid4()),
+                email="user@example.com",
+                first_name="Test",
+                last_name="User",
+                requested_at=datetime.now(UTC),
+                decision="approved",
+                decided_at=datetime.now(UTC),
+                decided_by_name="Admin User",
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                f"/admin/reactivation-requests/{request_id}/approve",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "success=approved" in response.headers["location"]
+
+
+def test_approve_request_not_found(test_admin_user):
+    """Test approving non-existent request redirects with error."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from services.exceptions import NotFoundError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.approve_request") as mock_approve:
+        mock_approve.side_effect = NotFoundError(
+            message="Request not found", code="request_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/reactivation-requests/{request_id}/approve",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=request_not_found" in response.headers["location"]
+
+
+def test_approve_request_already_decided(test_admin_user):
+    """Test approving already-decided request redirects with error."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from services.exceptions import ValidationError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.approve_request") as mock_approve:
+        mock_approve.side_effect = ValidationError(
+            message="Already decided", code="already_decided"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/reactivation-requests/{request_id}/approve",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=already_decided" in response.headers["location"]
+
+
+def test_approve_request_sends_email(test_admin_user):
+    """Test approving request sends notification email."""
+    from datetime import UTC, datetime
+
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from schemas.reactivation import ReactivationRequest
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+    user_email = "reactivated@example.com"
+
+    with patch("services.reactivation.approve_request") as mock_approve:
+        with patch("routers.admin.send_account_reactivated_notification") as mock_send_email:
+            mock_approve.return_value = ReactivationRequest(
+                id=request_id,
+                user_id=str(uuid4()),
+                email=user_email,
+                first_name="Test",
+                last_name="User",
+                requested_at=datetime.now(UTC),
+                decision="approved",
+                decided_at=datetime.now(UTC),
+                decided_by_name="Admin User",
+            )
+
+            client = TestClient(app)
+            client.post(
+                f"/admin/reactivation-requests/{request_id}/approve",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            mock_send_email.assert_called_once()
+            call_args = mock_send_email.call_args[0]
+            assert call_args[0] == user_email
+
+
+def test_deny_request_success(test_admin_user):
+    """Test denying a reactivation request redirects with success."""
+    from datetime import UTC, datetime
+
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from schemas.reactivation import ReactivationRequest
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.deny_request") as mock_deny:
+        with patch("routers.admin.send_reactivation_denied_notification"):
+            mock_deny.return_value = ReactivationRequest(
+                id=request_id,
+                user_id=str(uuid4()),
+                email="user@example.com",
+                first_name="Test",
+                last_name="User",
+                requested_at=datetime.now(UTC),
+                decision="denied",
+                decided_at=datetime.now(UTC),
+                decided_by_name="Admin User",
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                f"/admin/reactivation-requests/{request_id}/deny",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "success=denied" in response.headers["location"]
+
+
+def test_deny_request_not_found(test_admin_user):
+    """Test denying non-existent request redirects with error."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from services.exceptions import NotFoundError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.deny_request") as mock_deny:
+        mock_deny.side_effect = NotFoundError(message="Request not found", code="request_not_found")
+
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/reactivation-requests/{request_id}/deny",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=request_not_found" in response.headers["location"]
+
+
+def test_deny_request_sends_email(test_admin_user):
+    """Test denying request sends notification email."""
+    from datetime import UTC, datetime
+
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+    from schemas.reactivation import ReactivationRequest
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    request_id = str(uuid4())
+    user_email = "denied@example.com"
+
+    with patch("services.reactivation.deny_request") as mock_deny:
+        with patch("routers.admin.send_reactivation_denied_notification") as mock_send_email:
+            mock_deny.return_value = ReactivationRequest(
+                id=request_id,
+                user_id=str(uuid4()),
+                email=user_email,
+                first_name="Test",
+                last_name="User",
+                requested_at=datetime.now(UTC),
+                decision="denied",
+                decided_at=datetime.now(UTC),
+                decided_by_name="Admin User",
+            )
+
+            client = TestClient(app)
+            client.post(
+                f"/admin/reactivation-requests/{request_id}/deny",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            mock_send_email.assert_called_once()
+            call_args = mock_send_email.call_args[0]
+            assert call_args[0] == user_email

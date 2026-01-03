@@ -2,13 +2,13 @@
 
 from typing import Annotated
 
+import database
 import services.emails as emails_service
 import services.users as users_service
 from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-import database
 from utils.auth import verify_login_with_status
 from utils.email import send_mfa_code_email, send_reactivation_request_admin_notification
 from utils.mfa import create_email_otp
@@ -144,7 +144,12 @@ def request_reactivation(
         return RedirectResponse(url="/login?error=no_email", status_code=303)
 
     user = users_service.get_user_by_id_raw(tenant_id, user_id)
-    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() if user else "Unknown"
+    if user:
+        first = user.get("first_name", "")
+        last = user.get("last_name", "")
+        user_name = f"{first} {last}".strip()
+    else:
+        user_name = "Unknown"
 
     # Create a reactivation request directly (simplified flow without email verification)
     # In a production system, you might want email verification first

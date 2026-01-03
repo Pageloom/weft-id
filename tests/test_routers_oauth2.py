@@ -1,7 +1,6 @@
 """Tests for OAuth2 authorization and token endpoints (routers/oauth2.py)."""
 
 import pytest
-from jinja2.exceptions import UndefinedError
 
 # ============================================================================
 # Fixtures
@@ -57,18 +56,8 @@ def authenticated_client_with_host(client, test_tenant, test_tenant_host, test_u
 
 
 class TestAuthorizePage:
-    """Tests for the OAuth2 authorization page (GET /oauth2/authorize).
+    """Tests for the OAuth2 authorization page (GET /oauth2/authorize)."""
 
-    NOTE: Some tests are marked xfail due to a production bug where the OAuth2
-    authorization page crashes because it doesn't pass 'nav' context to the
-    template. See ISSUES.md for details. These tests will pass once the bug
-    is fixed.
-    """
-
-    @pytest.mark.xfail(
-        reason="Production bug: OAuth2 authorize page missing nav context (see ISSUES.md)",
-        raises=UndefinedError,
-    )
     def test_authorize_page_valid_client(
         self, authenticated_client_with_host, normal_oauth2_client
     ):
@@ -85,10 +74,6 @@ class TestAuthorizePage:
         assert response.status_code == 200
         assert "oauth2_authorize" in response.text or "Authorize" in response.text
 
-    @pytest.mark.xfail(
-        reason="Production bug: OAuth2 authorize page missing nav context (see ISSUES.md)",
-        raises=UndefinedError,
-    )
     def test_authorize_page_with_state(self, authenticated_client_with_host, normal_oauth2_client):
         """Test authorization page preserves state parameter."""
         response = authenticated_client_with_host.get(
@@ -105,10 +90,6 @@ class TestAuthorizePage:
         # State should be included in the form
         assert "random_state_123" in response.text
 
-    @pytest.mark.xfail(
-        reason="Production bug: OAuth2 authorize page missing nav context (see ISSUES.md)",
-        raises=UndefinedError,
-    )
     def test_authorize_page_with_pkce(self, authenticated_client_with_host, normal_oauth2_client):
         """Test authorization page accepts PKCE parameters."""
         response = authenticated_client_with_host.get(
@@ -189,10 +170,6 @@ class TestAuthorizePage:
         assert response.status_code == 200
         assert "Invalid" in response.text or "S256" in response.text
 
-    @pytest.mark.xfail(
-        reason="Production bug: OAuth2 authorize page missing nav context (see ISSUES.md)",
-        raises=UndefinedError,
-    )
     def test_authorize_page_pkce_plain_method_allowed(
         self, authenticated_client_with_host, normal_oauth2_client
     ):

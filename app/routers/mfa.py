@@ -38,8 +38,9 @@ def mfa_verify_page(
     user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
 
     return templates.TemplateResponse(
+        request,
         "mfa_verify.html",
-        {"request": request, "method": pending_method, "user": user, "nav": {}},
+        {"method": pending_method, "user": user, "nav": {}},
     )
 
 
@@ -78,9 +79,9 @@ def mfa_verify(
     if not verified:
         user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
         return templates.TemplateResponse(
+            request,
             "mfa_verify.html",
             {
-                "request": request,
                 "method": pending_method,
                 "user": user,
                 "error": "Invalid or expired code",

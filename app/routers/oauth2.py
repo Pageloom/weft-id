@@ -47,52 +47,56 @@ def authorize_page(
 
     if not client:
         return templates.TemplateResponse(
+            request,
             "oauth2_error.html",
             {
-                "request": request,
                 "error": "Invalid client_id",
                 "error_description": "The client_id provided is not registered.",
+                "nav": {},
             },
         )
 
     # Verify client type is 'normal' (authorization code flow only)
     if client["client_type"] != "normal":
         return templates.TemplateResponse(
+            request,
             "oauth2_error.html",
             {
-                "request": request,
                 "error": "Unauthorized client",
                 "error_description": "This client is not authorized for this flow.",
+                "nav": {},
             },
         )
 
     # Verify redirect_uri matches exactly
     if redirect_uri not in (client["redirect_uris"] or []):
         return templates.TemplateResponse(
+            request,
             "oauth2_error.html",
             {
-                "request": request,
                 "error": "Invalid redirect_uri",
                 "error_description": "The redirect_uri does not match registered URIs.",
+                "nav": {},
             },
         )
 
     # Verify PKCE parameters if provided
     if code_challenge and code_challenge_method not in ("S256", "plain"):
         return templates.TemplateResponse(
+            request,
             "oauth2_error.html",
             {
-                "request": request,
                 "error": "Invalid request",
                 "error_description": "Invalid code_challenge_method. Must be S256 or plain.",
+                "nav": {},
             },
         )
 
     # Show authorization page
     return templates.TemplateResponse(
+        request,
         "oauth2_authorize.html",
         {
-            "request": request,
             "client": client,
             "user": user,
             "client_id": client_id,
@@ -100,6 +104,7 @@ def authorize_page(
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
+            "nav": {},
         },
     )
 
@@ -142,11 +147,12 @@ def authorize_grant(
     # Verify redirect_uri matches
     if redirect_uri not in (client["redirect_uris"] or []):
         return templates.TemplateResponse(
+            request,
             "oauth2_error.html",
             {
-                "request": request,
                 "error": "Invalid redirect_uri",
                 "error_description": "The redirect_uri does not match registered URIs.",
+                "nav": {},
             },
         )
 

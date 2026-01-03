@@ -237,6 +237,48 @@ def count_pending_requests(requesting_user: RequestingUser) -> int:
     return database.reactivation.count_pending_requests(requesting_user["tenant_id"])
 
 
+def list_previous_requests(
+    requesting_user: RequestingUser,
+) -> list[ReactivationRequest]:
+    """
+    List all previously decided reactivation requests for the tenant.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The authenticated admin making the request
+
+    Returns:
+        List of ReactivationRequest objects with decision details
+
+    Raises:
+        ForbiddenError: If user lacks admin permissions
+    """
+    _require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+    rows = database.reactivation.list_decided_requests(tenant_id)
+
+    return [
+        ReactivationRequest(
+            id=str(row["id"]),
+            user_id=str(row["user_id"]),
+            first_name=row.get("first_name", ""),
+            last_name=row.get("last_name", ""),
+            email=row.get("email"),
+            requested_at=row["requested_at"],
+            decision=row.get("decision"),
+            decided_at=row.get("decided_at"),
+            decided_by_name=(
+                f"{row.get('decided_by_first_name', '')} {row.get('decided_by_last_name', '')}".strip()
+                if row.get("decided_by_first_name")
+                else None
+            ),
+        )
+        for row in rows
+    ]
+
+
 def approve_request(
     requesting_user: RequestingUser,
     request_id: str,

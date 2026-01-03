@@ -491,6 +491,30 @@ def count_active_super_admins(tenant_id: TenantArg) -> int:
     return result["count"] if result else 0
 
 
+def get_admin_emails(tenant_id: TenantArg) -> list[str]:
+    """
+    Get primary emails of all active admins and super_admins.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+
+    Returns:
+        List of email addresses
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        select ue.email
+        from users u
+        join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        where u.role in ('admin', 'super_admin')
+          and u.is_inactivated = false
+        """,
+        {},
+    )
+    return [row["email"] for row in rows]
+
+
 def inactivate_user(tenant_id: TenantArg, user_id: str) -> int:
     """
     Inactivate a user account (soft-disable login).

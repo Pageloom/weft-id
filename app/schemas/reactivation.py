@@ -21,5 +21,7 @@ class ReactivationRequest(BaseModel):
     email: str | None = Field(None, description="User's primary email")
     requested_at: datetime = Field(..., description="When the request was submitted")
     decision: str | None = Field(None, description="Decision: approved, denied, or null if pending")
+    decided_at: datetime | None = Field(None, description="When the decision was made")
+    decided_by_name: str | None = Field(None, description="Name of admin who made the decision")
 
     model_config = {"from_attributes": True}

@@ -5,7 +5,12 @@
 {% block content %}
 <div class="max-w-4xl">
     <div class="bg-white rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6">Reactivation Requests</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-semibold">Reactivation Requests</h1>
+            <a href="/admin/reactivation-requests/history" class="text-sm text-blue-600 hover:text-blue-800">
+                View History &rarr;
+            </a>
+        </div>
 
         <p class="text-sm text-gray-600 mb-6">
             Users who have been automatically inactivated due to inactivity can request reactivation.

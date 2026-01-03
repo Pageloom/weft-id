@@ -204,25 +204,17 @@ def test_add_user_email_disabled_by_tenant(test_tenant, test_user):
     assert exc_info.value.code == "email_add_disabled"
 
 
-@pytest.mark.skip(reason="Need to create super_admin user in fixture")
-def test_add_user_email_super_admin_bypasses_tenant_setting(test_tenant, test_user):
+def test_add_user_email_super_admin_bypasses_tenant_setting(test_tenant, test_super_admin_user):
     """Test that super_admin bypasses tenant allow_users_add_emails setting."""
-    # TODO: This test needs a test_super_admin_user fixture
-    # Create a super admin user
-    super_admin = database.users.create_user(
-        test_tenant["id"],
-        "Super",
-        "Admin",
-        f"superadmin-{str(test_tenant['id'])[:8]}@example.com",
-        "super_admin",
+    requesting_user = _make_requesting_user(
+        test_super_admin_user, str(test_tenant["id"]), "super_admin"
     )
-    requesting_user = _make_requesting_user(super_admin, test_tenant["id"], "super_admin")
 
-    new_email = f"super-bypass-{str(test_user['id'])[:8]}@example.com"
+    new_email = f"super-bypass-{str(test_super_admin_user['id'])[:8]}@example.com"
 
     result = emails_service.add_user_email(
         requesting_user,
-        str(super_admin["id"]),
+        str(test_super_admin_user["id"]),
         new_email,
         is_admin_action=False,
         allow_users_add_emails=False,  # Should be bypassed

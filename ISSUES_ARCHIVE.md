@@ -4,6 +4,68 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## OAuth2 Authorization Page Crashes Due to Missing nav Context
+
+**Status:** Resolved (2026-01-03)
+
+**Found in:** `app/routers/oauth2.py:92-103`
+
+**Severity:** High
+
+**Description:** The OAuth2 authorization page (`GET /oauth2/authorize`) crashed with a Jinja2 `UndefinedError` when accessed by an authenticated user. The template extends `base.html` which expects a `nav` context variable, but the router didn't provide it.
+
+**Resolution:**
+- Added `"nav": {}` to the template context for the OAuth2 authorize page
+- Used empty dict since OAuth2 flows are workflow pages that shouldn't show full navigation
+- Also updated TemplateResponse calls to use new Starlette API: `TemplateResponse(request, name, context)` instead of deprecated `TemplateResponse(name, {"request": request, ...})`
+
+**Files Modified:**
+- `app/routers/oauth2.py` - Added nav context to authorize page TemplateResponse
+
+---
+
+## OAuth2 Error Page Also Missing nav Context
+
+**Status:** Resolved (2026-01-03)
+
+**Found in:** `app/routers/oauth2.py:49-56, 60-67, 71-78, 82-89, 144-151`
+
+**Severity:** High
+
+**Description:** All error template responses in the OAuth2 router were missing the `nav` context. While these didn't crash at the time (because they didn't pass `user`), they were fixed for consistency and to prevent future issues.
+
+**Resolution:**
+- Added `"nav": {}` to all TemplateResponse calls for oauth2_error.html
+- Updated all TemplateResponse calls to use new Starlette API
+
+**Files Modified:**
+- `app/routers/oauth2.py` - Added nav context to all error page TemplateResponses
+
+---
+
+## Invalid artifact_id in delete_jobs Event Logging
+
+**Status:** Resolved (2026-01-03)
+
+**Found in:** `app/services/bg_tasks.py:173`
+
+**Severity:** Medium
+
+**Description:** The `delete_jobs` function logged an event with `artifact_id="bulk_delete"`, but the `event_logs.artifact_id` column is a UUID NOT NULL field. This caused the event logging to silently fail with error: `invalid input syntax for type uuid: "bulk_delete"`.
+
+**Impact:**
+- Bulk job deletions were NOT logged to the audit trail
+- Violated "if there is a write, there is a log" principle
+
+**Resolution:**
+- Changed `artifact_id="bulk_delete"` to `artifact_id=job_ids[0]` to use the first job ID as the artifact_id
+- The `metadata` field already contains all `job_ids` for full audit trail
+
+**Files Modified:**
+- `app/services/bg_tasks.py` - Fixed artifact_id parameter in log_event call
+
+---
+
 ## Reactivation Service Missing track_activity() Calls
 
 **Status:** Resolved (2026-01-03)

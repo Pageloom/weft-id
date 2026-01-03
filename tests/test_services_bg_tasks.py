@@ -343,7 +343,6 @@ def test_delete_jobs_success(test_tenant, test_admin_user):
     assert deleted is None
 
 
-@pytest.mark.xfail(reason="Bug: artifact_id='bulk_delete' is not a valid UUID. See ISSUES.md")
 def test_delete_jobs_logs_event(test_tenant, test_admin_user):
     """Test deleting jobs logs an event."""
     import database

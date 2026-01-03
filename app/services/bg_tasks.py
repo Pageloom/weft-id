@@ -170,7 +170,7 @@ def delete_jobs(requesting_user: RequestingUser, job_ids: list[str]) -> int:
             tenant_id=requesting_user["tenant_id"],
             actor_user_id=requesting_user["id"],
             artifact_type="bg_task",
-            artifact_id="bulk_delete",
+            artifact_id=job_ids[0],
             event_type="jobs_deleted",
             metadata={"count": count, "job_ids": job_ids},
             request_metadata=requesting_user.get("request_metadata"),

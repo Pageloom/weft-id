@@ -16,6 +16,10 @@ from services import bg_tasks as bg_tasks_service
 from services import event_log as event_log_service
 from services import reactivation as reactivation_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
+from utils.email import (
+    send_account_reactivated_notification,
+    send_reactivation_denied_notification,
+)
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
@@ -182,6 +186,30 @@ def reactivation_requests_list(
     )
 
 
+@router.get("/reactivation-requests/history", response_class=HTMLResponse)
+def reactivation_requests_history(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display previously decided reactivation requests."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        requests = reactivation_service.list_previous_requests(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return templates.TemplateResponse(
+        "admin_reactivation_history.html",
+        get_template_context(
+            request,
+            tenant_id,
+            requests=requests,
+        ),
+    )
+
+
 @router.post("/reactivation-requests/{request_id}/approve")
 def approve_reactivation_request(
     request: Request,
@@ -193,7 +221,7 @@ def approve_reactivation_request(
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
-        reactivation_service.approve_request(requesting_user, request_id)
+        result = reactivation_service.approve_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
             url="/admin/reactivation-requests?error=request_not_found",
@@ -206,6 +234,11 @@ def approve_reactivation_request(
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
+
+    # Send notification email to the reactivated user
+    if result.email:
+        login_url = str(request.url_for("login_page"))
+        send_account_reactivated_notification(result.email, login_url)
 
     return RedirectResponse(
         url="/admin/reactivation-requests?success=approved",
@@ -224,7 +257,7 @@ def deny_reactivation_request(
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
-        reactivation_service.deny_request(requesting_user, request_id)
+        result = reactivation_service.deny_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
             url="/admin/reactivation-requests?error=request_not_found",
@@ -237,6 +270,10 @@ def deny_reactivation_request(
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
+
+    # Send notification email to the denied user
+    if result.email:
+        send_reactivation_denied_notification(result.email)
 
     return RedirectResponse(
         url="/admin/reactivation-requests?success=denied",

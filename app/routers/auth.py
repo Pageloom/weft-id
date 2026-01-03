@@ -8,8 +8,9 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+import database
 from utils.auth import verify_login_with_status
-from utils.email import send_mfa_code_email
+from utils.email import send_mfa_code_email, send_reactivation_request_admin_notification
 from utils.mfa import create_email_otp
 
 router = APIRouter(prefix="", tags=["auth"], include_in_schema=False)
@@ -52,12 +53,14 @@ def login(
 
     if result["status"] in ("inactivated", "pending", "denied"):
         # User is inactivated - show special page
-        user = result["user"]
+        # Note: use "inactivated_user" instead of "user" to avoid triggering
+        # the nav bar in base.html (which requires nav context)
+        inactivated_user = result["user"]
         return templates.TemplateResponse(
             "account_inactivated.html",
             {
                 "request": request,
-                "user": user,
+                "inactivated_user": inactivated_user,
                 "status": result["status"],
                 "can_request": result.get("can_request_reactivation", False),
             },
@@ -134,14 +137,28 @@ def request_reactivation(
         else:
             return RedirectResponse(url="/login?error=invalid_request", status_code=303)
 
-    # Get user's email
+    # Get user's email and info
     primary_email = emails_service.get_primary_email(tenant_id, user_id)
     if not primary_email:
         return RedirectResponse(url="/login?error=no_email", status_code=303)
 
+    user = users_service.get_user_by_id_raw(tenant_id, user_id)
+    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() if user else "Unknown"
+
     # Create a reactivation request directly (simplified flow without email verification)
     # In a production system, you might want email verification first
     reactivation_service.create_request(tenant_id, user_id)
+
+    # Notify admins about the reactivation request
+    admin_emails = database.users.get_admin_emails(tenant_id)
+    requests_url = str(request.url_for("reactivation_requests_list"))
+    for admin_email in admin_emails:
+        send_reactivation_request_admin_notification(
+            to_email=admin_email,
+            user_name=user_name,
+            user_email=primary_email,
+            requests_url=requests_url,
+        )
 
     # Show success message
     return templates.TemplateResponse(

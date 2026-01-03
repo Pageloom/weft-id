@@ -327,3 +327,117 @@ def test_send_primary_email_changed_notification_failure():
         )
 
         assert result is False
+
+
+def test_send_account_reactivated_notification():
+    """Test sending notification when account is reactivated."""
+    from utils.email import send_account_reactivated_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_account_reactivated_notification(
+            to_email="user@example.com", login_url="https://example.com/login"
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Your account has been reactivated"
+        assert "https://example.com/login" in html_body
+        assert "https://example.com/login" in text_body
+        assert "reactivated" in html_body.lower()
+
+
+def test_send_account_reactivated_notification_failure():
+    """Test failure when sending account reactivated notification."""
+    from utils.email import send_account_reactivated_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_account_reactivated_notification(
+            to_email="user@example.com", login_url="https://example.com/login"
+        )
+
+        assert result is False
+
+
+def test_send_reactivation_denied_notification():
+    """Test sending notification when reactivation request is denied."""
+    from utils.email import send_reactivation_denied_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_reactivation_denied_notification(to_email="user@example.com")
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Your reactivation request was denied"
+        assert "denied" in html_body.lower()
+        assert "denied" in text_body.lower()
+
+
+def test_send_reactivation_denied_notification_failure():
+    """Test failure when sending reactivation denied notification."""
+    from utils.email import send_reactivation_denied_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_reactivation_denied_notification(to_email="user@example.com")
+
+        assert result is False
+
+
+def test_send_reactivation_request_admin_notification():
+    """Test sending notification to admin about reactivation request."""
+    from utils.email import send_reactivation_request_admin_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_reactivation_request_admin_notification(
+            to_email="admin@example.com",
+            user_name="John Doe",
+            user_email="john@example.com",
+            requests_url="https://example.com/admin/reactivation-requests",
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "admin@example.com"
+        assert subject == "Reactivation request received"
+        assert "John Doe" in html_body
+        assert "john@example.com" in html_body
+        assert "https://example.com/admin/reactivation-requests" in html_body
+        assert "John Doe" in text_body
+        assert "john@example.com" in text_body
+
+
+def test_send_reactivation_request_admin_notification_failure():
+    """Test failure when sending reactivation request admin notification."""
+    from utils.email import send_reactivation_request_admin_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_reactivation_request_admin_notification(
+            to_email="admin@example.com",
+            user_name="John Doe",
+            user_email="john@example.com",
+            requests_url="https://example.com/admin/reactivation-requests",
+        )
+
+        assert result is False

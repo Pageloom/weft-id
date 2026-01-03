@@ -47,17 +47,21 @@ class Worker:
         self,
         poll_interval: int = 10,
         cleanup_interval_hours: int = 1,
+        inactivation_interval_hours: int = 24,
     ) -> None:
         """Initialize the worker.
 
         Args:
             poll_interval: Seconds between polling for new tasks
             cleanup_interval_hours: Hours between cleanup runs
+            inactivation_interval_hours: Hours between idle user inactivation checks
         """
         self.poll_interval = poll_interval
         self.cleanup_interval = timedelta(hours=cleanup_interval_hours)
+        self.inactivation_interval = timedelta(hours=inactivation_interval_hours)
         self.running = True
         self.last_cleanup: datetime | None = None
+        self.last_inactivation: datetime | None = None
 
     def stop(self, signum: int | None = None, frame: Any = None) -> None:
         """Handle shutdown signal."""
@@ -69,11 +73,15 @@ class Worker:
         logger.info("Worker starting, poll interval: %ds", self.poll_interval)
         logger.info("Registered handlers: %s", get_registered_handlers())
         logger.info("Cleanup interval: %s", self.cleanup_interval)
+        logger.info("Inactivation interval: %s", self.inactivation_interval)
 
         while self.running:
             try:
                 # Check if cleanup is due
                 self._maybe_run_cleanup()
+
+                # Check if inactivation is due
+                self._maybe_run_inactivation()
 
                 # Poll for next task
                 task = database.bg_tasks.claim_next_task()
@@ -109,6 +117,29 @@ class Worker:
             logger.info("Cleanup completed: %s", result)
         except Exception as e:
             logger.exception("Cleanup failed: %s", e)
+
+    def _maybe_run_inactivation(self) -> None:
+        """Run inactivation check if enough time has passed since last run."""
+        now = datetime.now(UTC)
+
+        if self.last_inactivation is None:
+            # Run inactivation on first iteration
+            self.last_inactivation = now
+            self._run_inactivation()
+        elif now - self.last_inactivation >= self.inactivation_interval:
+            self.last_inactivation = now
+            self._run_inactivation()
+
+    def _run_inactivation(self) -> None:
+        """Run the idle user inactivation job directly (not as a queued task)."""
+        logger.info("Running idle user inactivation check...")
+        try:
+            from jobs.inactivate_idle_users import inactivate_idle_users
+
+            result = inactivate_idle_users()
+            logger.info("Inactivation check completed: %s", result)
+        except Exception as e:
+            logger.exception("Inactivation check failed: %s", e)
 
     def _process_task(self, task: dict) -> None:
         """Process a single task."""

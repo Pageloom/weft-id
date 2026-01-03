@@ -181,6 +181,7 @@ class UserSummary(BaseModel):
     role: str = Field(..., description="User role (member, admin, super_admin)")
     created_at: datetime = Field(..., description="Account creation timestamp")
     last_login: datetime | None = Field(None, description="Last login timestamp")
+    last_activity_at: datetime | None = Field(None, description="Last activity timestamp")
     is_inactivated: bool = Field(False, description="Whether user is inactivated")
     is_anonymized: bool = Field(False, description="Whether user is anonymized (GDPR)")
 

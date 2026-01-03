@@ -635,3 +635,23 @@ def cleanup_expired_tokens(tenant_id: TenantArg) -> int:
         "delete from oauth2_tokens where expires_at <= now()",
         {},
     )
+
+
+def revoke_all_user_tokens(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Revoke all tokens for a user.
+
+    Used when a user is inactivated to ensure their API access is immediately revoked.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to revoke all tokens for
+
+    Returns:
+        Number of tokens deleted
+    """
+    return execute(
+        tenant_id,
+        "delete from oauth2_tokens where user_id = :user_id",
+        {"user_id": user_id},
+    )

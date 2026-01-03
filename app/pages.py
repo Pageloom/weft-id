@@ -175,6 +175,12 @@ PAGES = [
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
+            Page(
+                path="/admin/reactivation-requests",
+                title="Reactivation Requests",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

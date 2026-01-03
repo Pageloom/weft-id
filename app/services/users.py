@@ -308,6 +308,7 @@ def _user_row_to_summary(user: dict) -> UserSummary:
         role=user["role"],
         created_at=user["created_at"],
         last_login=user.get("last_login"),
+        last_activity_at=user.get("last_activity_at"),
         is_inactivated=user.get("is_inactivated", False),
         is_anonymized=user.get("is_anonymized", False),
     )
@@ -817,6 +818,9 @@ def inactivate_user(
     # Perform inactivation
     database.users.inactivate_user(tenant_id, user_id)
 
+    # Revoke all OAuth tokens to immediately cut API access
+    database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+
     # Log the event
     log_event(
         tenant_id=tenant_id,
@@ -878,6 +882,9 @@ def reactivate_user(
         )
 
     database.users.reactivate_user(tenant_id, user_id)
+
+    # Clear any reactivation denial flag
+    database.users.clear_reactivation_denied(tenant_id, user_id)
 
     # Log the event
     log_event(

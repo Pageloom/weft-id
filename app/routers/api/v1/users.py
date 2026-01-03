@@ -69,6 +69,7 @@ def _user_to_summary(user: dict) -> UserSummary:
         role=user["role"],
         created_at=user["created_at"],
         last_login=user.get("last_login"),
+        last_activity_at=user.get("last_activity_at"),
         is_inactivated=user.get("is_inactivated", False),
         is_anonymized=user.get("is_anonymized", False),
     )
@@ -387,7 +388,8 @@ def list_users(
     limit: int = Query(25, ge=1, le=100, description="Number of results per page"),
     search: str | None = Query(None, description="Search by name or email"),
     sort_by: str = Query(
-        "created_at", description="Sort field (name, email, role, created_at, last_login)"
+        "created_at",
+        description="Sort field (name, email, role, created_at, last_login, last_activity_at)",
     ),
     sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
 ):
@@ -400,7 +402,7 @@ def list_users(
         page: Page number (default: 1)
         limit: Results per page (default: 25, max: 100)
         search: Search term for name or email
-        sort_by: Field to sort by (name, email, role, created_at, last_login)
+        sort_by: Field to sort by (name, email, role, created_at, last_login, last_activity_at)
         sort_order: Sort order (asc or desc)
 
     Returns:

@@ -414,3 +414,226 @@ def oauth2_admin_authorization_header(oauth2_admin_access_token):
     Returns a dict suitable for TestClient headers parameter.
     """
     return {"Authorization": f"Bearer {oauth2_admin_access_token}"}
+
+
+# ============================================================================
+# MFA E2E Test Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def maildev_available():
+    """Check if maildev is available for e2e email tests."""
+    from tests.helpers import maildev
+
+    return maildev.is_available()
+
+
+@pytest.fixture
+def clean_maildev():
+    """Clear maildev inbox before test. Skips if maildev unavailable."""
+    from tests.helpers import maildev
+
+    if maildev.is_available():
+        maildev.clear_emails()
+    yield
+
+
+@pytest.fixture
+def email_mfa_user(test_tenant):
+    """
+    Create a test user with email MFA configured.
+
+    Yields a dict with user details including plaintext password.
+    """
+    import database
+    from argon2 import PasswordHasher
+
+    ph = PasswordHasher()
+    unique_suffix = str(uuid4())[:8]
+    email = f"mfa-email-{unique_suffix}@example.com"
+    password = "MfaTestPassword123!"
+    password_hash = ph.hash(password)
+
+    # Create user with email MFA method
+    user = database.fetchone(
+        test_tenant["id"],
+        """
+        INSERT INTO users (
+            tenant_id, password_hash, first_name, last_name, role, mfa_method
+        ) VALUES (
+            :tenant_id, :password_hash, :first_name, :last_name, :role, :mfa_method
+        ) RETURNING id, first_name, last_name, role, mfa_method
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "password_hash": password_hash,
+            "first_name": "Email",
+            "last_name": "MFA User",
+            "role": "member",
+            "mfa_method": "email",
+        },
+    )
+
+    user["tenant_id"] = test_tenant["id"]
+    user["email"] = email
+    user["password"] = password  # For e2e login tests
+
+    # Create primary verified email
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
+    )
+
+    yield user
+
+
+@pytest.fixture
+def totp_mfa_user(test_tenant):
+    """
+    Create a test user with TOTP MFA configured.
+
+    Yields a dict with user details including plaintext password and TOTP secret.
+    """
+    import database
+    import pyotp
+    from argon2 import PasswordHasher
+
+    ph = PasswordHasher()
+    unique_suffix = str(uuid4())[:8]
+    email = f"mfa-totp-{unique_suffix}@example.com"
+    password = "MfaTotpPassword123!"
+    password_hash = ph.hash(password)
+    totp_secret = pyotp.random_base32()
+
+    # Create user with TOTP MFA method
+    user = database.fetchone(
+        test_tenant["id"],
+        """
+        INSERT INTO users (
+            tenant_id, password_hash, first_name, last_name, role, mfa_method
+        ) VALUES (
+            :tenant_id, :password_hash, :first_name, :last_name, :role, :mfa_method
+        ) RETURNING id, first_name, last_name, role, mfa_method
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "password_hash": password_hash,
+            "first_name": "TOTP",
+            "last_name": "MFA User",
+            "role": "member",
+            "mfa_method": "totp",
+        },
+    )
+
+    user["tenant_id"] = test_tenant["id"]
+    user["email"] = email
+    user["password"] = password
+    user["totp_secret"] = totp_secret
+
+    # Create primary verified email
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
+    )
+
+    # Store TOTP secret (encrypted)
+    from utils.mfa import encrypt_secret
+
+    encrypted_secret = encrypt_secret(totp_secret)
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO mfa_totp (tenant_id, user_id, secret_encrypted, method, verified_at)
+        VALUES (:tenant_id, :user_id, :secret_encrypted, 'totp', now())
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "user_id": user["id"],
+            "secret_encrypted": encrypted_secret,
+        },
+    )
+
+    yield user
+
+
+@pytest.fixture
+def mfa_user_with_backup_codes(test_tenant):
+    """
+    Create a test user with email MFA and backup codes.
+
+    Yields a dict with user details including plaintext backup codes.
+    """
+    import database
+    from argon2 import PasswordHasher
+    from utils.mfa import generate_backup_codes, hash_code
+
+    ph = PasswordHasher()
+    unique_suffix = str(uuid4())[:8]
+    email = f"mfa-backup-{unique_suffix}@example.com"
+    password = "MfaBackupPassword123!"
+    password_hash = ph.hash(password)
+
+    # Create user with email MFA method
+    user = database.fetchone(
+        test_tenant["id"],
+        """
+        INSERT INTO users (
+            tenant_id, password_hash, first_name, last_name, role, mfa_method
+        ) VALUES (
+            :tenant_id, :password_hash, :first_name, :last_name, :role, :mfa_method
+        ) RETURNING id, first_name, last_name, role, mfa_method
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "password_hash": password_hash,
+            "first_name": "Backup",
+            "last_name": "Code User",
+            "role": "member",
+            "mfa_method": "email",
+        },
+    )
+
+    user["tenant_id"] = test_tenant["id"]
+    user["email"] = email
+    user["password"] = password
+
+    # Create primary verified email
+    database.execute(
+        test_tenant["id"],
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": test_tenant["id"], "user_id": user["id"], "email": email},
+    )
+
+    # Generate and store backup codes
+    backup_codes = generate_backup_codes()
+    user["backup_codes"] = backup_codes  # Store plaintext for tests
+
+    for code in backup_codes:
+        # Hash without dashes (matching how verify_backup_code strips them)
+        code_hash = hash_code(code.upper().replace("-", ""))
+        database.execute(
+            test_tenant["id"],
+            """
+            INSERT INTO mfa_backup_codes (tenant_id, user_id, code_hash)
+            VALUES (:tenant_id, :user_id, :code_hash)
+            """,
+            {
+                "tenant_id": test_tenant["id"],
+                "user_id": user["id"],
+                "code_hash": code_hash,
+            },
+        )
+
+    yield user

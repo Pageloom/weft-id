@@ -12,14 +12,15 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
     Returns:
         User record with id, tenant_id, first_name, last_name, role, created_at,
         last_login, mfa_enabled, mfa_method, tz, locale, is_inactivated, is_anonymized,
-        inactivated_at, anonymized_at
+        inactivated_at, anonymized_at, reactivation_denied_at
     """
     return fetchone(
         tenant_id,
         """
         select id, tenant_id, first_name, last_name, role, created_at, last_login,
                mfa_enabled, mfa_method, tz, locale,
-               is_inactivated, is_anonymized, inactivated_at, anonymized_at
+               is_inactivated, is_anonymized, inactivated_at, anonymized_at,
+               reactivation_denied_at
         from users
         where id = :user_id
         """,
@@ -224,7 +225,8 @@ def list_users(
     Args:
         tenant_id: Tenant ID
         search: Search term to filter by (searches first_name, last_name, email)
-        sort_field: Field to sort by (name, email, role, status, last_login, created_at)
+        sort_field: Field to sort by (name, email, role, status, last_login,
+                   last_activity_at, created_at)
         sort_order: Sort order (asc or desc)
         page: Page number (1-indexed)
         page_size: Number of results per page
@@ -234,7 +236,7 @@ def list_users(
 
     Returns:
         List of user dicts with id, first_name, last_name, role, created_at,
-        last_login, is_inactivated, is_anonymized, and email
+        last_login, last_activity_at, is_inactivated, is_anonymized, and email
     """
     # Build WHERE clause
     where_clauses: list[str] = []
@@ -284,6 +286,7 @@ def list_users(
         "role": "u.role {order}",  # ENUM type - cannot use COLLATE
         "status": f"{status_case} {{order}}",
         "last_login": "u.last_login {order}",
+        "last_activity_at": "ua.last_activity_at {order}",
         "created_at": "u.created_at {order}",
     }
 
@@ -303,9 +306,11 @@ def list_users(
     query = f"""
         select u.id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
                u.is_inactivated, u.is_anonymized,
-               ue.email
+               ue.email,
+               ua.last_activity_at
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        left join user_activity ua on u.id = ua.user_id
         {where_clause}
         order by {order_by_clause}
         limit :limit offset :offset
@@ -575,4 +580,95 @@ def anonymize_user(tenant_id: TenantArg, user_id: str) -> int:
         where id = :user_id and is_anonymized = false
         """,
         {"user_id": user_id},
+    )
+
+
+def set_reactivation_denied(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Mark a user as having been denied reactivation.
+
+    This prevents them from submitting new reactivation requests.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to mark as denied
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set reactivation_denied_at = now()
+        where id = :user_id
+        """,
+        {"user_id": user_id},
+    )
+
+
+def clear_reactivation_denied(tenant_id: TenantArg, user_id: str) -> int:
+    """
+    Clear the reactivation denied flag for a user.
+
+    Called when a user is manually reactivated by an admin.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to clear denial for
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set reactivation_denied_at = null
+        where id = :user_id
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_idle_users_for_tenant(
+    tenant_id: TenantArg,
+    threshold_days: int,
+) -> list[dict]:
+    """
+    Get active users who have been idle beyond the threshold.
+
+    This returns users who:
+    - Are not inactivated or anonymized
+    - Have last_activity_at older than threshold_days ago
+    - Are not service users (no associated OAuth2 B2B client)
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        threshold_days: Number of days of inactivity before inclusion
+
+    Returns:
+        List of dicts with user_id, first_name, last_name, last_activity_at
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select u.id as user_id,
+               u.first_name,
+               u.last_name,
+               ua.last_activity_at
+        from users u
+        left join user_activity ua on u.id = ua.user_id
+        where u.is_inactivated = false
+          and u.is_anonymized = false
+          and (
+              ua.last_activity_at < now() - make_interval(days => :threshold_days)
+              or ua.last_activity_at is null
+          )
+          and not exists (
+              select 1 from oauth2_clients oc
+              where oc.service_user_id = u.id and oc.client_type = 'b2b'
+          )
+        """,
+        {"threshold_days": threshold_days},
     )

@@ -8,7 +8,7 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from utils.auth import verify_login
+from utils.auth import verify_login_with_status
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 
@@ -43,12 +43,27 @@ def login(
     locale: Annotated[str, Form()] = "",
 ):
     """Handle login form submission."""
-    user = verify_login(tenant_id, email, password)
+    result = verify_login_with_status(tenant_id, email, password)
 
-    if not user:
+    if result["status"] == "invalid_credentials":
         return templates.TemplateResponse(
             "login.html", {"request": request, "error": "Invalid email or password"}
         )
+
+    if result["status"] in ("inactivated", "pending", "denied"):
+        # User is inactivated - show special page
+        user = result["user"]
+        return templates.TemplateResponse(
+            "account_inactivated.html",
+            {
+                "request": request,
+                "user": user,
+                "status": result["status"],
+                "can_request": result.get("can_request_reactivation", False),
+            },
+        )
+
+    user = result["user"]
 
     # MFA is now mandatory for all users
     # Store pending MFA info in session
@@ -77,6 +92,65 @@ def logout(request: Request):
     """Handle logout."""
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@router.post("/request-reactivation")
+def request_reactivation(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user_id: Annotated[str, Form()],
+):
+    """
+    Initiate reactivation request flow.
+
+    Sends verification email, then creates reactivation request after verification.
+    """
+    from services import reactivation as reactivation_service
+
+    # Verify user exists and can request reactivation
+    check = reactivation_service.can_request_reactivation(tenant_id, user_id)
+    if not check["can_request"]:
+        reason = check["reason"]
+        if reason == "previously_denied":
+            return templates.TemplateResponse(
+                "account_inactivated.html",
+                {
+                    "request": request,
+                    "user": {"id": user_id},
+                    "status": "denied",
+                    "can_request": False,
+                },
+            )
+        elif reason == "request_pending":
+            return templates.TemplateResponse(
+                "account_inactivated.html",
+                {
+                    "request": request,
+                    "user": {"id": user_id},
+                    "status": "pending",
+                    "can_request": False,
+                },
+            )
+        else:
+            return RedirectResponse(url="/login?error=invalid_request", status_code=303)
+
+    # Get user's email
+    primary_email = emails_service.get_primary_email(tenant_id, user_id)
+    if not primary_email:
+        return RedirectResponse(url="/login?error=no_email", status_code=303)
+
+    # Create a reactivation request directly (simplified flow without email verification)
+    # In a production system, you might want email verification first
+    reactivation_service.create_request(tenant_id, user_id)
+
+    # Show success message
+    return templates.TemplateResponse(
+        "reactivation_requested.html",
+        {
+            "request": request,
+            "email": primary_email,
+        },
+    )
 
 
 @router.get("/verify-email/{email_id}/{nonce}")

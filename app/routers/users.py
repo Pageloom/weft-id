@@ -120,7 +120,7 @@ def users_list(
         page_size = 25
 
     # Validate sort field and order
-    allowed_sort_fields = ["name", "email", "role", "status", "last_login", "created_at"]
+    allowed_sort_fields = ["name", "email", "role", "status", "last_activity_at", "created_at"]
     if sort_field not in allowed_sort_fields:
         sort_field = "created_at"
 

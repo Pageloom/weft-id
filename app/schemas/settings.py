@@ -49,6 +49,10 @@ class TenantSecuritySettings(BaseModel):
     allow_users_add_emails: bool = Field(
         True, description="Whether users can add alternative email addresses"
     )
+    inactivity_threshold_days: int | None = Field(
+        None,
+        description="Days of inactivity before auto-inactivation (null = disabled)",
+    )
 
 
 class TenantSecuritySettingsUpdate(BaseModel):
@@ -65,4 +69,9 @@ class TenantSecuritySettingsUpdate(BaseModel):
     )
     allow_users_add_emails: bool | None = Field(
         None, description="Whether users can add alternative email addresses"
+    )
+    inactivity_threshold_days: int | None = Field(
+        None,
+        ge=1,
+        description="Days of inactivity before auto-inactivation (null = disabled)",
     )

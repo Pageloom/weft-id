@@ -95,6 +95,7 @@ def test_get_current_user_with_valid_session_timeout(test_user, test_admin_user)
         persistent_sessions=False,
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
+        inactivity_threshold_days=None,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_user["tenant_id"],
     )
@@ -125,6 +126,7 @@ def test_get_current_user_with_expired_session_timeout(test_user, test_admin_use
         persistent_sessions=False,
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
+        inactivity_threshold_days=None,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_user["tenant_id"],
     )

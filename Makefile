@@ -22,6 +22,9 @@ status: ## Show up/down for all services
 up: ## Build and start all services (detached)
 	$(COMPOSE) up --build -d
 
+up-onprem: ## Build and start all onprem services (detached)
+	$(COMPOSE) -f docker-compose.onprem.yml up --build -d
+
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans
 

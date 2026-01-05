@@ -4,6 +4,41 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## API-First: SAML Identity Provider Management has no API endpoints
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/saml.py` (entire service)
+
+**Severity:** High
+
+**Principle Violated:** API-First
+
+**Description:** All SAML Identity Provider management operations were web-only. No API endpoints existed for CRUD operations on IdPs.
+
+**Resolution:**
+- Created `app/routers/api/v1/saml.py` with 12 RESTful endpoints:
+  - `GET /api/v1/saml/idps` - List IdPs
+  - `POST /api/v1/saml/idps` - Create IdP
+  - `GET /api/v1/saml/idps/{idp_id}` - Get IdP details
+  - `PATCH /api/v1/saml/idps/{idp_id}` - Update IdP
+  - `DELETE /api/v1/saml/idps/{idp_id}` - Delete IdP
+  - `POST /api/v1/saml/idps/{idp_id}/enable` - Enable IdP
+  - `POST /api/v1/saml/idps/{idp_id}/disable` - Disable IdP
+  - `POST /api/v1/saml/idps/{idp_id}/set-default` - Set default IdP
+  - `POST /api/v1/saml/idps/import` - Import from metadata URL
+  - `POST /api/v1/saml/idps/{idp_id}/refresh` - Refresh metadata
+  - `GET /api/v1/saml/sp/certificate` - Get SP certificate
+  - `GET /api/v1/saml/sp/metadata` - Get SP metadata info
+- Added 29 tests in `tests/test_api_saml.py`
+
+**Files Created/Modified:**
+- `app/routers/api/v1/saml.py` - New API router (created)
+- `app/main.py` - Registered new router
+- `tests/test_api_saml.py` - Comprehensive tests (created)
+
+---
+
 ## Service Layer Bypass: Router directly calls database module
 
 **Status:** Resolved (2026-01-05)

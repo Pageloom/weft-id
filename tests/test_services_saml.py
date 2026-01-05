@@ -174,7 +174,7 @@ def test_create_identity_provider_as_super_admin(test_tenant, test_super_admin_u
     assert idp.is_enabled is False  # Default disabled
     assert idp.is_default is False
     assert idp.sp_entity_id == "https://test.example.com/saml/metadata"
-    assert "/saml/acs/" in idp.sp_acs_url
+    # ACS URL is now derived from sp_entity_id (standard SAML practice)
 
     # Verify event logged
     _verify_event_logged(test_tenant["id"], "saml_idp_created", idp.id)

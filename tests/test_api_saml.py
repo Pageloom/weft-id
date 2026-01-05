@@ -150,7 +150,6 @@ def test_create_idp_as_super_admin(
     assert "id" in data
     assert "created_at" in data
     assert "sp_entity_id" in data
-    assert "sp_acs_url" in data
 
 
 def test_create_idp_as_admin_forbidden(

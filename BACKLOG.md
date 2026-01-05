@@ -6,24 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML IdP Simulator for Development
-
-**User Story:**
-As a developer
-I want a local SAML IdP simulator in the dev docker-compose
-So that I can manually test and debug SAML authentication flows without external dependencies
-
-**Acceptance Criteria:**
-- [ ] SimpleSAMLphp IdP simulator added to docker-compose.yml
-- [ ] IdP accessible at a predictable URL (e.g., https://localhost:8443 or via nginx proxy)
-- [ ] Documentation on how to configure the app to use the local IdP
-- [ ] IdP metadata URL documented for easy import into the SAML IdP configuration UI
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## SAML Upstream IdP Support - Phase 2: Domain Routing & User Assignment
 
 **User Story:**

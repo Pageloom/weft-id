@@ -86,8 +86,29 @@ services:
       retries: 20
     networks: [ devnet ]
 
+  saml-idp:
+    image: kenchan0130/simplesamlphp:1.19.9
+    container_name: dev_saml_idp
+    ports:
+      - "8443:8443"
+      - "8080:8080"
+    environment:
+      SIMPLESAMLPHP_SP_ENTITY_ID: "https://dev.pageloom.localhost/saml/metadata"
+      SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: "https://dev.pageloom.localhost/saml/acs"
+      SIMPLESAMLPHP_IDP_CERTIFICATE: "/var/www/simplesamlphp/cert/idp.crt"
+      SIMPLESAMLPHP_IDP_PRIVATEKEY: "/var/www/simplesamlphp/cert/idp.pem"
+    entrypoint: /docker-entrypoint.sh
+    volumes:
+      - ./simplesamlphp/authsources.php:/var/www/simplesamlphp/config/authsources.php:ro
+      - ./simplesamlphp/saml20-idp-hosted.php:/var/www/simplesamlphp/metadata/saml20-idp-hosted.php:ro
+      - ./simplesamlphp/saml20-sp-remote.php:/var/www/simplesamlphp/metadata/saml20-sp-remote.php:ro
+      - ./simplesamlphp/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+      - saml-idp-certs:/var/www/simplesamlphp/cert
+    networks: [ devnet ]
+
 volumes:
   dbdata:
+  saml-idp-certs:
 
 networks:
   devnet:

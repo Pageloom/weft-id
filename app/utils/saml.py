@@ -3,6 +3,7 @@
 import base64
 import datetime
 import hashlib
+import xml.etree.ElementTree as ET
 from typing import Any
 
 import settings
@@ -363,3 +364,56 @@ def build_saml_settings(
             "requestedAuthnContext": False,
         },
     }
+
+
+def extract_issuer_from_response(saml_response_b64: str) -> str | None:
+    """
+    Extract the Issuer entity ID from a base64-encoded SAML response.
+
+    This performs lightweight XML parsing to extract the Issuer without
+    full SAML validation. Used to look up the IdP configuration before
+    processing the full response.
+
+    Args:
+        saml_response_b64: Base64-encoded SAML response from the IdP
+
+    Returns:
+        The Issuer entity ID string, or None if extraction fails
+    """
+    try:
+        # Decode the base64 SAML response
+        xml_bytes = base64.b64decode(saml_response_b64)
+        xml_str = xml_bytes.decode("utf-8")
+
+        # Parse the XML
+        root = ET.fromstring(xml_str)
+
+        # SAML namespace
+        namespaces = {
+            "saml": "urn:oasis:names:tc:SAML:2.0:assertion",
+            "samlp": "urn:oasis:names:tc:SAML:2.0:protocol",
+        }
+
+        # Try to find Issuer in the Response element (top level)
+        issuer = root.find("saml:Issuer", namespaces)
+        if issuer is not None and issuer.text:
+            return issuer.text.strip()
+
+        # Try without namespace prefix (some IdPs may not use namespaces properly)
+        issuer = root.find("Issuer")
+        if issuer is not None and issuer.text:
+            return issuer.text.strip()
+
+        # Try to find it in the Assertion element
+        assertion = root.find(".//saml:Assertion", namespaces)
+        if assertion is not None:
+            issuer = assertion.find("saml:Issuer", namespaces)
+            if issuer is not None and issuer.text:
+                return issuer.text.strip()
+
+        return None
+
+    except Exception:
+        # If anything fails, return None - the full SAML validation will
+        # catch any real errors
+        return None

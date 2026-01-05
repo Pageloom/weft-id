@@ -17,6 +17,7 @@ from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
+from utils.saml import extract_issuer_from_response
 from utils.template_context import get_template_context
 
 router = APIRouter(tags=["saml"], include_in_schema=False)
@@ -95,11 +96,10 @@ def saml_login(
         )
 
 
-@router.post("/saml/acs/{idp_id}")
+@router.post("/saml/acs")
 def saml_acs(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    idp_id: str,
     SAMLResponse: Annotated[str, Form()],  # noqa: N803 - SAML spec parameter name
     RelayState: Annotated[str, Form()] = "/dashboard",  # noqa: N803 - SAML spec parameter name
 ):
@@ -107,17 +107,44 @@ def saml_acs(
     SAML Assertion Consumer Service (ACS).
 
     Receives and processes the SAML response from the IdP.
+    Single endpoint for all IdPs - derives IdP from SAML response Issuer.
     """
     # Get stored request_id for validation
     expected_request_id = request.session.pop("saml_request_id", None)
     stored_idp_id = request.session.pop("saml_idp_id", None)
 
-    # Verify IdP matches (prevent response injection)
+    # Extract Issuer from SAML response to look up IdP
+    issuer = extract_issuer_from_response(SAMLResponse)
+    if not issuer:
+        return templates.TemplateResponse(
+            request,
+            "saml_error.html",
+            {"error_type": "invalid_response", "error_detail": "Could not extract Issuer from SAML response"},
+        )
+
+    # Look up IdP by issuer (entity_id)
+    try:
+        idp = saml_service.get_idp_by_issuer(tenant_id, issuer)
+        idp_id = idp.id
+    except NotFoundError:
+        return templates.TemplateResponse(
+            request,
+            "saml_error.html",
+            {"error_type": "idp_not_found", "error_detail": f"No IdP configured for issuer: {issuer}"},
+        )
+    except ServiceError as e:
+        return templates.TemplateResponse(
+            request,
+            "saml_error.html",
+            {"error_type": "idp_disabled", "error_detail": str(e)},
+        )
+
+    # Verify IdP matches session (prevent response injection from different IdP)
     if stored_idp_id and stored_idp_id != idp_id:
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "invalid_response", "error_detail": "IdP mismatch"},
+            {"error_type": "invalid_response", "error_detail": "IdP mismatch - response from unexpected IdP"},
         )
 
     # Build request data for python3-saml

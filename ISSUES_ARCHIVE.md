@@ -4,6 +4,39 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## API-First: Exports and background tasks have no API endpoints
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/exports.py`, `app/services/bg_tasks.py`
+
+**Severity:** Medium
+
+**Principle Violated:** API-First
+
+**Description:** Export creation, listing, and download were web-only. Background job management had no API.
+
+**Resolution:**
+- Created `app/routers/api/v1/exports.py` with 3 RESTful endpoints:
+  - `POST /api/v1/exports` - Create export task (admin)
+  - `GET /api/v1/exports` - List exports (admin)
+  - `GET /api/v1/exports/{export_id}/download` - Download export file (admin)
+- Created `app/routers/api/v1/jobs.py` with 3 RESTful endpoints:
+  - `GET /api/v1/jobs` - List user's background jobs
+  - `GET /api/v1/jobs/{job_id}` - Get job details
+  - `DELETE /api/v1/jobs` - Delete completed jobs
+- Added 9 tests in `tests/test_api_exports.py`
+- Added 9 tests in `tests/test_api_jobs.py`
+
+**Files Created/Modified:**
+- `app/routers/api/v1/exports.py` - New API router (created)
+- `app/routers/api/v1/jobs.py` - New API router (created)
+- `app/main.py` - Registered new routers
+- `tests/test_api_exports.py` - Comprehensive tests (created)
+- `tests/test_api_jobs.py` - Comprehensive tests (created)
+
+---
+
 ## API-First: Event log has no API endpoints
 
 **Status:** Resolved (2026-01-05)

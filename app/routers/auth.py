@@ -2,7 +2,6 @@
 
 from typing import Annotated
 
-import database
 import services.emails as emails_service
 import services.saml as saml_service
 import services.users as users_service
@@ -171,7 +170,7 @@ def request_reactivation(
     reactivation_service.create_request(tenant_id, user_id, request_metadata=request_metadata)
 
     # Notify admins about the reactivation request
-    admin_emails = database.users.get_admin_emails(tenant_id)
+    admin_emails = users_service.get_admin_emails(tenant_id)
     requests_url = str(request.url_for("reactivation_requests_list"))
     for admin_email in admin_emails:
         send_reactivation_request_admin_notification(

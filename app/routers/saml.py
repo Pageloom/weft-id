@@ -1,5 +1,6 @@
 """SAML SSO routes for authentication and IdP management."""
 
+import base64
 import time
 from typing import Annotated
 
@@ -17,6 +18,7 @@ from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
+from settings import IS_DEV
 from utils.saml import extract_issuer_from_response
 from utils.template_context import get_template_context
 
@@ -27,6 +29,17 @@ templates = Jinja2Templates(directory="templates")
 def _get_base_url(request: Request) -> str:
     """Get the base URL for the request (protocol + host)."""
     return str(request.base_url).rstrip("/")
+
+
+def _decode_saml_response_for_debug(saml_response: str) -> str | None:
+    """Safely decode a base64 SAML response for debug display.
+
+    Returns None if decoding fails.
+    """
+    try:
+        return base64.b64decode(saml_response).decode("utf-8")
+    except Exception:
+        return None
 
 
 # ============================================================================
@@ -111,6 +124,9 @@ def saml_acs(
     expected_request_id = request.session.pop("saml_request_id", None)
     stored_idp_id = request.session.pop("saml_idp_id", None)
 
+    # Prepare debug info (only used if IS_DEV is True)
+    raw_saml_xml = _decode_saml_response_for_debug(SAMLResponse) if IS_DEV else None
+
     # Extract Issuer from SAML response to look up IdP
     issuer = extract_issuer_from_response(SAMLResponse)
     if not issuer:
@@ -120,6 +136,8 @@ def saml_acs(
             {
                 "error_type": "invalid_response",
                 "error_detail": "Could not extract Issuer from SAML response",
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
             },
         )
 
@@ -134,13 +152,20 @@ def saml_acs(
             {
                 "error_type": "idp_not_found",
                 "error_detail": f"No IdP configured for issuer: {issuer}",
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
             },
         )
     except ServiceError as e:
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "idp_disabled", "error_detail": str(e)},
+            {
+                "error_type": "idp_disabled",
+                "error_detail": str(e),
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
+            },
         )
 
     # Verify IdP matches session (prevent response injection from different IdP)
@@ -151,6 +176,8 @@ def saml_acs(
             {
                 "error_type": "invalid_response",
                 "error_detail": "IdP mismatch - response from unexpected IdP",
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
             },
         )
 
@@ -185,7 +212,12 @@ def saml_acs(
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": error_type, "error_detail": str(e)},
+            {
+                "error_type": error_type,
+                "error_detail": str(e),
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
+            },
         )
     except NotFoundError as e:
         if "user" in e.code.lower():
@@ -193,24 +225,44 @@ def saml_acs(
             return templates.TemplateResponse(
                 request,
                 "saml_error.html",
-                {"error_type": "user_not_found", "error_detail": email_detail},
+                {
+                    "error_type": "user_not_found",
+                    "error_detail": email_detail,
+                    "is_dev": IS_DEV,
+                    "raw_saml_xml": raw_saml_xml,
+                },
             )
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "idp_not_found", "error_detail": str(e)},
+            {
+                "error_type": "idp_not_found",
+                "error_detail": str(e),
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
+            },
         )
     except ServiceError as e:
         if "disabled" in str(e).lower():
             return templates.TemplateResponse(
                 request,
                 "saml_error.html",
-                {"error_type": "idp_disabled", "error_detail": str(e)},
+                {
+                    "error_type": "idp_disabled",
+                    "error_detail": str(e),
+                    "is_dev": IS_DEV,
+                    "raw_saml_xml": raw_saml_xml,
+                },
             )
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "configuration_error", "error_detail": str(e)},
+            {
+                "error_type": "configuration_error",
+                "error_detail": str(e),
+                "is_dev": IS_DEV,
+                "raw_saml_xml": raw_saml_xml,
+            },
         )
 
     # Check if MFA is required
@@ -509,11 +561,14 @@ def edit_idp_form(
         )
 
     error = request.query_params.get("error")
+    success = request.query_params.get("success")
 
     return templates.TemplateResponse(
         request,
         "saml_idp_form.html",
-        get_template_context(request, tenant_id, idp=idp, sp_metadata=sp_metadata, error=error),
+        get_template_context(
+            request, tenant_id, idp=idp, sp_metadata=sp_metadata, error=error, success=success
+        ),
     )
 
 
@@ -573,7 +628,9 @@ def update_idp(
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=updated", status_code=303)
+    return RedirectResponse(
+        url=f"/admin/identity-providers/{idp_id}?success=updated", status_code=303
+    )
 
 
 @router.post(

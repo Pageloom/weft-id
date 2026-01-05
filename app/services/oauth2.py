@@ -300,7 +300,7 @@ def create_b2b_client(
     return result
 
 
-def delete_client(tenant_id: str, client_id: str) -> int:
+def delete_client(tenant_id: str, client_id: str, actor_user_id: str) -> int:
     """
     Delete an OAuth2 client.
 
@@ -309,22 +309,60 @@ def delete_client(tenant_id: str, client_id: str) -> int:
     Args:
         tenant_id: Tenant ID
         client_id: The client_id string (e.g., "loom_client_abc123")
+        actor_user_id: User ID performing the deletion
 
     Returns:
         Number of rows deleted (0 if not found)
     """
-    return database.oauth2.delete_client(tenant_id, client_id)
+    # Get client info before deletion for logging
+    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if not client:
+        return 0
+
+    rows = database.oauth2.delete_client(tenant_id, client_id)
+
+    if rows > 0:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="oauth2_client",
+            artifact_id=str(client["id"]),
+            event_type="oauth2_client_deleted",
+            metadata={"name": client["name"], "client_id": client_id},
+            request_metadata=None,
+        )
+
+    return rows
 
 
-def regenerate_client_secret(tenant_id: str, client_id: str) -> str:
+def regenerate_client_secret(
+    tenant_id: str, client_id: str, actor_user_id: str
+) -> str:
     """
     Regenerate the client secret.
 
     Args:
         tenant_id: Tenant ID
         client_id: The client_id string
+        actor_user_id: User ID performing the regeneration
 
     Returns:
         New plaintext client secret
     """
-    return database.oauth2.regenerate_client_secret(tenant_id, client_id)
+    # Get client info for logging
+    client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+
+    new_secret = database.oauth2.regenerate_client_secret(tenant_id, client_id)
+
+    if client:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="oauth2_client",
+            artifact_id=str(client["id"]),
+            event_type="oauth2_client_secret_regenerated",
+            metadata={"name": client["name"], "client_id": client_id},
+            request_metadata=None,
+        )
+
+    return new_secret

@@ -145,7 +145,7 @@ def delete_client(
     Returns:
         204 No Content on success
     """
-    rows_deleted = oauth2_service.delete_client(tenant_id, client_id)
+    rows_deleted = oauth2_service.delete_client(tenant_id, client_id, str(user["id"]))
 
     if rows_deleted == 0:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -182,7 +182,9 @@ def regenerate_client_secret(
         raise HTTPException(status_code=404, detail="Client not found")
 
     # Regenerate secret
-    new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id)
+    new_secret = oauth2_service.regenerate_client_secret(
+        tenant_id, client_id, str(user["id"])
+    )
 
     # Return client with new secret
     client["client_secret"] = new_secret

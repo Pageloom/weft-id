@@ -130,7 +130,9 @@ def test_delete_client_success(test_tenant, test_admin_user):
     )
 
     # Delete it
-    deleted_count = oauth2_service.delete_client(test_tenant["id"], client["client_id"])
+    deleted_count = oauth2_service.delete_client(
+        test_tenant["id"], client["client_id"], test_admin_user["id"]
+    )
 
     assert deleted_count == 1
 
@@ -139,14 +141,16 @@ def test_delete_client_success(test_tenant, test_admin_user):
     assert found is None
 
 
-def test_delete_client_not_found(test_tenant):
+def test_delete_client_not_found(test_tenant, test_admin_user):
     """Test deleting a non-existent client returns 0."""
-    deleted_count = oauth2_service.delete_client(test_tenant["id"], "nonexistent_client_id")
+    deleted_count = oauth2_service.delete_client(
+        test_tenant["id"], "nonexistent_client_id", test_admin_user["id"]
+    )
 
     assert deleted_count == 0
 
 
-def test_regenerate_client_secret(test_tenant, normal_oauth2_client):
+def test_regenerate_client_secret(test_tenant, normal_oauth2_client, test_admin_user):
     """Test regenerating a client secret."""
     import oauth2
 
@@ -154,7 +158,7 @@ def test_regenerate_client_secret(test_tenant, normal_oauth2_client):
 
     # Regenerate
     new_secret = oauth2_service.regenerate_client_secret(
-        test_tenant["id"], normal_oauth2_client["client_id"]
+        test_tenant["id"], normal_oauth2_client["client_id"], test_admin_user["id"]
     )
 
     assert new_secret != old_secret

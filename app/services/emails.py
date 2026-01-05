@@ -628,4 +628,20 @@ def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
         return False
 
     database.user_emails.verify_email(tenant_id, email_id)
+
+    # Log the event using the email owner as the actor
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(email["user_id"]),
+        artifact_type="user",
+        artifact_id=str(email["user_id"]),
+        event_type="email_verified",
+        metadata={
+            "email_id": email_id,
+            "email": email["email"],
+            "flow": "public_link",
+        },
+        request_metadata=None,
+    )
+
     return True

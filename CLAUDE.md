@@ -27,8 +27,10 @@ Request → Router → Service → Database → PostgreSQL
 3. **Read service functions must track activity** - call `track_activity(tenant_id, user_id)` at the start of read-only service functions
 4. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
 5. **New pages must be registered in `app/pages.py`** - each route checks access via this file
-6. **Migrations** go in `db-init/` with sequential numbering (next: `00013_*.sql`)
+6. **Migrations** go in `db-init/` with sequential numbering (next: `00020_*.sql`)
 7. **Run formatting, linting, and typechecking** before committing code
+8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`
+9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete
 
 ## Testing Requirements
 

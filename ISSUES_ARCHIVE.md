@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## API-First: User state operations missing API endpoints
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/users.py`
+
+**Severity:** Medium
+
+**Principle Violated:** API-First
+
+**Description:** User inactivation, reactivation, and anonymization were web-only operations. No API endpoints existed for automating user lifecycle management.
+
+**Resolution:**
+- Added 3 new endpoints to `app/routers/api/v1/users.py`:
+  - `POST /api/v1/users/{user_id}/inactivate` - Inactivate user (admin)
+  - `POST /api/v1/users/{user_id}/reactivate` - Reactivate user (admin)
+  - `POST /api/v1/users/{user_id}/anonymize` - Anonymize user (super_admin)
+- Added 9 tests in `tests/test_api_users.py`
+
+**Files Modified:**
+- `app/routers/api/v1/users.py` - Added 3 endpoints
+- `tests/test_api_users.py` - Added 9 tests
+
+---
+
 ## API-First: SAML Identity Provider Management has no API endpoints
 
 **Status:** Resolved (2026-01-05)

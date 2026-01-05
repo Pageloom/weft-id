@@ -6,24 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## API-First: User state operations missing API endpoints
-
-**Found in:** `app/services/users.py`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Description:** User inactivation, reactivation, and anonymization are web-only operations.
-
-**Missing API endpoints:**
-- `POST /api/v1/users/{user_id}/inactivate` - Inactivate user
-- `POST /api/v1/users/{user_id}/reactivate` - Reactivate user
-- `POST /api/v1/users/{user_id}/anonymize` - Anonymize user (GDPR)
-
-**Impact:** Cannot automate user lifecycle management via API
-**Root Cause:** Oversight during user management implementation
-**Suggested fix:** Add endpoints to `app/routers/api/v1/users.py`
-
----
-
 ## API-First: Event log has no API endpoints
 
 **Found in:** `app/services/event_log.py`

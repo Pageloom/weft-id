@@ -798,3 +798,153 @@ def test_admin_reset_user_mfa(
     assert response.status_code == 200
     data = response.json()
     assert data["enabled"] is False
+
+
+# =============================================================================
+# User State Management (Inactivate/Reactivate/Anonymize)
+# =============================================================================
+
+
+def test_inactivate_user_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test admin inactivating a user."""
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/inactivate",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_inactivated"] is True
+    assert data["inactivated_at"] is not None
+
+
+def test_inactivate_user_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, test_admin_user
+):
+    """Test that regular member cannot inactivate users."""
+    response = client.post(
+        f"/api/v1/users/{test_admin_user['id']}/inactivate",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 403
+
+
+def test_inactivate_user_not_found(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test inactivating non-existent user returns 404."""
+    import uuid
+
+    fake_id = str(uuid.uuid4())
+    response = client.post(
+        f"/api/v1/users/{fake_id}/inactivate",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 404
+
+
+def test_reactivate_user_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test admin reactivating a user."""
+    # First inactivate
+    client.post(
+        f"/api/v1/users/{test_user['id']}/inactivate",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    # Then reactivate
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/reactivate",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_inactivated"] is False
+
+
+def test_reactivate_user_not_inactivated(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test reactivating a user that isn't inactivated returns 400."""
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/reactivate",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 400
+    assert "not inactivated" in response.json()["detail"]
+
+
+def test_reactivate_user_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, test_admin_user
+):
+    """Test that regular member cannot reactivate users."""
+    response = client.post(
+        f"/api/v1/users/{test_admin_user['id']}/reactivate",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 403
+
+
+def test_anonymize_user_as_super_admin(
+    client, test_tenant_host, test_super_admin_user, test_tenant, normal_oauth2_client, test_user
+):
+    """Test super_admin anonymizing a user."""
+    import database
+
+    # Create access token for super_admin
+    _, refresh_token_id = database.oauth2.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_super_admin_user["id"],
+    )
+    access_token = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_super_admin_user["id"],
+        parent_token_id=refresh_token_id,
+    )
+
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/anonymize",
+        headers={"Authorization": f"Bearer {access_token}", "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_anonymized"] is True
+    assert data["anonymized_at"] is not None
+    assert data["first_name"] == "[Anonymized]"
+
+
+def test_anonymize_user_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, test_user
+):
+    """Test that regular admin cannot anonymize users (requires super_admin)."""
+    response = client.post(
+        f"/api/v1/users/{test_user['id']}/anonymize",
+        headers={**oauth2_admin_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 403
+
+
+def test_anonymize_user_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, test_admin_user
+):
+    """Test that regular member cannot anonymize users."""
+    response = client.post(
+        f"/api/v1/users/{test_admin_user['id']}/anonymize",
+        headers={**oauth2_authorization_header, "Host": test_tenant_host},
+    )
+
+    assert response.status_code == 403

@@ -28,6 +28,12 @@
         </div>
         {% endif %}
 
+        {% if success == "updated" %}
+        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
+            <p class="text-sm text-green-800">Identity provider settings saved successfully.</p>
+        </div>
+        {% endif %}
+
         {% if not idp %}
         <!-- New IdP: Tabbed Import Interface -->
         <div class="mb-8">

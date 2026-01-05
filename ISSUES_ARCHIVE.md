@@ -4,6 +4,49 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## SAML Error Page: Add SAML Response Debug Output
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/templates/saml_error.html`
+
+**Original Severity:** Low (DX improvement)
+
+**Original Description:** When SAML validation failed, the error page showed a generic message. For debugging, it would be helpful to display the raw SAML response (base64 decoded) so developers can inspect what attributes were sent.
+
+**Resolution:**
+- Added helper function `_decode_saml_response_for_debug()` in `app/routers/saml.py` to safely decode base64 SAML responses
+- Modified all error template responses in `saml_acs()` to pass `is_dev` and `raw_saml_xml` to the template
+- Added collapsible `<details>/<summary>` section to `app/templates/saml_error.html` that only displays when `IS_DEV=true`
+- Debug section shows the full SAML response XML with syntax-highlighted styling
+
+**Files Modified:**
+- `app/routers/saml.py` - Added debug helper, updated all error responses in `saml_acs()`
+- `app/templates/saml_error.html` - Added collapsible debug section
+
+---
+
+## SAML Edit Form: No Save Confirmation Feedback
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** SAML Identity Provider edit page
+
+**Original Severity:** Low (UX issue)
+
+**Original Description:** When saving changes on the IdP edit form, there was no visual feedback that the save succeeded. Users didn't know if their changes were persisted.
+
+**Resolution:**
+- Changed redirect in `update_idp()` to redirect back to the edit form (`/admin/identity-providers/{idp_id}?success=updated`) instead of the list page
+- Updated `edit_idp_form()` to capture `success` query parameter and pass it to template
+- Added green success banner to `app/templates/saml_idp_form.html` matching the existing error banner styling
+
+**Files Modified:**
+- `app/routers/saml.py` - Changed redirect, added success param handling
+- `app/templates/saml_idp_form.html` - Added success banner
+
+---
+
 ## SAML IdP Simulator: Metadata Import Does Not Work Out-of-Box
 
 **Status:** Resolved (2026-01-05)

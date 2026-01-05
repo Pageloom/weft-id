@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from api_dependencies import get_current_user_api, require_admin_api
+from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query
 from schemas.api import (
@@ -916,5 +916,110 @@ def reset_user_mfa(
     try:
         requesting_user = build_requesting_user(admin, tenant_id, None)
         return mfa_service.reset_user_mfa(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+# ============================================================================
+# Admin User State Management Endpoints
+# ============================================================================
+
+
+@router.post("/{user_id}/inactivate", response_model=UserDetail)
+def inactivate_user(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    user_id: str,
+):
+    """
+    Inactivate a user account (soft-disable login).
+
+    Inactivated users cannot sign in but retain all their data.
+    This operation is reversible via the reactivate endpoint.
+
+    Requires admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        Updated user details
+
+    Errors:
+        403: Insufficient permissions
+        404: User not found
+        400: Cannot inactivate self, service users, or last super_admin
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return users_service.inactivate_user(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/{user_id}/reactivate", response_model=UserDetail)
+def reactivate_user(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    user_id: str,
+):
+    """
+    Reactivate an inactivated user account.
+
+    Restores login access for a previously inactivated user.
+
+    Requires admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        Updated user details
+
+    Errors:
+        403: Insufficient permissions
+        404: User not found
+        400: User is not inactivated, or user was anonymized
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return users_service.reactivate_user(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+@router.post("/{user_id}/anonymize", response_model=UserDetail)
+def anonymize_user(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    user_id: str,
+):
+    """
+    Anonymize a user account (GDPR right to be forgotten).
+
+    This is IRREVERSIBLE. Scrubs all PII:
+    - User name becomes "[Anonymized] User"
+    - Email addresses are anonymized
+    - MFA data is deleted
+    - Password is cleared
+
+    The user record is preserved for audit log integrity.
+
+    Requires super_admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        Updated user details (with anonymized data)
+
+    Errors:
+        403: Insufficient permissions (super_admin required)
+        404: User not found
+        400: Cannot anonymize self, service users, or last super_admin
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return users_service.anonymize_user(requesting_user, user_id)
     except ServiceError as e:
         raise translate_to_http_exception(e)

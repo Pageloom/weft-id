@@ -274,6 +274,7 @@ def list_idps(
 
     except ServiceError as e:
         return templates.TemplateResponse(
+            request,
             "saml_error.html",
             get_template_context(
                 request, tenant_id, error_type="configuration_error", error_detail=str(e)
@@ -284,6 +285,7 @@ def list_idps(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "saml_idp_list.html",
         get_template_context(
             request,
@@ -310,6 +312,7 @@ def new_idp_form(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "saml_idp_form.html",
         get_template_context(request, tenant_id, idp=None, error=error),
     )
@@ -438,6 +441,7 @@ def edit_idp_form(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "saml_idp_form.html",
         get_template_context(request, tenant_id, idp=idp, sp_metadata=sp_metadata, error=error),
     )

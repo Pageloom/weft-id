@@ -38,7 +38,9 @@ def login_page(
     sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
 
     return templates.TemplateResponse(
-        "login.html", {"request": request, "success": success, "error": error, "sso_enabled": sso_enabled}
+        request,
+        "login.html",
+        {"request": request, "success": success, "error": error, "sso_enabled": sso_enabled},
     )
 
 
@@ -56,7 +58,9 @@ def login(
 
     if result["status"] == "invalid_credentials":
         return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "Invalid email or password"}
+            request,
+            "login.html",
+            {"request": request, "error": "Invalid email or password"},
         )
 
     if result["status"] in ("inactivated", "pending", "denied"):
@@ -65,6 +69,7 @@ def login(
         # the nav bar in base.html (which requires nav context)
         inactivated_user = result["user"]
         return templates.TemplateResponse(
+            request,
             "account_inactivated.html",
             {
                 "request": request,
@@ -124,6 +129,7 @@ def request_reactivation(
         reason = check["reason"]
         if reason == "previously_denied":
             return templates.TemplateResponse(
+                request,
                 "account_inactivated.html",
                 {
                     "request": request,
@@ -134,6 +140,7 @@ def request_reactivation(
             )
         elif reason == "request_pending":
             return templates.TemplateResponse(
+                request,
                 "account_inactivated.html",
                 {
                     "request": request,
@@ -176,6 +183,7 @@ def request_reactivation(
 
     # Show success message
     return templates.TemplateResponse(
+        request,
         "reactivation_requested.html",
         {
             "request": request,
@@ -263,6 +271,7 @@ def set_password_page(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "set_password.html",
         {
             "request": request,
@@ -348,5 +357,7 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
     user["email"] = primary_email if primary_email else "N/A"
 
     return templates.TemplateResponse(
-        "dashboard.html", get_template_context(request, tenant_id, user=user)
+        request,
+        "dashboard.html",
+        get_template_context(request, tenant_id, user=user),
     )

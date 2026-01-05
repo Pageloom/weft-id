@@ -590,3 +590,414 @@ def test_import_idp_from_xml_as_admin_forbidden(admin_session, test_tenant_host)
 
     # Should be redirected (forbidden)
     assert response.status_code in (303, 403)
+
+
+# =============================================================================
+# SAML ACS (Assertion Consumer Service) Tests
+# =============================================================================
+
+
+@pytest.fixture
+def acs_test_setup(client, test_tenant, test_super_admin_user, test_user, test_idp_data):
+    """Setup for ACS tests - creates IdP and mocks tenant_id dependency."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    tenant_id = str(test_tenant["id"])
+
+    # Create requesting user
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=tenant_id,
+        role="super_admin",
+    )
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Override dependency
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    yield {
+        "client": client,
+        "tenant_id": tenant_id,
+        "idp": idp,
+        "test_user": test_user,
+        "test_tenant": test_tenant,
+    }
+
+    app.dependency_overrides.clear()
+
+
+def test_saml_acs_missing_issuer(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles missing issuer in SAML response."""
+    from routers import saml as saml_router
+
+    # Mock extract_issuer_from_response to return None
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: None)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should return error page (200 with error template)
+    assert response.status_code == 200
+    assert "invalid_response" in response.text.lower() or "error" in response.text.lower()
+
+
+def test_saml_acs_idp_not_found(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles unknown IdP issuer."""
+    from routers import saml as saml_router
+
+    # Mock extract_issuer_from_response to return unknown issuer
+    monkeypatch.setattr(
+        saml_router, "extract_issuer_from_response", lambda x: "https://unknown-idp.example.com"
+    )
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should return error page
+    assert response.status_code == 200
+    assert "idp_not_found" in response.text.lower() or "not found" in response.text.lower()
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_idp_disabled_error(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles disabled IdP error."""
+    from routers import saml as saml_router
+    from services import saml as saml_service
+    from services.exceptions import ForbiddenError
+
+    idp = acs_test_setup["idp"]
+
+    # Mock extract_issuer_from_response to return correct issuer
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock get_idp_by_issuer to raise ForbiddenError (IdP disabled)
+    def mock_get_idp_by_issuer(*args, **kwargs):
+        raise ForbiddenError(
+            message="Identity provider is disabled",
+            code="idp_disabled",
+        )
+
+    monkeypatch.setattr(saml_service, "get_idp_by_issuer", mock_get_idp_by_issuer)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should show disabled IdP error
+    assert response.status_code == 200
+    content_lower = response.text.lower()
+    assert "disabled" in content_lower or "error" in content_lower
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_validation_error_signature(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles signature validation failure."""
+    from routers import saml as saml_router
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    idp = acs_test_setup["idp"]
+
+    # Mock extract_issuer_from_response
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock process_saml_response to raise signature error
+    def mock_process_response(*args, **kwargs):
+        raise ValidationError(
+            message="SAML response validation failed: Signature validation failed",
+            code="saml_validation_failed",
+        )
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should show signature error page
+    assert response.status_code == 200
+    # Check for signature error or general error
+    content_lower = response.text.lower()
+    assert "signature" in content_lower or "error" in content_lower
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_validation_error_expired(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles expired assertion."""
+    from routers import saml as saml_router
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    idp = acs_test_setup["idp"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock process_saml_response to raise expired error
+    def mock_process_response(*args, **kwargs):
+        raise ValidationError(
+            message="SAML response validation failed: Assertion has expired",
+            code="saml_validation_failed",
+        )
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should show expired error page
+    assert response.status_code == 200
+    content_lower = response.text.lower()
+    assert "expired" in content_lower or "error" in content_lower
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_user_not_found(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint handles user not found in database."""
+    from routers import saml as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    idp = acs_test_setup["idp"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock process_saml_response to return success
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email="unknown@example.com",
+                first_name="Unknown",
+                last_name="User",
+                name_id="unknown@example.com",
+            ),
+            idp_id=idp.id,
+            requires_mfa=False,
+        )
+
+    # Mock authenticate_via_saml to raise NotFoundError
+    def mock_authenticate(*args, **kwargs):
+        raise NotFoundError(
+            message="User account not found",
+            code="user_not_found",
+            details={"email": "unknown@example.com"},
+        )
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should show user not found error
+    assert response.status_code == 200
+    content_lower = response.text.lower()
+    assert "user" in content_lower or "not found" in content_lower or "error" in content_lower
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_success_redirects_to_dashboard(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint successful auth redirects to dashboard."""
+    from routers import saml as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    idp = acs_test_setup["idp"]
+    test_user = acs_test_setup["test_user"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock process_saml_response
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email=test_user["email"],
+                first_name="Test",
+                last_name="User",
+                name_id=test_user["email"],
+            ),
+            idp_id=idp.id,
+            requires_mfa=False,
+        )
+
+    # Mock authenticate_via_saml to return user
+    def mock_authenticate(*args, **kwargs):
+        return {
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "first_name": "Test",
+            "last_name": "User",
+            "mfa_method": None,
+        }
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect to dashboard
+    assert response.status_code == 303
+    assert "/dashboard" in response.headers.get("location", "")
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_success_with_relay_state(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint respects RelayState for redirect."""
+    from routers import saml as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    idp = acs_test_setup["idp"]
+    test_user = acs_test_setup["test_user"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email=test_user["email"],
+                first_name="Test",
+                last_name="User",
+                name_id=test_user["email"],
+            ),
+            idp_id=idp.id,
+            requires_mfa=False,
+        )
+
+    def mock_authenticate(*args, **kwargs):
+        return {
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "first_name": "Test",
+            "last_name": "User",
+            "mfa_method": None,
+        }
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    # Use custom relay state
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/account/settings",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect to custom relay state
+    assert response.status_code == 303
+    assert "/account/settings" in response.headers.get("location", "")
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint redirects to MFA verify when required."""
+    from routers import saml as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    idp = acs_test_setup["idp"]
+    test_user = acs_test_setup["test_user"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock with requires_mfa=True
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email=test_user["email"],
+                first_name="Test",
+                last_name="User",
+                name_id=test_user["email"],
+            ),
+            idp_id=idp.id,
+            requires_mfa=True,  # MFA required
+        )
+
+    # Mock authenticate with MFA method set
+    def mock_authenticate(*args, **kwargs):
+        return {
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "first_name": "Test",
+            "last_name": "User",
+            "mfa_method": "email",  # User has MFA configured
+        }
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect to MFA verify
+    assert response.status_code == 303
+    assert "/mfa/verify" in response.headers.get("location", "")

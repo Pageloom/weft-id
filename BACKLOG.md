@@ -6,7 +6,61 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML Upstream IdP Support - Phase 2: Domain Routing & User Assignment
+## SAML Upstream IdP Support - Phase 2: JIT Provisioning & Connection Testing
+
+**User Story:**
+As a super admin
+I want users to be automatically created when they authenticate via SAML, and I want to test my IdP configuration before enabling it
+So that I can confidently deploy SSO without pre-provisioning users and catch configuration errors early
+
+**Acceptance Criteria:**
+
+**Just-in-Time (JIT) User Provisioning:**
+
+- [ ] Per-IdP setting: `jit_provisioning` (default: disabled)
+- [ ] When enabled: users authenticating via SAML who don't exist are automatically created
+- [ ] JIT-created users:
+  - Email extracted from SAML assertion (configurable claim name)
+  - First name, last name from SAML attributes (configurable claim names)
+  - Role: Member (default), unless attribute mapping specifies otherwise
+  - Password: NULL (SAML-only authentication)
+  - MFA: Set up after first login if `require_platform_mfa` is true
+- [ ] When disabled: SAML login fails if user doesn't exist (must be pre-provisioned)
+- [ ] `user_created_jit` event logged with IdP and attribute details
+- [ ] JIT respects tenant user limits (if any)
+- [ ] IdP form shows JIT toggle with warning: "When enabled, users from this IdP will be automatically created"
+
+**IdP Connection Testing:**
+
+- [ ] "Test Connection" button on IdP edit page
+- [ ] Initiates SAML flow in new window/tab
+- [ ] On success: Shows parsed assertion details (NameID, attributes received)
+- [ ] On failure: Shows detailed error (signature validation failed, certificate expired, etc.)
+- [ ] Test results do not create session or provision user
+- [ ] Test mode indicated via `RelayState` parameter to distinguish from real logins
+
+**Technical Implementation:**
+
+- Update `app/services/saml.py` with JIT provisioning logic
+- Integrate with `app/services/users.py` for user creation
+- Add test endpoint to `app/routers/saml.py` that validates without login
+- New template: `saml_test_result.html` showing assertion details or errors
+
+**Dependencies:**
+
+- SAML Phase 1 complete
+
+**Effort:** M
+**Value:** High (Enterprise provisioning, Setup confidence)
+
+**Notes:**
+
+- Platform MFA after SAML is already implemented in Phase 1 (`require_platform_mfa` setting)
+- Connection testing is critical for setup UX - admins need feedback before going live
+
+---
+
+## SAML Upstream IdP Support - Phase 3: Domain Routing & User Assignment
 
 **User Story:**
 As a super admin
@@ -43,7 +97,7 @@ So that users are automatically routed to the correct identity provider based on
      - User's email domain bound to IdP → Redirect to domain's IdP
      - Tenant has default IdP → Redirect to default IdP
      - User has password → Show password form
-     - No user exists + domain bound to IdP → Redirect to IdP (for JIT in Phase 3)
+     - No user exists + domain bound to IdP → Redirect to IdP (for JIT)
      - No user exists + no IdP → Show "account not found" message
   3. Appropriate flow initiated (SAML redirect or password form)
 - [ ] Consistent UX: all users start with email entry, then diverge based on routing
@@ -57,7 +111,7 @@ So that users are automatically routed to the correct identity provider based on
 
 **Dependencies:**
 
-- SAML Phase 1 complete
+- SAML Phase 2 complete
 - Existing `tenant_privileged_domains` table
 
 **Effort:** M
@@ -65,36 +119,22 @@ So that users are automatically routed to the correct identity provider based on
 
 ---
 
-## SAML Upstream IdP Support - Phase 3: JIT Provisioning, MFA & SLO
+## SAML Upstream IdP Support - Phase 4: Provider Helpers, SLO & Certificate Management
 
 **User Story:**
 As a super admin
-I want fine-grained control over user provisioning, additional MFA requirements, and logout behavior per IdP
-So that I can configure each upstream IdP according to my organization's security policies
+I want streamlined setup experiences for common IdPs, single logout support, and certificate lifecycle management
+So that I can quickly configure enterprise SSO and maintain it over time without deep SAML expertise
 
 **Acceptance Criteria:**
 
-**Just-in-Time (JIT) User Provisioning:**
+**Provider-Specific Attribute Presets:**
 
-- [ ] Per-IdP setting: `jit_provisioning` (default: enabled)
-- [ ] When enabled: users authenticating via SAML who don't exist are automatically created
-- [ ] JIT-created users:
-  - Email extracted from SAML assertion (configurable claim name)
-  - First name, last name from SAML attributes (configurable claim names)
-  - Role: Member (default), unless attribute mapping specifies otherwise
-  - Password: NULL (SAML-only authentication)
-  - MFA: Set up after first login if `require_platform_mfa` is true
-- [ ] When disabled: SAML login fails if user doesn't exist (must be pre-provisioned)
-- [ ] `user_created_jit` event logged with IdP and attribute details
-- [ ] JIT respects tenant user limits (if any)
-
-**Platform MFA After SAML:**
-
-- [ ] Per-IdP setting: `require_platform_mfa` (default: false)
-- [ ] When enabled: after SAML assertion validated, user redirected to platform MFA verification
-- [ ] Uses existing MFA flow: `pending_mfa_user_id` session pattern
-- [ ] First-time SAML users with `require_platform_mfa`: prompted to set up MFA
-- [ ] When disabled: SAML authentication completes login directly (trust IdP's MFA)
+- [ ] When selecting provider type (Okta, Azure AD, Google), auto-fill default attribute mappings
+- [ ] Okta defaults: `email`, `firstName`, `lastName`
+- [ ] Azure AD defaults: `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`, etc.
+- [ ] Google defaults: Google's SAML attribute names
+- [ ] Setup guide links in UI pointing to each provider's SAML app configuration docs
 
 **Single Logout (SLO):**
 
@@ -104,70 +144,7 @@ So that I can configure each upstream IdP according to my organization's securit
   - IdP-initiated logout: Process LogoutRequest from IdP, invalidate session
 - [ ] If IdP has no SLO URL configured, logout only affects local session
 - [ ] SLO errors logged but don't block local logout
-
-**Admin UI Updates:**
-
-- [ ] IdP form shows JIT, MFA, and SLO settings with explanatory help text
-- [ ] JIT toggle with warning: "When enabled, users from this IdP will be automatically created"
-- [ ] MFA toggle with explanation: "Require platform MFA in addition to IdP authentication"
-- [ ] SLO URL field with note: "Leave blank to disable Single Logout"
-
-**Technical Implementation:**
-
-- Update `app/services/saml.py` with JIT provisioning logic
-- Integrate with `app/services/users.py` for user creation
-- Connect SAML ACS flow with existing MFA verification flow
-- Add SLO endpoint to `app/routers/saml.py`
-
-**Dependencies:**
-
-- SAML Phase 2 complete
-- Existing MFA infrastructure
-
-**Effort:** M
-**Value:** Medium (Security hardening, Enterprise compliance)
-
----
-
-## SAML Upstream IdP Support - Phase 4: Provider-Specific Helpers & Testing
-
-**User Story:**
-As a super admin
-I want streamlined setup experiences for common IdPs and tools to test my configuration
-So that I can quickly and confidently configure enterprise SSO without deep SAML expertise
-
-**Acceptance Criteria:**
-
-**Okta Integration Helpers:**
-
-- [ ] "Import from Okta" option in IdP creation
-- [ ] Input: Okta metadata URL (e.g., `https://{org}.okta.com/app/{app_id}/sso/saml/metadata`)
-- [ ] Auto-populates: Entity ID, SSO URL, Certificate from metadata XML
-- [ ] Pre-configured attribute mapping for Okta's default claims
-- [ ] Setup guide link in UI pointing to Okta SAML app configuration
-
-**Azure AD Integration Helpers:**
-
-- [ ] "Import from Azure AD" option in IdP creation
-- [ ] Input: Azure AD metadata URL or Federation Metadata XML paste
-- [ ] Auto-populates: Entity ID, SSO URL, Certificate
-- [ ] Pre-configured attribute mapping for Azure AD claims (uses different claim URIs)
-- [ ] Setup guide link in UI pointing to Azure AD Enterprise App configuration
-
-**Google Workspace Integration Helpers:**
-
-- [ ] "Import from Google Workspace" option
-- [ ] Input: Google SAML metadata or manual entry
-- [ ] Pre-configured attribute mapping for Google's SAML attributes
-- [ ] Setup guide explaining Google Admin Console SAML app setup
-
-**IdP Connection Testing:**
-
-- [ ] "Test Connection" button on IdP configuration page
-- [ ] Initiates SAML flow in new window/tab
-- [ ] On success: Shows parsed assertion details (NameID, attributes received)
-- [ ] On failure: Shows detailed error (signature validation failed, certificate expired, etc.)
-- [ ] Test results do not create session or provision user
+- [ ] SLO URL field in form with note: "Leave blank to disable Single Logout"
 
 **SP Certificate Management:**
 
@@ -185,17 +162,22 @@ So that I can quickly and confidently configure enterprise SSO without deep SAML
 
 **Technical Implementation:**
 
-- Add metadata parsing utilities to `app/utils/saml.py`
 - Provider-specific attribute mapping presets in `app/schemas/saml.py`
-- Test endpoint that validates SAML without completing login
+- Add SLO endpoint to `app/routers/saml.py`
 - Certificate rotation with overlap period logic
+- SAML debug storage for failed assertions (short TTL)
 
 **Dependencies:**
 
 - SAML Phase 3 complete
 
 **Effort:** M
-**Value:** Medium (Developer/Admin experience, Reduced support burden)
+**Value:** Medium (Operations, Developer/Admin experience)
+
+**Notes:**
+
+- SLO is notoriously complex and often partially broken even in mature implementations - keep expectations modest
+- Certificate rotation is important for long-term operations but not urgent for initial deployment
 
 ---
 

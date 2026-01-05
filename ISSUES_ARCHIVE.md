@@ -4,6 +4,74 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Activity Logging: OAuth2 client deletion not logged
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/oauth2.py:303-316`
+
+**Original Severity:** High
+
+**Original Description:** The `delete_client` function deleted an OAuth2 client via `database.oauth2.delete_client()` but did not call `log_event()` after the mutation, violating the "if there is a write, there is a log" principle.
+
+**Resolution:**
+- Added `actor_user_id: str` parameter to `delete_client()` function
+- Get client info before deletion for logging metadata
+- Added `log_event()` call with event_type `oauth2_client_deleted`
+- Updated router `app/routers/api/v1/oauth2_clients.py` to pass `user["id"]` to service function
+- Updated 2 tests in `tests/test_services_oauth2.py` to pass new parameter
+
+**Files Modified:**
+- `app/services/oauth2.py` - Added logging to delete_client
+- `app/routers/api/v1/oauth2_clients.py` - Pass actor_user_id to service
+- `tests/test_services_oauth2.py` - Updated test signatures
+
+---
+
+## Activity Logging: OAuth2 client secret regeneration not logged
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/oauth2.py:319-330`
+
+**Original Severity:** High
+
+**Original Description:** The `regenerate_client_secret` function regenerated the secret via `database.oauth2.regenerate_client_secret()` but did not call `log_event()` after the mutation. Secret regenerations are security-sensitive operations that should be audited.
+
+**Resolution:**
+- Added `actor_user_id: str` parameter to `regenerate_client_secret()` function
+- Get client info for logging metadata
+- Added `log_event()` call with event_type `oauth2_client_secret_regenerated`
+- Updated router `app/routers/api/v1/oauth2_clients.py` to pass `user["id"]` to service function
+- Updated 1 test in `tests/test_services_oauth2.py` to pass new parameter
+
+**Files Modified:**
+- `app/services/oauth2.py` - Added logging to regenerate_client_secret
+- `app/routers/api/v1/oauth2_clients.py` - Pass actor_user_id to service
+- `tests/test_services_oauth2.py` - Updated test signature
+
+---
+
+## Activity Logging: Public email verification not logged
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/emails.py:605-631`
+
+**Original Severity:** High
+
+**Original Description:** The `verify_email_by_nonce` function (public endpoint flow) marked emails as verified via `database.user_emails.verify_email()` but did not call `log_event()`. The authenticated flow `verify_email()` logged events, creating an inconsistent audit trail.
+
+**Resolution:**
+- Added `log_event()` call using `email["user_id"]` as the actor (email owner performing verification)
+- Added `flow: "public_link"` to metadata to distinguish from authenticated flow
+- No signature change needed - user_id is available from the email record
+
+**Files Modified:**
+- `app/services/emails.py` - Added logging to verify_email_by_nonce
+
+---
+
 ## SAML Error Page: Add SAML Response Debug Output
 
 **Status:** Resolved (2026-01-05)

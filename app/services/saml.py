@@ -819,6 +819,8 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
                 updated_fields.append("certificate_pem")
 
             # Update IdP with new metadata
+            # NOTE: No log_event here - background metadata sync is exempt from audit
+            # logging. These are automated system operations, not user actions.
             database.saml.update_idp_metadata_fields(
                 tenant_id=tenant_id,
                 idp_id=idp_id,
@@ -844,6 +846,7 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
             error_msg = str(e)[:200]  # Truncate long errors
 
             # Set error on IdP (but don't disable it)
+            # NOTE: No log_event - background sync errors are exempt from audit logging
             database.saml.set_idp_metadata_error(tenant_id, idp_id, error_msg)
 
             results.append(

@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## API-First: Event log has no API endpoints
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/event_log.py`
+
+**Severity:** Medium
+
+**Principle Violated:** API-First
+
+**Description:** Event log viewing was web-only. No API endpoints existed for audit log access.
+
+**Resolution:**
+- Created `app/routers/api/v1/events.py` with 2 RESTful endpoints:
+  - `GET /api/v1/events` - List events with pagination
+  - `GET /api/v1/events/{event_id}` - Get event details
+- Added 10 tests in `tests/test_api_events.py`
+
+**Files Created/Modified:**
+- `app/routers/api/v1/events.py` - New API router (created)
+- `app/main.py` - Registered new router
+- `tests/test_api_events.py` - Comprehensive tests (created)
+
+---
+
 ## API-First: User state operations missing API endpoints
 
 **Status:** Resolved (2026-01-05)

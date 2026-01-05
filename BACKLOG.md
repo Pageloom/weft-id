@@ -492,3 +492,72 @@ So that only domains I actually control can bypass email verification, preventin
 **Value:** Low
 
 ---
+
+## E2E Test Suite with Playwright (Tentative)
+
+**Status:** Tentative - Considering for future implementation
+
+**User Story:**
+As a platform operator
+I want browser-based end-to-end tests for critical authentication flows
+So that I have baseline assurance that SAML SSO and other auth flows work correctly in a real browser
+
+**Context:**
+
+Currently the codebase has:
+- Unit tests (service layer)
+- Integration tests (TestClient-based)
+- One "E2E-like" test file (`test_mfa_e2e.py`) using TestClient + maildev
+
+True browser-based E2E tests would provide:
+- Confidence that JavaScript interactions work (tab switching, copy-to-clipboard, form validation)
+- Full SAML flow testing against SimpleSAMLphp (which is already containerized)
+- Regression safety net for critical auth paths
+
+**Acceptance Criteria:**
+
+**Infrastructure:**
+
+- [ ] New `tests/e2e/` directory separate from unit/integration tests
+- [ ] Playwright (Python) for browser automation
+- [ ] `pytest-playwright` integration
+- [ ] Makefile targets: `test-e2e`, `test-e2e-debug`, `test-unit`
+- [ ] Auto-skip when SimpleSAMLphp not running
+
+**Initial Test Coverage (SAML auth flow only):**
+
+- [ ] Successful SAML login creates session
+- [ ] User not in DB shows "Account Not Found" error
+- [ ] Wrong IdP credentials keeps user at IdP
+- [ ] Single IdP auto-redirects (no selection page)
+- [ ] SSO button appears when IdP enabled
+- [ ] Disabled IdP shows error
+- [ ] Invalid IdP ID shows not found
+- [ ] Session persists across navigation
+
+**Dependencies:**
+
+New dev dependencies:
+- `playwright = "^1.40.0"`
+- `pytest-playwright = "^0.4.0"`
+
+Post-install: `playwright install chromium`
+
+**Technical Notes:**
+
+- Uses SimpleSAMLphp container already in docker-compose
+- Test users pre-configured in `simplesamlphp/authsources.php`
+- Requires `ignore_https_errors=True` for self-signed dev certs
+- Reuses existing `test_tenant`, `test_super_admin_user` fixtures
+
+**Effort:** M
+**Value:** Medium (Quality assurance, regression safety)
+
+**Notes:**
+
+- This is tentative - the dependency footprint (Playwright + browser binaries) is non-trivial
+- Consider implementing when SAML Phase 2+ is complete and flows are stable
+- Alternative: Continue using TestClient-based integration tests which are faster
+- Could start with just SAML flow and expand to other auth flows later
+
+---

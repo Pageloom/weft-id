@@ -10,6 +10,7 @@ from schemas.saml import (
     IdPCreate,
     IdPListResponse,
     IdPMetadataImport,
+    IdPMetadataImportXML,
     IdPUpdate,
     MetadataRefreshResult,
     SPCertificate,
@@ -279,6 +280,42 @@ def import_identity_provider(
             name=import_data.name,
             provider_type=import_data.provider_type,
             metadata_url=import_data.metadata_url,
+            base_url=base_url,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/idps/import-xml", response_model=IdPConfig, status_code=status.HTTP_201_CREATED)
+def import_identity_provider_from_xml(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    import_data: IdPMetadataImportXML,
+):
+    """
+    Import a SAML Identity Provider from raw metadata XML.
+
+    Requires super_admin role.
+
+    Parses the provided XML metadata and creates a new IdP with the
+    extracted configuration (entity_id, sso_url, certificate).
+
+    Request body:
+    - name: Display name for the IdP
+    - provider_type: One of okta, azure_ad, google, generic
+    - metadata_xml: Raw SAML metadata XML content
+
+    Returns the created IdP configuration.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return saml_service.import_idp_from_metadata_xml(
+            requesting_user=requesting_user,
+            name=import_data.name,
+            provider_type=import_data.provider_type,
+            metadata_xml=import_data.metadata_xml,
             base_url=base_url,
         )
     except ServiceError as exc:

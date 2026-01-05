@@ -72,9 +72,7 @@ def saml_login(
     relay_state = request.query_params.get("relay_state", "/dashboard")
 
     try:
-        redirect_url, request_id = saml_service.build_authn_request(
-            tenant_id, idp_id, relay_state
-        )
+        redirect_url, request_id = saml_service.build_authn_request(tenant_id, idp_id, relay_state)
 
         # Store request_id in session for response validation
         request.session["saml_request_id"] = request_id
@@ -119,7 +117,10 @@ def saml_acs(
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "invalid_response", "error_detail": "Could not extract Issuer from SAML response"},
+            {
+                "error_type": "invalid_response",
+                "error_detail": "Could not extract Issuer from SAML response",
+            },
         )
 
     # Look up IdP by issuer (entity_id)
@@ -130,7 +131,10 @@ def saml_acs(
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "idp_not_found", "error_detail": f"No IdP configured for issuer: {issuer}"},
+            {
+                "error_type": "idp_not_found",
+                "error_detail": f"No IdP configured for issuer: {issuer}",
+            },
         )
     except ServiceError as e:
         return templates.TemplateResponse(
@@ -144,7 +148,10 @@ def saml_acs(
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "invalid_response", "error_detail": "IdP mismatch - response from unexpected IdP"},
+            {
+                "error_type": "invalid_response",
+                "error_detail": "IdP mismatch - response from unexpected IdP",
+            },
         )
 
     # Build request data for python3-saml
@@ -426,6 +433,40 @@ def import_from_metadata(
     try:
         saml_service.import_idp_from_metadata_url(
             requesting_user, name, provider_type, metadata_url, base_url
+        )
+    except ValidationError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/new?error={e.message}",
+            status_code=303,
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/new?error={str(e)}",
+            status_code=303,
+        )
+
+    return RedirectResponse(url="/admin/identity-providers?success=created", status_code=303)
+
+
+@router.post(
+    "/admin/identity-providers/import-metadata-xml",
+    dependencies=[Depends(require_super_admin)],
+)
+def import_from_metadata_xml(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    metadata_xml: Annotated[str, Form()],
+    provider_type: Annotated[str, Form()],
+    name: Annotated[str, Form()],
+):
+    """Import an IdP configuration from raw metadata XML."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    base_url = _get_base_url(request)
+
+    try:
+        saml_service.import_idp_from_metadata_xml(
+            requesting_user, name, provider_type, metadata_xml, base_url
         )
     except ValidationError as e:
         return RedirectResponse(

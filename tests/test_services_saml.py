@@ -740,3 +740,118 @@ def test_refresh_all_idp_metadata_no_urls(test_tenant, test_super_admin_user, te
     # May or may not have IdPs depending on test isolation
     assert result.successful >= 0
     assert result.failed >= 0
+
+
+# =============================================================================
+# Import IdP from Raw XML Tests
+# =============================================================================
+
+
+@pytest.fixture
+def sample_idp_metadata_xml():
+    """Sample IdP metadata XML for testing import."""
+    return """<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     entityID="https://xml-import-test.example.com/entity">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://xml-import-test.example.com/sso"/>
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://xml-import-test.example.com/slo"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_metadata_xml_success(
+    test_tenant, test_super_admin_user, sample_idp_metadata_xml
+):
+    """Test that super_admin can import an IdP from raw metadata XML."""
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    idp = saml_service.import_idp_from_metadata_xml(
+        requesting_user=requesting_user,
+        name="XML Imported IdP",
+        provider_type="generic",
+        metadata_xml=sample_idp_metadata_xml,
+        base_url="https://test.example.com",
+    )
+
+    assert idp.id is not None
+    assert idp.name == "XML Imported IdP"
+    assert idp.provider_type == "generic"
+    assert idp.entity_id == "https://xml-import-test.example.com/entity"
+    assert idp.sso_url == "https://xml-import-test.example.com/sso"
+    assert idp.slo_url == "https://xml-import-test.example.com/slo"
+    assert idp.is_enabled is False  # Default disabled
+    assert idp.metadata_url is None  # No URL - imported from raw XML
+    assert idp.sp_entity_id == "https://test.example.com/saml/metadata"
+
+    # Verify event logged
+    _verify_event_logged(test_tenant["id"], "saml_idp_created", idp.id)
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_metadata_xml_as_admin_forbidden(
+    test_tenant, test_admin_user, sample_idp_metadata_xml
+):
+    """Test that admin cannot import an IdP from metadata XML."""
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.import_idp_from_metadata_xml(
+            requesting_user=requesting_user,
+            name="Should Fail",
+            provider_type="generic",
+            metadata_xml=sample_idp_metadata_xml,
+            base_url="https://test.example.com",
+        )
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_metadata_xml_invalid_xml(test_tenant, test_super_admin_user):
+    """Test that invalid XML raises ValidationError."""
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.import_idp_from_metadata_xml(
+            requesting_user=requesting_user,
+            name="Invalid Import",
+            provider_type="generic",
+            metadata_xml="not valid xml",
+            base_url="https://test.example.com",
+        )
+
+    assert exc_info.value.code == "metadata_parse_failed"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_parse_idp_metadata_xml_to_schema_success(sample_idp_metadata_xml):
+    """Test parsing raw metadata XML to schema."""
+    from services import saml as saml_service
+
+    parsed = saml_service.parse_idp_metadata_xml_to_schema(sample_idp_metadata_xml)
+
+    assert parsed.entity_id == "https://xml-import-test.example.com/entity"
+    assert parsed.sso_url == "https://xml-import-test.example.com/sso"
+    assert parsed.slo_url == "https://xml-import-test.example.com/slo"
+    assert "-----BEGIN CERTIFICATE-----" in parsed.certificate_pem

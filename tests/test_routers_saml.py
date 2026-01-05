@@ -495,3 +495,98 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert updated_idp.sso_url == "https://updated-sso.example.com/sso"
     assert updated_idp.is_enabled is True
     assert updated_idp.is_default is True
+
+
+# =============================================================================
+# Import IdP from Raw XML Tests
+# =============================================================================
+
+
+@pytest.fixture
+def sample_idp_metadata_xml():
+    """Sample IdP metadata XML for testing import."""
+    return """<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     entityID="https://router-xml-import.example.com/entity">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://router-xml-import.example.com/sso"/>
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://router-xml-import.example.com/slo"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_xml_via_form(
+    super_admin_session, test_tenant_host, sample_idp_metadata_xml
+):
+    """Test importing an IdP from raw metadata XML via HTML form."""
+    form_data = {
+        "name": "Router XML Imported IdP",
+        "provider_type": "okta",
+        "metadata_xml": sample_idp_metadata_xml,
+    }
+
+    response = super_admin_session.post(
+        "/admin/identity-providers/import-metadata-xml",
+        data=form_data,
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect on success
+    assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+    location = response.headers.get("location", "")
+    assert "success=created" in location or "/admin/identity-providers/" in location
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_xml_invalid_xml(super_admin_session, test_tenant_host):
+    """Test importing invalid XML returns error."""
+    form_data = {
+        "name": "Invalid XML Import",
+        "provider_type": "generic",
+        "metadata_xml": "not valid xml at all",
+    }
+
+    response = super_admin_session.post(
+        "/admin/identity-providers/import-metadata-xml",
+        data=form_data,
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect with error
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "error=" in location
+
+
+def test_import_idp_from_xml_as_admin_forbidden(admin_session, test_tenant_host):
+    """Test that admin cannot import IdP from XML."""
+    form_data = {
+        "name": "Should Fail",
+        "provider_type": "generic",
+        "metadata_xml": "<xml/>",
+    }
+
+    response = admin_session.post(
+        "/admin/identity-providers/import-metadata-xml",
+        data=form_data,
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should be redirected (forbidden)
+    assert response.status_code in (303, 403)

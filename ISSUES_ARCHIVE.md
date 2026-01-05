@@ -4,6 +4,46 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## SAML IdP Simulator: Metadata Import Does Not Work Out-of-Box
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** SAML IdP setup flow
+
+**Original Severity:** Medium (DX issue)
+
+**Original Description:** Manual configuration was required for local SAML IdP setup. The "Quick Import from Metadata URL" feature couldn't be used because of Docker hostname mismatch - importing from `http://saml-idp:8080/...` resulted in SSO URLs with `saml-idp` hostname that browsers couldn't resolve.
+
+**Resolution Approach:** Rather than complex SimpleSAMLphp configuration, added a "Paste Raw Metadata XML" option. Users can now:
+1. Copy XML from browser at `localhost:8080/simplesaml/module.php/saml/idp/metadata`
+2. Paste into the new "Paste Metadata XML" tab
+3. The XML is parsed client-side and IdP is created
+
+**Implementation:**
+- Added `IdPMetadataImportXML` schema in `app/schemas/saml.py`
+- Added `parse_idp_metadata_xml_to_schema()` and `import_idp_from_metadata_xml()` in `app/services/saml.py`
+- Added HTML endpoint `POST /admin/identity-providers/import-metadata-xml` in `app/routers/saml.py`
+- Added API endpoint `POST /api/v1/saml/idps/import-xml` in `app/routers/api/v1/saml.py`
+- Completely rewrote `app/templates/saml_idp_form.html` with tabbed interface (URL | Paste XML)
+- Removed manual form entry entirely - all IdP creation now uses XML parsing
+
+**Tests Added:**
+- 4 service tests in `tests/test_services_saml.py` for XML import
+- 3 router tests in `tests/test_routers_saml.py` for HTML endpoint
+- 6 API tests in `tests/test_api_saml.py` for API endpoint
+
+**Files Modified:**
+- `app/schemas/saml.py` - Added `IdPMetadataImportXML` schema
+- `app/services/saml.py` - Added 2 new functions
+- `app/routers/saml.py` - Added HTML import endpoint
+- `app/routers/api/v1/saml.py` - Added API import endpoint
+- `app/templates/saml_idp_form.html` - Complete rewrite with tabbed UI
+- `tests/test_services_saml.py` - Added XML import tests
+- `tests/test_routers_saml.py` - Added HTML endpoint tests
+- `tests/test_api_saml.py` - Added API endpoint tests
+
+---
+
 ## SAML IdP Edit Form "Save Changes" Button Does Not Work
 
 **Status:** Resolved (2026-01-05)

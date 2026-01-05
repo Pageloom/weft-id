@@ -6,23 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## API-First: Event log has no API endpoints
-
-**Found in:** `app/services/event_log.py`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Description:** Event log viewing is web-only. No API endpoints exist for audit log access.
-
-**Missing API endpoints:**
-- `GET /api/v1/events` - List events (with filters)
-- `GET /api/v1/events/{event_id}` - Get event details
-
-**Impact:** Cannot integrate audit logs with external SIEM or monitoring systems
-**Root Cause:** Event log UI was implemented without corresponding API
-**Suggested fix:** Create `app/routers/api/v1/events.py`
-
----
-
 ## API-First: Exports and background tasks have no API endpoints
 
 **Found in:** `app/services/exports.py`, `app/services/bg_tasks.py`

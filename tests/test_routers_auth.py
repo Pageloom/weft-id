@@ -77,9 +77,10 @@ def test_login_post_invalid_credentials(test_tenant):
             # Verify template was called with error message
             mock_template.assert_called_once()
             call_args = mock_template.call_args[0]
-            assert call_args[0] == "login.html"
-            assert "error" in call_args[1]
-            assert call_args[1]["error"] == "Invalid email or password"
+            # New Starlette API: first arg is request, second is template name
+            assert call_args[1] == "login.html"
+            assert "error" in call_args[2]
+            assert call_args[2]["error"] == "Invalid email or password"
 
 
 def test_login_post_valid_credentials_with_email_mfa(test_user):

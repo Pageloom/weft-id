@@ -4,6 +4,37 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## SAML IdP Edit Form "Save Changes" Button Does Not Work
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** SAML Identity Provider edit page
+
+**Original Severity:** High
+
+**Original Description:** When editing a SAML Identity Provider, clicking "Save Changes" appears to do nothing. The form does not save, and there is no feedback or error message to the user.
+
+**Investigation Findings:**
+- The form submission and save functionality were working correctly (verified by comprehensive tests)
+- The form action URL was rendering correctly
+- Checkbox handling ("on" → True) was working properly
+- Quick action buttons used different endpoints that didn't require form parsing
+
+**Actual Issue Found:** The `sp_acs_url` field was missing from the `IdPConfig` schema. This caused the "ACS URL" to display as empty on the edit form, which may have confused users into thinking the form wasn't working correctly. The save functionality itself was working.
+
+**Resolution:**
+- Added `sp_acs_url: str` field to `IdPConfig` schema in `app/schemas/saml.py`
+- Updated `_idp_row_to_config()` in `app/services/saml.py` to compute and include `sp_acs_url` from `sp_entity_id`
+- Added comprehensive test `test_update_idp_via_form` to verify form submission works correctly
+- Added assertions to `test_view_idp_detail` to verify form action and ACS URL rendering
+
+**Files Modified:**
+- `app/schemas/saml.py` - Added `sp_acs_url` field to `IdPConfig`
+- `app/services/saml.py` - Compute `sp_acs_url` in `_idp_row_to_config()`
+- `tests/test_routers_saml.py` - Added update test and enhanced view test
+
+---
+
 ## API-First: Exports and background tasks have no API endpoints
 
 **Status:** Resolved (2026-01-05)

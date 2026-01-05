@@ -286,9 +286,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
         is_enabled=True,
     )
 
-    idp = saml_service.create_identity_provider(
-        requesting_user, data, "https://test.example.com"
-    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Access the select page - should redirect to the single IdP
     response = client.get(
@@ -303,7 +301,9 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert f"/saml/login/{idp.id}" in location or "saml/login" in location
 
 
-def test_toggle_idp_enabled(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+def test_toggle_idp_enabled(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
     """Test toggling IdP enabled state via POST."""
     from schemas.saml import IdPCreate
     from services import saml as saml_service
@@ -329,9 +329,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
         is_enabled=False,
     )
 
-    idp = saml_service.create_identity_provider(
-        requesting_user, data, "https://test.example.com"
-    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Toggle to enabled
     response = super_admin_session.post(
@@ -345,7 +343,9 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert "success=enabled" in location or "/admin/identity-providers" in location
 
 
-def test_delete_idp_via_admin(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+def test_delete_idp_via_admin(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
     """Test deleting an IdP via the admin interface."""
     from schemas.saml import IdPCreate
     from services import saml as saml_service
@@ -370,9 +370,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 -----END CERTIFICATE-----""",
     )
 
-    idp = saml_service.create_identity_provider(
-        requesting_user, data, "https://test.example.com"
-    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Delete the IdP
     response = super_admin_session.post(
@@ -411,9 +409,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 -----END CERTIFICATE-----""",
     )
 
-    idp = saml_service.create_identity_provider(
-        requesting_user, data, "https://test.example.com"
-    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # View the IdP detail page
     response = super_admin_session.get(
@@ -425,3 +421,77 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     assert response.status_code in (200, 303)
     if response.status_code == 200:
         assert "Detail Test IdP" in response.text or idp.name in response.text
+        # Verify the form action is correct (this was the reported bug)
+        expected_action = f'action="/admin/identity-providers/{idp.id}"'
+        assert (
+            expected_action in response.text
+        ), f"Form action not found. Looking for: {expected_action}"
+        # Verify ACS URL is displayed (sp_acs_url field)
+        assert "/saml/acs" in response.text, "ACS URL not displayed in template"
+
+
+def test_update_idp_via_form(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user
+):
+    """Test updating an IdP via the HTML form."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create an IdP to update
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Update Test IdP",
+        provider_type="okta",
+        entity_id="https://update-test.example.com/entity",
+        sso_url="https://update-test.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+    )
+
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Update via form - simulating what the HTML form sends
+    # Note: The form includes entity_id and provider_type which the handler ignores
+    update_form_data = {
+        "name": "Updated IdP Name",
+        "provider_type": "okta",  # form sends this but handler ignores
+        "entity_id": idp.entity_id,  # form sends this but handler ignores
+        "sso_url": "https://updated-sso.example.com/sso",
+        "slo_url": "",
+        "certificate_pem": idp.certificate_pem,
+        "metadata_url": "",
+        "attr_email": "email",
+        "attr_first_name": "firstName",
+        "attr_last_name": "lastName",
+        "is_enabled": "on",  # checkbox value
+        "is_default": "on",
+        # require_platform_mfa not sent = unchecked
+    }
+
+    response = super_admin_session.post(
+        f"/admin/identity-providers/{idp.id}",
+        data=update_form_data,
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should redirect on success
+    assert response.status_code == 303, f"Expected 303, got {response.status_code}"
+    location = response.headers.get("location", "")
+    assert "success=updated" in location, f"Expected success=updated in location, got: {location}"
+
+    # Verify the update was applied
+    updated_idp = saml_service.get_identity_provider(requesting_user, idp.id)
+    assert updated_idp.name == "Updated IdP Name"
+    assert updated_idp.sso_url == "https://updated-sso.example.com/sso"
+    assert updated_idp.is_enabled is True
+    assert updated_idp.is_default is True

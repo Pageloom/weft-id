@@ -6,29 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## SAML IdP Edit Form "Save Changes" Button Does Not Work
-
-**Found in:** SAML Identity Provider edit page
-
-**Severity:** High
-
-**Description:** When editing a SAML Identity Provider, clicking "Save Changes" appears to do nothing. The form does not save, and there is no feedback or error message to the user. The quick action buttons in the list view (enable/disable) work correctly.
-
-**Steps to Reproduce:**
-1. Navigate to Admin → Identity Providers
-2. Click on an existing IdP to edit it
-3. Change the "Enabled" checkbox (or any other field)
-4. Click "Save Changes"
-5. Observe: No feedback, changes not persisted
-
-**Workaround:** Use the quick enable/disable buttons in the list view for toggling enabled state.
-
-**Impact:** Users cannot edit IdP settings (attribute mapping, name, etc.) after initial creation.
-
-**Suggested fix:** Investigate the form action and POST handler in `app/routers/saml.py` and `app/templates/saml_idp_form.html`.
-
----
-
 ## SAML IdP Simulator: Metadata Import Does Not Work Out-of-Box
 
 **Found in:** SimpleSAMLphp configuration, SAML IdP setup flow

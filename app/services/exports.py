@@ -95,7 +95,7 @@ def get_download(
             code="export_not_found",
         )
 
-    # Mark as downloaded
+    # Mark as downloaded (side-effect for tracking; activity already logged above)
     database.export_files.mark_downloaded(tenant_id, export_id)
 
     backend = storage.get_backend()

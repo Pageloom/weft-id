@@ -24,7 +24,8 @@ def _verify_event_logged(tenant_id: str, event_type: str, artifact_id: str):
 
     events = database.event_log.list_events(tenant_id, limit=10)
     matching = [
-        e for e in events
+        e
+        for e in events
         if e["event_type"] == event_type and str(e["artifact_id"]) == str(artifact_id)
     ]
     assert len(matching) > 0, f"No events logged for {event_type} with artifact_id {artifact_id}"
@@ -253,7 +254,9 @@ def test_get_identity_provider_success(test_tenant, test_super_admin_user, test_
 
     # Create
     data = IdPCreate(**test_idp_data)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Get
     idp = saml_service.get_identity_provider(requesting_user, created.id)
@@ -285,7 +288,9 @@ def test_update_identity_provider_success(test_tenant, test_super_admin_user, te
 
     # Create
     data = IdPCreate(**test_idp_data)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Update
     update_data = IdPUpdate(name="Updated IdP Name")
@@ -307,7 +312,9 @@ def test_delete_identity_provider_success(test_tenant, test_super_admin_user, te
 
     # Create
     data = IdPCreate(**test_idp_data)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Delete
     saml_service.delete_identity_provider(requesting_user, created.id)
@@ -329,7 +336,9 @@ def test_set_idp_enabled_success(test_tenant, test_super_admin_user, test_idp_da
 
     # Create (disabled by default)
     data = IdPCreate(**test_idp_data)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
     assert created.is_enabled is False
 
     # Enable
@@ -352,7 +361,9 @@ def test_set_idp_default_success(test_tenant, test_super_admin_user, test_idp_da
 
     # Create
     data = IdPCreate(**test_idp_data)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
     assert created.is_default is False
 
     # Set as default
@@ -431,7 +442,9 @@ def test_get_enabled_idps_for_login_only_enabled(test_tenant, test_super_admin_u
         certificate_pem=test_idp_data["certificate_pem"],
         is_enabled=True,
     )
-    created = saml_service.create_identity_provider(requesting_user, data2, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data2, "https://test.example.com"
+    )
 
     # Now should return one
     idps = saml_service.get_enabled_idps_for_login(test_tenant["id"])
@@ -450,7 +463,9 @@ def test_get_idp_for_saml_login_disabled_forbidden(
 
     # Create disabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=False)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Try to use for login
     with pytest.raises(ForbiddenError) as exc_info:
@@ -468,7 +483,9 @@ def test_get_idp_for_saml_login_enabled_success(test_tenant, test_super_admin_us
 
     # Create enabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Get for login
     idp = saml_service.get_idp_for_saml_login(test_tenant["id"], created.id)
@@ -486,6 +503,7 @@ def test_get_idp_for_saml_login_enabled_success(test_tenant, test_super_admin_us
 
 try:
     from onelogin.saml2.auth import OneLogin_Saml2_Auth  # noqa: F401
+
     HAS_SAML_LIBRARY = True
 except ImportError:
     HAS_SAML_LIBRARY = False
@@ -508,7 +526,9 @@ def test_get_default_idp_returns_enabled_default(test_tenant, test_super_admin_u
 
     # Create IdP, enable it, and set as default
     data = IdPCreate(**test_idp_data, is_enabled=True, is_default=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     result = saml_service.get_default_idp(test_tenant["id"])
 
@@ -527,7 +547,9 @@ def test_build_authn_request_success(test_tenant, test_super_admin_user, test_id
 
     # Create enabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Build AuthnRequest
     redirect_url, request_id = saml_service.build_authn_request(
@@ -544,7 +566,9 @@ def test_build_authn_request_success(test_tenant, test_super_admin_user, test_id
 
 
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
-def test_build_authn_request_disabled_idp_forbidden(test_tenant, test_super_admin_user, test_idp_data):
+def test_build_authn_request_disabled_idp_forbidden(
+    test_tenant, test_super_admin_user, test_idp_data
+):
     """Test build_authn_request raises ForbiddenError for disabled IdP."""
     from schemas.saml import IdPCreate
     from services import saml as saml_service
@@ -553,7 +577,9 @@ def test_build_authn_request_disabled_idp_forbidden(test_tenant, test_super_admi
 
     # Create disabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=False)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Should raise ForbiddenError
     with pytest.raises(ForbiddenError) as exc_info:
@@ -574,7 +600,9 @@ def test_authenticate_via_saml_user_not_found(test_tenant, test_super_admin_user
 
     # Create enabled IdP (needed for the result)
     data = IdPCreate(**test_idp_data, is_enabled=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Create a SAML result with unknown email
     saml_result = SAMLAuthResult(
@@ -594,7 +622,6 @@ def test_authenticate_via_saml_user_not_found(test_tenant, test_super_admin_user
     assert exc_info.value.code == "user_not_found"
 
 
-@pytest.mark.xfail(reason="Production bug: authenticate_via_saml uses wrong field names - see ISSUES.md")
 def test_authenticate_via_saml_user_inactivated(
     test_tenant, test_super_admin_user, test_admin_user, test_idp_data
 ):
@@ -607,7 +634,9 @@ def test_authenticate_via_saml_user_inactivated(
 
     # Create enabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Get the admin user's email and inactivate them
     admin_email = test_admin_user["email"]
@@ -631,7 +660,6 @@ def test_authenticate_via_saml_user_inactivated(
     assert exc_info.value.code == "user_inactivated"
 
 
-@pytest.mark.xfail(reason="Production bug: authenticate_via_saml uses wrong field names - see ISSUES.md")
 def test_authenticate_via_saml_success(
     test_tenant, test_super_admin_user, test_user, test_idp_data
 ):
@@ -643,7 +671,9 @@ def test_authenticate_via_saml_success(
 
     # Create enabled IdP
     data = IdPCreate(**test_idp_data, is_enabled=True)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     # Create a SAML result with test user's email
     saml_result = SAMLAuthResult(
@@ -683,7 +713,9 @@ def test_refresh_idp_from_metadata_no_url_configured(
 
     # Create IdP without metadata URL
     data = IdPCreate(**test_idp_data, metadata_url=None)
-    created = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.refresh_idp_from_metadata(requesting_user, created.id)

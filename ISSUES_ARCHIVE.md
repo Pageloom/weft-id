@@ -4,6 +4,28 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## SAML authenticate_via_saml Uses Wrong Database Field Names
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/services/saml.py:1072-1103`
+
+**Severity:** High
+
+**Description:** The `authenticate_via_saml` function called `database.users.get_user_by_email()` which only returns `user_id` and `password_hash`, but the function expected a full user record with `id`, `inactivated_at`, and `mfa_method` fields. This caused KeyError crashes when users attempted SAML sign-in.
+
+**Resolution:**
+- Created new database function `get_user_by_email_with_status()` in `app/database/users.py` that returns the full user record needed for authentication flows (SAML/OAuth)
+- Updated `authenticate_via_saml()` in `app/services/saml.py` to use the new function
+- Removed `xfail` markers from two previously failing tests in `tests/test_services_saml.py`
+
+**Files Modified:**
+- `app/database/users.py` - Added `get_user_by_email_with_status()` function
+- `app/services/saml.py` - Updated to use new function
+- `tests/test_services_saml.py` - Removed xfail markers from authenticate_via_saml tests
+
+---
+
 ## OAuth2 Authorization Page Crashes Due to Missing nav Context
 
 **Status:** Resolved (2026-01-03)

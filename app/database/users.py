@@ -47,6 +47,27 @@ def get_user_by_email(tenant_id: TenantArg, email: str) -> dict | None:
     )
 
 
+def get_user_by_email_with_status(tenant_id: TenantArg, email: str) -> dict | None:
+    """
+    Get full user record by verified email for authentication (SAML/OAuth).
+
+    Returns:
+        User record with id, first_name, last_name, role, inactivated_at,
+        mfa_enabled, mfa_method, or None if not found or email not verified
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select u.id, u.first_name, u.last_name, u.role, u.inactivated_at,
+               u.mfa_enabled, u.mfa_method
+        from user_emails ue
+        join users u on u.id = ue.user_id
+        where ue.email = :email and ue.verified_at is not null
+        """,
+        {"email": email},
+    )
+
+
 def update_user_profile(tenant_id: TenantArg, user_id: str, first_name: str, last_name: str) -> int:
     """Update user's first name and last name."""
     return execute(

@@ -16,20 +16,8 @@ $metadata['__DYNAMIC:1__'] = [
     // The authentication source to use
     'auth' => 'example-userpass',
 
-    // Attributes to include in assertions
-    'attributes.NameFormat' => 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri',
-
-    // Map internal attribute names to SAML attribute names
-    'authproc' => [
-        // Convert attribute names to standard format
-        100 => [
-            'class' => 'core:AttributeMap',
-            'email' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-            'firstName' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
-            'lastName' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
-            'displayName' => 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
-        ],
-    ],
+    // Send attributes with simple names (email, firstName, lastName)
+    // No authproc mapping - keeps attribute names as-is from authsources.php
 
     // NameID format - use email address
     'NameIDFormat' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',

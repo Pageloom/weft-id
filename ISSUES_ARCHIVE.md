@@ -4,6 +4,29 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## Service Layer Bypass: Router directly calls database module
+
+**Status:** Resolved (2026-01-05)
+
+**Found in:** `app/routers/auth.py:5, 174`
+
+**Severity:** Medium
+
+**Principle Violated:** Service Layer Architecture
+
+**Description:** The auth router imported and directly called `database.users.get_admin_emails()`, bypassing the service layer. This violated the architecture rule that routers should never import database modules directly.
+
+**Resolution:**
+- Added `get_admin_emails()` wrapper function to `app/services/users.py`
+- Removed `import database` from `app/routers/auth.py`
+- Updated call site to use `users_service.get_admin_emails(tenant_id)`
+
+**Files Modified:**
+- `app/services/users.py` - Added `get_admin_emails()` utility function
+- `app/routers/auth.py` - Removed database import, use service layer
+
+---
+
 ## SAML authenticate_via_saml Uses Wrong Database Field Names
 
 **Status:** Resolved (2026-01-05)

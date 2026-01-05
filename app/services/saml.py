@@ -400,8 +400,16 @@ def update_identity_provider(
 
     # Build update kwargs from non-None fields
     update_kwargs: dict[str, Any] = {}
-    for field in ["name", "sso_url", "slo_url", "certificate_pem", "metadata_url",
-                  "attribute_mapping", "require_platform_mfa", "jit_provisioning"]:
+    for field in [
+        "name",
+        "sso_url",
+        "slo_url",
+        "certificate_pem",
+        "metadata_url",
+        "attribute_mapping",
+        "require_platform_mfa",
+        "jit_provisioning",
+    ]:
         value = getattr(data, field, None)
         if value is not None:
             update_kwargs[field] = value
@@ -752,12 +760,14 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
                 slo_url=metadata.slo_url,
             )
 
-            results.append(MetadataRefreshResult(
-                idp_id=idp_id,
-                idp_name=idp_name,
-                success=True,
-                updated_fields=updated_fields if updated_fields else None,
-            ))
+            results.append(
+                MetadataRefreshResult(
+                    idp_id=idp_id,
+                    idp_name=idp_name,
+                    success=True,
+                    updated_fields=updated_fields if updated_fields else None,
+                )
+            )
             successful += 1
 
             logger.info(f"Refreshed SAML metadata for IdP {idp_name} ({idp_id})")
@@ -768,12 +778,14 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
             # Set error on IdP (but don't disable it)
             database.saml.set_idp_metadata_error(tenant_id, idp_id, error_msg)
 
-            results.append(MetadataRefreshResult(
-                idp_id=idp_id,
-                idp_name=idp_name,
-                success=False,
-                error=error_msg,
-            ))
+            results.append(
+                MetadataRefreshResult(
+                    idp_id=idp_id,
+                    idp_name=idp_name,
+                    success=False,
+                    error=error_msg,
+                )
+            )
             failed += 1
 
             logger.warning(f"Failed to refresh SAML metadata for IdP {idp_name}: {error_msg}")
@@ -1069,7 +1081,7 @@ def authenticate_via_saml(
     email = saml_result.attributes.email
 
     # Look up user by email
-    user = database.users.get_user_by_email(tenant_id, email)
+    user = database.users.get_user_by_email_with_status(tenant_id, email)
 
     if user is None:
         # TODO: Implement JIT provisioning check here

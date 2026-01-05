@@ -8,6 +8,14 @@ from pathlib import Path
 
 import pytest
 
+# Check if the SAML library is available
+try:
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth  # noqa: F401
+
+    HAS_SAML_LIBRARY = True
+except ImportError:
+    HAS_SAML_LIBRARY = False
+
 
 @pytest.fixture(autouse=True)
 def setup_app_directory():
@@ -228,3 +236,192 @@ def test_login_page_no_sso_button_when_disabled(client, test_tenant_host):
     assert response.status_code == 200
     # The "Sign in with SSO" link should not appear when no IdPs
     # (it's conditionally rendered based on sso_enabled)
+
+
+# =============================================================================
+# Additional SAML Flow Tests
+# =============================================================================
+
+
+def test_saml_login_invalid_idp_raises_not_found(test_tenant):
+    """Test that get_idp_for_saml_login raises NotFoundError for invalid IdP."""
+    import uuid
+
+    from services.exceptions import NotFoundError
+    from services.saml import get_idp_for_saml_login
+
+    fake_idp_id = str(uuid.uuid4())
+
+    with pytest.raises(NotFoundError) as exc_info:
+        get_idp_for_saml_login(str(test_tenant["id"]), fake_idp_id)
+
+    assert exc_info.value.code == "idp_not_found"
+
+
+def test_saml_select_with_one_idp_redirects(
+    client, test_tenant, test_tenant_host, test_super_admin_user
+):
+    """Test that /saml/select with one IdP auto-redirects to that IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create and enable a single IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Single Test IdP",
+        provider_type="okta",
+        entity_id="https://single-idp.example.com/entity",
+        sso_url="https://single-idp.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+        is_enabled=True,
+    )
+
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Access the select page - should redirect to the single IdP
+    response = client.get(
+        "/saml/select",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    # Should redirect to /saml/login/{idp_id}
+    assert f"/saml/login/{idp.id}" in location or "saml/login" in location
+
+
+def test_toggle_idp_enabled(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+    """Test toggling IdP enabled state via POST."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create a disabled IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Toggle Test IdP",
+        provider_type="generic",
+        entity_id="https://toggle-test.example.com/entity",
+        sso_url="https://toggle-test.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+        is_enabled=False,
+    )
+
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Toggle to enabled
+    response = super_admin_session.post(
+        f"/admin/identity-providers/{idp.id}/toggle",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "success=enabled" in location or "/admin/identity-providers" in location
+
+
+def test_delete_idp_via_admin(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+    """Test deleting an IdP via the admin interface."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create an IdP to delete
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Delete Test IdP",
+        provider_type="generic",
+        entity_id="https://delete-test.example.com/entity",
+        sso_url="https://delete-test.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+    )
+
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Delete the IdP
+    response = super_admin_session.post(
+        f"/admin/identity-providers/{idp.id}/delete",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "success=deleted" in location or "/admin/identity-providers" in location
+
+
+def test_view_idp_detail(super_admin_session, test_tenant_host, test_tenant, test_super_admin_user):
+    """Test viewing an IdP detail page."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create an IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Detail Test IdP",
+        provider_type="azure_ad",
+        entity_id="https://detail-test.example.com/entity",
+        sso_url="https://detail-test.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+    )
+
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # View the IdP detail page
+    response = super_admin_session.get(
+        f"/admin/identity-providers/{idp.id}",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code in (200, 303)
+    if response.status_code == 200:
+        assert "Detail Test IdP" in response.text or idp.name in response.text

@@ -6,32 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## API-First: SAML Identity Provider Management has no API endpoints
-
-**Found in:** `app/services/saml.py` (entire service)
-**Severity:** High
-**Principle Violated:** API-First
-**Description:** All SAML Identity Provider management operations are web-only. No API endpoints exist for CRUD operations on IdPs.
-
-**Missing API endpoints:**
-- `GET /api/v1/saml/identity-providers` - List IdPs
-- `GET /api/v1/saml/identity-providers/{idp_id}` - Get IdP details
-- `POST /api/v1/saml/identity-providers` - Create IdP
-- `PATCH /api/v1/saml/identity-providers/{idp_id}` - Update IdP
-- `DELETE /api/v1/saml/identity-providers/{idp_id}` - Delete IdP
-- `POST /api/v1/saml/identity-providers/{idp_id}/enable` - Enable/disable IdP
-- `POST /api/v1/saml/identity-providers/{idp_id}/set-default` - Set default IdP
-- `POST /api/v1/saml/identity-providers/import` - Import from metadata URL
-- `POST /api/v1/saml/identity-providers/{idp_id}/refresh` - Refresh metadata
-- `GET /api/v1/saml/sp-metadata` - Get SP metadata
-- `GET /api/v1/saml/sp-certificate` - Get/create SP certificate
-
-**Impact:** Third-party integrations and automation cannot manage SAML configuration programmatically
-**Root Cause:** SAML Phase 1 focused on web UI implementation
-**Suggested fix:** Create `app/routers/api/v1/saml.py` with RESTful endpoints for all IdP operations
-
----
-
 ## API-First: User state operations missing API endpoints
 
 **Found in:** `app/services/users.py`

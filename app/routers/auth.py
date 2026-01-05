@@ -4,6 +4,7 @@ from typing import Annotated
 
 import database
 import services.emails as emails_service
+import services.saml as saml_service
 import services.users as users_service
 from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
@@ -19,10 +20,13 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
+def login_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
     """Render login page."""
     # If already authenticated, redirect to dashboard
-    user = get_current_user(request, get_tenant_id_from_request(request))
+    user = get_current_user(request, tenant_id)
     if user:
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -30,8 +34,11 @@ def login_page(request: Request):
     success = request.query_params.get("success")
     error = request.query_params.get("error")
 
+    # Check if SSO is enabled (any enabled IdPs exist)
+    sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
+
     return templates.TemplateResponse(
-        "login.html", {"request": request, "success": success, "error": error}
+        "login.html", {"request": request, "success": success, "error": error, "sso_enabled": sso_enabled}
     )
 
 

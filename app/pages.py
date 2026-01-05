@@ -181,6 +181,28 @@ PAGES = [
                 permission=PagePermission.ADMIN,
                 show_in_nav=True,
             ),
+            Page(
+                path="/admin/identity-providers",
+                title="Identity Providers",
+                permission=PagePermission.SUPER_ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/identity-providers/new",
+                        title="Add Identity Provider",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=False,
+                        creates_nav_level=False,
+                    ),
+                    Page(
+                        path="/admin/identity-providers/idp",
+                        title="Identity Provider Details",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=False,
+                        creates_nav_level=False,
+                    ),
+                ],
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

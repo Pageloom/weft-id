@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
-from routers import auth, mfa, oauth2, tenants, users  # noqa: E402
+from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
 from routers.api.v1 import reactivation as reactivation_api  # noqa: E402
@@ -63,8 +63,9 @@ app.include_router(settings_router.router)
 app.include_router(tenants.router)
 app.include_router(users.router)
 
-# Include OAuth2 router
+# Include OAuth2 and SAML routers
 app.include_router(oauth2.router)
+app.include_router(saml.router)
 
 # Include API routers (JSON)
 app.include_router(oauth2_clients.router)

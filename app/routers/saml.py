@@ -148,9 +148,11 @@ def saml_acs(
         )
 
     # Build request data for python3-saml
+    # Check X-Forwarded-Proto header for reverse proxy, fall back to request scheme
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     request_data = {
-        "https": "on" if request.url.scheme == "https" else "off",
-        "http_host": request.url.netloc,
+        "https": "on" if forwarded_proto == "https" else "off",
+        "http_host": request.headers.get("x-forwarded-host", request.url.netloc),
         "script_name": str(request.url.path),
         "get_data": {},
         "post_data": {},

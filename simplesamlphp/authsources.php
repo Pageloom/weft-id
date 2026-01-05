@@ -17,9 +17,9 @@ $config = [
         'exampleauth:UserPass',
 
         // Test Super Admin user
-        'admin@example.com:password123' => [
+        'admin-dev@pageloom.com:password123' => [
             'uid' => ['admin'],
-            'email' => ['admin@example.com'],
+            'email' => ['admin-dev@pageloom.com'],
             'firstName' => ['Admin'],
             'lastName' => ['User'],
             'displayName' => ['Admin User'],
@@ -27,13 +27,23 @@ $config = [
         ],
 
         // Test regular user
-        'user@example.com:password123' => [
+        'member-dev@pageloom.com:password123' => [
             'uid' => ['user'],
-            'email' => ['user@example.com'],
-            'firstName' => ['Test'],
-            'lastName' => ['User'],
-            'displayName' => ['Test User'],
+            'email' => ['member-dev@pageloom.com'],
+            'firstName' => ['Member'],
+            'lastName' => ['Normal'],
+            'displayName' => ['Normal Member'],
             'groups' => ['users'],
+        ],
+
+        // Test Super Admin user
+        'super-dev@pageloom.com:password123' => [
+            'uid' => ['super'],
+            'email' => ['super-dev@pageloom.com'],
+            'firstName' => ['Super'],
+            'lastName' => ['Admin'],
+            'displayName' => ['Super Admin'],
+            'groups' => ['admins', 'users'],
         ],
 
         // Test user with different domain

@@ -6,29 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## SAML IdP Simulator: Metadata Import Does Not Work Out-of-Box
-
-**Found in:** SimpleSAMLphp configuration, SAML IdP setup flow
-
-**Severity:** Medium (DX issue)
-
-**Goal:** Make SAML IdP simulator setup as simple as: import metadata URL → enable → done.
-
-**Current State:** Manual configuration required. The "Quick Import from Metadata URL" feature cannot be used because:
-
-1. **Docker hostname mismatch** - Importing from `http://saml-idp:8080/...` (the only URL the app container can reach) results in SSO URLs containing `saml-idp` hostname, which the browser cannot resolve.
-
-2. **Workaround tried** - Fetching metadata via `localhost:8080` doesn't work because from inside the app container, `localhost` refers to the container itself.
-
-**Recommended Solution:** Configure SimpleSAMLphp to advertise `localhost:8080` URLs in its metadata regardless of how it's accessed. This requires setting an explicit `entityid` in `saml20-idp-hosted.php` that doesn't use `__DYNAMIC:1__`.
-
-**Alternative:** Update docs to explain manual configuration is required for local dev IdP.
-
-**Files to modify:**
-- `simplesamlphp/saml20-idp-hosted.php` - Set explicit localhost entity ID and URLs
-
----
-
 ## SAML Error Page: Add SAML Response Debug Output
 
 **Found in:** `app/templates/saml_error.html`

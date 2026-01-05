@@ -640,6 +640,76 @@ def import_idp_from_metadata_url(
     return create_identity_provider(requesting_user, data, base_url)
 
 
+def parse_idp_metadata_xml_to_schema(metadata_xml: str) -> IdPMetadataParsed:
+    """
+    Parse raw IdP metadata XML directly.
+
+    No authorization required (used during import flow).
+
+    Args:
+        metadata_xml: Raw SAML metadata XML content
+
+    Returns:
+        IdPMetadataParsed with entity_id, sso_url, slo_url, certificate_pem
+
+    Raises:
+        ValidationError if metadata is invalid
+    """
+    try:
+        parsed = parse_idp_metadata_xml(metadata_xml)
+
+        return IdPMetadataParsed(
+            entity_id=parsed["entity_id"],
+            sso_url=parsed["sso_url"],
+            slo_url=parsed["slo_url"],
+            certificate_pem=parsed["certificate_pem"],
+        )
+    except ValueError as e:
+        raise ValidationError(
+            message=str(e),
+            code="metadata_parse_failed",
+        ) from e
+
+
+def import_idp_from_metadata_xml(
+    requesting_user: RequestingUser,
+    name: str,
+    provider_type: str,
+    metadata_xml: str,
+    base_url: str,
+) -> IdPConfig:
+    """
+    Import and create an IdP from raw metadata XML.
+
+    Authorization: Requires super_admin role.
+
+    Parses the XML and creates the IdP configuration.
+    No metadata_url is stored since this is a direct XML import.
+
+    Returns:
+        Created IdPConfig
+    """
+    _require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    # Parse metadata XML directly
+    metadata = parse_idp_metadata_xml_to_schema(metadata_xml)
+
+    # Create IdP using parsed metadata (no metadata_url since imported from XML)
+    data = IdPCreate(
+        name=name,
+        provider_type=provider_type,
+        entity_id=metadata.entity_id,
+        sso_url=metadata.sso_url,
+        slo_url=metadata.slo_url,
+        certificate_pem=metadata.certificate_pem,
+        metadata_url=None,  # No URL to store - imported from raw XML
+        is_enabled=False,  # Start disabled, admin must enable
+    )
+
+    return create_identity_provider(requesting_user, data, base_url)
+
+
 def refresh_idp_from_metadata(
     requesting_user: RequestingUser,
     idp_id: str,

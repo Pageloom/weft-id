@@ -151,6 +151,14 @@ class IdPMetadataImport(BaseModel):
     metadata_url: str = Field(..., min_length=1)
 
 
+class IdPMetadataImportXML(BaseModel):
+    """Request schema for importing IdP from raw metadata XML."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    provider_type: str = Field(..., pattern="^(okta|azure_ad|google|generic)$")
+    metadata_xml: str = Field(..., min_length=1, description="Raw SAML metadata XML content")
+
+
 # ============================================================================
 # SAML Response Schemas
 # ============================================================================

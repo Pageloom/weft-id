@@ -28,42 +28,143 @@
         </div>
         {% endif %}
 
-        <!-- Import from Metadata URL (only for new IdPs) -->
         {% if not idp %}
-        <div class="mb-8 p-4 border border-blue-200 bg-blue-50 rounded-md">
-            <h3 class="font-medium text-blue-900 mb-2">Quick Import from Metadata URL</h3>
-            <p class="text-sm text-blue-800 mb-3">
-                Paste your IdP's metadata URL to automatically configure entity ID, SSO URL, and certificate.
-            </p>
-            <form method="post" action="/admin/identity-providers/import-metadata" class="flex gap-2">
-                <input type="text" name="metadata_url" placeholder="https://your-idp.com/metadata"
-                       class="flex-1 px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <select name="provider_type" class="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="okta">Okta</option>
-                    <option value="azure_ad">Azure AD</option>
-                    <option value="google">Google Workspace</option>
-                    <option value="generic">Generic SAML</option>
-                </select>
-                <input type="text" name="name" placeholder="Provider name" required
-                       class="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button type="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm whitespace-nowrap">
-                    Import
-                </button>
-            </form>
+        <!-- New IdP: Tabbed Import Interface -->
+        <div class="mb-8">
+            <!-- Tab Navigation -->
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="-mb-px flex space-x-8" aria-label="Import method">
+                    <button type="button" id="tab-url" onclick="switchTab('url')"
+                            class="tab-button border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600">
+                        Import from URL
+                    </button>
+                    <button type="button" id="tab-xml" onclick="switchTab('xml')"
+                            class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        Paste Metadata XML
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Tab Content: Import from URL -->
+            <div id="content-url" class="tab-content">
+                <div class="p-4 border border-blue-200 bg-blue-50 rounded-md">
+                    <h3 class="font-medium text-blue-900 mb-2">Import from Metadata URL</h3>
+                    <p class="text-sm text-blue-800 mb-4">
+                        Enter your IdP's metadata URL to automatically extract the entity ID, SSO URL, and certificate.
+                    </p>
+                    <form method="post" action="/admin/identity-providers/import-metadata" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="url-name" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Display Name <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="url-name" name="name" required
+                                       placeholder="e.g., Corporate Okta"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label for="url-provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Provider Type <span class="text-red-500">*</span>
+                                </label>
+                                <select id="url-provider_type" name="provider_type" required
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="okta">Okta</option>
+                                    <option value="azure_ad">Azure AD</option>
+                                    <option value="google">Google Workspace</option>
+                                    <option value="generic" selected>Generic SAML</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="metadata_url" class="block text-sm font-medium text-gray-700 mb-1">
+                                Metadata URL <span class="text-red-500">*</span>
+                            </label>
+                            <input type="url" id="metadata_url" name="metadata_url" required
+                                   placeholder="https://your-idp.com/metadata"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-gray-500">The URL where your IdP publishes its SAML metadata</p>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                Import from URL
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tab Content: Paste XML -->
+            <div id="content-xml" class="tab-content hidden">
+                <div class="p-4 border border-green-200 bg-green-50 rounded-md">
+                    <h3 class="font-medium text-green-900 mb-2">Paste Metadata XML</h3>
+                    <p class="text-sm text-green-800 mb-4">
+                        Paste the raw SAML metadata XML content to automatically extract the configuration.
+                    </p>
+                    <form method="post" action="/admin/identity-providers/import-metadata-xml" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="xml-name" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Display Name <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="xml-name" name="name" required
+                                       placeholder="e.g., Corporate Okta"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label for="xml-provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Provider Type <span class="text-red-500">*</span>
+                                </label>
+                                <select id="xml-provider_type" name="provider_type" required
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="okta">Okta</option>
+                                    <option value="azure_ad">Azure AD</option>
+                                    <option value="google">Google Workspace</option>
+                                    <option value="generic" selected>Generic SAML</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="metadata_xml" class="block text-sm font-medium text-gray-700 mb-1">
+                                Metadata XML <span class="text-red-500">*</span>
+                            </label>
+                            <textarea id="metadata_xml" name="metadata_xml" required rows="12"
+                                      placeholder="<?xml version=&quot;1.0&quot;?>&#10;<EntityDescriptor ...>&#10;  ...&#10;</EntityDescriptor>"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">Paste the full SAML metadata XML from your IdP</p>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                Import from XML
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
 
-        <div class="relative mb-8">
-            <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-gray-300"></div>
-            </div>
-            <div class="relative flex justify-center">
-                <span class="px-4 bg-white text-sm text-gray-500">Or configure manually</span>
-            </div>
-        </div>
-        {% endif %}
+        <script>
+            function switchTab(tab) {
+                // Hide all content
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+                // Reset all tabs
+                document.querySelectorAll('.tab-button').forEach(el => {
+                    el.classList.remove('border-blue-500', 'text-blue-600');
+                    el.classList.add('border-transparent', 'text-gray-500');
+                });
+                // Show selected content
+                document.getElementById('content-' + tab).classList.remove('hidden');
+                // Activate selected tab
+                const activeTab = document.getElementById('tab-' + tab);
+                activeTab.classList.remove('border-transparent', 'text-gray-500');
+                activeTab.classList.add('border-blue-500', 'text-blue-600');
+            }
+        </script>
 
-        <form method="post" action="{% if idp %}/admin/identity-providers/{{ idp.id }}{% else %}/admin/identity-providers/new{% endif %}">
+        {% else %}
+        <!-- Edit Existing IdP Form -->
+        <form method="post" action="/admin/identity-providers/{{ idp.id }}">
             <!-- Basic Info Section -->
             <div class="mb-8">
                 <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
@@ -75,8 +176,7 @@
                             Display Name <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="name" name="name" required
-                               value="{{ idp.name if idp else '' }}"
-                               placeholder="e.g., Corporate Okta"
+                               value="{{ idp.name }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -85,10 +185,10 @@
                         </label>
                         <select id="provider_type" name="provider_type" required
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="okta" {% if idp and idp.provider_type == 'okta' %}selected{% endif %}>Okta</option>
-                            <option value="azure_ad" {% if idp and idp.provider_type == 'azure_ad' %}selected{% endif %}>Azure AD</option>
-                            <option value="google" {% if idp and idp.provider_type == 'google' %}selected{% endif %}>Google Workspace</option>
-                            <option value="generic" {% if idp and idp.provider_type == 'generic' %}selected{% endif %}>Generic SAML</option>
+                            <option value="okta" {% if idp.provider_type == 'okta' %}selected{% endif %}>Okta</option>
+                            <option value="azure_ad" {% if idp.provider_type == 'azure_ad' %}selected{% endif %}>Azure AD</option>
+                            <option value="google" {% if idp.provider_type == 'google' %}selected{% endif %}>Google Workspace</option>
+                            <option value="generic" {% if idp.provider_type == 'generic' %}selected{% endif %}>Generic SAML</option>
                         </select>
                     </div>
                 </div>
@@ -100,7 +200,7 @@
                     Identity Provider Configuration
                 </h2>
 
-                {% if idp and idp.metadata_url %}
+                {% if idp.metadata_url %}
                 <div class="mb-4 p-3 bg-gray-50 rounded-md border border-gray-200">
                     <div class="flex items-center justify-between">
                         <div>
@@ -133,8 +233,7 @@
                             Entity ID <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="entity_id" name="entity_id" required
-                               value="{{ idp.entity_id if idp else '' }}"
-                               placeholder="https://your-idp.com/entity-id"
+                               value="{{ idp.entity_id }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-xs text-gray-500">The unique identifier for this identity provider</p>
                     </div>
@@ -144,8 +243,7 @@
                             SSO URL <span class="text-red-500">*</span>
                         </label>
                         <input type="url" id="sso_url" name="sso_url" required
-                               value="{{ idp.sso_url if idp else '' }}"
-                               placeholder="https://your-idp.com/sso"
+                               value="{{ idp.sso_url }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-xs text-gray-500">The IdP's Single Sign-On endpoint (HTTP-Redirect binding)</p>
                     </div>
@@ -155,8 +253,7 @@
                             SLO URL <span class="text-gray-400">(optional)</span>
                         </label>
                         <input type="url" id="slo_url" name="slo_url"
-                               value="{{ idp.slo_url if idp else '' }}"
-                               placeholder="https://your-idp.com/slo"
+                               value="{{ idp.slo_url or '' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-xs text-gray-500">Single Logout endpoint (not yet implemented)</p>
                     </div>
@@ -166,8 +263,7 @@
                             IdP Certificate <span class="text-red-500">*</span>
                         </label>
                         <textarea id="certificate_pem" name="certificate_pem" required rows="6"
-                                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ idp.certificate_pem if idp else '' }}</textarea>
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ idp.certificate_pem }}</textarea>
                         <p class="mt-1 text-xs text-gray-500">The IdP's X.509 signing certificate in PEM format</p>
                     </div>
 
@@ -176,8 +272,7 @@
                             Metadata URL <span class="text-gray-400">(optional)</span>
                         </label>
                         <input type="url" id="metadata_url" name="metadata_url"
-                               value="{{ idp.metadata_url if idp else '' }}"
-                               placeholder="https://your-idp.com/metadata"
+                               value="{{ idp.metadata_url or '' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <p class="mt-1 text-xs text-gray-500">If provided, settings will be automatically refreshed from this URL daily</p>
                     </div>
@@ -198,8 +293,7 @@
                             Email Attribute
                         </label>
                         <input type="text" id="attr_email" name="attr_email"
-                               value="{{ idp.attribute_mapping.email if idp and idp.attribute_mapping else 'email' }}"
-                               placeholder="email"
+                               value="{{ idp.attribute_mapping.email if idp.attribute_mapping else 'email' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -207,8 +301,7 @@
                             First Name Attribute
                         </label>
                         <input type="text" id="attr_first_name" name="attr_first_name"
-                               value="{{ idp.attribute_mapping.first_name if idp and idp.attribute_mapping else 'firstName' }}"
-                               placeholder="firstName"
+                               value="{{ idp.attribute_mapping.first_name if idp.attribute_mapping else 'firstName' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
@@ -216,8 +309,7 @@
                             Last Name Attribute
                         </label>
                         <input type="text" id="attr_last_name" name="attr_last_name"
-                               value="{{ idp.attribute_mapping.last_name if idp and idp.attribute_mapping else 'lastName' }}"
-                               placeholder="lastName"
+                               value="{{ idp.attribute_mapping.last_name if idp.attribute_mapping else 'lastName' }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
@@ -232,7 +324,7 @@
                     <div class="flex items-start">
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="is_enabled" name="is_enabled"
-                                   {% if idp and idp.is_enabled %}checked{% endif %}
+                                   {% if idp.is_enabled %}checked{% endif %}
                                    class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
@@ -244,7 +336,7 @@
                     <div class="flex items-start">
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="is_default" name="is_default"
-                                   {% if idp and idp.is_default %}checked{% endif %}
+                                   {% if idp.is_default %}checked{% endif %}
                                    class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
@@ -256,7 +348,7 @@
                     <div class="flex items-start">
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
-                                   {% if idp and idp.require_platform_mfa %}checked{% endif %}
+                                   {% if idp.require_platform_mfa %}checked{% endif %}
                                    class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
@@ -267,8 +359,7 @@
                 </div>
             </div>
 
-            <!-- SP Configuration (read-only, shown only when editing) -->
-            {% if idp %}
+            <!-- SP Configuration (read-only) -->
             <div class="mb-8">
                 <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
                     Service Provider Configuration
@@ -294,7 +385,6 @@
                     {% endif %}
                 </div>
             </div>
-            {% endif %}
 
             <!-- Actions -->
             <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -304,10 +394,11 @@
                 </a>
                 <button type="submit"
                         class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    {% if idp %}Save Changes{% else %}Create Identity Provider{% endif %}
+                    Save Changes
                 </button>
             </div>
         </form>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

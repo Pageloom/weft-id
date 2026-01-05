@@ -1,8 +1,8 @@
 """Tests for SAML API endpoints."""
 
-import pytest
 import uuid
 
+import pytest
 
 # =============================================================================
 # Fixtures
@@ -94,9 +94,7 @@ def test_list_idps_as_super_admin(client, test_tenant_host, oauth2_super_admin_h
     assert isinstance(data["items"], list)
 
 
-def test_list_idps_as_admin_forbidden(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_list_idps_as_admin_forbidden(client, test_tenant_host, oauth2_admin_authorization_header):
     """Regular admin cannot list IdPs (requires super_admin)."""
     response = client.get(
         "/api/v1/saml/idps",
@@ -179,9 +177,7 @@ def test_create_idp_invalid_provider_type(
     assert response.status_code == 422
 
 
-def test_create_idp_missing_required_field(
-    client, test_tenant_host, oauth2_super_admin_header
-):
+def test_create_idp_missing_required_field(client, test_tenant_host, oauth2_super_admin_header):
     """Missing required field returns 422."""
     response = client.post(
         "/api/v1/saml/idps",
@@ -197,9 +193,7 @@ def test_create_idp_missing_required_field(
 # =============================================================================
 
 
-def test_get_idp_as_super_admin(
-    client, test_tenant_host, oauth2_super_admin_header, created_idp
-):
+def test_get_idp_as_super_admin(client, test_tenant_host, oauth2_super_admin_header, created_idp):
     """Super admin can get IdP details."""
     response = client.get(
         f"/api/v1/saml/idps/{created_idp['id']}",
@@ -426,9 +420,7 @@ def test_set_default_idp_as_admin_forbidden(
 # =============================================================================
 
 
-def test_get_sp_certificate_as_super_admin(
-    client, test_tenant_host, oauth2_super_admin_header
-):
+def test_get_sp_certificate_as_super_admin(client, test_tenant_host, oauth2_super_admin_header):
     """Super admin can get SP certificate."""
     response = client.get(
         "/api/v1/saml/sp/certificate",
@@ -462,9 +454,7 @@ def test_get_sp_certificate_as_admin_forbidden(
 # =============================================================================
 
 
-def test_get_sp_metadata_as_super_admin(
-    client, test_tenant_host, oauth2_super_admin_header
-):
+def test_get_sp_metadata_as_super_admin(client, test_tenant_host, oauth2_super_admin_header):
     """Super admin can get SP metadata info."""
     response = client.get(
         "/api/v1/saml/sp/metadata",
@@ -510,9 +500,7 @@ def test_refresh_idp_metadata_no_url(
     assert response.status_code == 400
 
 
-def test_refresh_idp_metadata_not_found(
-    client, test_tenant_host, oauth2_super_admin_header
-):
+def test_refresh_idp_metadata_not_found(client, test_tenant_host, oauth2_super_admin_header):
     """Refreshing non-existent IdP returns 404."""
     fake_id = str(uuid.uuid4())
     response = client.post(
@@ -528,9 +516,7 @@ def test_refresh_idp_metadata_not_found(
 # =============================================================================
 
 
-def test_import_idp_as_admin_forbidden(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_import_idp_as_admin_forbidden(client, test_tenant_host, oauth2_admin_authorization_header):
     """Regular admin cannot import IdP."""
     response = client.post(
         "/api/v1/saml/idps/import",
@@ -543,3 +529,149 @@ def test_import_idp_as_admin_forbidden(
     )
 
     assert response.status_code == 403
+
+
+# =============================================================================
+# Import IdP from Raw XML
+# =============================================================================
+
+
+# Check if the SAML library is available for XML parsing tests
+try:
+    from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser  # noqa: F401
+
+    HAS_SAML_LIBRARY = True
+except ImportError:
+    HAS_SAML_LIBRARY = False
+
+
+@pytest.fixture
+def sample_idp_metadata_xml():
+    """Sample IdP metadata XML for testing import."""
+    return """<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     entityID="https://api-xml-import.example.com/entity">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://api-xml-import.example.com/sso"/>
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://api-xml-import.example.com/slo"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_xml_as_super_admin(
+    client, test_tenant_host, oauth2_super_admin_header, sample_idp_metadata_xml
+):
+    """Super admin can import IdP from raw metadata XML."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "API XML Imported IdP",
+            "provider_type": "generic",
+            "metadata_xml": sample_idp_metadata_xml,
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "API XML Imported IdP"
+    assert data["provider_type"] == "generic"
+    assert data["entity_id"] == "https://api-xml-import.example.com/entity"
+    assert data["sso_url"] == "https://api-xml-import.example.com/sso"
+    assert data["slo_url"] == "https://api-xml-import.example.com/slo"
+    assert data["metadata_url"] is None  # No URL - imported from raw XML
+    assert "id" in data
+    assert "sp_entity_id" in data
+    assert "sp_acs_url" in data
+
+
+def test_import_idp_from_xml_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Regular admin cannot import IdP from XML."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Should Fail",
+            "provider_type": "generic",
+            "metadata_xml": "<xml/>",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_import_idp_from_xml_unauthenticated(client, test_tenant_host):
+    """Unauthenticated request returns 401."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host},
+        json={
+            "name": "Should Fail",
+            "provider_type": "generic",
+            "metadata_xml": "<xml/>",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_xml_invalid_xml(client, test_tenant_host, oauth2_super_admin_header):
+    """Invalid XML returns 400."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Invalid Import",
+            "provider_type": "generic",
+            "metadata_xml": "not valid xml",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_import_idp_from_xml_invalid_provider_type(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """Invalid provider type returns 422."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Invalid Provider",
+            "provider_type": "invalid_type",
+            "metadata_xml": "<xml/>",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_import_idp_from_xml_missing_fields(client, test_tenant_host, oauth2_super_admin_header):
+    """Missing required fields returns 422."""
+    response = client.post(
+        "/api/v1/saml/idps/import-xml",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "name": "Missing Fields",
+            # Missing provider_type and metadata_xml
+        },
+    )
+
+    assert response.status_code == 422

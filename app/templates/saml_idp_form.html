@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}{% if idp %}Edit{% else %}Add{% endif %} Identity Provider - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="mb-6">
+            <a href="/admin/identity-providers" class="text-sm text-blue-600 hover:text-blue-800">
+                ← Back to Identity Providers
+            </a>
+        </div>
+
+        <h1 class="text-2xl font-semibold mb-2">
+            {% if idp %}Edit Identity Provider{% else %}Add Identity Provider{% endif %}
+        </h1>
+        <p class="text-sm text-gray-600 mb-6">
+            {% if idp %}
+                Update the SAML configuration for this identity provider.
+            {% else %}
+                Configure a new SAML identity provider for SSO authentication.
+            {% endif %}
+        </p>
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 bg-red-50 rounded-md">
+            <p class="text-sm text-red-800">{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Import from Metadata URL (only for new IdPs) -->
+        {% if not idp %}
+        <div class="mb-8 p-4 border border-blue-200 bg-blue-50 rounded-md">
+            <h3 class="font-medium text-blue-900 mb-2">Quick Import from Metadata URL</h3>
+            <p class="text-sm text-blue-800 mb-3">
+                Paste your IdP's metadata URL to automatically configure entity ID, SSO URL, and certificate.
+            </p>
+            <form method="post" action="/admin/identity-providers/import-metadata" class="flex gap-2">
+                <input type="text" name="metadata_url" placeholder="https://your-idp.com/metadata"
+                       class="flex-1 px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select name="provider_type" class="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="okta">Okta</option>
+                    <option value="azure_ad">Azure AD</option>
+                    <option value="google">Google Workspace</option>
+                    <option value="generic">Generic SAML</option>
+                </select>
+                <input type="text" name="name" placeholder="Provider name" required
+                       class="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm whitespace-nowrap">
+                    Import
+                </button>
+            </form>
+        </div>
+
+        <div class="relative mb-8">
+            <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-gray-300"></div>
+            </div>
+            <div class="relative flex justify-center">
+                <span class="px-4 bg-white text-sm text-gray-500">Or configure manually</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% if idp %}/admin/identity-providers/{{ idp.id }}{% else %}/admin/identity-providers/new{% endif %}">
+            <!-- Basic Info Section -->
+            <div class="mb-8">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Basic Information
+                </h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+                            Display Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="name" name="name" required
+                               value="{{ idp.name if idp else '' }}"
+                               placeholder="e.g., Corporate Okta"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                            Provider Type <span class="text-red-500">*</span>
+                        </label>
+                        <select id="provider_type" name="provider_type" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="okta" {% if idp and idp.provider_type == 'okta' %}selected{% endif %}>Okta</option>
+                            <option value="azure_ad" {% if idp and idp.provider_type == 'azure_ad' %}selected{% endif %}>Azure AD</option>
+                            <option value="google" {% if idp and idp.provider_type == 'google' %}selected{% endif %}>Google Workspace</option>
+                            <option value="generic" {% if idp and idp.provider_type == 'generic' %}selected{% endif %}>Generic SAML</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IdP Configuration Section -->
+            <div class="mb-8">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Identity Provider Configuration
+                </h2>
+
+                {% if idp and idp.metadata_url %}
+                <div class="mb-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600">
+                                <span class="font-medium">Metadata URL:</span>
+                                <code class="ml-1 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{{ idp.metadata_url }}</code>
+                            </p>
+                            {% if idp.metadata_last_fetched_at %}
+                            <p class="text-xs text-green-600 mt-1">
+                                Last synced: {{ fmt_datetime(idp.metadata_last_fetched_at) }}
+                            </p>
+                            {% elif idp.metadata_fetch_error %}
+                            <p class="text-xs text-red-600 mt-1">
+                                Sync error: {{ idp.metadata_fetch_error }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <form method="post" action="/admin/identity-providers/{{ idp.id }}/refresh-metadata" class="inline">
+                            <button type="submit" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-100">
+                                Refresh Now
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="entity_id" class="block text-sm font-medium text-gray-700 mb-1">
+                            Entity ID <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" id="entity_id" name="entity_id" required
+                               value="{{ idp.entity_id if idp else '' }}"
+                               placeholder="https://your-idp.com/entity-id"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500">The unique identifier for this identity provider</p>
+                    </div>
+
+                    <div>
+                        <label for="sso_url" class="block text-sm font-medium text-gray-700 mb-1">
+                            SSO URL <span class="text-red-500">*</span>
+                        </label>
+                        <input type="url" id="sso_url" name="sso_url" required
+                               value="{{ idp.sso_url if idp else '' }}"
+                               placeholder="https://your-idp.com/sso"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500">The IdP's Single Sign-On endpoint (HTTP-Redirect binding)</p>
+                    </div>
+
+                    <div>
+                        <label for="slo_url" class="block text-sm font-medium text-gray-700 mb-1">
+                            SLO URL <span class="text-gray-400">(optional)</span>
+                        </label>
+                        <input type="url" id="slo_url" name="slo_url"
+                               value="{{ idp.slo_url if idp else '' }}"
+                               placeholder="https://your-idp.com/slo"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500">Single Logout endpoint (not yet implemented)</p>
+                    </div>
+
+                    <div>
+                        <label for="certificate_pem" class="block text-sm font-medium text-gray-700 mb-1">
+                            IdP Certificate <span class="text-red-500">*</span>
+                        </label>
+                        <textarea id="certificate_pem" name="certificate_pem" required rows="6"
+                                  placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ idp.certificate_pem if idp else '' }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">The IdP's X.509 signing certificate in PEM format</p>
+                    </div>
+
+                    <div>
+                        <label for="metadata_url" class="block text-sm font-medium text-gray-700 mb-1">
+                            Metadata URL <span class="text-gray-400">(optional)</span>
+                        </label>
+                        <input type="url" id="metadata_url" name="metadata_url"
+                               value="{{ idp.metadata_url if idp else '' }}"
+                               placeholder="https://your-idp.com/metadata"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500">If provided, settings will be automatically refreshed from this URL daily</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attribute Mapping Section -->
+            <div class="mb-8">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Attribute Mapping
+                </h2>
+                <p class="text-sm text-gray-600 mb-4">
+                    Map SAML assertion attributes to user profile fields. Enter the attribute name as it appears in the SAML response.
+                </p>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label for="attr_email" class="block text-sm font-medium text-gray-700 mb-1">
+                            Email Attribute
+                        </label>
+                        <input type="text" id="attr_email" name="attr_email"
+                               value="{{ idp.attribute_mapping.email if idp and idp.attribute_mapping else 'email' }}"
+                               placeholder="email"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="attr_first_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            First Name Attribute
+                        </label>
+                        <input type="text" id="attr_first_name" name="attr_first_name"
+                               value="{{ idp.attribute_mapping.first_name if idp and idp.attribute_mapping else 'firstName' }}"
+                               placeholder="firstName"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="attr_last_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            Last Name Attribute
+                        </label>
+                        <input type="text" id="attr_last_name" name="attr_last_name"
+                               value="{{ idp.attribute_mapping.last_name if idp and idp.attribute_mapping else 'lastName' }}"
+                               placeholder="lastName"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="mb-8">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Settings
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            <input type="checkbox" id="is_enabled" name="is_enabled"
+                                   {% if idp and idp.is_enabled %}checked{% endif %}
+                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="ml-3">
+                            <label for="is_enabled" class="text-sm font-medium text-gray-700">Enabled</label>
+                            <p class="text-xs text-gray-500">Users can authenticate using this identity provider</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            <input type="checkbox" id="is_default" name="is_default"
+                                   {% if idp and idp.is_default %}checked{% endif %}
+                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="ml-3">
+                            <label for="is_default" class="text-sm font-medium text-gray-700">Default IdP</label>
+                            <p class="text-xs text-gray-500">Use this IdP when users click "Sign in with SSO" (only one can be default)</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
+                                   {% if idp and idp.require_platform_mfa %}checked{% endif %}
+                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        </div>
+                        <div class="ml-3">
+                            <label for="require_platform_mfa" class="text-sm font-medium text-gray-700">Require Platform MFA</label>
+                            <p class="text-xs text-gray-500">Users must complete additional MFA after SAML authentication</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SP Configuration (read-only, shown only when editing) -->
+            {% if idp %}
+            <div class="mb-8">
+                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                    Service Provider Configuration
+                </h2>
+                <p class="text-sm text-gray-600 mb-4">
+                    These values are auto-generated. Provide them to your identity provider administrator.
+                </p>
+                <div class="space-y-3 bg-gray-50 p-4 rounded-md">
+                    <div>
+                        <span class="text-sm font-medium text-gray-700">SP Entity ID:</span>
+                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ idp.sp_entity_id }}</code>
+                    </div>
+                    <div>
+                        <span class="text-sm font-medium text-gray-700">ACS URL:</span>
+                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ idp.sp_acs_url }}</code>
+                    </div>
+                    {% if sp_metadata %}
+                    <div>
+                        <span class="text-sm font-medium text-gray-700">SP Metadata URL:</span>
+                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ sp_metadata.metadata_url }}</code>
+                        <a href="/saml/metadata" target="_blank" class="ml-2 text-sm text-blue-600 hover:text-blue-800">View XML</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <a href="/admin/identity-providers"
+                   class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    {% if idp %}Save Changes{% else %}Create Identity Provider{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

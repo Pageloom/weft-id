@@ -855,3 +855,675 @@ def test_parse_idp_metadata_xml_to_schema_success(sample_idp_metadata_xml):
     assert parsed.sso_url == "https://xml-import-test.example.com/sso"
     assert parsed.slo_url == "https://xml-import-test.example.com/slo"
     assert "-----BEGIN CERTIFICATE-----" in parsed.certificate_pem
+
+
+# =============================================================================
+# _get_saml_attribute Helper Tests
+# =============================================================================
+
+
+def test_get_saml_attribute_simple_string():
+    """Test extracting a simple string attribute."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"email": "user@example.com"}
+    result = _get_saml_attribute(attributes, "email")
+    assert result == "user@example.com"
+
+
+def test_get_saml_attribute_list_value():
+    """Test extracting an attribute that comes as a list (common SAML format)."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"email": ["user@example.com", "alias@example.com"]}
+    result = _get_saml_attribute(attributes, "email")
+    assert result == "user@example.com"  # Should return first item
+
+
+def test_get_saml_attribute_empty_list():
+    """Test extracting from an empty list returns None."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"email": []}
+    result = _get_saml_attribute(attributes, "email")
+    assert result is None
+
+
+def test_get_saml_attribute_missing_key():
+    """Test extracting a missing attribute returns None."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"first_name": "John"}
+    result = _get_saml_attribute(attributes, "email")
+    assert result is None
+
+
+def test_get_saml_attribute_none_value():
+    """Test extracting None value returns None."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"email": None}
+    result = _get_saml_attribute(attributes, "email")
+    assert result is None
+
+
+def test_get_saml_attribute_integer_value():
+    """Test that integer values are converted to strings."""
+    from services.saml import _get_saml_attribute
+
+    attributes = {"employee_id": 12345}
+    result = _get_saml_attribute(attributes, "employee_id")
+    assert result == "12345"
+
+
+# =============================================================================
+# process_saml_response Tests (with mocking)
+# =============================================================================
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_sp_certificate_not_found(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test process_saml_response raises NotFoundError when SP cert is missing."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP without SP certificate (no get_or_create_sp_certificate call)
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Delete any existing SP certificate to ensure clean state
+    import database
+
+    database.execute(
+        test_tenant["id"],
+        "DELETE FROM saml_sp_certificates WHERE tenant_id = :tenant_id",
+        {"tenant_id": test_tenant["id"]},
+    )
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="base64encodedresponse",
+        )
+
+    assert exc_info.value.code == "sp_certificate_not_found"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_idp_not_found(test_tenant, test_super_admin_user):
+    """Test process_saml_response raises NotFoundError for unknown IdP."""
+    from uuid import uuid4
+
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Use a non-existent IdP ID
+    fake_idp_id = str(uuid4())
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=fake_idp_id,
+            saml_response="base64encodedresponse",
+        )
+
+    assert exc_info.value.code == "idp_not_found"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_idp_disabled(test_tenant, test_super_admin_user, test_idp_data):
+    """Test process_saml_response raises ForbiddenError for disabled IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ForbiddenError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create disabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="base64encodedresponse",
+        )
+
+    assert exc_info.value.code == "idp_disabled"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_validation_failure_with_mock(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test process_saml_response raises ValidationError when auth fails."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create mock auth object that returns errors
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = ["invalid_signature", "assertion_expired"]
+    mock_auth.get_last_error_reason.return_value = "Signature validation failed"
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="dummybase64response",
+        )
+
+    assert exc_info.value.code == "saml_validation_failed"
+    assert "errors" in exc_info.value.details
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_success_with_mock(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test process_saml_response success with mocked SAML auth object."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create mock auth object
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {
+        "email": ["user@example.com"],
+        "firstName": ["John"],
+        "lastName": ["Doe"],
+    }
+    mock_auth.get_nameid.return_value = "user@example.com"
+    mock_auth.get_session_index.return_value = "session123"
+
+    # Mock the OneLogin_Saml2_Auth class
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    result = saml_service.process_saml_response(
+        tenant_id=test_tenant["id"],
+        idp_id=created.id,
+        saml_response="dummybase64response",
+    )
+
+    assert result.attributes.email == "user@example.com"
+    assert result.attributes.first_name == "John"
+    assert result.attributes.last_name == "Doe"
+    assert result.attributes.name_id == "user@example.com"
+    assert result.session_index == "session123"
+    assert result.idp_id == created.id
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_missing_email_attribute(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test process_saml_response raises ValidationError when email is missing."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create mock auth object without email attribute
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {
+        "firstName": ["John"],
+        "lastName": ["Doe"],
+    }
+    mock_auth.get_nameid.return_value = "somenameid"
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.process_saml_response(
+            tenant_id=test_tenant["id"],
+            idp_id=created.id,
+            saml_response="dummybase64response",
+        )
+
+    assert exc_info.value.code == "saml_missing_email"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_custom_attribute_mapping(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test process_saml_response respects custom attribute mapping from IdP config."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP with custom attribute mapping (Azure AD style)
+    custom_mapping = {
+        "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+        "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+    }
+    idp_data_with_mapping = {**test_idp_data, "attribute_mapping": custom_mapping}
+    data = IdPCreate(**idp_data_with_mapping, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create mock auth object with Azure AD style attributes
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": [
+            "azure.user@company.com"
+        ],
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": ["Azure"],
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname": ["User"],
+    }
+    mock_auth.get_nameid.return_value = "azure.user@company.com"
+    mock_auth.get_session_index.return_value = None
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    result = saml_service.process_saml_response(
+        tenant_id=test_tenant["id"],
+        idp_id=created.id,
+        saml_response="dummybase64response",
+    )
+
+    assert result.attributes.email == "azure.user@company.com"
+    assert result.attributes.first_name == "Azure"
+    assert result.attributes.last_name == "User"
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_process_saml_response_requires_mfa_flag(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test process_saml_response sets requires_mfa based on IdP setting."""
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create SP certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Create enabled IdP with require_platform_mfa=True
+    data = IdPCreate(**test_idp_data, is_enabled=True, require_platform_mfa=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create mock auth object
+    mock_auth = MagicMock()
+    mock_auth.get_errors.return_value = []
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_attributes.return_value = {
+        "email": ["mfa.user@example.com"],
+        "firstName": ["MFA"],
+        "lastName": ["User"],
+    }
+    mock_auth.get_nameid.return_value = "mfa.user@example.com"
+    mock_auth.get_session_index.return_value = None
+
+    def mock_auth_constructor(request_data, settings):
+        return mock_auth
+
+    monkeypatch.setattr(
+        "onelogin.saml2.auth.OneLogin_Saml2_Auth",
+        mock_auth_constructor,
+    )
+
+    result = saml_service.process_saml_response(
+        tenant_id=test_tenant["id"],
+        idp_id=created.id,
+        saml_response="dummybase64response",
+    )
+
+    assert result.requires_mfa is True
+
+
+# =============================================================================
+# Cross-Tenant Isolation Tests
+# =============================================================================
+
+
+def test_cross_tenant_idp_not_accessible(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that one tenant cannot access another tenant's IdP."""
+    from uuid import uuid4
+
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP in test_tenant
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a second tenant
+    other_subdomain = f"other-{str(uuid4())[:8]}"
+    database.execute(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:subdomain, :name)",
+        {"subdomain": other_subdomain, "name": "Other Tenant"},
+    )
+    other_tenant = database.fetchone(
+        database.UNSCOPED,
+        "SELECT id FROM tenants WHERE subdomain = :subdomain",
+        {"subdomain": other_subdomain},
+    )
+
+    try:
+        # Try to access test_tenant's IdP from other_tenant's context
+        with pytest.raises(NotFoundError):
+            saml_service.get_idp_for_saml_login(str(other_tenant["id"]), created.id)
+    finally:
+        # Cleanup other tenant
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :tenant_id",
+            {"tenant_id": other_tenant["id"]},
+        )
+
+
+def test_cross_tenant_idp_list_isolation(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that listing IdPs only returns the tenant's own IdPs."""
+    from uuid import uuid4
+
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP in test_tenant
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a second tenant with its own user
+    other_subdomain = f"other-{str(uuid4())[:8]}"
+    database.execute(
+        database.UNSCOPED,
+        "INSERT INTO tenants (subdomain, name) VALUES (:subdomain, :name)",
+        {"subdomain": other_subdomain, "name": "Other Tenant"},
+    )
+    other_tenant = database.fetchone(
+        database.UNSCOPED,
+        "SELECT id FROM tenants WHERE subdomain = :subdomain",
+        {"subdomain": other_subdomain},
+    )
+
+    # Create user in other tenant
+    from argon2 import PasswordHasher
+
+    ph = PasswordHasher()
+    other_user = database.fetchone(
+        other_tenant["id"],
+        """
+        INSERT INTO users (tenant_id, password_hash, first_name, last_name, role)
+        VALUES (:tenant_id, :password_hash, 'Other', 'Admin', 'super_admin')
+        RETURNING id, first_name, last_name, role
+        """,
+        {"tenant_id": other_tenant["id"], "password_hash": ph.hash("password")},
+    )
+
+    try:
+        # Create requesting user for other tenant
+        other_requesting_user = RequestingUser(
+            id=str(other_user["id"]),
+            tenant_id=str(other_tenant["id"]),
+            role="super_admin",
+        )
+
+        # List IdPs from other tenant - should NOT see test_tenant's IdP
+        other_idps = saml_service.list_identity_providers(other_requesting_user)
+
+        # Verify test_tenant's IdP is not in the list
+        idp_ids = [idp.id for idp in other_idps.items]
+        assert created.id not in idp_ids
+    finally:
+        # Cleanup other tenant
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :tenant_id",
+            {"tenant_id": other_tenant["id"]},
+        )
+
+
+# =============================================================================
+# Certificate Expiry Tests
+# =============================================================================
+
+
+def test_sp_certificate_has_valid_expiry(test_tenant, test_super_admin_user):
+    """Test that generated SP certificate has reasonable expiry date."""
+    from datetime import UTC, datetime, timedelta
+
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    cert = saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Certificate should expire in approximately 10 years (default)
+    now = datetime.now(UTC)
+    expected_expiry = now + timedelta(days=10 * 365)
+
+    # Allow some tolerance (within 30 days)
+    assert cert.expires_at > now + timedelta(days=10 * 365 - 30)
+    assert cert.expires_at < expected_expiry + timedelta(days=30)
+
+
+def test_sp_certificate_not_expired(test_tenant, test_super_admin_user):
+    """Test that newly created SP certificate is not expired."""
+    from datetime import UTC, datetime
+
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    cert = saml_service.get_or_create_sp_certificate(requesting_user)
+
+    assert cert.expires_at > datetime.now(UTC)
+
+
+# =============================================================================
+# Metadata Refresh Error Scenario Tests
+# =============================================================================
+
+
+def test_refresh_idp_from_metadata_network_error(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test refresh_idp_from_metadata handles network errors gracefully."""
+    import urllib.error
+    import urllib.request
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP with metadata URL
+    idp_data_with_url = {**test_idp_data, "metadata_url": "https://idp.example.com/metadata"}
+    data = IdPCreate(**idp_data_with_url, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Mock urlopen to simulate network error
+    def mock_urlopen(*args, **kwargs):
+        raise urllib.error.URLError("Network unreachable")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.refresh_idp_from_metadata(requesting_user, created.id)
+
+    assert exc_info.value.code == "metadata_fetch_failed"
+
+
+def test_refresh_idp_from_metadata_invalid_response(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test refresh_idp_from_metadata handles invalid XML response."""
+    import urllib.request
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP with metadata URL
+    idp_data_with_url = {**test_idp_data, "metadata_url": "https://idp.example.com/metadata"}
+    data = IdPCreate(**idp_data_with_url, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Mock urlopen to return invalid XML
+    mock_response = MagicMock()
+    mock_response.read.return_value = b"not valid xml"
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    def mock_urlopen(*args, **kwargs):
+        return mock_response
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.refresh_idp_from_metadata(requesting_user, created.id)
+
+    # Error code can be metadata_parse_failed or metadata_fetch_failed
+    # depending on where parsing fails
+    assert exc_info.value.code in ("metadata_parse_failed", "metadata_fetch_failed")
+
+
+def test_refresh_idp_from_metadata_timeout(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test refresh_idp_from_metadata handles timeout."""
+    import urllib.request
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP with metadata URL
+    idp_data_with_url = {**test_idp_data, "metadata_url": "https://idp.example.com/metadata"}
+    data = IdPCreate(**idp_data_with_url, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Mock urlopen to simulate timeout
+    def mock_urlopen(*args, **kwargs):
+        raise TimeoutError("Connection timed out")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.refresh_idp_from_metadata(requesting_user, created.id)
+
+    assert exc_info.value.code == "metadata_fetch_failed"

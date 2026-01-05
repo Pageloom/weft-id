@@ -1144,6 +1144,22 @@ def get_available_roles() -> list[str]:
     return ["member", "admin", "super_admin"]
 
 
+def get_admin_emails(tenant_id: str) -> list[str]:
+    """
+    Get email addresses of all active admins and super_admins.
+
+    This is a utility function without authorization - used for
+    sending admin notifications.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        List of admin email addresses
+    """
+    return database.users.get_admin_emails(tenant_id)
+
+
 def get_user_by_id_raw(tenant_id: str, user_id: str) -> dict | None:
     """
     Get a user by ID (raw dict).

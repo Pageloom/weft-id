@@ -215,6 +215,10 @@ def get_tenant_sp_metadata_xml(tenant_id: str, base_url: str) -> str:
 
 def _idp_row_to_config(row: dict) -> IdPConfig:
     """Convert database row to IdPConfig schema."""
+    # Compute sp_acs_url from sp_entity_id (shared ACS URL for all IdPs)
+    sp_entity_id = row["sp_entity_id"]
+    sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
+
     return IdPConfig(
         id=str(row["id"]),
         name=row["name"],
@@ -226,7 +230,8 @@ def _idp_row_to_config(row: dict) -> IdPConfig:
         metadata_url=row["metadata_url"],
         metadata_last_fetched_at=row["metadata_last_fetched_at"],
         metadata_fetch_error=row["metadata_fetch_error"],
-        sp_entity_id=row["sp_entity_id"],
+        sp_entity_id=sp_entity_id,
+        sp_acs_url=sp_acs_url,
         attribute_mapping=row["attribute_mapping"],
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],

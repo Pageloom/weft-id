@@ -48,6 +48,7 @@ class Worker:
         poll_interval: int = 10,
         cleanup_interval_hours: int = 1,
         inactivation_interval_hours: int = 24,
+        saml_refresh_interval_hours: int = 24,
     ) -> None:
         """Initialize the worker.
 
@@ -55,13 +56,16 @@ class Worker:
             poll_interval: Seconds between polling for new tasks
             cleanup_interval_hours: Hours between cleanup runs
             inactivation_interval_hours: Hours between idle user inactivation checks
+            saml_refresh_interval_hours: Hours between SAML metadata refresh runs
         """
         self.poll_interval = poll_interval
         self.cleanup_interval = timedelta(hours=cleanup_interval_hours)
         self.inactivation_interval = timedelta(hours=inactivation_interval_hours)
+        self.saml_refresh_interval = timedelta(hours=saml_refresh_interval_hours)
         self.running = True
         self.last_cleanup: datetime | None = None
         self.last_inactivation: datetime | None = None
+        self.last_saml_refresh: datetime | None = None
 
     def stop(self, signum: int | None = None, frame: Any = None) -> None:
         """Handle shutdown signal."""
@@ -74,6 +78,7 @@ class Worker:
         logger.info("Registered handlers: %s", get_registered_handlers())
         logger.info("Cleanup interval: %s", self.cleanup_interval)
         logger.info("Inactivation interval: %s", self.inactivation_interval)
+        logger.info("SAML refresh interval: %s", self.saml_refresh_interval)
 
         while self.running:
             try:
@@ -82,6 +87,9 @@ class Worker:
 
                 # Check if inactivation is due
                 self._maybe_run_inactivation()
+
+                # Check if SAML metadata refresh is due
+                self._maybe_run_saml_refresh()
 
                 # Poll for next task
                 task = database.bg_tasks.claim_next_task()
@@ -140,6 +148,29 @@ class Worker:
             logger.info("Inactivation check completed: %s", result)
         except Exception as e:
             logger.exception("Inactivation check failed: %s", e)
+
+    def _maybe_run_saml_refresh(self) -> None:
+        """Run SAML metadata refresh if enough time has passed since last run."""
+        now = datetime.now(UTC)
+
+        if self.last_saml_refresh is None:
+            # Run refresh on first iteration
+            self.last_saml_refresh = now
+            self._run_saml_refresh()
+        elif now - self.last_saml_refresh >= self.saml_refresh_interval:
+            self.last_saml_refresh = now
+            self._run_saml_refresh()
+
+    def _run_saml_refresh(self) -> None:
+        """Run the SAML IdP metadata refresh job directly (not as a queued task)."""
+        logger.info("Running SAML IdP metadata refresh...")
+        try:
+            from jobs.refresh_saml_metadata import refresh_saml_metadata
+
+            result = refresh_saml_metadata()
+            logger.info("SAML metadata refresh completed: %s", result)
+        except Exception as e:
+            logger.exception("SAML metadata refresh failed: %s", e)
 
     def _process_task(self, task: dict) -> None:
         """Process a single task."""

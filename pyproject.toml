@@ -26,6 +26,7 @@ resend = "^2.0.0"
 sendgrid = "^6.11.0"
 pymemcache = "^4.0.0"
 user-agents = "^2.2.0"
+python3-saml = "^1.16.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"

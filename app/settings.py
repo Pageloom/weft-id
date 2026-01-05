@@ -40,6 +40,9 @@ SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-secret-key-change
 MFA_ENCRYPTION_KEY = os.environ.get(
     "MFA_ENCRYPTION_KEY", "dev-mfa-key-change-in-production-must-be-base64"
 )
+SAML_KEY_ENCRYPTION_KEY = os.environ.get(
+    "SAML_KEY_ENCRYPTION_KEY", "dev-saml-key-change-in-production-must-be-base64"
+)
 
 # OAuth2 Configuration
 # Token expiry times (in seconds)

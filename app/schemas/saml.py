@@ -70,7 +70,6 @@ class IdPConfig(BaseModel):
     metadata_last_fetched_at: datetime | None
     metadata_fetch_error: str | None
     sp_entity_id: str
-    sp_acs_url: str
     attribute_mapping: dict[str, str]
     is_enabled: bool
     is_default: bool

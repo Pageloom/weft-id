@@ -227,7 +227,6 @@ def _idp_row_to_config(row: dict) -> IdPConfig:
         metadata_last_fetched_at=row["metadata_last_fetched_at"],
         metadata_fetch_error=row["metadata_fetch_error"],
         sp_entity_id=row["sp_entity_id"],
-        sp_acs_url=row["sp_acs_url"],
         attribute_mapping=row["attribute_mapping"],
         is_enabled=row["is_enabled"],
         is_default=row["is_default"],
@@ -322,13 +321,8 @@ def create_identity_provider(
             code="idp_entity_id_exists",
         )
 
-    # Generate SP entity ID and ACS URL for this IdP
-    # Note: We generate a unique ID for the ACS URL to distinguish responses
-    import uuid
-
-    idp_uuid = str(uuid.uuid4())
+    # Generate SP entity ID (ACS URL is derived from this: /saml/metadata -> /saml/acs)
     sp_entity_id = f"{base_url}/saml/metadata"
-    sp_acs_url = f"{base_url}/saml/acs/{idp_uuid}"
 
     row = database.saml.create_identity_provider(
         tenant_id=tenant_id,
@@ -341,7 +335,6 @@ def create_identity_provider(
         certificate_pem=data.certificate_pem,
         metadata_url=data.metadata_url,
         sp_entity_id=sp_entity_id,
-        sp_acs_url=sp_acs_url,
         attribute_mapping=data.attribute_mapping,
         is_enabled=data.is_enabled,
         is_default=data.is_default,
@@ -832,7 +825,7 @@ def get_default_idp(tenant_id: str) -> IdPConfig | None:
 
 def get_idp_for_saml_login(tenant_id: str, idp_id: str) -> IdPConfig:
     """
-    Get IdP configuration for SAML login.
+    Get IdP configuration for SAML login by IdP ID.
 
     Validates that the IdP exists and is enabled.
 
@@ -844,6 +837,44 @@ def get_idp_for_saml_login(tenant_id: str, idp_id: str) -> IdPConfig:
         raise NotFoundError(
             message="Identity provider not found",
             code="idp_not_found",
+        )
+
+    if not row["is_enabled"]:
+        raise ForbiddenError(
+            message="Identity provider is not enabled",
+            code="idp_disabled",
+        )
+
+    return _idp_row_to_config(row)
+
+
+def get_idp_by_issuer(tenant_id: str, issuer: str) -> IdPConfig:
+    """
+    Get IdP configuration by issuer (entity_id).
+
+    Used to look up the IdP from a SAML response's Issuer field.
+    Validates that the IdP exists and is enabled.
+
+    No authorization required (used during login flow).
+
+    Args:
+        tenant_id: Tenant ID
+        issuer: The Issuer entity ID from the SAML response
+
+    Returns:
+        IdPConfig for the matching IdP
+
+    Raises:
+        NotFoundError if no IdP matches the issuer
+        ForbiddenError if the IdP is disabled
+    """
+    row = database.saml.get_identity_provider_by_entity_id(tenant_id, issuer)
+
+    if row is None:
+        raise NotFoundError(
+            message="Identity provider not found for issuer",
+            code="idp_issuer_not_found",
+            details={"issuer": issuer},
         )
 
     if not row["is_enabled"]:
@@ -890,10 +921,14 @@ def build_authn_request(
     # Decrypt SP private key
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
 
+    # Derive ACS URL from SP entity ID (standard: single ACS for all IdPs)
+    # sp_entity_id is "{base_url}/saml/metadata", so we derive ACS as "{base_url}/saml/acs"
+    sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
+
     # Build settings
     settings = build_saml_settings(
         sp_entity_id=idp.sp_entity_id,
-        sp_acs_url=idp.sp_acs_url,
+        sp_acs_url=sp_acs_url,
         sp_certificate_pem=sp_cert["certificate_pem"],
         sp_private_key_pem=sp_private_key,
         idp_entity_id=idp.entity_id,
@@ -969,10 +1004,13 @@ def process_saml_response(
     # Decrypt SP private key
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
 
+    # Derive ACS URL from SP entity ID (standard: single ACS for all IdPs)
+    sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
+
     # Build settings
     settings = build_saml_settings(
         sp_entity_id=idp.sp_entity_id,
-        sp_acs_url=idp.sp_acs_url,
+        sp_acs_url=sp_acs_url,
         sp_certificate_pem=sp_cert["certificate_pem"],
         sp_private_key_pem=sp_private_key,
         idp_entity_id=idp.entity_id,

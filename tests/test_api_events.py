@@ -25,9 +25,7 @@ def test_list_events_as_admin(client, test_tenant_host, oauth2_admin_authorizati
     assert data["limit"] == 50  # Default limit
 
 
-def test_list_events_with_pagination(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_list_events_with_pagination(client, test_tenant_host, oauth2_admin_authorization_header):
     """Test listing events with custom pagination parameters."""
     response = client.get(
         "/api/v1/events?page=1&limit=10",
@@ -41,9 +39,7 @@ def test_list_events_with_pagination(
     assert data["limit"] == 10
 
 
-def test_list_events_page_validation(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_list_events_page_validation(client, test_tenant_host, oauth2_admin_authorization_header):
     """Page number must be at least 1."""
     response = client.get(
         "/api/v1/events?page=0",
@@ -77,9 +73,7 @@ def test_list_events_limit_validation_too_high(
     assert response.status_code == 422  # Validation error
 
 
-def test_list_events_unauthorized_member(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_list_events_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot list events."""
     response = client.get(
         "/api/v1/events",
@@ -115,9 +109,7 @@ def test_get_event_not_found(client, test_tenant_host, oauth2_admin_authorizatio
     assert response.status_code == 404
 
 
-def test_get_event_unauthorized_member(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_get_event_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot get event details."""
     fake_event_id = str(uuid4())
     response = client.get(

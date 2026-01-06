@@ -23,9 +23,7 @@ def test_list_exports_as_admin(client, test_tenant_host, oauth2_admin_authorizat
     assert isinstance(data["total"], int)
 
 
-def test_list_exports_unauthorized_member(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_list_exports_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot list exports."""
     response = client.get(
         "/api/v1/exports",
@@ -65,9 +63,7 @@ def test_create_export_as_admin(client, test_tenant_host, oauth2_admin_authoriza
     assert data["status"] == "pending"
 
 
-def test_create_export_unauthorized_member(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_create_export_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot create exports."""
     response = client.post(
         "/api/v1/exports",
@@ -92,9 +88,7 @@ def test_create_export_no_auth(client, test_tenant_host):
 # =============================================================================
 
 
-def test_download_export_not_found(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_download_export_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
     """Downloading non-existent export returns 404."""
     fake_export_id = str(uuid4())
     response = client.get(
@@ -105,9 +99,7 @@ def test_download_export_not_found(
     assert response.status_code == 404
 
 
-def test_download_export_unauthorized_member(
-    client, test_tenant_host, oauth2_authorization_header
-):
+def test_download_export_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot download exports."""
     fake_export_id = str(uuid4())
     response = client.get(

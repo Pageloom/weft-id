@@ -182,9 +182,7 @@ def regenerate_client_secret(
         raise HTTPException(status_code=404, detail="Client not found")
 
     # Regenerate secret
-    new_secret = oauth2_service.regenerate_client_secret(
-        tenant_id, client_id, str(user["id"])
-    )
+    new_secret = oauth2_service.regenerate_client_secret(tenant_id, client_id, str(user["id"]))
 
     # Return client with new secret
     client["client_secret"] = new_secret

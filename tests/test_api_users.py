@@ -832,9 +832,7 @@ def test_inactivate_user_as_member_forbidden(
     assert response.status_code == 403
 
 
-def test_inactivate_user_not_found(
-    client, test_tenant_host, oauth2_admin_authorization_header
-):
+def test_inactivate_user_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
     """Test inactivating non-existent user returns 404."""
     import uuid
 

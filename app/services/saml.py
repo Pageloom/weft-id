@@ -29,6 +29,7 @@ from schemas.saml import (
     MetadataRefreshSummary,
     SAMLAttributes,
     SAMLAuthResult,
+    SAMLTestResult,
     SPCertificate,
     SPMetadata,
 )
@@ -1160,6 +1161,153 @@ def process_saml_response(
     )
 
 
+def process_saml_test_response(
+    tenant_id: str,
+    idp_id: str,
+    saml_response: str,
+    request_id: str | None = None,
+    request_data: dict | None = None,
+) -> SAMLTestResult:
+    """
+    Process SAML response for connection testing.
+
+    Similar to process_saml_response() but:
+    - Returns SAMLTestResult instead of raising exceptions
+    - Includes all raw attributes for display
+    - Does NOT create session or provision users
+
+    No authorization required (used during test flow).
+
+    Args:
+        tenant_id: Tenant ID
+        idp_id: IdP ID that sent the response
+        saml_response: Base64-encoded SAML response
+        request_id: Expected request ID (from session) for InResponseTo validation
+        request_data: Request data dict for python3-saml
+
+    Returns:
+        SAMLTestResult with success status and assertion details or error info
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+    from utils.saml import build_saml_settings
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get IdP and SP certificate
+        idp = get_idp_for_saml_login(tenant_id, idp_id)
+        sp_cert = database.saml.get_sp_certificate(tenant_id)
+
+        if sp_cert is None:
+            return SAMLTestResult(
+                success=False,
+                error_type="configuration_error",
+                error_detail="SP certificate not configured",
+            )
+
+        # Decrypt SP private key and build settings
+        sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
+        sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
+
+        settings = build_saml_settings(
+            sp_entity_id=idp.sp_entity_id,
+            sp_acs_url=sp_acs_url,
+            sp_certificate_pem=sp_cert["certificate_pem"],
+            sp_private_key_pem=sp_private_key,
+            idp_entity_id=idp.entity_id,
+            idp_sso_url=idp.sso_url,
+            idp_certificate_pem=idp.certificate_pem,
+            idp_slo_url=idp.slo_url,
+        )
+
+        # Create request data for python3-saml
+        if request_data is None:
+            request_data = {
+                "https": "on",
+                "http_host": "",
+                "script_name": "",
+                "get_data": {},
+                "post_data": {"SAMLResponse": saml_response},
+            }
+        else:
+            request_data["post_data"] = {"SAMLResponse": saml_response}
+
+        auth = OneLogin_Saml2_Auth(request_data, settings)
+        auth.process_response(request_id=request_id)
+
+        # Check for errors
+        errors = auth.get_errors()
+        if errors:
+            error_reason = auth.get_last_error_reason()
+            error_str = str(error_reason).lower() if error_reason else ""
+
+            # Categorize error type
+            if "signature" in error_str:
+                error_type = "signature_error"
+            elif "expired" in error_str or "notonorafter" in error_str:
+                error_type = "expired"
+            else:
+                error_type = "invalid_response"
+
+            return SAMLTestResult(
+                success=False,
+                error_type=error_type,
+                error_detail=error_reason or ", ".join(errors),
+            )
+
+        if not auth.is_authenticated():
+            return SAMLTestResult(
+                success=False,
+                error_type="auth_failed",
+                error_detail="SAML authentication failed",
+            )
+
+        # Extract all attributes for display
+        raw_attributes = auth.get_attributes()
+        name_id = auth.get_nameid()
+        name_id_format = auth.get_nameid_format()
+        session_index = auth.get_session_index()
+
+        # Parse using IdP mapping
+        mapping = idp.attribute_mapping
+        parsed_email = _get_saml_attribute(raw_attributes, mapping.get("email", "email"))
+        parsed_first_name = _get_saml_attribute(
+            raw_attributes, mapping.get("first_name", "firstName")
+        )
+        parsed_last_name = _get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
+
+        return SAMLTestResult(
+            success=True,
+            name_id=name_id,
+            name_id_format=name_id_format,
+            session_index=session_index,
+            attributes=raw_attributes,
+            parsed_email=parsed_email,
+            parsed_first_name=parsed_first_name,
+            parsed_last_name=parsed_last_name,
+        )
+
+    except NotFoundError as e:
+        return SAMLTestResult(
+            success=False,
+            error_type="idp_not_found",
+            error_detail=str(e),
+        )
+    except ForbiddenError as e:
+        return SAMLTestResult(
+            success=False,
+            error_type="idp_disabled",
+            error_detail=str(e),
+        )
+    except Exception as e:
+        logger.exception("SAML test failed with unexpected error")
+        return SAMLTestResult(
+            success=False,
+            error_type="unexpected_error",
+            error_detail=str(e),
+        )
+
+
 def _get_saml_attribute(attributes: dict, attr_name: str) -> str | None:
     """Extract a SAML attribute value (handles list values)."""
     value = attributes.get(attr_name)
@@ -1170,6 +1318,109 @@ def _get_saml_attribute(attributes: dict, attr_name: str) -> str | None:
     return str(value)
 
 
+def _jit_provision_user(
+    tenant_id: str,
+    saml_result: SAMLAuthResult,
+    idp: dict,
+) -> dict:
+    """
+    Create a new user via JIT provisioning from SAML assertion.
+
+    Creates user with:
+    - Email from SAML assertion (verified, since IdP is authoritative)
+    - First/last name from SAML attributes (or defaults)
+    - Role: member (default)
+    - Password: NULL (SAML-only authentication)
+    - saml_idp_id: Links user to provisioning IdP
+
+    Args:
+        tenant_id: Tenant ID
+        saml_result: Processed SAML response with attributes
+        idp: IdP dict with configuration
+
+    Returns:
+        User dict for session creation
+
+    Raises:
+        ValidationError if user creation fails
+    """
+    from services import users as users_service
+
+    attrs = saml_result.attributes
+
+    # Extract names, with sensible defaults
+    first_name = attrs.first_name or "SAML"
+    last_name = attrs.last_name or "User"
+    email = attrs.email
+
+    # Race condition protection: Check if email was created between
+    # our check and now (another concurrent request)
+    if users_service.email_exists(tenant_id, email):
+        user = database.users.get_user_by_email_with_status(tenant_id, email)
+        if user:
+            return user
+        raise ValidationError(
+            message="Failed to retrieve user after race condition",
+            code="jit_user_retrieval_failed",
+        )
+
+    # Create user record (no password - SAML-only authentication)
+    result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        role="member",
+    )
+
+    if not result:
+        raise ValidationError(
+            message="Failed to create user via JIT provisioning",
+            code="jit_user_creation_failed",
+        )
+
+    user_id = str(result["user_id"])
+
+    # Add verified email (SAML assertion from trusted IdP is authoritative)
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=email,
+        is_primary=True,
+    )
+
+    # Link user to the IdP that provisioned them
+    database.saml.set_user_idp(tenant_id, user_id, saml_result.idp_id)
+
+    # Log JIT provisioning event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        artifact_type="user",
+        artifact_id=user_id,
+        event_type="user_created_jit",
+        metadata={
+            "idp_id": saml_result.idp_id,
+            "idp_name": idp["name"],
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "name_id": attrs.name_id,
+        },
+        request_metadata=None,
+    )
+
+    # Fetch and return the created user for session creation
+    user = database.users.get_user_by_email_with_status(tenant_id, email)
+    if not user:
+        raise ValidationError(
+            message="Failed to retrieve created user",
+            code="jit_user_retrieval_failed",
+        )
+
+    return user
+
+
 def authenticate_via_saml(
     tenant_id: str,
     saml_result: SAMLAuthResult,
@@ -1178,10 +1429,11 @@ def authenticate_via_saml(
     Complete SAML authentication and return user.
 
     - Looks up user by email from SAML attributes
+    - If user doesn't exist and JIT provisioning is enabled, creates user
     - Checks user status (not inactivated)
     - Returns user dict for session creation
 
-    Logs: user_signed_in_saml event.
+    Logs: user_signed_in_saml event (or user_created_jit for new users).
 
     Args:
         tenant_id: Tenant ID
@@ -1191,7 +1443,7 @@ def authenticate_via_saml(
         User dict for session creation
 
     Raises:
-        NotFoundError if user doesn't exist (JIT disabled)
+        NotFoundError if user doesn't exist and JIT is disabled
         ForbiddenError if user is inactivated
     """
     email = saml_result.attributes.email
@@ -1200,12 +1452,26 @@ def authenticate_via_saml(
     user = database.users.get_user_by_email_with_status(tenant_id, email)
 
     if user is None:
-        # TODO: Implement JIT provisioning check here
-        raise NotFoundError(
-            message="User account not found",
-            code="user_not_found",
-            details={"email": email},
+        # Check if JIT provisioning is enabled for this IdP
+        idp = database.saml.get_identity_provider(tenant_id, saml_result.idp_id)
+
+        if idp is None or not idp.get("jit_provisioning"):
+            raise NotFoundError(
+                message="User account not found",
+                code="user_not_found",
+                details={"email": email},
+            )
+
+        # JIT provision the user (logs user_created_jit event internally)
+        user = _jit_provision_user(
+            tenant_id=tenant_id,
+            saml_result=saml_result,
+            idp=idp,
         )
+
+        # Return immediately - JIT provisioning already logged the creation event
+        # No need to log sign-in since this is their first login (creation implies sign-in)
+        return user
 
     # Check user status
     if user.get("inactivated_at"):
@@ -1214,7 +1480,7 @@ def authenticate_via_saml(
             code="user_inactivated",
         )
 
-    # Log the sign-in event
+    # Log the sign-in event (for existing users)
     log_event(
         tenant_id=tenant_id,
         actor_user_id=str(user["id"]),

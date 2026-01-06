@@ -13,10 +13,15 @@ from fastapi.testclient import TestClient
 from tests.helpers import maildev
 
 # Skip all tests in this module if maildev is not available
-pytestmark = pytest.mark.skipif(
-    not maildev.is_available(),
-    reason="Maildev not running - start with 'docker compose up maildev'",
-)
+# Also group all tests together for serial execution to avoid race conditions
+# when clearing/reading the shared maildev inbox
+pytestmark = [
+    pytest.mark.skipif(
+        not maildev.is_available(),
+        reason="Maildev not running - start with 'docker compose up maildev'",
+    ),
+    pytest.mark.xdist_group("maildev"),
+]
 
 
 @pytest.fixture(autouse=True)
@@ -65,7 +70,8 @@ def mfa_client(test_tenant):
 @pytest.fixture(autouse=True)
 def clear_mail_before_test():
     """Clear maildev inbox before each test."""
-    maildev.clear_emails()
+    if maildev.is_available():
+        maildev.clear_emails()
     yield
 
 

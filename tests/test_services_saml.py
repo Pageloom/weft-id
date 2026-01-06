@@ -1142,7 +1142,11 @@ def test_refresh_idp_from_metadata_no_url_configured(
 
 
 def test_refresh_all_idp_metadata_no_urls(test_tenant, test_super_admin_user, test_idp_data):
-    """Test refreshing metadata when no IdPs have URLs configured."""
+    """Test refreshing metadata when no IdPs have URLs configured.
+
+    When an IdP has no metadata_url, it should not be included in the refresh.
+    The refresh should succeed with no errors and no successful refreshes.
+    """
     from schemas.saml import IdPCreate
     from services import saml as saml_service
 
@@ -1150,14 +1154,23 @@ def test_refresh_all_idp_metadata_no_urls(test_tenant, test_super_admin_user, te
 
     # Create IdP without metadata URL
     data = IdPCreate(**test_idp_data, metadata_url=None)
-    saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
 
-    # Refresh - should complete with no refreshes
+    # Verify IdP was created without metadata_url
+    assert idp.metadata_url is None
+
+    # Refresh all - should complete with no refreshes for this IdP
     result = saml_service.refresh_all_idp_metadata()
 
-    # May or may not have IdPs depending on test isolation
-    assert result.successful >= 0
-    assert result.failed >= 0
+    # The result should be valid - no URLs to refresh means no successful/failed refreshes
+    # for this specific IdP. We can't assert exact counts due to test isolation,
+    # but we verify the structure is valid and no exceptions were raised.
+    assert hasattr(result, "successful")
+    assert hasattr(result, "failed")
+    assert isinstance(result.successful, int)
+    assert isinstance(result.failed, int)
 
 
 # =============================================================================
@@ -1945,3 +1958,622 @@ def test_refresh_idp_from_metadata_timeout(
         saml_service.refresh_idp_from_metadata(requesting_user, created.id)
 
     assert exc_info.value.code == "metadata_fetch_failed"
+
+
+# =============================================================================
+# IdP Deletion with Linked Users Tests
+# =============================================================================
+
+
+def test_delete_idp_unlinks_jit_users(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that deleting an IdP sets saml_idp_id to NULL for linked users.
+
+    When an IdP is deleted, users that were JIT provisioned by that IdP
+    should have their saml_idp_id set to NULL (not orphaned).
+    This is handled by the database FK with ON DELETE SET NULL.
+    """
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = test_tenant["id"]
+
+    # Create an IdP with JIT enabled
+    idp_data_jit = {**test_idp_data, "jit_provisioning": True}
+    data = IdPCreate(**idp_data_jit, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a user and link them to this IdP (simulating JIT)
+    user_result = users_service.create_user_raw(
+        tenant_id=str(tenant_id),
+        first_name="JIT",
+        last_name="User",
+        email=f"jit-delete-test-{idp.id[:8]}@example.com",
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Link the user to the IdP
+    database.saml.set_user_idp(str(tenant_id), user_id, idp.id)
+
+    # Verify user is linked (get_user_assigned_idp returns the IdP via join)
+    assigned_idp = database.saml.get_user_assigned_idp(str(tenant_id), user_id)
+    assert assigned_idp is not None
+    assert str(assigned_idp["id"]) == idp.id
+
+    # Delete the IdP
+    saml_service.delete_identity_provider(requesting_user, idp.id)
+
+    # Verify user's saml_idp_id is now NULL (returns None since no IdP linked)
+    assigned_idp_after = database.saml.get_user_assigned_idp(str(tenant_id), user_id)
+    assert assigned_idp_after is None, (
+        "User's assigned IdP should be None after IdP deletion"
+    )
+
+
+# =============================================================================
+# JIT Provisioning Race Condition Tests
+# =============================================================================
+
+
+def test_jit_race_condition_email_exists_returns_existing_user(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test JIT provisioning handles race condition where email exists.
+
+    When JIT provisioning is about to create a user but the email already
+    exists (race condition), it should return the existing user instead
+    of failing.
+    """
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create an IdP with JIT enabled
+    idp_data_jit = {**test_idp_data, "jit_provisioning": True}
+    data = IdPCreate(**idp_data_jit, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Pre-create a user with the email (simulating race condition)
+    unique_email = f"jit-race-{idp.id[:8]}@example.com"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Existing",
+        last_name="User",
+        email=unique_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=unique_email,
+        is_primary=True,
+    )
+
+    # Create a SAML result for this email
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="SAML",
+            last_name="Name",
+            name_id=unique_email,
+        ),
+        idp_id=idp.id,
+        requires_mfa=False,
+    )
+
+    # Authenticate via SAML - should find existing user, not fail
+    result_user = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result,
+    )
+
+    # Should return the existing user (authenticate_via_saml returns id, first_name, last_name, role)
+    assert result_user is not None
+    assert result_user["first_name"] == "Existing"  # Original name, not SAML name
+
+
+# =============================================================================
+# Multi-IdP Same Email Scenarios
+# =============================================================================
+
+
+def test_existing_user_authenticates_via_different_idp(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that an existing user can authenticate via a different IdP.
+
+    A user created normally (not via JIT) should be able to authenticate
+    via any enabled IdP.
+    """
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create first IdP
+    idp1_data = {
+        **test_idp_data,
+        "entity_id": "https://idp1.example.com/entity",
+        "sso_url": "https://idp1.example.com/sso",
+    }
+    data1 = IdPCreate(**idp1_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(
+        requesting_user, data1, "https://test.example.com"
+    )
+
+    # Create second IdP
+    idp2_data = {
+        **test_idp_data,
+        "entity_id": "https://idp2.example.com/entity",
+        "sso_url": "https://idp2.example.com/sso",
+    }
+    data2 = IdPCreate(**idp2_data, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(
+        requesting_user, data2, "https://test.example.com"
+    )
+
+    # Create a user (not via JIT)
+    unique_email = f"multi-idp-{idp1.id[:8]}@example.com"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Regular",
+        last_name="User",
+        email=unique_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=unique_email,
+        is_primary=True,
+    )
+
+    # Authenticate via IdP1
+    saml_result_idp1 = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="SAML1",
+            last_name="Name1",
+            name_id=unique_email,
+        ),
+        idp_id=idp1.id,
+        requires_mfa=False,
+    )
+    user1 = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result_idp1,
+    )
+    assert user1 is not None
+    assert str(user1["id"]) == user_id  # Should be the pre-created user
+
+    # Authenticate via IdP2 (different IdP, same user)
+    saml_result_idp2 = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="SAML2",
+            last_name="Name2",
+            name_id=unique_email,
+        ),
+        idp_id=idp2.id,
+        requires_mfa=False,
+    )
+    user2 = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result_idp2,
+    )
+
+    # Should be the same user
+    assert user2["id"] == user1["id"]
+
+
+def test_jit_user_linked_to_first_idp_only(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that JIT-created user remains linked to original IdP.
+
+    When a user is JIT provisioned by IdP1 and later authenticates via
+    IdP2, their saml_idp_id should remain linked to IdP1.
+    """
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create first IdP with JIT enabled
+    idp1_data = {
+        **test_idp_data,
+        "entity_id": "https://jit-link-idp1.example.com/entity",
+        "sso_url": "https://jit-link-idp1.example.com/sso",
+        "jit_provisioning": True,
+    }
+    data1 = IdPCreate(**idp1_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(
+        requesting_user, data1, "https://test.example.com"
+    )
+
+    # Create second IdP without JIT
+    idp2_data = {
+        **test_idp_data,
+        "entity_id": "https://jit-link-idp2.example.com/entity",
+        "sso_url": "https://jit-link-idp2.example.com/sso",
+        "jit_provisioning": False,
+    }
+    data2 = IdPCreate(**idp2_data, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(
+        requesting_user, data2, "https://test.example.com"
+    )
+
+    # Authenticate via IdP1 - should JIT create user
+    unique_email = f"jit-link-test-{idp1.id[:8]}@example.com"
+    saml_result_idp1 = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="JIT",
+            last_name="User",
+            name_id=unique_email,
+        ),
+        idp_id=idp1.id,
+        requires_mfa=False,
+    )
+    user_created = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result_idp1,
+    )
+
+    # Verify user is linked to IdP1
+    assigned_idp1 = database.saml.get_user_assigned_idp(tenant_id, str(user_created["id"]))
+    assert assigned_idp1 is not None
+    assert str(assigned_idp1["id"]) == idp1.id
+
+    # Authenticate via IdP2
+    saml_result_idp2 = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="JIT",
+            last_name="User",
+            name_id=unique_email,
+        ),
+        idp_id=idp2.id,
+        requires_mfa=False,
+    )
+    user_via_idp2 = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result_idp2,
+    )
+
+    # Verify user's saml_idp_id remains linked to IdP1 (not changed to IdP2)
+    assigned_idp_after = database.saml.get_user_assigned_idp(tenant_id, str(user_via_idp2["id"]))
+    assert assigned_idp_after is not None
+    assert str(assigned_idp_after["id"]) == idp1.id, (
+        "User's saml_idp_id should remain linked to original JIT IdP"
+    )
+
+
+# =============================================================================
+# Event Logging Verification Tests
+# =============================================================================
+
+
+def test_jit_provisioning_logs_creation_event(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that JIT provisioning logs the user_created_jit event."""
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create IdP with JIT enabled
+    idp_data_jit = {**test_idp_data, "jit_provisioning": True}
+    data = IdPCreate(**idp_data_jit, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # JIT create a user
+    unique_email = f"jit-event-{idp.id[:8]}@example.com"
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="JIT",
+            last_name="Event",
+            name_id=unique_email,
+        ),
+        idp_id=idp.id,
+        requires_mfa=False,
+    )
+    user = saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result,
+    )
+
+    # Verify user_created_jit event was logged
+    _verify_event_logged(test_tenant["id"], "user_created_jit", str(user["id"]))
+
+
+def test_saml_sign_in_logs_event_for_existing_user(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that SAML sign-in logs user_signed_in_saml for existing users."""
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services import users as users_service
+
+    import database
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create IdP (no JIT)
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create existing user
+    unique_email = f"signin-event-{idp.id[:8]}@example.com"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Sign",
+        last_name="In",
+        email=unique_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=unique_email,
+        is_primary=True,
+    )
+
+    # Verify user exists
+    user = database.users.get_user_by_email(tenant_id, unique_email)
+    assert user is not None
+
+    # Sign in via SAML
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="Sign",
+            last_name="In",
+            name_id=unique_email,
+        ),
+        idp_id=idp.id,
+        requires_mfa=False,
+    )
+    saml_service.authenticate_via_saml(
+        tenant_id=tenant_id,
+        saml_result=saml_result,
+    )
+
+    # Verify user_signed_in_saml event was logged
+    _verify_event_logged(test_tenant["id"], "user_signed_in_saml", user_id)
+
+
+# =============================================================================
+# Attribute Mapping Variations Tests
+# =============================================================================
+
+
+def test_process_saml_response_google_attribute_mapping(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test SAML response processing with Google Workspace attribute names.
+
+    Google Workspace uses different attribute names like:
+    - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname
+    - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname
+    """
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create IdP with Google-style attribute mapping
+    google_idp_data = {
+        **test_idp_data,
+        "entity_id": "https://accounts.google.com/entity",
+        "sso_url": "https://accounts.google.com/sso",
+    }
+    data = IdPCreate(
+        **google_idp_data,
+        is_enabled=True,
+        attribute_mapping={
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+            "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+            "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+        },
+    )
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Mock SAML Auth
+    mock_auth = MagicMock()
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_errors.return_value = []
+    mock_auth.get_attributes.return_value = {
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": [
+            "google.user@example.com"
+        ],
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": ["GoogleFirst"],
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname": ["GoogleLast"],
+    }
+    mock_auth.get_nameid.return_value = "google.user@example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
+    mock_auth.get_session_index.return_value = "session123"
+
+    # Mock OneLogin_Saml2_Auth constructor
+    try:
+        from onelogin.saml2.auth import OneLogin_Saml2_Auth  # noqa: F401
+
+        def mock_auth_init(*args, **kwargs):
+            return mock_auth
+
+        monkeypatch.setattr("onelogin.saml2.auth.OneLogin_Saml2_Auth", mock_auth_init)
+
+        result = saml_service.process_saml_response(
+            tenant_id=str(test_tenant["id"]),
+            idp_id=idp.id,
+            saml_response="base64encodedresponse",
+            request_id=None,
+            request_data={"https": "on", "http_host": "test.example.com"},
+        )
+
+        assert result.attributes.email == "google.user@example.com"
+        assert result.attributes.first_name == "GoogleFirst"
+        assert result.attributes.last_name == "GoogleLast"
+    except ImportError:
+        pytest.skip("python3-saml not installed")
+
+
+def test_process_saml_response_missing_optional_attributes(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test SAML response processing when first_name/last_name are missing.
+
+    Only email is required. first_name and last_name should default to None.
+    """
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Mock SAML Auth - only email attribute present
+    mock_auth = MagicMock()
+    mock_auth.is_authenticated.return_value = True
+    mock_auth.get_errors.return_value = []
+    mock_auth.get_attributes.return_value = {
+        "email": ["minimal@example.com"],
+        # No firstName or lastName attributes
+    }
+    mock_auth.get_nameid.return_value = "minimal@example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
+    mock_auth.get_session_index.return_value = "session123"
+
+    try:
+        from onelogin.saml2.auth import OneLogin_Saml2_Auth  # noqa: F401
+
+        def mock_auth_init(*args, **kwargs):
+            return mock_auth
+
+        monkeypatch.setattr("onelogin.saml2.auth.OneLogin_Saml2_Auth", mock_auth_init)
+
+        result = saml_service.process_saml_response(
+            tenant_id=str(test_tenant["id"]),
+            idp_id=idp.id,
+            saml_response="base64encodedresponse",
+            request_id=None,
+            request_data={"https": "on", "http_host": "test.example.com"},
+        )
+
+        assert result.attributes.email == "minimal@example.com"
+        # These should be None, not cause an error
+        assert result.attributes.first_name is None
+        assert result.attributes.last_name is None
+    except ImportError:
+        pytest.skip("python3-saml not installed")
+
+
+# =============================================================================
+# Inactivated User Scenarios
+# =============================================================================
+
+
+def test_authenticate_via_saml_inactivated_user_forbidden(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that inactivated users cannot authenticate via SAML."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from services import users as users_service
+    from services.exceptions import ForbiddenError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(test_tenant["id"])
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create and inactivate a user
+    unique_email = f"inactivated-{idp.id[:8]}@example.com"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Inactivated",
+        last_name="User",
+        email=unique_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=unique_email,
+        is_primary=True,
+    )
+
+    # Inactivate the user
+    database.users.inactivate_user(tenant_id, user_id)
+
+    # Try to authenticate via SAML
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unique_email,
+            first_name="Inactivated",
+            last_name="User",
+            name_id=unique_email,
+        ),
+        idp_id=idp.id,
+        requires_mfa=False,
+    )
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.authenticate_via_saml(
+            tenant_id=tenant_id,
+            saml_result=saml_result,
+        )
+
+    assert exc_info.value.code == "user_inactivated"

@@ -24,8 +24,9 @@ router = APIRouter(prefix="/api/v1/saml", tags=["SAML"])
 
 
 def _get_base_url(request: Request) -> str:
-    """Get base URL from request for building SAML URLs."""
-    return str(request.base_url).rstrip("/")
+    """Get base URL from request for building SAML URLs (always HTTPS)."""
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    return f"https://{host}"
 
 
 # =============================================================================

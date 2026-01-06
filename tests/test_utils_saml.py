@@ -26,7 +26,6 @@ from app.utils.saml import (
     parse_idp_metadata_xml,
 )
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -217,6 +216,7 @@ def test_get_certificate_expiry_matches_generated_cert():
 
 try:
     from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser  # noqa: F401
+
     HAS_SAML_LIBRARY = True
 except ImportError:
     HAS_SAML_LIBRARY = False

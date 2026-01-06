@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}SAML Connection Test - Loom{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-lg w-full">
+        <div class="bg-white shadow-sm rounded-lg p-8">
+            <div class="text-center mb-6">
+                {% if test_result.success %}
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h1 class="text-xl font-semibold text-gray-900 mb-2">Connection Test Successful</h1>
+                <p class="text-sm text-gray-600">
+                    SAML authentication with <strong>{{ idp_name }}</strong> is working correctly.
+                </p>
+                {% else %}
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </div>
+                <h1 class="text-xl font-semibold text-gray-900 mb-2">Connection Test Failed</h1>
+                <p class="text-sm text-gray-600">
+                    Unable to authenticate with <strong>{{ idp_name }}</strong>.
+                </p>
+                {% endif %}
+            </div>
+
+            {% if test_result.success %}
+            <!-- Parsed Attributes (using IdP mapping) -->
+            <div class="mb-6">
+                <h2 class="text-sm font-medium text-gray-700 mb-3">Mapped User Attributes</h2>
+                <div class="bg-green-50 border border-green-200 rounded-md p-4 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-600">Email:</span>
+                        <span class="text-sm font-medium text-gray-900">{{ test_result.parsed_email or '(not mapped)' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-600">First Name:</span>
+                        <span class="text-sm font-medium text-gray-900">{{ test_result.parsed_first_name or '(not mapped)' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm text-gray-600">Last Name:</span>
+                        <span class="text-sm font-medium text-gray-900">{{ test_result.parsed_last_name or '(not mapped)' }}</span>
+                    </div>
+                </div>
+                {% if not test_result.parsed_email %}
+                <p class="mt-2 text-xs text-amber-600">
+                    <svg class="w-3 h-3 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    Email attribute not found. Check your attribute mapping configuration.
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- SAML Details -->
+            <div class="mb-6">
+                <h2 class="text-sm font-medium text-gray-700 mb-3">SAML Assertion Details</h2>
+                <div class="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2 text-sm">
+                    <div>
+                        <span class="text-gray-600">NameID:</span>
+                        <code class="ml-2 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{{ test_result.name_id }}</code>
+                    </div>
+                    {% if test_result.name_id_format %}
+                    <div>
+                        <span class="text-gray-600">NameID Format:</span>
+                        <code class="ml-2 text-xs bg-gray-100 px-1.5 py-0.5 rounded break-all">{{ test_result.name_id_format }}</code>
+                    </div>
+                    {% endif %}
+                    {% if test_result.session_index %}
+                    <div>
+                        <span class="text-gray-600">Session Index:</span>
+                        <code class="ml-2 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{{ test_result.session_index }}</code>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Raw Attributes (collapsible) -->
+            {% if test_result.attributes %}
+            <details class="mb-6">
+                <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+                    View All Received Attributes ({{ test_result.attributes|length }})
+                </summary>
+                <div class="mt-3 bg-gray-50 border border-gray-200 rounded-md p-4 max-h-64 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200">
+                                <th class="text-left py-1 text-gray-600 font-medium">Attribute</th>
+                                <th class="text-left py-1 text-gray-600 font-medium">Value(s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attr_name, attr_values in test_result.attributes.items() %}
+                            <tr class="border-b border-gray-100">
+                                <td class="py-2 font-mono text-xs text-gray-700 align-top">{{ attr_name }}</td>
+                                <td class="py-2 text-xs text-gray-900">
+                                    {% for val in attr_values %}
+                                    <span class="inline-block bg-gray-100 px-1.5 py-0.5 rounded mr-1 mb-1">{{ val }}</span>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endif %}
+
+            {% else %}
+            <!-- Error Details -->
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p class="text-sm font-medium text-red-800 mb-1">
+                    Error:
+                    {% if test_result.error_type == 'signature_error' %}
+                        Signature Verification Failed
+                    {% elif test_result.error_type == 'expired' %}
+                        Response Expired
+                    {% elif test_result.error_type == 'idp_not_found' %}
+                        Identity Provider Not Found
+                    {% elif test_result.error_type == 'idp_disabled' %}
+                        Identity Provider Disabled
+                    {% elif test_result.error_type == 'configuration_error' %}
+                        Configuration Error
+                    {% elif test_result.error_type == 'auth_failed' %}
+                        Authentication Failed
+                    {% else %}
+                        {{ test_result.error_type }}
+                    {% endif %}
+                </p>
+                {% if test_result.error_detail %}
+                <p class="text-sm text-red-700 font-mono break-all">{{ test_result.error_detail }}</p>
+                {% endif %}
+            </div>
+
+            <div class="text-sm text-gray-600 space-y-2">
+                <p class="font-medium">Common causes:</p>
+                <ul class="list-disc list-inside space-y-1 text-xs text-gray-500">
+                    {% if test_result.error_type == 'signature_error' %}
+                    <li>IdP certificate in Loom doesn't match the one used by your IdP</li>
+                    <li>Try refreshing metadata or re-entering the certificate</li>
+                    {% elif test_result.error_type == 'expired' %}
+                    <li>The SAML response has expired - try again</li>
+                    <li>Check that server clocks are synchronized (NTP)</li>
+                    {% elif test_result.error_type == 'idp_not_found' %}
+                    <li>The IdP configuration may have been deleted</li>
+                    <li>Entity ID mismatch between IdP and configuration</li>
+                    {% elif test_result.error_type == 'configuration_error' %}
+                    <li>SP certificate may not be configured</li>
+                    <li>Check that all required IdP fields are filled in</li>
+                    {% else %}
+                    <li>Verify the Entity ID matches your IdP configuration</li>
+                    <li>Ensure the ACS URL is correctly configured in your IdP</li>
+                    <li>Check that the IdP is enabled</li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="mt-6 text-center">
+                <button onclick="window.close()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Close Window
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

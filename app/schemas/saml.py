@@ -31,9 +31,7 @@ class IdPCreate(BaseModel):
     sso_url: str = Field(..., min_length=1)
     slo_url: str | None = None
     certificate_pem: str = Field(..., min_length=1)
-    metadata_url: str | None = Field(
-        None, description="Optional IdP metadata URL for auto-refresh"
-    )
+    metadata_url: str | None = Field(None, description="Optional IdP metadata URL for auto-refresh")
     attribute_mapping: dict[str, str] = Field(default_factory=lambda: DEFAULT_ATTRIBUTE_MAPPING)
     is_enabled: bool = False
     is_default: bool = False
@@ -181,6 +179,29 @@ class SAMLAuthResult(BaseModel):
     idp_id: str
     user_id: str | None = None  # Set after user lookup
     requires_mfa: bool = False
+
+
+class SAMLTestResult(BaseModel):
+    """Result of SAML connection test.
+
+    Used by the connection testing feature to display detailed
+    assertion information without creating a session or provisioning users.
+    """
+
+    success: bool
+    error_type: str | None = None
+    error_detail: str | None = None
+
+    # Assertion details (only populated on success)
+    name_id: str | None = None
+    name_id_format: str | None = None
+    session_index: str | None = None
+    attributes: dict[str, list[str]] | None = None  # Raw SAML attributes
+
+    # Parsed attributes using IdP's attribute mapping
+    parsed_email: str | None = None
+    parsed_first_name: str | None = None
+    parsed_last_name: str | None = None
 
 
 # ============================================================================

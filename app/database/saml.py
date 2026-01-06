@@ -521,6 +521,29 @@ def get_user_assigned_idp(tenant_id: TenantArg, user_id: str) -> dict | None:
     )
 
 
+def set_user_idp(tenant_id: TenantArg, user_id: str, idp_id: str) -> int:
+    """
+    Set the SAML IdP for a user (used for JIT-provisioned users).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        user_id: User ID to update
+        idp_id: IdP ID to assign to the user
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update users
+        set saml_idp_id = :idp_id
+        where id = :user_id
+        """,
+        {"user_id": user_id, "idp_id": idp_id},
+    )
+
+
 # ============================================================================
 # Query Functions for Background Job
 # ============================================================================

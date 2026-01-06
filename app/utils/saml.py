@@ -65,10 +65,12 @@ def generate_sp_certificate(
 
     # Build certificate subject and issuer (self-signed, so same)
     tenant_str = str(tenant_id)
-    subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Loom Identity Platform"),
-        x509.NameAttribute(NameOID.COMMON_NAME, f"SP-{tenant_str[:8]}"),
-    ])
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Loom Identity Platform"),
+            x509.NameAttribute(NameOID.COMMON_NAME, f"SP-{tenant_str[:8]}"),
+        ]
+    )
 
     # Build the certificate
     now = datetime.datetime.now(datetime.UTC)
@@ -244,9 +246,7 @@ def generate_sp_metadata_xml(
     """
     # Extract the raw certificate data (without PEM headers)
     cert_lines = certificate_pem.strip().split("\n")
-    cert_data = "".join(
-        line for line in cert_lines if not line.startswith("-----")
-    )
+    cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
 
     slo_section = ""
     if slo_url:
@@ -309,6 +309,7 @@ def build_saml_settings(
     Returns:
         Settings dict compatible with OneLogin_Saml2_Auth
     """
+
     # Clean certificate strings (remove headers for the library)
     def clean_cert(pem: str) -> str:
         lines = pem.strip().split("\n")

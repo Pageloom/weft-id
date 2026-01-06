@@ -30,6 +30,60 @@ So that I can manually test and debug SAML authentication flows without external
 
 ---
 
+## SAML Upstream IdP Support - Phase 2: JIT Provisioning & Connection Testing
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want users to be automatically created when they authenticate via SAML, and I want to test my IdP configuration before enabling it
+So that I can confidently deploy SSO without pre-provisioning users and catch configuration errors early
+
+**Acceptance Criteria:**
+
+**Just-in-Time (JIT) User Provisioning:**
+
+- [x] Per-IdP setting: `jit_provisioning` (default: disabled)
+- [x] When enabled: users authenticating via SAML who don't exist are automatically created
+- [x] JIT-created users:
+  - Email extracted from SAML assertion (configurable claim name)
+  - First name, last name from SAML attributes (with defaults: "SAML User")
+  - Role: Member (all JIT users get member role)
+  - Password: NULL (SAML-only authentication)
+  - MFA: Set up after first login if `require_platform_mfa` is true
+  - saml_idp_id: Links user to provisioning IdP
+- [x] When disabled: SAML login fails if user doesn't exist (must be pre-provisioned)
+- [x] `user_created_jit` event logged with IdP and attribute details
+- [x] IdP form shows JIT toggle with warning: "When enabled, users from this IdP will be automatically created"
+
+**IdP Connection Testing:**
+
+- [x] "Test Connection" button on IdP edit page
+- [x] Initiates SAML flow in new window/popup
+- [x] On success: Shows parsed assertion details (NameID, mapped attributes, raw attributes)
+- [x] On failure: Shows detailed error (signature validation failed, certificate expired, etc.) with common causes
+- [x] Test results do not create session or provision user
+- [x] Test mode indicated via `RelayState` parameter (`__test__:{idp_id}`) to distinguish from real logins
+
+**Technical Implementation:**
+
+- `app/services/saml.py`: JIT provisioning logic in `authenticate_via_saml()`, `_jit_provision_user()` helper, `process_saml_test_response()` function
+- `app/database/saml.py`: `set_user_idp()` function to link JIT users to IdPs
+- `app/routers/saml.py`: Test connection endpoint, ACS test mode handling, JIT form field processing
+- `app/schemas/saml.py`: `SAMLTestResult` schema for test response
+- `app/templates/saml_idp_form.html`: JIT checkbox in settings, Test Connection button
+- `app/templates/saml_test_result.html`: New template showing test results
+
+**Testing:**
+
+- 6 JIT provisioning tests covering creation, disabled behavior, IdP linking, verified email, default names, existing users
+- 4 connection testing tests covering success, signature error, expired error, IdP not found
+
+**Effort:** M
+**Value:** High (Enterprise provisioning, Setup confidence)
+
+---
+
 ## SAML Upstream IdP Support - Phase 1: Core Infrastructure
 
 **Status:** Complete

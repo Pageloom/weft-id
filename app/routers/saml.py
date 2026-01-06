@@ -27,8 +27,9 @@ templates = Jinja2Templates(directory="templates")
 
 
 def _get_base_url(request: Request) -> str:
-    """Get the base URL for the request (protocol + host)."""
-    return str(request.base_url).rstrip("/")
+    """Get the base URL for the request (always HTTPS)."""
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    return f"https://{host}"
 
 
 def _decode_saml_response_for_debug(saml_response: str) -> str | None:

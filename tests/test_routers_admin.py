@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
 from main import app
 
@@ -192,8 +191,6 @@ def test_trigger_export_creates_task(test_admin_user):
         assert response.status_code == 303
         assert response.headers["location"] == "/account/background-jobs?success=export_started"
         mock_create.assert_called_once()
-
-
 
 
 def test_admin_routes_require_admin_role(test_user):

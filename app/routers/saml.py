@@ -13,7 +13,7 @@ from dependencies import (
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from schemas.saml import IdPCreate, IdPUpdate
+from schemas.saml import IdPCreate, IdPUpdate, SAMLTestResult
 from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
@@ -40,6 +40,70 @@ def _decode_saml_response_for_debug(saml_response: str) -> str | None:
         return base64.b64decode(saml_response).decode("utf-8")
     except Exception:
         return None
+
+
+def _handle_saml_test_response(
+    request: Request,
+    tenant_id: str,
+    saml_response: str,
+    relay_state: str,
+) -> Response:
+    """
+    Handle SAML response for connection testing (no session/provisioning).
+
+    Args:
+        request: HTTP request
+        tenant_id: Tenant ID
+        saml_response: Base64-encoded SAML response
+        relay_state: RelayState containing __test__:{idp_id}
+
+    Returns:
+        HTML response with test results
+    """
+    # Extract IdP ID from RelayState
+    idp_id = relay_state.replace("__test__:", "")
+
+    # Get stored test context
+    expected_request_id = request.session.pop("saml_test_request_id", None)
+    request.session.pop("saml_test_idp_id", None)  # Clear stored IdP ID
+
+    # Build request data for python3-saml
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    request_data: dict[str, str | dict[str, str]] = {
+        "https": "on" if forwarded_proto == "https" else "off",
+        "http_host": request.headers.get("x-forwarded-host", request.url.netloc),
+        "script_name": str(request.url.path),
+        "get_data": {},
+        "post_data": {},
+    }
+
+    # Process test response
+    test_result = saml_service.process_saml_test_response(
+        tenant_id=tenant_id,
+        idp_id=idp_id,
+        saml_response=saml_response,
+        request_id=expected_request_id,
+        request_data=request_data,
+    )
+
+    # Get IdP name for display
+    try:
+        idp = saml_service.get_idp_for_saml_login(tenant_id, idp_id)
+        idp_name = idp.name
+    except ServiceError:
+        idp_name = "Unknown IdP"
+
+    return templates.TemplateResponse(
+        request,
+        "saml_test_result.html",
+        get_template_context(
+            request,
+            tenant_id,
+            test_result=test_result,
+            idp_id=idp_id,
+            idp_name=idp_name,
+        ),
+    )
 
 
 # ============================================================================
@@ -119,7 +183,12 @@ def saml_acs(
 
     Receives and processes the SAML response from the IdP.
     Single endpoint for all IdPs - derives IdP from SAML response Issuer.
+    Handles both real logins and connection testing (test mode via RelayState).
     """
+    # Check if this is a test flow (RelayState starts with __test__:)
+    if RelayState.startswith("__test__:"):
+        return _handle_saml_test_response(request, tenant_id, SAMLResponse, RelayState)
+
     # Get stored request_id for validation
     expected_request_id = request.session.pop("saml_request_id", None)
     stored_idp_id = request.session.pop("saml_idp_id", None)
@@ -184,7 +253,7 @@ def saml_acs(
     # Build request data for python3-saml
     # Check X-Forwarded-Proto header for reverse proxy, fall back to request scheme
     forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    request_data = {
+    request_data: dict[str, str | dict[str, str]] = {
         "https": "on" if forwarded_proto == "https" else "off",
         "http_host": request.headers.get("x-forwarded-host", request.url.netloc),
         "script_name": str(request.url.path),
@@ -427,6 +496,7 @@ def create_idp(
     is_enabled: Annotated[bool, Form()] = False,
     is_default: Annotated[bool, Form()] = False,
     require_platform_mfa: Annotated[bool, Form()] = False,
+    jit_provisioning: Annotated[bool, Form()] = False,
 ):
     """Create a new identity provider."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -448,6 +518,7 @@ def create_idp(
         is_enabled=is_enabled,
         is_default=is_default,
         require_platform_mfa=require_platform_mfa,
+        jit_provisioning=jit_provisioning,
     )
 
     try:
@@ -572,6 +643,70 @@ def edit_idp_form(
     )
 
 
+@router.get(
+    "/admin/identity-providers/{idp_id}/test",
+    dependencies=[Depends(require_super_admin)],
+)
+def test_idp_connection(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """
+    Initiate SAML test flow.
+
+    Redirects to IdP with test=true in RelayState to distinguish from real logins.
+    Opens in a new window (frontend handles this).
+    """
+    # Authorization handled by IsSuperAdmin dependency
+
+    # Use special RelayState to indicate test mode
+    relay_state = f"__test__:{idp_id}"
+
+    try:
+        redirect_url, request_id = saml_service.build_authn_request(tenant_id, idp_id, relay_state)
+
+        # Store test context in session
+        request.session["saml_test_request_id"] = request_id
+        request.session["saml_test_idp_id"] = idp_id
+
+        return RedirectResponse(url=redirect_url, status_code=303)
+
+    except NotFoundError:
+        return templates.TemplateResponse(
+            request,
+            "saml_test_result.html",
+            get_template_context(
+                request,
+                tenant_id,
+                test_result=SAMLTestResult(
+                    success=False,
+                    error_type="idp_not_found",
+                    error_detail="Identity provider not found",
+                ),
+                idp_id=idp_id,
+                idp_name="Unknown",
+            ),
+        )
+    except ServiceError as e:
+        return templates.TemplateResponse(
+            request,
+            "saml_test_result.html",
+            get_template_context(
+                request,
+                tenant_id,
+                test_result=SAMLTestResult(
+                    success=False,
+                    error_type="configuration_error",
+                    error_detail=str(e),
+                ),
+                idp_id=idp_id,
+                idp_name="Unknown",
+            ),
+        )
+
+
 @router.post(
     "/admin/identity-providers/{idp_id}",
     dependencies=[Depends(require_super_admin)],
@@ -592,6 +727,7 @@ def update_idp(
     is_enabled: Annotated[bool, Form()] = False,
     is_default: Annotated[bool, Form()] = False,
     require_platform_mfa: Annotated[bool, Form()] = False,
+    jit_provisioning: Annotated[bool, Form()] = False,
 ):
     """Update an identity provider."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -608,6 +744,7 @@ def update_idp(
             "last_name": attr_last_name,
         },
         require_platform_mfa=require_platform_mfa,
+        jit_provisioning=jit_provisioning,
     )
 
     try:

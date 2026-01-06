@@ -335,9 +335,7 @@ def delete_client(tenant_id: str, client_id: str, actor_user_id: str) -> int:
     return rows
 
 
-def regenerate_client_secret(
-    tenant_id: str, client_id: str, actor_user_id: str
-) -> str:
+def regenerate_client_secret(tenant_id: str, client_id: str, actor_user_id: str) -> str:
     """
     Regenerate the client secret.
 

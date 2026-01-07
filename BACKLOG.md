@@ -6,6 +6,78 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Password Retention & Controlled Deactivation
+
+**User Story:**
+As an admin
+I want user passwords preserved when assigning users to IdPs and controlled reactivation flows
+So that users have a recovery path if their IdP connection is severed
+
+**Acceptance Criteria:**
+
+**Password Retention:**
+
+- [ ] When a user is assigned to an IdP, password hash is PRESERVED (not wiped)
+- [ ] When a user authenticates via SAML, password hash is PRESERVED
+- [ ] When a domain is bound to an IdP (bulk assignment), passwords are PRESERVED
+- [ ] Password is NOT usable while user has an IdP assigned - IdP authentication is mandatory
+
+**IdP Disconnection & Deactivation:**
+
+- [ ] When a user is disconnected from an IdP (saml_idp_id → NULL):
+  - User is automatically inactivated
+  - All emails are unverified (existing behavior)
+  - Password hash remains intact
+- [ ] Moving a user from one IdP to another does NOT trigger deactivation (existing behavior)
+
+**Reactivation Flows:**
+
+- [ ] **Admin reactivation (existing):** Admin/Super Admin can reactivate any inactivated user
+- [ ] **Super Admin self-reactivation (NEW):**
+  - Super Admins can initiate self-reactivation from login page
+  - Must prove email possession (same 6-digit code flow as Email Possession Verification item)
+  - After code verification, if user is inactivated super admin → auto-reactivate
+  - Event logged: `super_admin_self_reactivated`
+- [ ] Regular users/admins cannot self-reactivate - must contact an admin
+
+**Password Setup on Reactivation:**
+
+- [ ] If reactivated user has a password → can immediately log in with password
+- [ ] If reactivated user has NO password (JIT-provisioned):
+  - After reactivation, admin triggers "set password" invite email
+  - User sets password via existing `/set-password` flow
+  - OR admin assigns them to a new IdP
+
+**UI Changes:**
+
+- [ ] Login page for inactivated super admins shows "Reactivate Account" option
+- [ ] Option only appears AFTER email possession is proven (ties into Email Possession Verification)
+- [ ] User management page shows password status indicator (has password / no password)
+- [ ] Warning when disconnecting users without passwords: "User has no password and will need one set after reactivation"
+
+**Technical Implementation:**
+
+- Remove: `wipe_user_password()` calls in `app/services/saml.py`
+- Modify: `assign_user_idp()` - preserve password
+- Modify: `bind_domain_to_idp()` - preserve passwords in bulk
+- Modify: SAML auth flow - preserve password on first SAML login
+- New: `self_reactivate_super_admin()` service function
+- New: Password status tracking in user detail views
+- Modify: `app/routers/auth.py` - super admin self-reactivation flow
+
+**Database Changes:**
+
+- No schema changes required (password_hash column already nullable)
+
+**Dependencies:**
+
+- Email Possession Verification item (for super admin self-reactivation flow)
+
+**Effort:** M
+**Value:** High (Security - recovery path, operational resilience)
+
+---
+
 ## SAML Upstream IdP Support - Phase 4: Provider Helpers, SLO & Certificate Management
 
 **User Story:**
@@ -446,145 +518,5 @@ Post-install: `playwright install chromium`
 - Consider implementing when SAML Phase 2+ is complete and flows are stable
 - Alternative: Continue using TestClient-based integration tests which are faster
 - Could start with just SAML flow and expand to other auth flows later
-
----
-
-## Email Possession Verification (Anti-Enumeration)
-
-**User Story:**
-As a platform operator
-I want users to prove email possession before revealing any account information
-So that attackers cannot enumerate valid email addresses or discover authentication methods
-
-**Acceptance Criteria:**
-
-**Email Verification Flow:**
-
-- [ ] Login page shows ONLY email input field - no "Sign in with SSO" button visible
-- [ ] On email submit, system sends 6-digit code to the provided email address
-- [ ] Code is NOT stored in database - instead, an encrypted payload is stored in a browser cookie containing:
-  - The email address
-  - The 6-digit code (hashed)
-  - Expiration timestamp (5 minutes from send)
-  - Tenant ID
-- [ ] User enters 6-digit code on verification page
-- [ ] System validates code against encrypted cookie payload
-- [ ] Rate limiting: max 3 code requests per email per 15 minutes
-
-**Post-Verification Routing:**
-
-- [ ] After successful code verification, system determines auth route:
-  - User exists + has IdP assigned → redirect to IdP
-  - User exists + password-only → show password form
-  - User does NOT exist → show "No account found for this email" message
-- [ ] "No account" message is safe to show because user proved email ownership
-- [ ] Inactivated users see inactivation message (they proved ownership, safe to show)
-
-**Device Trust Cookie:**
-
-- [ ] On successful verification, set long-lived "email verified" cookie (30 days, HttpOnly, Secure)
-- [ ] Cookie contains: encrypted email + verification timestamp
-- [ ] If valid cookie exists for the entered email, skip code verification step
-- [ ] Cookie survives browser closing (persistent, not session)
-- [ ] Separate cookie per email address (user may have multiple emails)
-
-**Security Properties:**
-
-- [ ] No information leakage before email verification
-- [ ] Cannot tell if email exists without code
-- [ ] Cannot tell if user uses IdP or password without code
-- [ ] Cannot tell if account is inactivated without code
-
-**Technical Implementation:**
-
-- New endpoint: `POST /login/send-code` - sends verification code
-- New endpoint: `POST /login/verify-code` - validates code, routes to auth method
-- New template: `email_verification.html` - code entry form
-- Modify: `app/routers/auth.py` - restructure login flow
-- New utility: `app/utils/email_verification.py` - cookie encryption/decryption
-- Use Fernet symmetric encryption for cookie payloads (key from env/config)
-- Email template for 6-digit code
-- Remove/hide all SSO buttons from login page
-
-**Out of Scope:**
-
-- Changing MFA flow (remains as-is after authentication)
-- Registration flow changes
-- Admin bypass options
-
-**Effort:** L
-**Value:** High (Security - prevents user enumeration)
-
----
-
-## Password Retention & Controlled Deactivation
-
-**User Story:**
-As an admin
-I want user passwords preserved when assigning users to IdPs and controlled reactivation flows
-So that users have a recovery path if their IdP connection is severed
-
-**Acceptance Criteria:**
-
-**Password Retention:**
-
-- [ ] When a user is assigned to an IdP, password hash is PRESERVED (not wiped)
-- [ ] When a user authenticates via SAML, password hash is PRESERVED
-- [ ] When a domain is bound to an IdP (bulk assignment), passwords are PRESERVED
-- [ ] Password is NOT usable while user has an IdP assigned - IdP authentication is mandatory
-
-**IdP Disconnection & Deactivation:**
-
-- [ ] When a user is disconnected from an IdP (saml_idp_id → NULL):
-  - User is automatically inactivated
-  - All emails are unverified (existing behavior)
-  - Password hash remains intact
-- [ ] Moving a user from one IdP to another does NOT trigger deactivation (existing behavior)
-
-**Reactivation Flows:**
-
-- [ ] **Admin reactivation (existing):** Admin/Super Admin can reactivate any inactivated user
-- [ ] **Super Admin self-reactivation (NEW):**
-  - Super Admins can initiate self-reactivation from login page
-  - Must prove email possession (same 6-digit code flow as Email Possession Verification item)
-  - After code verification, if user is inactivated super admin → auto-reactivate
-  - Event logged: `super_admin_self_reactivated`
-- [ ] Regular users/admins cannot self-reactivate - must contact an admin
-
-**Password Setup on Reactivation:**
-
-- [ ] If reactivated user has a password → can immediately log in with password
-- [ ] If reactivated user has NO password (JIT-provisioned):
-  - After reactivation, admin triggers "set password" invite email
-  - User sets password via existing `/set-password` flow
-  - OR admin assigns them to a new IdP
-
-**UI Changes:**
-
-- [ ] Login page for inactivated super admins shows "Reactivate Account" option
-- [ ] Option only appears AFTER email possession is proven (ties into Email Possession Verification)
-- [ ] User management page shows password status indicator (has password / no password)
-- [ ] Warning when disconnecting users without passwords: "User has no password and will need one set after reactivation"
-
-**Technical Implementation:**
-
-- Remove: `wipe_user_password()` calls in `app/services/saml.py`
-- Modify: `assign_user_idp()` - preserve password
-- Modify: `bind_domain_to_idp()` - preserve passwords in bulk
-- Modify: SAML auth flow - preserve password on first SAML login
-- New: `self_reactivate_super_admin()` service function
-- New: Password status tracking in user detail views
-- Modify: `app/routers/auth.py` - super admin self-reactivation flow
-
-**Database Changes:**
-
-- No schema changes required (password_hash column already nullable)
-
-**Dependencies:**
-
-- Email Possession Verification item (for super admin self-reactivation flow)
-
-**Effort:** M
-**Value:** High (Security - recovery path, operational resilience)
 
 ---

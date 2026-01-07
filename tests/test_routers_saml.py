@@ -191,10 +191,14 @@ def test_saml_select_no_idps(client, test_tenant_host):
 # =============================================================================
 
 
-def test_login_page_shows_sso_button_when_enabled(
+def test_login_page_no_sso_button_with_email_verification(
     client, test_tenant, test_tenant_host, test_super_admin_user
 ):
-    """Test that login page shows SSO button when IdPs are enabled."""
+    """Test that login page doesn't show SSO button (anti-enumeration).
+
+    With email possession verification enabled, the login page only shows
+    the email input form. SSO routing happens AFTER email verification.
+    """
     from schemas.saml import IdPCreate
     from services import saml as saml_service
     from services.types import RequestingUser
@@ -225,17 +229,20 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
     response = client.get("/login", headers={"Host": test_tenant_host})
 
     assert response.status_code == 200
-    assert "SSO" in response.text or "sso" in response.text.lower()
+    # SSO button should NOT be shown (anti-enumeration)
+    assert "Sign in with SSO" not in response.text
+    # Login form should post to email verification endpoint
+    assert "/login/send-code" in response.text
 
 
 def test_login_page_no_sso_button_when_disabled(client, test_tenant_host):
     """Test that login page doesn't show SSO button when no IdPs enabled."""
     response = client.get("/login", headers={"Host": test_tenant_host})
 
-    # Page should load but not show SSO section (depends on template)
+    # Page should load but not show SSO section
     assert response.status_code == 200
-    # The "Sign in with SSO" link should not appear when no IdPs
-    # (it's conditionally rendered based on sso_enabled)
+    # SSO button should NOT appear (email verification flow is used instead)
+    assert "Sign in with SSO" not in response.text
 
 
 # =============================================================================

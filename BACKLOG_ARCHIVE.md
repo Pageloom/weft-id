@@ -4,6 +4,78 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Email Possession Verification (Anti-Enumeration)
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want users to prove email possession before revealing any account information
+So that attackers cannot enumerate valid email addresses or discover authentication methods
+
+**Acceptance Criteria:**
+
+**Email Verification Flow:**
+
+- [x] Login page shows ONLY email input field - no "Sign in with SSO" button visible
+- [x] On email submit, system sends 6-digit code to the provided email address
+- [x] Code is NOT stored in database - instead, an encrypted payload is stored in a browser cookie containing:
+  - The email address
+  - The 6-digit code (hashed)
+  - Expiration timestamp (5 minutes from send)
+  - Tenant ID
+- [x] User enters 6-digit code on verification page
+- [x] System validates code against encrypted cookie payload
+- [ ] Rate limiting: max 3 code requests per email per 15 minutes (deferred to separate security initiative)
+
+**Post-Verification Routing:**
+
+- [x] After successful code verification, system determines auth route:
+  - User exists + has IdP assigned → redirect to IdP
+  - User exists + password-only → show password form
+  - User does NOT exist → show "No account found for this email" message
+- [x] "No account" message is safe to show because user proved email ownership
+- [x] Inactivated users see inactivation message (they proved ownership, safe to show)
+
+**Device Trust Cookie:**
+
+- [x] On successful verification, set long-lived "email verified" cookie (30 days, HttpOnly, Secure)
+- [x] Cookie contains: encrypted email + verification timestamp
+- [x] If valid cookie exists for the entered email, skip code verification step
+- [x] Cookie survives browser closing (persistent, not session)
+- [x] Separate cookie per email address (user may have multiple emails)
+
+**Security Properties:**
+
+- [x] No information leakage before email verification
+- [x] Cannot tell if email exists without code
+- [x] Cannot tell if user uses IdP or password without code
+- [x] Cannot tell if account is inactivated without code
+
+**Technical Implementation:**
+
+- New endpoint: `POST /login/send-code` - sends verification code
+- New endpoint: `GET /login/verify` - shows code entry form
+- New endpoint: `POST /login/verify-code` - validates code, routes to auth method
+- New endpoint: `POST /login/resend-code` - resends verification code
+- New template: `email_verification.html` - code entry form
+- Modified: `app/routers/auth.py` - restructured login flow
+- New utility: `app/utils/email_verification.py` - cookie encryption/decryption
+- Fernet symmetric encryption for cookie payloads
+- Email template for 6-digit code
+- Removed all SSO buttons from login page
+
+**Test Coverage:**
+
+- 29 unit tests for email_verification.py utilities
+- 14 integration tests for new auth endpoints
+- All existing tests updated for new behavior
+
+**Effort:** L
+**Value:** High (Security - prevents user enumeration)
+
+---
+
 ## SAML IdP Simulator for Development
 
 **Status:** Complete

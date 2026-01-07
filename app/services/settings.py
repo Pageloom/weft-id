@@ -105,6 +105,8 @@ def _domain_row_to_model(row: dict) -> PrivilegedDomain:
         domain=row["domain"],
         created_at=row["created_at"],
         created_by_name=created_by_name,
+        bound_idp_id=str(row["bound_idp_id"]) if row.get("bound_idp_id") else None,
+        bound_idp_name=row.get("bound_idp_name"),
     )
 
 

@@ -32,24 +32,78 @@
                 Invalid link. Please contact your administrator.
                 {% elif error == 'email_not_verified' %}
                 Please verify your email address before setting your password.
+                {% elif error == 'user_not_found' %}
+                No account found with this email address.
+                {% elif error == 'account_inactivated' %}
+                This account has been inactivated. Please contact your administrator.
+                {% elif error == 'no_password_set' %}
+                No password set for this account. Please contact your administrator.
+                {% elif error == 'no_auth_method' %}
+                No authentication method configured for this account. Please contact your administrator.
+                {% elif error == 'idp_disabled' %}
+                Your identity provider is currently disabled. Please contact your administrator.
+                {% elif error == 'invalid_email' %}
+                Please enter a valid email address.
                 {% else %}
                 {{ error }}
                 {% endif %}
             </div>
             {% endif %}
 
+            {% if show_password %}
+            {# Step 2: Password form (after email check determined password auth) #}
             <form method="post" action="/login" id="loginForm">
                 <input type="hidden" id="timezone" name="timezone" value="">
                 <input type="hidden" id="locale" name="locale" value="">
+
                 <div class="mb-4">
                     <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input type="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="email" name="email" required autofocus>
+                    <input type="email"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                           id="email"
+                           name="email"
+                           value="{{ prefill_email }}"
+                           readonly>
                 </div>
+
                 <div class="mb-6">
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <input type="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" id="password" name="password" required>
+                    <input type="password"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           id="password"
+                           name="password"
+                           required
+                           autofocus>
                 </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">Sign In</button>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">
+                    Sign In
+                </button>
+
+                <div class="mt-4 text-center">
+                    <a href="/login" class="text-sm text-blue-600 hover:text-blue-800">
+                        Use a different email
+                    </a>
+                </div>
+            </form>
+            {% else %}
+            {# Step 1: Email entry form (email-first flow) #}
+            <form method="post" action="/login/check-email" id="emailForm">
+                <div class="mb-6">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           id="email"
+                           name="email"
+                           value="{{ prefill_email }}"
+                           placeholder="Enter your email address"
+                           required
+                           autofocus>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">
+                    Continue
+                </button>
             </form>
 
             {% if sso_enabled %}
@@ -70,6 +124,7 @@
                 Sign in with SSO
             </a>
             {% endif %}
+            {% endif %}
         </div>
     </div>
 </div>
@@ -78,10 +133,15 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-    document.getElementById('timezone').value = tz;
-    document.getElementById('locale').value = locale.replace('-', '_');
+    // Only set timezone/locale if we're on the password form
+    const tzInput = document.getElementById('timezone');
+    const localeInput = document.getElementById('locale');
+    if (tzInput && localeInput) {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
+        tzInput.value = tz;
+        localeInput.value = locale.replace('-', '_');
+    }
 });
 </script>
 {% endblock %}

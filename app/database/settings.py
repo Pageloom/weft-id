@@ -5,17 +5,21 @@ from ._core import TenantArg, execute, fetchall, fetchone
 
 def list_privileged_domains(tenant_id: TenantArg) -> list[dict]:
     """
-    List all privileged domains for a tenant.
+    List all privileged domains for a tenant with IdP binding info.
 
     Returns:
-        List of dicts with id, domain, created_at, first_name, last_name
+        List of dicts with id, domain, created_at, first_name, last_name,
+        bound_idp_id, bound_idp_name
     """
     return fetchall(
         tenant_id,
         """
-        select pd.id, pd.domain, pd.created_at, u.first_name, u.last_name
+        select pd.id, pd.domain, pd.created_at, u.first_name, u.last_name,
+               idp.id as bound_idp_id, idp.name as bound_idp_name
         from tenant_privileged_domains pd
         left join users u on pd.created_by = u.id
+        left join saml_idp_domain_bindings b on pd.id = b.domain_id
+        left join saml_identity_providers idp on b.idp_id = idp.id
         order by pd.created_at desc
         """,
     )
@@ -71,5 +75,27 @@ def delete_privileged_domain(tenant_id: TenantArg, domain_id: str) -> int:
     return execute(
         tenant_id,
         "delete from tenant_privileged_domains where id = :domain_id",
+        {"domain_id": domain_id},
+    )
+
+
+def get_privileged_domain_by_id(tenant_id: TenantArg, domain_id: str) -> dict | None:
+    """
+    Get a privileged domain by ID.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        domain_id: Domain UUID to look up
+
+    Returns:
+        Dict with id, domain, created_at, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, domain, created_at
+        from tenant_privileged_domains
+        where id = :domain_id
+        """,
         {"domain_id": domain_id},
     )

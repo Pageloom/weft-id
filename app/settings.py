@@ -43,6 +43,13 @@ MFA_ENCRYPTION_KEY = os.environ.get(
 SAML_KEY_ENCRYPTION_KEY = os.environ.get(
     "SAML_KEY_ENCRYPTION_KEY", "dev-saml-key-change-in-production-must-be-base64"
 )
+EMAIL_VERIFICATION_KEY = os.environ.get(
+    "EMAIL_VERIFICATION_KEY", "dev-email-verification-key-change-in-production"
+)
+
+# Email possession verification settings
+VERIFICATION_CODE_EXPIRY_SECONDS = 300  # 5 minutes
+TRUST_COOKIE_EXPIRY_DAYS = 30
 
 # OAuth2 Configuration
 # Token expiry times (in seconds)

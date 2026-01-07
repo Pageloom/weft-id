@@ -5,6 +5,12 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from main import app
 
+from app.utils.email_verification import (
+    create_trust_cookie,
+    create_verification_cookie,
+    get_trust_cookie_name,
+)
+
 
 def test_login_page_not_authenticated(test_tenant):
     """Test login page renders when not authenticated."""
@@ -620,3 +626,340 @@ def test_set_password_too_short(test_tenant):
                 assert response.status_code == 303
                 assert "error=password_too_short" in response.headers["location"]
                 mock_update.assert_not_called()
+
+
+# --- Email Possession Verification Tests ---
+
+
+def test_send_verification_code_sends_email_and_creates_cookie(test_tenant):
+    """Test that send-code endpoint sends email and creates verification cookie."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.send_email_possession_code") as mock_send:
+        with patch("routers.auth.generate_verification_code") as mock_gen:
+            mock_gen.return_value = "123456"
+            mock_send.return_value = True
+
+            client = TestClient(app)
+            response = client.post(
+                "/login/send-code",
+                data={"email": "user@example.com"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert response.headers["location"] == "/login/verify"
+            # Check cookie was set
+            assert "email_verify_pending" in response.cookies
+            mock_send.assert_called_once_with("user@example.com", "123456")
+
+
+def test_send_verification_code_invalid_email(test_tenant):
+    """Test that send-code rejects invalid email format."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/send-code",
+        data={"email": "not-an-email"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=invalid_email" in response.headers["location"]
+
+
+def test_send_verification_code_with_trust_cookie_skips_verification(test_tenant):
+    """Test that valid trust cookie skips email verification."""
+    from dependencies import get_tenant_id_from_request
+    from schemas.saml import AuthRouteResult
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    trust_cookie = create_trust_cookie(email, test_tenant["id"])
+    trust_cookie_name = get_trust_cookie_name(email)
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = AuthRouteResult(route_type="password")
+
+        client = TestClient(app, cookies={trust_cookie_name: trust_cookie})
+        response = client.post(
+            "/login/send-code",
+            data={"email": email},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        # Should redirect to password form, not verification
+        assert "show_password=true" in response.headers["location"]
+
+
+def test_verify_code_page_renders_with_cookie(test_tenant):
+    """Test that verify page renders when verification cookie exists."""
+    from dependencies import get_tenant_id_from_request
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    code = "123456"
+    cookie = create_verification_cookie(email, code, test_tenant["id"])
+
+    with patch("routers.auth.templates.TemplateResponse") as mock_template:
+        mock_template.return_value = HTMLResponse(content="<html>verify</html>")
+
+        client = TestClient(app, cookies={"email_verify_pending": cookie})
+        response = client.get("/login/verify")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        mock_template.assert_called_once()
+        call_args = mock_template.call_args[0]
+        assert call_args[1] == "email_verification.html"
+        assert call_args[2]["email"] == email
+
+
+def test_verify_code_page_redirects_without_cookie(test_tenant):
+    """Test that verify page redirects to login without verification cookie."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    client = TestClient(app)
+    response = client.get("/login/verify", follow_redirects=False)
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_verify_code_success_routes_to_password(test_tenant):
+    """Test successful code verification routes to password form."""
+    from dependencies import get_tenant_id_from_request
+    from schemas.saml import AuthRouteResult
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    code = "123456"
+    cookie = create_verification_cookie(email, code, test_tenant["id"])
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = AuthRouteResult(route_type="password")
+
+        client = TestClient(app, cookies={"email_verify_pending": cookie})
+        response = client.post(
+            "/login/verify-code",
+            data={"code": code},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "show_password=true" in response.headers["location"]
+        # Trust cookie should be set
+        assert any(
+            name.startswith("email_trust_") for name in response.cookies.keys()
+        )
+
+
+def test_verify_code_success_routes_to_idp(test_tenant):
+    """Test successful code verification routes to IdP."""
+    from dependencies import get_tenant_id_from_request
+    from schemas.saml import AuthRouteResult
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    code = "123456"
+    cookie = create_verification_cookie(email, code, test_tenant["id"])
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = AuthRouteResult(route_type="idp", idp_id="idp-123")
+
+        client = TestClient(app, cookies={"email_verify_pending": cookie})
+        response = client.post(
+            "/login/verify-code",
+            data={"code": code},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/saml/login/idp-123" in response.headers["location"]
+
+
+def test_verify_code_invalid_code(test_tenant):
+    """Test verification with wrong code fails."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    cookie = create_verification_cookie(email, "123456", test_tenant["id"])
+
+    client = TestClient(app, cookies={"email_verify_pending": cookie})
+    response = client.post(
+        "/login/verify-code",
+        data={"code": "999999"},  # Wrong code
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=invalid_code" in response.headers["location"]
+
+
+def test_verify_code_without_cookie(test_tenant):
+    """Test verification without cookie fails."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/verify-code",
+        data={"code": "123456"},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=session_expired" in response.headers["location"]
+
+
+def test_verify_code_user_not_found(test_tenant):
+    """Test verification routes correctly when user not found."""
+    from dependencies import get_tenant_id_from_request
+    from schemas.saml import AuthRouteResult
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "nonexistent@example.com"
+    code = "123456"
+    cookie = create_verification_cookie(email, code, test_tenant["id"])
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = AuthRouteResult(route_type="not_found")
+
+        client = TestClient(app, cookies={"email_verify_pending": cookie})
+        response = client.post(
+            "/login/verify-code",
+            data={"code": code},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=user_not_found" in response.headers["location"]
+
+
+def test_resend_code_sends_new_code(test_tenant):
+    """Test resend endpoint sends new code and updates cookie."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "user@example.com"
+    old_cookie = create_verification_cookie(email, "111111", test_tenant["id"])
+
+    with patch("routers.auth.send_email_possession_code") as mock_send:
+        with patch("routers.auth.generate_verification_code") as mock_gen:
+            mock_gen.return_value = "222222"
+            mock_send.return_value = True
+
+            client = TestClient(app, cookies={"email_verify_pending": old_cookie})
+            response = client.post("/login/resend-code", follow_redirects=False)
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "success=code_sent" in response.headers["location"]
+            # New code should be sent
+            mock_send.assert_called_once_with(email, "222222")
+            # Cookie should be updated
+            assert "email_verify_pending" in response.cookies
+
+
+def test_resend_code_without_cookie(test_tenant):
+    """Test resend endpoint redirects without existing cookie."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    client = TestClient(app)
+    response = client.post("/login/resend-code", follow_redirects=False)
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_verify_code_inactivated_user(test_tenant):
+    """Test verification routes correctly for inactivated user."""
+    from dependencies import get_tenant_id_from_request
+    from schemas.saml import AuthRouteResult
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    email = "inactive@example.com"
+    code = "123456"
+    cookie = create_verification_cookie(email, code, test_tenant["id"])
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = AuthRouteResult(route_type="inactivated")
+
+        client = TestClient(app, cookies={"email_verify_pending": cookie})
+        response = client.post(
+            "/login/verify-code",
+            data={"code": code},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=account_inactivated" in response.headers["location"]
+
+
+def test_email_normalization_in_send_code(test_tenant):
+    """Test that email is normalized to lowercase in send-code."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.send_email_possession_code") as mock_send:
+        with patch("routers.auth.generate_verification_code") as mock_gen:
+            mock_gen.return_value = "123456"
+            mock_send.return_value = True
+
+            client = TestClient(app)
+            response = client.post(
+                "/login/send-code",
+                data={"email": "USER@EXAMPLE.COM"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            # Email should be sent to normalized address
+            mock_send.assert_called_once_with("user@example.com", "123456")

@@ -16,6 +16,53 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str | Non
     return backend.send(to_email, subject, html_body, text_body)
 
 
+def send_email_possession_code(to_email: str, code: str) -> bool:
+    """Send email possession verification code (for login anti-enumeration)."""
+    # ruff: noqa: E501
+    subject = "Your sign-in code"
+
+    text_body = f"""
+Your sign-in code is: {code}
+
+This code will expire in 5 minutes.
+
+Enter this code to continue signing in.
+
+If you did not request this code, please ignore this email.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .code {{ background: #f3f4f6; border: 2px solid #e5e7eb; border-radius: 8px; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Your Sign-in Code</h1>
+        <p>Enter this code to continue signing in:</p>
+        <div class="code">{code}</div>
+        <p>This code will expire in <strong>5 minutes</strong>.</p>
+        <p>If you did not request this code, please ignore this email.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
 def send_mfa_code_email(to_email: str, code: str) -> bool:
     """Send MFA verification code via email."""
     # ruff: noqa: E501

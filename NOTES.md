@@ -8,6 +8,8 @@ Quick reminders to later build out into full backlog items.
 - Verify all links in all frontend templates lead to actual frontend endpoints
 - Establish a single baseline SQL schema rather than going through all migrations
 - Ensure all events log required values (device, IP, User Agent, session ID hash) even without RequestingUser
+- Add verbose descriptions for each Event Type in code, display on event details page
+- Remove "Request Context" section from event detail pane (duplicates Event Metadata)
 
 ## Done
 - Improve execution time of tests - which tests can be run in parallel?

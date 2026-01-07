@@ -12,17 +12,21 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
     Returns:
         User record with id, tenant_id, first_name, last_name, role, created_at,
         last_login, mfa_enabled, mfa_method, tz, locale, is_inactivated, is_anonymized,
-        inactivated_at, anonymized_at, reactivation_denied_at
+        inactivated_at, anonymized_at, reactivation_denied_at, saml_idp_id, saml_idp_name,
+        has_password
     """
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, first_name, last_name, role, created_at, last_login,
-               mfa_enabled, mfa_method, tz, locale,
-               is_inactivated, is_anonymized, inactivated_at, anonymized_at,
-               reactivation_denied_at
-        from users
-        where id = :user_id
+        select u.id, u.tenant_id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
+               u.mfa_enabled, u.mfa_method, u.tz, u.locale,
+               u.is_inactivated, u.is_anonymized, u.inactivated_at, u.anonymized_at,
+               u.reactivation_denied_at,
+               u.saml_idp_id, idp.name as saml_idp_name,
+               u.password_hash is not null as has_password
+        from users u
+        left join saml_identity_providers idp on u.saml_idp_id = idp.id
+        where u.id = :user_id
         """,
         {"user_id": user_id},
     )

@@ -215,6 +215,9 @@ class UserDetail(BaseModel):
     is_anonymized: bool = Field(False, description="Whether user is anonymized (GDPR)")
     inactivated_at: datetime | None = Field(None, description="When user was inactivated")
     anonymized_at: datetime | None = Field(None, description="When user was anonymized")
+    saml_idp_id: str | None = Field(None, description="Assigned SAML IdP UUID")
+    saml_idp_name: str | None = Field(None, description="Assigned SAML IdP name")
+    has_password: bool = Field(False, description="Whether user has a password set")
 
 
 class UserCreate(BaseModel):

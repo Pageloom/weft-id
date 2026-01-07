@@ -344,6 +344,9 @@ def _user_row_to_detail(user: dict, emails: list[dict], is_service: bool) -> Use
         is_anonymized=user.get("is_anonymized", False),
         inactivated_at=user.get("inactivated_at"),
         anonymized_at=user.get("anonymized_at"),
+        saml_idp_id=str(user["saml_idp_id"]) if user.get("saml_idp_id") else None,
+        saml_idp_name=user.get("saml_idp_name"),
+        has_password=user.get("has_password", False),
     )
 
 

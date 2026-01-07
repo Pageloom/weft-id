@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from pydantic import ValidationError as PydanticValidationError
 from schemas.settings import PrivilegedDomainCreate, TenantSecuritySettingsUpdate
+from services import saml as saml_service
 from services import settings as settings_service
 from services.exceptions import ServiceError, ValidationError
 from utils.service_errors import render_error_page
@@ -57,14 +58,26 @@ def privileged_domains(
 
     try:
         domains = settings_service.list_privileged_domains(requesting_user)
+        # Get IdPs for binding dropdown (super_admin only)
+        idps = []
+        if user.get("role") == "super_admin":
+            idps = saml_service.list_identity_providers(requesting_user).items
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     error = request.query_params.get("error")
+    success = request.query_params.get("success")
 
     return templates.TemplateResponse(
         "settings_privileged_domains.html",
-        get_template_context(request, tenant_id, domains=domains, error=error),
+        get_template_context(
+            request,
+            tenant_id,
+            domains=domains,
+            idps=idps,
+            error=error,
+            success=success,
+        ),
     )
 
 
@@ -103,6 +116,62 @@ def delete_privileged_domain(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/admin/privileged-domains", status_code=303)
+
+
+@router.post(
+    "/privileged-domains/{domain_id}/bind",
+    dependencies=[Depends(require_super_admin)],
+)
+def bind_domain_to_idp(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+    idp_id: Annotated[str, Form()],
+):
+    """Bind a privileged domain to an IdP (super_admin only)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.bind_domain_to_idp(
+            requesting_user=requesting_user,
+            idp_id=idp_id,
+            domain_id=domain_id,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/privileged-domains?success=domain_bound",
+        status_code=303,
+    )
+
+
+@router.post(
+    "/privileged-domains/{domain_id}/unbind",
+    dependencies=[Depends(require_super_admin)],
+)
+def unbind_domain_from_idp(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+):
+    """Unbind a privileged domain from its IdP (super_admin only)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.unbind_domain_from_idp(
+            requesting_user=requesting_user,
+            domain_id=domain_id,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/privileged-domains?success=domain_unbound",
+        status_code=303,
+    )
 
 
 @router.get("/security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)])

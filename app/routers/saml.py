@@ -624,6 +624,11 @@ def edit_idp_form(
     try:
         idp = saml_service.get_identity_provider(requesting_user, idp_id)
         sp_metadata = saml_service.get_sp_metadata(requesting_user, base_url)
+
+        # Get domain bindings for this IdP and unbound domains for binding
+        domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
+        unbound_domains = saml_service.get_unbound_domains(requesting_user)
+
     except NotFoundError:
         return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
     except ServiceError as e:
@@ -639,7 +644,14 @@ def edit_idp_form(
         request,
         "saml_idp_form.html",
         get_template_context(
-            request, tenant_id, idp=idp, sp_metadata=sp_metadata, error=error, success=success
+            request,
+            tenant_id,
+            idp=idp,
+            sp_metadata=sp_metadata,
+            domain_bindings=domain_bindings.items,
+            unbound_domains=unbound_domains,
+            error=error,
+            success=success,
         ),
     )
 
@@ -880,3 +892,74 @@ def delete_idp(
         )
 
     return RedirectResponse(url="/admin/identity-providers?success=deleted", status_code=303)
+
+
+# ============================================================================
+# Domain Binding Web Routes (Phase 3)
+# ============================================================================
+
+
+@router.post(
+    "/admin/identity-providers/{idp_id}/bind-domain",
+    dependencies=[Depends(require_super_admin)],
+)
+def bind_domain(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    domain_id: Annotated[str, Form()],
+):
+    """Bind a privileged domain to this IdP."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.bind_domain_to_idp(requesting_user, idp_id, domain_id)
+    except NotFoundError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            status_code=303,
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url=f"/admin/identity-providers/{idp_id}?success=domain_bound",
+        status_code=303,
+    )
+
+
+@router.post(
+    "/admin/identity-providers/{idp_id}/unbind-domain/{domain_id}",
+    dependencies=[Depends(require_super_admin)],
+)
+def unbind_domain(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    domain_id: str,
+):
+    """Unbind a domain from this IdP."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.unbind_domain_from_idp(requesting_user, domain_id)
+    except NotFoundError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            status_code=303,
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        url=f"/admin/identity-providers/{idp_id}?success=domain_unbound",
+        status_code=303,
+    )

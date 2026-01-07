@@ -23,15 +23,25 @@ def login_page(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
-    """Render login page."""
+    """
+    Render login page (email-first flow).
+
+    Query params:
+    - prefill_email: Pre-fill email field (after email check)
+    - show_password: Show password form (after email routing determined password)
+    - success: Success message
+    - error: Error message
+    """
     # If already authenticated, redirect to dashboard
     user = get_current_user(request, tenant_id)
     if user:
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    # Get success/error messages from query params
+    # Get query params
     success = request.query_params.get("success")
     error = request.query_params.get("error")
+    prefill_email = request.query_params.get("prefill_email", "")
+    show_password = request.query_params.get("show_password") == "true"
 
     # Check if SSO is enabled (any enabled IdPs exist)
     sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
@@ -39,7 +49,87 @@ def login_page(
     return templates.TemplateResponse(
         request,
         "login.html",
-        {"request": request, "success": success, "error": error, "sso_enabled": sso_enabled},
+        {
+            "request": request,
+            "success": success,
+            "error": error,
+            "sso_enabled": sso_enabled,
+            "prefill_email": prefill_email,
+            "show_password": show_password,
+        },
+    )
+
+
+@router.post("/login/check-email")
+def check_email_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email: Annotated[str, Form()],
+):
+    """
+    Determine authentication route for email (email-first login step 1).
+
+    Based on the email address, either:
+    - Redirects to password form (show_password=true)
+    - Redirects to IdP for SAML login
+    - Shows error message (user not found, inactivated, etc.)
+    """
+    from urllib.parse import quote
+
+    result = saml_service.determine_auth_route(tenant_id, email)
+
+    if result.route_type == "password":
+        # User should authenticate with password
+        return RedirectResponse(
+            url=f"/login?prefill_email={quote(email)}&show_password=true",
+            status_code=303,
+        )
+
+    if result.route_type in ("idp", "idp_jit"):
+        # User should authenticate via SAML IdP
+        return RedirectResponse(
+            url=f"/saml/login/{result.idp_id}",
+            status_code=303,
+        )
+
+    if result.route_type == "inactivated":
+        # User is inactivated
+        return RedirectResponse(
+            url=f"/login?error=account_inactivated&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "not_found":
+        # No user found and no JIT route
+        return RedirectResponse(
+            url=f"/login?error=user_not_found&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "idp_disabled":
+        # User's IdP is disabled - they can't authenticate
+        return RedirectResponse(
+            url=f"/login?error=idp_disabled&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "no_auth_method":
+        # User exists but has no password and no IdP - should not happen
+        return RedirectResponse(
+            url=f"/login?error=no_auth_method&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "invalid_email":
+        return RedirectResponse(
+            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    # Unknown route type - fallback to password form
+    return RedirectResponse(
+        url=f"/login?prefill_email={quote(email)}&show_password=true",
+        status_code=303,
     )
 
 
@@ -52,14 +142,23 @@ def login(
     timezone: Annotated[str, Form()] = "",
     locale: Annotated[str, Form()] = "",
 ):
-    """Handle login form submission."""
+    """Handle login form submission (step 2 after email check)."""
     result = verify_login_with_status(tenant_id, email, password)
+
+    # Check if SSO is enabled for template context
+    sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
 
     if result["status"] == "invalid_credentials":
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"request": request, "error": "Invalid email or password"},
+            {
+                "request": request,
+                "error": "Invalid email or password",
+                "sso_enabled": sso_enabled,
+                "prefill_email": email,
+                "show_password": True,
+            },
         )
 
     if result["status"] in ("inactivated", "pending", "denied"):

@@ -32,6 +32,14 @@
         <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
             <p class="text-sm text-green-800">Identity provider settings saved successfully.</p>
         </div>
+        {% elif success == "domain_bound" %}
+        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
+            <p class="text-sm text-green-800">Domain bound to this identity provider successfully.</p>
+        </div>
+        {% elif success == "domain_unbound" %}
+        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
+            <p class="text-sm text-green-800">Domain unbound from this identity provider successfully.</p>
+        </div>
         {% endif %}
 
         {% if not idp %}

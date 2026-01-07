@@ -16,6 +16,8 @@ class PrivilegedDomain(BaseModel):
     domain: str = Field(..., description="The privileged domain (e.g., 'company.com')")
     created_at: datetime = Field(..., description="When the domain was added")
     created_by_name: str | None = Field(None, description="Name of user who added the domain")
+    bound_idp_id: str | None = Field(None, description="ID of bound IdP, if any")
+    bound_idp_name: str | None = Field(None, description="Name of bound IdP, if any")
 
 
 class PrivilegedDomainCreate(BaseModel):

@@ -1965,17 +1965,17 @@ def test_refresh_idp_from_metadata_timeout(
 # =============================================================================
 
 
-def test_delete_idp_unlinks_jit_users(test_tenant, test_super_admin_user, test_idp_data):
-    """Test that deleting an IdP sets saml_idp_id to NULL for linked users.
+def test_delete_idp_blocked_when_users_assigned(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that deleting an IdP is blocked when users are assigned.
 
-    When an IdP is deleted, users that were JIT provisioned by that IdP
-    should have their saml_idp_id set to NULL (not orphaned).
-    This is handled by the database FK with ON DELETE SET NULL.
+    Security: Cannot delete an IdP that has users assigned to it.
+    Users must be migrated to another IdP or set to 'password only' first.
     """
     import database
     from schemas.saml import IdPCreate
     from services import saml as saml_service
     from services import users as users_service
+    from services.exceptions import ConflictError
 
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     tenant_id = test_tenant["id"]
@@ -2005,14 +2005,16 @@ def test_delete_idp_unlinks_jit_users(test_tenant, test_super_admin_user, test_i
     assert assigned_idp is not None
     assert str(assigned_idp["id"]) == idp.id
 
-    # Delete the IdP
-    saml_service.delete_identity_provider(requesting_user, idp.id)
+    # Try to delete the IdP - should be blocked
+    with pytest.raises(ConflictError) as exc_info:
+        saml_service.delete_identity_provider(requesting_user, idp.id)
 
-    # Verify user's saml_idp_id is now NULL (returns None since no IdP linked)
-    assigned_idp_after = database.saml.get_user_assigned_idp(str(tenant_id), user_id)
-    assert assigned_idp_after is None, (
-        "User's assigned IdP should be None after IdP deletion"
-    )
+    assert exc_info.value.code == "idp_has_assigned_users"
+    assert "1 user(s)" in exc_info.value.message
+
+    # Verify IdP still exists
+    idp_after = saml_service.get_identity_provider(requesting_user, idp.id)
+    assert idp_after is not None
 
 
 # =============================================================================
@@ -2184,13 +2186,13 @@ def test_existing_user_authenticates_via_different_idp(
     assert user2["id"] == user1["id"]
 
 
-def test_jit_user_linked_to_first_idp_only(
+def test_user_idp_updated_on_auth_via_different_idp(
     test_tenant, test_super_admin_user, test_idp_data
 ):
-    """Test that JIT-created user remains linked to original IdP.
+    """Test that user's IdP link is updated when they auth via different IdP.
 
-    When a user is JIT provisioned by IdP1 and later authenticates via
-    IdP2, their saml_idp_id should remain linked to IdP1.
+    Security: When a user authenticates via SAML, they are linked to that IdP.
+    This ensures the user is "locked in" to the IdP they actually use.
     """
     import database
     from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
@@ -2261,11 +2263,11 @@ def test_jit_user_linked_to_first_idp_only(
         saml_result=saml_result_idp2,
     )
 
-    # Verify user's saml_idp_id remains linked to IdP1 (not changed to IdP2)
+    # Verify user's saml_idp_id is updated to IdP2 (user is now linked to the IdP they authenticated with)
     assigned_idp_after = database.saml.get_user_assigned_idp(tenant_id, str(user_via_idp2["id"]))
     assert assigned_idp_after is not None
-    assert str(assigned_idp_after["id"]) == idp1.id, (
-        "User's saml_idp_id should remain linked to original JIT IdP"
+    assert str(assigned_idp_after["id"]) == idp2.id, (
+        "User's saml_idp_id should be updated to the IdP they authenticated with"
     )
 
 

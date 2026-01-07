@@ -35,6 +35,8 @@
                 User has been reactivated and can now sign in.
                 {% elif success == 'user_anonymized' %}
                 User has been anonymized. Personal data has been permanently removed.
+                {% elif success == 'idp_updated' %}
+                User's IdP assignment updated successfully.
                 {% else %}
                 Operation completed successfully.
                 {% endif %}
@@ -86,6 +88,8 @@
                 Cannot anonymize service user. Delete the associated OAuth2 client first.
                 {% elif error == 'already_anonymized' %}
                 User is already anonymized.
+                {% elif error == 'idp_not_found' %}
+                Selected identity provider not found.
                 {% else %}
                 An error occurred. Please try again.
                 {% endif %}
@@ -217,6 +221,66 @@
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
                         {% if target_user.id == user.id %}disabled{% endif %}>
                     Update Role
+                </button>
+            </form>
+        </div>
+
+        <!-- Authentication Method (Super Admin Only) -->
+        <div class="mb-8 border-t border-gray-200 pt-6">
+            <h2 class="text-lg font-medium mb-4">Authentication Method</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Every user must be either a password user or assigned to an IdP.
+            </p>
+
+            <!-- Current Status -->
+            <div class="mb-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-700">Current:</span>
+                    {% if target_user.saml_idp_id %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">
+                        SAML ({{ target_user.saml_idp_name or 'IdP Assigned' }})
+                    </span>
+                    {% elif target_user.has_password %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-800 rounded-full">
+                        Password
+                    </span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                        No Auth Method
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <form method="post" action="/users/{{ target_user.id }}/update-idp" class="space-y-4">
+                <div>
+                    <label for="saml_idp_id" class="block text-sm font-medium text-gray-700 mb-1">
+                        Authentication
+                    </label>
+                    <select id="saml_idp_id" name="saml_idp_id"
+                            class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="" {% if not target_user.saml_idp_id %}selected{% endif %}>
+                            Password Authentication
+                        </option>
+                        {% for idp in idps %}
+                        <option value="{{ idp.id }}" {% if target_user.saml_idp_id == idp.id %}selected{% endif %}>
+                            {{ idp.name }}{% if not idp.is_enabled %} (disabled){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p class="text-xs text-amber-800">
+                        <strong>Warning:</strong> Assigning to an IdP wipes the user's password.
+                        Removing from an IdP will inactivate the user and unverify their emails.
+                    </p>
+                </div>
+
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        onclick="return confirm('Are you sure? This action may wipe the user\'s password or inactivate their account.')">
+                    Update Authentication
                 </button>
             </form>
         </div>

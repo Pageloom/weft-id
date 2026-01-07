@@ -241,3 +241,102 @@ class IdPForLogin(BaseModel):
     id: str
     name: str
     provider_type: str
+
+
+# ============================================================================
+# Domain Binding Schemas (Phase 3)
+# ============================================================================
+
+
+class DomainBinding(BaseModel):
+    """Domain-to-IdP binding info."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    domain_id: str
+    domain: str
+    idp_id: str
+    created_at: datetime
+
+
+class DomainBindingCreate(BaseModel):
+    """Request to bind a domain to an IdP."""
+
+    domain_id: str = Field(..., description="UUID of the privileged domain to bind")
+
+
+class DomainBindingList(BaseModel):
+    """List of domain bindings."""
+
+    items: list[DomainBinding]
+
+
+class UnboundDomain(BaseModel):
+    """Privileged domain not bound to any IdP."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    domain: str
+
+
+# ============================================================================
+# Authentication Routing Schemas (Phase 3)
+# ============================================================================
+
+
+class AuthRouteResult(BaseModel):
+    """Result of authentication route determination.
+
+    Every user is either:
+    - Password user (saml_idp_id = NULL) → route to password form
+    - IdP user (saml_idp_id = UUID) → route to that IdP
+
+    For unknown users:
+    - If domain is bound to IdP with JIT → route to domain's IdP
+    - If default IdP has JIT → route to default IdP
+    - Otherwise → not found
+    """
+
+    route_type: str = Field(
+        ...,
+        description="Route type: password, idp, idp_jit, idp_disabled, "
+        "not_found, inactivated, no_auth_method, invalid_email",
+    )
+    idp_id: str | None = Field(None, description="IdP UUID if route_type is idp or idp_jit")
+    idp_name: str | None = Field(None, description="IdP name for display")
+    user_id: str | None = Field(None, description="User UUID if user exists (internal use)")
+
+
+class EmailCheckRequest(BaseModel):
+    """Request to check authentication route for email."""
+
+    email: str = Field(..., min_length=1, description="Email address to check")
+
+
+class EmailCheckResponse(BaseModel):
+    """Response with authentication route info (public-facing, no user_id)."""
+
+    route_type: str
+    idp_id: str | None = None
+    idp_name: str | None = None
+
+
+# ============================================================================
+# User IdP Assignment Schemas (Phase 3)
+# ============================================================================
+
+
+class UserIdpAssignment(BaseModel):
+    """Request to assign user to an IdP or set as password-only.
+
+    Every user must be either:
+    - Password user (saml_idp_id = null) - authenticates with password
+    - IdP user (saml_idp_id = UUID) - authenticates via SAML
+    """
+
+    saml_idp_id: str | None = Field(
+        None,
+        description="IdP UUID to assign, or null for password-only user",
+    )

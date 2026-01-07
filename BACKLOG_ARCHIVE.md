@@ -84,6 +84,67 @@ So that I can confidently deploy SSO without pre-provisioning users and catch co
 
 ---
 
+## SAML Upstream IdP Support - Phase 3: Domain Routing & User Assignment
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want to link privileged domains to specific SAML IdPs and assign individual users to IdPs
+So that users are automatically routed to the correct identity provider based on their email domain or admin assignment
+
+**Acceptance Criteria:**
+
+**Domain-to-IdP Binding:**
+
+- [x] New `saml_idp_domain_bindings` table links privileged domains to IdPs
+  - Fields: `domain_id` (FK to `tenant_privileged_domains`), `idp_id` (FK to `saml_identity_providers`)
+  - Constraint: Each domain can only be bound to one IdP
+- [x] In IdP form: section to select which privileged domains route to this IdP
+- [x] In privileged domain settings: show which IdP (if any) the domain is bound to
+- [x] `saml_domain_bound` / `saml_domain_unbound` events logged
+
+**Per-User IdP Assignment:**
+
+- [x] User edit form includes "Authentication Method" dropdown:
+  - "Automatic (based on email domain)" - default, uses domain routing
+  - List of enabled IdPs - forces user to specific IdP
+  - "Password only" - user authenticates with password, not SAML
+- [x] `users.saml_idp_id` column stores admin-assigned IdP (NULL = automatic routing)
+- [x] `user_saml_idp_assigned` event logged when assignment changes
+- [x] User list/detail shows assigned IdP or "Automatic"
+
+**Email-First Login Flow:**
+
+- [x] Login page changes to email-first flow:
+  1. User enters email address
+  2. System determines auth method based on routing priority:
+     - User has `saml_idp_id` set → Redirect to that IdP
+     - User's email domain bound to IdP → Redirect to domain's IdP
+     - Tenant has default IdP → Redirect to default IdP
+     - User has password → Show password form
+     - No user exists + domain bound to IdP → Redirect to IdP (for JIT)
+     - No user exists + no IdP → Show "account not found" message
+  3. Appropriate flow initiated (SAML redirect or password form)
+- [x] Consistent UX: all users start with email entry, then diverge based on routing
+
+**Technical Implementation:**
+
+- Migration: Add `saml_idp_domain_bindings` table
+- Update `app/routers/auth.py` for email-first flow
+- Update `app/services/saml.py` with routing logic
+- Update user edit template with IdP assignment dropdown
+
+**Dependencies:**
+
+- SAML Phase 2 complete
+- Existing `tenant_privileged_domains` table
+
+**Effort:** M
+**Value:** High (Enterprise-grade IdP routing)
+
+---
+
 ## SAML Upstream IdP Support - Phase 1: Core Infrastructure
 
 **Status:** Complete

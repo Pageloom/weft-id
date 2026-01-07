@@ -61,9 +61,11 @@ def do_something(
 - Use `/dev` to implement items from the backlog
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
+- Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 
 ## Issue Tracking
 
 - Quality issues found by `/test` are logged in `ISSUES.md`
 - Architectural violations found by `/compliance` are logged in `ISSUES.md`
+- Security vulnerabilities found by `/security` are logged in `ISSUES.md`
 - Goal: keep `ISSUES.md` empty

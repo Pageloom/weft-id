@@ -6,6 +6,62 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Test Suite Performance: Aggressive Mocking Refactoring
+
+**User Story:**
+As a developer
+I want unit tests that mock their dependencies
+So that the test suite runs faster and failures are isolated to specific layers
+
+**Problem:**
+- Service tests hit real database (should mock database layer)
+- API tests hit real services (should mock service layer)
+- Same database functions tested 3x redundantly
+- 1,273 tests running as integration tests when they should be unit tests
+
+**Acceptance Criteria:**
+
+**Infrastructure:**
+
+- [ ] Add pytest markers (`unit`, `integration`) to `pytest.ini`
+- [ ] Add mock fixtures to `tests/conftest.py`
+- [ ] Create `tests/integration/` directory for explicit integration tests
+
+**Service Test Refactoring (mock database layer):**
+
+- [ ] `test_services_users.py` - pilot
+- [ ] `test_services_activity.py`
+- [ ] `test_services_event_log.py`
+- [ ] `test_services_settings.py`
+- [ ] `test_services_emails.py`
+- [ ] `test_services_mfa.py`
+- [ ] `test_services_oauth2.py`
+- [ ] `test_services_saml.py`
+
+**API Test Refactoring (mock service layer):**
+
+- [ ] `test_api_users.py` - pilot
+- [ ] `test_api_settings.py`
+- [ ] `test_api_events.py`
+- [ ] `test_api_exports.py`
+- [ ] `test_api_jobs.py`
+- [ ] `test_api_oauth2*.py`
+- [ ] `test_api_saml.py`
+- [ ] `test_api_reactivation.py`
+
+**Validation:**
+
+- [ ] All tests pass with `pytest -m unit`
+- [ ] Coverage unchanged or improved
+- [ ] Document execution time improvement
+
+**Starting Point:** Pilot with `test_services_users.py` + `test_api_users.py` pair
+
+**Effort:** XL
+**Value:** High (Developer Productivity)
+
+---
+
 ## Password Retention & Controlled Deactivation
 
 **User Story:**

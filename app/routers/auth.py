@@ -5,12 +5,26 @@ from typing import Annotated
 import services.emails as emails_service
 import services.saml as saml_service
 import services.users as users_service
+import settings
 from dependencies import get_current_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from utils.auth import verify_login_with_status
-from utils.email import send_mfa_code_email, send_reactivation_request_admin_notification
+from utils.email import (
+    send_email_possession_code,
+    send_mfa_code_email,
+    send_reactivation_request_admin_notification,
+)
+from utils.email_verification import (
+    create_trust_cookie,
+    create_verification_cookie,
+    generate_verification_code,
+    get_trust_cookie_name,
+    get_verification_cookie_email,
+    validate_trust_cookie,
+    validate_verification_cookie,
+)
 from utils.mfa import create_email_otp
 from utils.request_metadata import extract_request_metadata
 
@@ -24,7 +38,7 @@ def login_page(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
     """
-    Render login page (email-first flow).
+    Render login page (email-first flow with verification).
 
     Query params:
     - prefill_email: Pre-fill email field (after email check)
@@ -43,9 +57,6 @@ def login_page(
     prefill_email = request.query_params.get("prefill_email", "")
     show_password = request.query_params.get("show_password") == "true"
 
-    # Check if SSO is enabled (any enabled IdPs exist)
-    sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
-
     return templates.TemplateResponse(
         request,
         "login.html",
@@ -53,10 +64,243 @@ def login_page(
             "request": request,
             "success": success,
             "error": error,
-            "sso_enabled": sso_enabled,
             "prefill_email": prefill_email,
             "show_password": show_password,
         },
+    )
+
+
+@router.post("/login/send-code")
+def send_verification_code(
+    request: Request,
+    response: Response,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email: Annotated[str, Form()],
+):
+    """
+    Send email possession verification code (anti-enumeration step 1).
+
+    Always sends an email and creates a verification cookie, regardless of
+    whether the email exists in the system. This prevents enumeration.
+    """
+    from urllib.parse import quote
+
+    # Normalize email
+    email = email.strip().lower()
+
+    # Basic email format validation
+    if not email or "@" not in email:
+        return RedirectResponse(
+            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    # Check if user has a valid trust cookie for this email
+    trust_cookie_name = get_trust_cookie_name(email)
+    trust_cookie = request.cookies.get(trust_cookie_name)
+
+    if trust_cookie and validate_trust_cookie(trust_cookie, email, tenant_id):
+        # User has proven email ownership recently, skip verification
+        # Route them directly based on their account status
+        return _route_after_email_verification(request, tenant_id, email)
+
+    # Generate and send verification code
+    code = generate_verification_code()
+    send_email_possession_code(email, code)
+
+    # Create verification cookie
+    cookie_value = create_verification_cookie(email, code, tenant_id)
+
+    # Redirect to verification page and set cookie
+    redirect = RedirectResponse(url="/login/verify", status_code=303)
+    redirect.set_cookie(
+        key="email_verify_pending",
+        value=cookie_value,
+        max_age=settings.VERIFICATION_CODE_EXPIRY_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=not settings.IS_DEV,
+    )
+    return redirect
+
+
+@router.get("/login/verify", response_class=HTMLResponse)
+def verify_code_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email_verify_pending: Annotated[str | None, Cookie()] = None,
+):
+    """
+    Show verification code entry form (anti-enumeration step 2).
+    """
+    # Check for verification cookie
+    if not email_verify_pending:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Get email from cookie for display
+    email = get_verification_cookie_email(email_verify_pending)
+    if not email:
+        # Cookie expired or invalid
+        return RedirectResponse(url="/login?error=session_expired", status_code=303)
+
+    # Get query params for messages
+    error = request.query_params.get("error")
+    success = request.query_params.get("success")
+
+    return templates.TemplateResponse(
+        request,
+        "email_verification.html",
+        {
+            "request": request,
+            "email": email,
+            "error": error,
+            "success": success,
+        },
+    )
+
+
+@router.post("/login/verify-code")
+def verify_code(
+    request: Request,
+    response: Response,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    code: Annotated[str, Form()],
+    email_verify_pending: Annotated[str | None, Cookie()] = None,
+):
+    """
+    Validate verification code and route to appropriate auth flow (anti-enumeration step 3).
+    """
+    # Check for verification cookie
+    if not email_verify_pending:
+        return RedirectResponse(url="/login?error=session_expired", status_code=303)
+
+    # Validate the code
+    is_valid, email, cookie_tenant_id = validate_verification_cookie(
+        email_verify_pending, code.strip()
+    )
+
+    if not is_valid or not email:
+        return RedirectResponse(url="/login/verify?error=invalid_code", status_code=303)
+
+    # Verify tenant matches (compare as strings to handle UUID/string differences)
+    if cookie_tenant_id != str(tenant_id):
+        return RedirectResponse(url="/login?error=session_expired", status_code=303)
+
+    # Create trust cookie for future logins (30-day bypass)
+    trust_cookie_value = create_trust_cookie(email, tenant_id)
+    trust_cookie_name = get_trust_cookie_name(email)
+    trust_max_age = settings.TRUST_COOKIE_EXPIRY_DAYS * 24 * 60 * 60
+
+    # Clear the verification pending cookie and set trust cookie
+    redirect = _route_after_email_verification(request, tenant_id, email)
+    redirect.delete_cookie("email_verify_pending")
+    redirect.set_cookie(
+        key=trust_cookie_name,
+        value=trust_cookie_value,
+        max_age=trust_max_age,
+        httponly=True,
+        samesite="lax",
+        secure=not settings.IS_DEV,
+    )
+    return redirect
+
+
+@router.post("/login/resend-code")
+def resend_verification_code(
+    request: Request,
+    response: Response,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    email_verify_pending: Annotated[str | None, Cookie()] = None,
+):
+    """
+    Resend verification code to the email in the current verification session.
+    """
+    # Check for verification cookie to get the email
+    if not email_verify_pending:
+        return RedirectResponse(url="/login", status_code=303)
+
+    email = get_verification_cookie_email(email_verify_pending)
+    if not email:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Generate new code and send
+    code = generate_verification_code()
+    send_email_possession_code(email, code)
+
+    # Create new verification cookie
+    cookie_value = create_verification_cookie(email, code, tenant_id)
+
+    # Redirect back to verification page with success message
+    redirect = RedirectResponse(url="/login/verify?success=code_sent", status_code=303)
+    redirect.set_cookie(
+        key="email_verify_pending",
+        value=cookie_value,
+        max_age=settings.VERIFICATION_CODE_EXPIRY_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=not settings.IS_DEV,
+    )
+    return redirect
+
+
+def _route_after_email_verification(
+    request: Request, tenant_id: str, email: str
+) -> RedirectResponse:
+    """
+    Route user to appropriate auth flow after email possession is verified.
+
+    This is safe to call because the user has proven they own the email address.
+    """
+    from urllib.parse import quote
+
+    result = saml_service.determine_auth_route(tenant_id, email)
+
+    if result.route_type == "password":
+        return RedirectResponse(
+            url=f"/login?prefill_email={quote(email)}&show_password=true",
+            status_code=303,
+        )
+
+    if result.route_type in ("idp", "idp_jit"):
+        return RedirectResponse(
+            url=f"/saml/login/{result.idp_id}",
+            status_code=303,
+        )
+
+    if result.route_type == "inactivated":
+        return RedirectResponse(
+            url=f"/login?error=account_inactivated&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "not_found":
+        return RedirectResponse(
+            url=f"/login?error=user_not_found&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "idp_disabled":
+        return RedirectResponse(
+            url=f"/login?error=idp_disabled&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "no_auth_method":
+        return RedirectResponse(
+            url=f"/login?error=no_auth_method&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    if result.route_type == "invalid_email":
+        return RedirectResponse(
+            url=f"/login?error=invalid_email&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    # Unknown route type - fallback to password form
+    return RedirectResponse(
+        url=f"/login?prefill_email={quote(email)}&show_password=true",
+        status_code=303,
     )
 
 
@@ -67,12 +311,10 @@ def check_email_route(
     email: Annotated[str, Form()],
 ):
     """
-    Determine authentication route for email (email-first login step 1).
+    DEPRECATED: Direct email check without verification.
 
-    Based on the email address, either:
-    - Redirects to password form (show_password=true)
-    - Redirects to IdP for SAML login
-    - Shows error message (user not found, inactivated, etc.)
+    This endpoint is kept for backwards compatibility but should not be used.
+    Use /login/send-code instead which requires email possession verification.
     """
     from urllib.parse import quote
 

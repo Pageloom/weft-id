@@ -605,7 +605,7 @@ def test_import_idp_from_xml_as_admin_forbidden(admin_session, test_tenant_host)
 
 
 @pytest.fixture
-def acs_test_setup(client, test_tenant, test_super_admin_user, test_user, test_idp_data):
+def acs_test_setup(client, test_tenant, test_super_admin_user, test_user, test_idp_data, fast_sp_certificate):
     """Setup for ACS tests - creates IdP and mocks tenant_id dependency."""
     from dependencies import get_tenant_id_from_request
     from main import app

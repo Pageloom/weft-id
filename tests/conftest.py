@@ -17,6 +17,8 @@ os.environ.setdefault("POSTGRES_DB", "appdb")
 os.environ.setdefault("POSTGRES_PORT", "5432")
 os.environ.setdefault("BASE_DOMAIN", "pageloom.localhost")
 
+from datetime import UTC  # noqa: E402
+
 import pytest  # noqa: E402
 
 # Import settings and patch DATABASE_URL to use localhost
@@ -25,6 +27,41 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 settings.DATABASE_URL = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@localhost:5432/{os.environ['POSTGRES_DB']}"
 settings.BASE_DOMAIN = os.environ["BASE_DOMAIN"]
+
+# Pre-computed argon2 password hashes to avoid slow hashing during test setup
+# Each hash takes ~300-400ms to compute, so pre-computing saves significant time
+TEST_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"  # TestPassword123!
+ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$ocxCG8Nzju65QCi+4/brYQ$WShYetd5Jt5sIqaEzNlq26Sw9u1TRD0YllNGl3+I0K8"  # AdminPassword123!
+SUPER_ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$8WO+qwvaZiS2UEu4+QEbvA$8ese7/6HdJ/8FqITrwYkYuxa1swp0pbV4HnWOBQKh5M"  # SuperAdminPassword123!
+
+def _get_cached_sp_certificate():
+    """
+    Generate SP certificate once and cache it.
+
+    RSA 2048-bit key generation takes ~800ms. By caching, we save time
+    when this is called multiple times.
+    """
+    global _cached_sp_certificate
+    if _cached_sp_certificate is None:
+        from utils.saml import generate_sp_certificate
+
+        _cached_sp_certificate = generate_sp_certificate("test-tenant")
+    return _cached_sp_certificate
+
+
+_cached_sp_certificate = None
+
+
+@pytest.fixture
+def fast_sp_certificate(monkeypatch):
+    """
+    Patch SP certificate generation to use cached certificate.
+
+    Use this fixture in SAML tests to avoid 800ms RSA key generation per test.
+    """
+    cached = _get_cached_sp_certificate()
+    monkeypatch.setattr("utils.saml.generate_sp_certificate", lambda *args, **kwargs: cached)
+    return cached
 
 
 @pytest.fixture(autouse=True)
@@ -135,12 +172,9 @@ def test_user(test_tenant):
         }
     """
     import database
-    from argon2 import PasswordHasher
 
-    ph = PasswordHasher()
     unique_suffix = str(uuid4())[:8]
     email = f"testuser-{unique_suffix}@example.com"
-    password_hash = ph.hash("TestPassword123!")
 
     # Create user
     user = database.fetchone(
@@ -154,7 +188,7 @@ def test_user(test_tenant):
         """,
         {
             "tenant_id": test_tenant["id"],
-            "password_hash": password_hash,
+            "password_hash": TEST_PASSWORD_HASH,
             "first_name": "Test",
             "last_name": "User",
             "role": "member",
@@ -188,12 +222,9 @@ def test_admin_user(test_tenant):
     Yields a dict with user details (same structure as test_user).
     """
     import database
-    from argon2 import PasswordHasher
 
-    ph = PasswordHasher()
     unique_suffix = str(uuid4())[:8]
     email = f"admin-{unique_suffix}@example.com"
-    password_hash = ph.hash("AdminPassword123!")
 
     # Create admin user
     user = database.fetchone(
@@ -207,7 +238,7 @@ def test_admin_user(test_tenant):
         """,
         {
             "tenant_id": test_tenant["id"],
-            "password_hash": password_hash,
+            "password_hash": ADMIN_PASSWORD_HASH,
             "first_name": "Admin",
             "last_name": "User",
             "role": "admin",
@@ -240,12 +271,9 @@ def test_super_admin_user(test_tenant):
     Yields a dict with user details (same structure as test_user).
     """
     import database
-    from argon2 import PasswordHasher
 
-    ph = PasswordHasher()
     unique_suffix = str(uuid4())[:8]
     email = f"superadmin-{unique_suffix}@example.com"
-    password_hash = ph.hash("SuperAdminPassword123!")
 
     # Create super_admin user
     user = database.fetchone(
@@ -259,7 +287,7 @@ def test_super_admin_user(test_tenant):
         """,
         {
             "tenant_id": test_tenant["id"],
-            "password_hash": password_hash,
+            "password_hash": SUPER_ADMIN_PASSWORD_HASH,
             "first_name": "Super",
             "last_name": "Admin",
             "role": "super_admin",
@@ -666,7 +694,7 @@ def make_requesting_user():
 @pytest.fixture
 def make_user_dict():
     """Factory to create user database record dicts."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     def _make(
         user_id: str | None = None,
@@ -685,7 +713,7 @@ def make_user_dict():
             "last_name": last_name,
             "role": role,
             "email": email or f"{uid[:8]}@example.com",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
             "last_login": None,
             "mfa_enabled": False,
             "mfa_method": None,
@@ -707,7 +735,7 @@ def make_user_dict():
 @pytest.fixture
 def make_email_dict():
     """Factory to create user_emails database record dicts."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     def _make(
         email_id: str | None = None,
@@ -723,8 +751,105 @@ def make_email_dict():
             "user_id": uid,
             "email": email or f"{uid[:8]}@example.com",
             "is_primary": is_primary,
-            "verified_at": verified_at or datetime.now(timezone.utc),
-            "created_at": datetime.now(timezone.utc),
+            "verified_at": verified_at or datetime.now(UTC),
+            "created_at": datetime.now(UTC),
+            **kwargs,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_event_log_dict():
+    """Factory to create event log database record dicts."""
+    from datetime import datetime
+
+    def _make(
+        event_id: str | None = None,
+        tenant_id: str | None = None,
+        actor_user_id: str | None = None,
+        artifact_type: str = "test",
+        artifact_id: str | None = None,
+        event_type: str = "test_event",
+        metadata: dict | None = None,
+        **kwargs,
+    ) -> dict:
+        return {
+            "id": event_id or str(uuid4()),
+            "tenant_id": tenant_id or str(uuid4()),
+            "actor_user_id": actor_user_id or str(uuid4()),
+            "artifact_type": artifact_type,
+            "artifact_id": artifact_id or str(uuid4()),
+            "event_type": event_type,
+            "metadata": metadata or {},
+            "created_at": datetime.now(UTC),
+            **kwargs,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_bg_task_dict():
+    """Factory to create background task database record dicts."""
+    from datetime import datetime
+
+    def _make(
+        task_id: str | None = None,
+        tenant_id: str | None = None,
+        job_type: str = "export_events",
+        status: str = "pending",
+        created_by: str | None = None,
+        result: dict | None = None,
+        **kwargs,
+    ) -> dict:
+        return {
+            "id": task_id or str(uuid4()),
+            "tenant_id": tenant_id or str(uuid4()),
+            "job_type": job_type,
+            "status": status,
+            "created_by": created_by or str(uuid4()),
+            "result": result,
+            "created_at": datetime.now(UTC),
+            "started_at": None,
+            "completed_at": None,
+            **kwargs,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_export_file_dict():
+    """Factory to create export file database record dicts."""
+    from datetime import datetime, timedelta
+
+    def _make(
+        export_id: str | None = None,
+        tenant_id: str | None = None,
+        filename: str = "export.json.gz",
+        storage_type: str = "local",
+        storage_path: str | None = None,
+        file_size: int = 1024,
+        content_type: str = "application/gzip",
+        created_by: str | None = None,
+        expires_at=None,
+        downloaded_at=None,
+        **kwargs,
+    ) -> dict:
+        eid = export_id or str(uuid4())
+        return {
+            "id": eid,
+            "tenant_id": tenant_id or str(uuid4()),
+            "filename": filename,
+            "storage_type": storage_type,
+            "storage_path": storage_path or f"exports/{eid}.json.gz",
+            "file_size": file_size,
+            "content_type": content_type,
+            "created_by": created_by or str(uuid4()),
+            "expires_at": expires_at or (datetime.now(UTC) + timedelta(hours=24)),
+            "downloaded_at": downloaded_at,
+            "created_at": datetime.now(UTC),
             **kwargs,
         }
 

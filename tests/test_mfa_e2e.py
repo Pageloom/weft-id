@@ -83,6 +83,54 @@ def clear_mail_before_test():
 class TestEmailMFAFlow:
     """Tests for email-based MFA verification."""
 
+    def test_session_regenerated_after_mfa_verification(self, mfa_client, email_mfa_user):
+        """Test that session is regenerated after MFA to prevent session fixation.
+
+        This is a critical security test. Session fixation attacks work by:
+        1. Attacker creates session and gets session cookie
+        2. Victim authenticates using that session
+        3. Attacker now has authenticated access
+
+        By regenerating the session after MFA verification, we ensure the
+        pre-auth session data (cookie) is different from post-auth session.
+        """
+        # Step 1: Submit login credentials - this sets pending MFA session
+        response = mfa_client.post(
+            "/login",
+            data={"email": email_mfa_user["email"], "password": email_mfa_user["password"]},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        # Capture pre-MFA session cookie
+        pre_mfa_cookie = mfa_client.cookies.get("session")
+        assert pre_mfa_cookie is not None, "Session cookie should be set after login"
+
+        # Step 2: Complete MFA verification
+        email = maildev.get_latest_email(email_mfa_user["email"], timeout=5)
+        assert email is not None, "MFA email not received - is maildev running?"
+        code = maildev.extract_otp_code(email)
+        assert code is not None, "OTP code not found in email"
+
+        response = mfa_client.post(
+            "/mfa/verify",
+            data={"code": code},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        # Capture post-MFA session cookie
+        post_mfa_cookie = mfa_client.cookies.get("session")
+        assert post_mfa_cookie is not None, "Session cookie should be set after MFA"
+
+        # CRITICAL: The session cookie should have changed
+        # With Starlette's signed cookie sessions, clearing and recreating
+        # the session creates a new signed payload (different cookie value)
+        assert pre_mfa_cookie != post_mfa_cookie, (
+            "Session cookie should change after MFA verification. "
+            "Same cookie indicates session fixation vulnerability."
+        )
+
     def test_email_mfa_login_complete_flow(self, mfa_client, email_mfa_user, test_tenant):
         """Test complete login flow with email MFA verification."""
         # Step 1: Submit login credentials

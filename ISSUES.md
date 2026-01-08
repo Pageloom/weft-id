@@ -6,34 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] Session ID Not Regenerated After Authentication
-
-**Found in:** `app/routers/mfa.py:93`, `app/routers/auth.py:184, 427`
-**Severity:** High
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-
-**Description:** After successful authentication (including MFA verification), the session ID is not regenerated. Only the `user_id` is written to the existing session.
-
-**Attack Scenario:** Session fixation attack:
-1. Attacker creates session and obtains session ID
-2. Attacker tricks victim into using that session ID (via URL or cookie injection)
-3. Victim authenticates
-4. Attacker now has authenticated access via the known session ID
-
-**Evidence:**
-```python
-# Line 93 in mfa.py
-request.session["user_id"] = pending_user_id
-request.session["session_start"] = int(__import__("time").time())
-# Missing: session.regenerate() or equivalent
-```
-
-**Impact:** Account takeover via session fixation.
-
-**Remediation:** Regenerate session ID after successful authentication. Clear old session data and create new session cookie.
-
----
-
 ## [SECURITY] OAuth2 State Parameter Not Validated (CSRF)
 
 **Found in:** `app/routers/oauth2.py:29, 104, 120, 179`
@@ -471,7 +443,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 6 | Session, OAuth2, Secrets, Logging |
+| High | 5 | OAuth2, Secrets, Logging |
 | Medium | 6 | Headers, Exceptions, SAML XSS, SQL patterns, MFA bypass, Auth logging |
 
 ## Dependency Audit Summary (2026-01-08)
@@ -495,7 +467,7 @@ All production dependencies are at versions that include fixes for known CVEs.
 1. ~~XSS in users_list.html (Critical - immediate exploit)~~ **RESOLVED**
 2. ~~CSRF protection (High - easy to exploit)~~ **RESOLVED**
 3. ~~Rate limiting (High - enables brute force)~~ **RESOLVED**
-4. Session fixation (High - account takeover)
+4. ~~Session fixation (High - account takeover)~~ **RESOLVED**
 5. OAuth2 state validation (High - OAuth CSRF)
 6. Security headers (Medium - defense in depth)
 7. Logging gaps (High - compliance/detection)

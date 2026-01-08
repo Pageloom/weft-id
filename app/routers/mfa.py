@@ -20,6 +20,7 @@ from utils.mfa import (
     verify_totp_code,
 )
 from utils.ratelimit import MINUTE, ratelimit
+from utils.session import regenerate_session
 
 router = APIRouter(prefix="/mfa", tags=["mfa"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
@@ -121,8 +122,9 @@ def mfa_verify(
         )
 
     # MFA verified - complete login
-    request.session["user_id"] = pending_user_id
-    request.session["session_start"] = int(__import__("time").time())
+    # IMPORTANT: Extract pending data BEFORE regenerating session (clear destroys it)
+    tz_to_update = timezone or request.session.get("pending_timezone", "")
+    locale_to_update = locale or request.session.get("pending_locale", "")
 
     # Log successful sign-in event (also updates last_activity_at via log_event)
     from services.event_log import log_event
@@ -139,31 +141,26 @@ def mfa_verify(
     # Fetch tenant security settings to configure session persistence
     security_settings = settings_service.get_session_settings(tenant_id)
 
-    # Store session configuration in session for middleware to use
     if security_settings:
         persistent = security_settings.get("persistent_sessions", True)
         timeout = security_settings.get("session_timeout_seconds")
     else:
-        # Defaults: persistent sessions enabled, no timeout
         persistent = True
         timeout = None
 
-    # Store max_age preference - will be used when setting the cookie
-    # If persistent_sessions is False, max_age should be None (session cookie)
-    # If persistent_sessions is True and timeout is set, use that timeout
-    # If persistent_sessions is True and no timeout, use a long max_age (e.g., 30 days)
+    # Determine max_age for session cookie
     if not persistent:
-        request.session["_max_age"] = None  # Session cookie (expires on browser close)
+        max_age = None  # Session cookie (expires on browser close)
     elif timeout:
-        request.session["_max_age"] = timeout  # Use configured timeout
+        max_age = timeout  # Use configured timeout
     else:
-        request.session["_max_age"] = 30 * 24 * 3600  # 30 days as default for persistent
+        max_age = 30 * 24 * 3600  # 30 days as default for persistent
 
-    # Update timezone and locale if provided (prefer from this form, fallback to session from login)
-    tz_to_update = timezone or request.session.get("pending_timezone", "")
-    locale_to_update = locale or request.session.get("pending_locale", "")
+    # CRITICAL: Regenerate session to prevent session fixation attacks
+    # This clears all pre-auth data and creates a fresh authenticated session
+    regenerate_session(request, pending_user_id, max_age)
 
-    # Get current values
+    # Update timezone and locale if provided
     current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
 
     tz_changed = tz_to_update and (not current_user or current_user.get("tz") != tz_to_update)
@@ -180,13 +177,7 @@ def mfa_verify(
     elif locale_changed:
         users_service.update_locale_and_last_login(tenant_id, pending_user_id, locale_to_update)
     else:
-        # Just update last_login
         users_service.update_last_login(tenant_id, pending_user_id)
-
-    request.session.pop("pending_mfa_user_id", None)
-    request.session.pop("pending_mfa_method", None)
-    request.session.pop("pending_timezone", None)
-    request.session.pop("pending_locale", None)
 
     return RedirectResponse(url="/dashboard", status_code=303)
 

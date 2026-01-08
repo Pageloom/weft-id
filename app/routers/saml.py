@@ -1,7 +1,6 @@
 """SAML SSO routes for authentication and IdP management."""
 
 import base64
-import time
 from typing import Annotated
 
 from dependencies import (
@@ -20,6 +19,7 @@ from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from settings import IS_DEV
 from utils.saml import extract_issuer_from_response
+from utils.session import regenerate_session
 from utils.template_context import get_template_context
 
 router = APIRouter(tags=["saml"], include_in_schema=False)
@@ -345,9 +345,6 @@ def saml_acs(
         return RedirectResponse(url="/mfa/verify", status_code=303)
 
     # Complete login - create session
-    request.session["user_id"] = str(user["id"])
-    request.session["session_start"] = int(time.time())
-
     # Configure session persistence
     security_settings = settings_service.get_session_settings(tenant_id)
     if security_settings:
@@ -358,11 +355,15 @@ def saml_acs(
         timeout = None
 
     if not persistent:
-        request.session["_max_age"] = None
+        max_age = None
     elif timeout:
-        request.session["_max_age"] = timeout
+        max_age = timeout
     else:
-        request.session["_max_age"] = 30 * 24 * 3600  # 30 days
+        max_age = 30 * 24 * 3600  # 30 days
+
+    # CRITICAL: Regenerate session to prevent session fixation attacks
+    # This clears all pre-auth data and creates a fresh authenticated session
+    regenerate_session(request, str(user["id"]), max_age)
 
     # Update last login
     users_service.update_last_login(tenant_id, str(user["id"]))

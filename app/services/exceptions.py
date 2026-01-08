@@ -69,3 +69,16 @@ class ConflictError(ServiceError):
     """
 
     code: str = "conflict"
+
+
+@dataclass
+class RateLimitError(ServiceError):
+    """Rate limit exceeded for this operation.
+
+    Translates to: HTTP 429, error page with "Too Many Requests" title
+    """
+
+    code: str = "rate_limit_exceeded"
+    limit: int = 0
+    timespan: int = 0
+    retry_after: int = 0

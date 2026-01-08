@@ -1,15 +1,16 @@
 """Error handling utilities for service layer exceptions."""
 
 from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    RateLimitError,
     ServiceError,
     ValidationError,
 )
+from starlette.responses import Response
 from utils.template_context import get_template_context
 
 templates = Jinja2Templates(directory="templates")
@@ -29,6 +30,13 @@ def translate_to_http_exception(exc: ServiceError) -> HTTPException:
     if isinstance(exc, ConflictError):
         return HTTPException(status_code=409, detail=exc.message)
 
+    if isinstance(exc, RateLimitError):
+        return HTTPException(
+            status_code=429,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after)},
+        )
+
     # Default fallback
     return HTTPException(status_code=500, detail=exc.message)
 
@@ -37,9 +45,10 @@ def render_error_page(
     request: Request,
     tenant_id: str,
     exc: ServiceError,
-) -> HTMLResponse:
+) -> Response:
     """Render an error page for HTML routes."""
     # Map exception types to error page content
+    headers = {}
     if isinstance(exc, NotFoundError):
         status_code = 404
         error_title = "Not Found"
@@ -52,6 +61,10 @@ def render_error_page(
     elif isinstance(exc, ConflictError):
         status_code = 409
         error_title = "Conflict"
+    elif isinstance(exc, RateLimitError):
+        status_code = 429
+        error_title = "Too Many Requests"
+        headers["Retry-After"] = str(exc.retry_after)
     else:
         status_code = 500
         error_title = "Error"
@@ -64,8 +77,12 @@ def render_error_page(
         error_code=exc.code,
     )
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
+        request,
         "error.html",
         context,
         status_code=status_code,
     )
+    for key, value in headers.items():
+        response.headers[key] = value
+    return response

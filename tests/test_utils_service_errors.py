@@ -120,7 +120,9 @@ def test_render_not_found_error_page():
             )
             mock_templates.TemplateResponse.assert_called_once()
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][0] == "error.html"
+            # New Starlette API: request is first arg, template name is second
+            assert call_args[0][0] == mock_request
+            assert call_args[0][1] == "error.html"
             assert call_args[1]["status_code"] == 404
 
 
@@ -149,7 +151,9 @@ def test_render_forbidden_error_page():
                 error_code="forbidden",
             )
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][0] == "error.html"
+            # New Starlette API: request is first arg, template name is second
+            assert call_args[0][0] == mock_request
+            assert call_args[0][1] == "error.html"
             assert call_args[1]["status_code"] == 403
 
 
@@ -178,7 +182,9 @@ def test_render_validation_error_page():
                 error_code="validation_error",
             )
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][0] == "error.html"
+            # New Starlette API: request is first arg, template name is second
+            assert call_args[0][0] == mock_request
+            assert call_args[0][1] == "error.html"
             assert call_args[1]["status_code"] == 400
 
 
@@ -207,7 +213,9 @@ def test_render_conflict_error_page():
                 error_code="conflict",
             )
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][0] == "error.html"
+            # New Starlette API: request is first arg, template name is second
+            assert call_args[0][0] == mock_request
+            assert call_args[0][1] == "error.html"
             assert call_args[1]["status_code"] == 409
 
 
@@ -236,7 +244,9 @@ def test_render_generic_service_error_page():
                 error_code="internal_error",
             )
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][0] == "error.html"
+            # New Starlette API: request is first arg, template name is second
+            assert call_args[0][0] == mock_request
+            assert call_args[0][1] == "error.html"
             assert call_args[1]["status_code"] == 500
 
 
@@ -264,5 +274,6 @@ def test_render_error_page_passes_context_to_template():
             render_error_page(mock_request, "tenant-123", exc)
 
             # Verify context was passed to template
+            # New Starlette API: request is first arg, template name is second, context is third
             call_args = mock_templates.TemplateResponse.call_args
-            assert call_args[0][1] == expected_context
+            assert call_args[0][2] == expected_context

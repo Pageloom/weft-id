@@ -82,3 +82,44 @@ def delete(key: str) -> bool:
     except Exception as e:
         logger.warning("Memcached delete failed for key %s: %s", key, e)
         return False
+
+
+def incr(key: str, value: int = 1) -> int | None:
+    """Atomically increment a counter in cache.
+
+    Args:
+        key: Cache key
+        value: Amount to increment by (default 1)
+
+    Returns the new value after increment, or None on error.
+    Note: If key doesn't exist, Memcached returns None (does not auto-create).
+    """
+    client = get_client()
+    if client is None:
+        return None
+    try:
+        result = client.incr(key, value)
+        return result
+    except Exception as e:
+        logger.warning("Memcached incr failed for key %s: %s", key, e)
+        return None
+
+
+def add(key: str, value: Any, ttl: int = 0) -> bool:
+    """Add a key only if it doesn't already exist.
+
+    Args:
+        key: Cache key
+        value: Value to store
+        ttl: Time-to-live in seconds (0 = no expiration)
+
+    Returns True if key was added (didn't exist), False if key exists or on error.
+    """
+    client = get_client()
+    if client is None:
+        return False
+    try:
+        return client.add(key, value, expire=ttl)
+    except Exception as e:
+        logger.warning("Memcached add failed for key %s: %s", key, e)
+        return False

@@ -64,7 +64,7 @@ Q5x5Q5x5Q5x5Q5x5Q5x5AgMBAAEwDQYJKoZIhvcNAQELBQADggEBAA==
 
 
 @pytest.fixture
-def created_idp(client, test_tenant_host, oauth2_super_admin_header, sample_idp_data):
+def created_idp(client, test_tenant_host, oauth2_super_admin_header, sample_idp_data, fast_sp_certificate):
     """Create an IdP and return its data."""
     response = client.post(
         "/api/v1/saml/idps",

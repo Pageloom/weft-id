@@ -4,20 +4,17 @@ These tests use mocks to isolate the service layer from the database.
 For integration tests that use a real database, see tests/integration/.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
 from schemas.api import UserCreate, UserProfileUpdate, UserUpdate
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
-
 
 # =============================================================================
 # List Users Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_list_users_as_admin_success(make_requesting_user, make_user_dict):
     """Test that an admin can list users."""
     from services import users as users_service
@@ -43,8 +40,6 @@ def test_list_users_as_admin_success(make_requesting_user, make_user_dict):
         mock_db.users.list_users.assert_called_once()
         mock_db.users.count_users.assert_called_once()
 
-
-@pytest.mark.unit
 def test_list_users_as_super_admin_success(make_requesting_user, make_user_dict):
     """Test that a super_admin can list users."""
     from services import users as users_service
@@ -62,8 +57,6 @@ def test_list_users_as_super_admin_success(make_requesting_user, make_user_dict)
         assert result.total == 2
         assert len(result.items) == 2
 
-
-@pytest.mark.unit
 def test_list_users_as_member_forbidden(make_requesting_user):
     """Test that a regular member cannot list users."""
     from services import users as users_service
@@ -75,8 +68,6 @@ def test_list_users_as_member_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "admin_required"
 
-
-@pytest.mark.unit
 def test_list_users_with_pagination(make_requesting_user, make_user_dict):
     """Test user list pagination."""
     from services import users as users_service
@@ -96,8 +87,6 @@ def test_list_users_with_pagination(make_requesting_user, make_user_dict):
         assert len(result.items) == 1
         assert result.total == 10
 
-
-@pytest.mark.unit
 def test_list_users_empty_result(make_requesting_user):
     """Test listing users with search that matches nothing."""
     from services import users as users_service
@@ -114,14 +103,10 @@ def test_list_users_empty_result(make_requesting_user):
 
         assert result.total == 0
         assert len(result.items) == 0
-
-
 # =============================================================================
 # Get User Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_get_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can get user details."""
     from services import users as users_service
@@ -152,8 +137,6 @@ def test_get_user_as_admin_success(make_requesting_user, make_user_dict, make_em
         assert result.last_name == "User"
         assert len(result.emails) == 1
 
-
-@pytest.mark.unit
 def test_get_user_as_super_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can get user details."""
     from services import users as users_service
@@ -176,8 +159,6 @@ def test_get_user_as_super_admin_success(make_requesting_user, make_user_dict, m
 
         assert result.id == target_user_id
 
-
-@pytest.mark.unit
 def test_get_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot get other users' details."""
     from services import users as users_service
@@ -189,8 +170,6 @@ def test_get_user_as_member_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "admin_required"
 
-
-@pytest.mark.unit
 def test_get_user_not_found(make_requesting_user):
     """Test getting a non-existent user."""
     from services import users as users_service
@@ -208,8 +187,6 @@ def test_get_user_not_found(make_requesting_user):
 
         assert exc_info.value.code == "user_not_found"
 
-
-@pytest.mark.unit
 def test_get_user_includes_emails(make_requesting_user, make_user_dict, make_email_dict):
     """Test that get_user includes the user's email list."""
     from services import users as users_service
@@ -234,8 +211,6 @@ def test_get_user_includes_emails(make_requesting_user, make_user_dict, make_ema
         assert len(result.emails) == 2
         assert any(e.is_primary for e in result.emails)
 
-
-@pytest.mark.unit
 def test_get_user_service_user_flag(make_requesting_user, make_user_dict, make_email_dict):
     """Test that is_service_user flag is set correctly."""
     from services import users as users_service
@@ -257,14 +232,10 @@ def test_get_user_service_user_flag(make_requesting_user, make_user_dict, make_e
         result = users_service.get_user(requesting_user, service_user_id)
 
         assert result.is_service_user is True
-
-
 # =============================================================================
 # Create User Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_create_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can create a regular member user."""
     from services import users as users_service
@@ -309,8 +280,6 @@ def test_create_user_as_admin_success(make_requesting_user, make_user_dict, make
         mock_db.user_emails.email_exists.assert_called_once_with(tenant_id, email)
         mock_db.users.create_user.assert_called_once()
 
-
-@pytest.mark.unit
 def test_create_user_as_admin_creates_admin_forbidden(make_requesting_user):
     """Test that a regular admin cannot create admin users (role escalation)."""
     from services import users as users_service
@@ -329,8 +298,6 @@ def test_create_user_as_admin_creates_admin_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "role_escalation_denied"
 
-
-@pytest.mark.unit
 def test_create_user_as_super_admin_creates_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can create admin users."""
     from services import users as users_service
@@ -368,8 +335,6 @@ def test_create_user_as_super_admin_creates_admin(make_requesting_user, make_use
 
         assert result.role == "admin"
 
-
-@pytest.mark.unit
 def test_create_user_as_super_admin_creates_super_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can create other super_admin users."""
     from services import users as users_service
@@ -407,8 +372,6 @@ def test_create_user_as_super_admin_creates_super_admin(make_requesting_user, ma
 
         assert result.role == "super_admin"
 
-
-@pytest.mark.unit
 def test_create_user_email_already_exists(make_requesting_user):
     """Test that creating a user with an existing email fails."""
     from services import users as users_service
@@ -432,8 +395,6 @@ def test_create_user_email_already_exists(make_requesting_user):
 
         assert exc_info.value.code == "email_exists"
 
-
-@pytest.mark.unit
 def test_create_user_as_member_forbidden(make_requesting_user):
     """Test that a regular member cannot create users."""
     from services import users as users_service
@@ -451,8 +412,6 @@ def test_create_user_as_member_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "admin_required"
 
-
-@pytest.mark.unit
 def test_create_user_emits_event_log(make_requesting_user, make_user_dict, make_email_dict):
     """Test that creating a user emits an event log."""
     from services import users as users_service
@@ -497,14 +456,10 @@ def test_create_user_emits_event_log(make_requesting_user, make_user_dict, make_
         assert call_kwargs["actor_user_id"] == admin_id
         assert call_kwargs["metadata"]["email"] == email
         assert call_kwargs["metadata"]["role"] == "member"
-
-
 # =============================================================================
 # Update User Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_update_user_name_as_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can update a user's name."""
     from services import users as users_service
@@ -540,8 +495,6 @@ def test_update_user_name_as_admin(make_requesting_user, make_user_dict, make_em
         assert result.first_name == "Updated"
         assert result.last_name == "Name"
 
-
-@pytest.mark.unit
 def test_update_user_role_as_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can update a member's role (keeping as member)."""
     from services import users as users_service
@@ -565,8 +518,6 @@ def test_update_user_role_as_admin(make_requesting_user, make_user_dict, make_em
 
         assert result.role == "member"
 
-
-@pytest.mark.unit
 def test_update_user_role_as_admin_to_admin_forbidden(make_requesting_user, make_user_dict):
     """Test that an admin cannot escalate a user to admin role."""
     from services import users as users_service
@@ -586,8 +537,6 @@ def test_update_user_role_as_admin_to_admin_forbidden(make_requesting_user, make
 
         assert exc_info.value.code == "super_admin_role_change_denied"
 
-
-@pytest.mark.unit
 def test_update_user_role_as_super_admin_to_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can promote a user to admin."""
     from services import users as users_service
@@ -612,8 +561,6 @@ def test_update_user_role_as_super_admin_to_admin(make_requesting_user, make_use
 
         assert result.role == "admin"
 
-
-@pytest.mark.unit
 def test_update_user_demote_last_super_admin_fails(make_requesting_user, make_user_dict):
     """Test that demoting the last super_admin is blocked."""
     from services import users as users_service
@@ -637,8 +584,6 @@ def test_update_user_demote_last_super_admin_fails(make_requesting_user, make_us
 
         assert exc_info.value.code == "last_super_admin"
 
-
-@pytest.mark.unit
 def test_update_user_not_found(make_requesting_user):
     """Test updating a non-existent user."""
     from services import users as users_service
@@ -656,8 +601,6 @@ def test_update_user_not_found(make_requesting_user):
 
         assert exc_info.value.code == "user_not_found"
 
-
-@pytest.mark.unit
 def test_update_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot update other users."""
     from services import users as users_service
@@ -670,8 +613,6 @@ def test_update_user_as_member_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "admin_required"
 
-
-@pytest.mark.unit
 def test_update_user_no_changes_no_event(make_requesting_user, make_user_dict, make_email_dict):
     """Test that updating a user with no changes doesn't emit an event."""
     from services import users as users_service
@@ -700,8 +641,6 @@ def test_update_user_no_changes_no_event(make_requesting_user, make_user_dict, m
 
         mock_log.assert_not_called()
 
-
-@pytest.mark.unit
 def test_update_user_tracks_changes_metadata(make_requesting_user, make_user_dict, make_email_dict):
     """Test that update_user includes change tracking in event metadata."""
     from services import users as users_service
@@ -740,14 +679,10 @@ def test_update_user_tracks_changes_metadata(make_requesting_user, make_user_dic
         assert "first_name" in call_kwargs["metadata"]["changes"]
         assert call_kwargs["metadata"]["changes"]["first_name"]["old"] == "Original"
         assert call_kwargs["metadata"]["changes"]["first_name"]["new"] == "Changed"
-
-
 # =============================================================================
 # Delete User Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_delete_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can delete a user."""
     from services import users as users_service
@@ -777,8 +712,6 @@ def test_delete_user_as_admin_success(make_requesting_user, make_user_dict, make
         call_kwargs = mock_log.call_args.kwargs
         assert call_kwargs["event_type"] == "user_deleted"
 
-
-@pytest.mark.unit
 def test_delete_user_as_super_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can delete a user."""
     from services import users as users_service
@@ -807,8 +740,6 @@ def test_delete_user_as_super_admin_success(make_requesting_user, make_user_dict
 
         mock_db.users.delete_user.assert_called_once()
 
-
-@pytest.mark.unit
 def test_delete_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot delete users."""
     from services import users as users_service
@@ -820,8 +751,6 @@ def test_delete_user_as_member_forbidden(make_requesting_user):
 
     assert exc_info.value.code == "admin_required"
 
-
-@pytest.mark.unit
 def test_delete_user_not_found(make_requesting_user):
     """Test deleting a non-existent user."""
     from services import users as users_service
@@ -838,8 +767,6 @@ def test_delete_user_not_found(make_requesting_user):
 
         assert exc_info.value.code == "user_not_found"
 
-
-@pytest.mark.unit
 def test_delete_user_self_deletion_fails(make_requesting_user, make_user_dict):
     """Test that a user cannot delete themselves."""
     from services import users as users_service
@@ -859,8 +786,6 @@ def test_delete_user_self_deletion_fails(make_requesting_user, make_user_dict):
 
         assert exc_info.value.code == "self_deletion"
 
-
-@pytest.mark.unit
 def test_delete_user_service_user_fails(make_requesting_user, make_user_dict):
     """Test that service users cannot be deleted directly."""
     from services import users as users_service
@@ -881,8 +806,6 @@ def test_delete_user_service_user_fails(make_requesting_user, make_user_dict):
 
         assert exc_info.value.code == "service_user_deletion"
 
-
-@pytest.mark.unit
 def test_delete_user_captures_user_info_before_deletion(make_requesting_user, make_user_dict, make_email_dict):
     """Test that user info is captured in event metadata before deletion."""
     from services import users as users_service
@@ -918,14 +841,10 @@ def test_delete_user_captures_user_info_before_deletion(make_requesting_user, ma
         assert "deleted_user_role" in call_kwargs["metadata"]
         assert call_kwargs["metadata"]["deleted_user_name"] == "Capture Info"
         assert call_kwargs["metadata"]["deleted_user_email"] == email
-
-
 # =============================================================================
 # Current User Profile Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_get_current_user_profile_success(make_requesting_user, make_user_dict):
     """Test that any authenticated user can get their own profile."""
     from services import users as users_service
@@ -949,8 +868,6 @@ def test_get_current_user_profile_success(make_requesting_user, make_user_dict):
         assert result.first_name == "Test"
         assert result.last_name == "User"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_name(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a user can update their own name."""
     from services import users as users_service
@@ -988,8 +905,6 @@ def test_update_current_user_profile_name(make_requesting_user, make_user_dict, 
         assert result.first_name == "NewFirst"
         assert result.last_name == "NewLast"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_timezone(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a user can update their timezone."""
     from services import users as users_service
@@ -1014,8 +929,6 @@ def test_update_current_user_profile_timezone(make_requesting_user, make_user_di
 
         assert result.timezone == "America/New_York"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_locale(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a user can update their locale."""
     from services import users as users_service
@@ -1040,8 +953,6 @@ def test_update_current_user_profile_locale(make_requesting_user, make_user_dict
 
         assert result.locale == "en"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_timezone_and_locale(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a user can update both timezone and locale together."""
     from services import users as users_service
@@ -1069,8 +980,6 @@ def test_update_current_user_profile_timezone_and_locale(make_requesting_user, m
         assert result.timezone == "Europe/Stockholm"
         assert result.locale == "sv"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_full_posix_locale(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a user can update locale using full POSIX format (e.g., en_US, sv_SE)."""
     from services import users as users_service
@@ -1098,8 +1007,6 @@ def test_update_current_user_profile_full_posix_locale(make_requesting_user, mak
         assert result.timezone == "America/New_York"
         assert result.locale == "en_US"
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_no_changes_no_event(make_requesting_user, make_user_dict, make_email_dict):
     """Test that no event is logged when profile isn't actually changed."""
     from services import users as users_service
@@ -1126,8 +1033,6 @@ def test_update_current_user_profile_no_changes_no_event(make_requesting_user, m
 
         mock_log.assert_not_called()
 
-
-@pytest.mark.unit
 def test_update_current_user_profile_tracks_changes(make_requesting_user, make_user_dict, make_email_dict):
     """Test that profile update includes change tracking in metadata."""
     from services import users as users_service
@@ -1164,14 +1069,10 @@ def test_update_current_user_profile_tracks_changes(make_requesting_user, make_u
         assert "first_name" in call_kwargs["metadata"]["changes"]
         assert call_kwargs["metadata"]["changes"]["first_name"]["old"] == "Original"
         assert call_kwargs["metadata"]["changes"]["first_name"]["new"] == "TrackedChange"
-
-
 # =============================================================================
 # Auto Create Email Tests
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_create_user_with_auto_create_email_false(make_requesting_user, make_user_dict):
     """Test create_user with auto_create_email=False does not create email record."""
     from services import users as users_service
@@ -1217,8 +1118,6 @@ def test_create_user_with_auto_create_email_false(make_requesting_user, make_use
         # Verify add_verified_email was NOT called
         mock_db.user_emails.add_verified_email.assert_not_called()
 
-
-@pytest.mark.unit
 def test_create_user_with_auto_create_email_true_default(make_requesting_user, make_user_dict, make_email_dict):
     """Test create_user without auto_create_email creates verified email."""
     from services import users as users_service

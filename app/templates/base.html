@@ -49,6 +49,7 @@
                                 Background Jobs
                             </a>
                             <form method="post" action="/logout" class="block">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                     Sign Out
                                 </button>

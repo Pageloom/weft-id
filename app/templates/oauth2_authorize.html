@@ -20,6 +20,7 @@
             </div>
 
             <form method="post" action="/oauth2/authorize">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="client_id" value="{{ client_id }}">
                 <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
                 {% if state %}

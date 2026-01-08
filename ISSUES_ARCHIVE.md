@@ -4,6 +4,71 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Missing CSRF Token Protection on Forms
+
+**Status:** Resolved (2026-01-08)
+
+**Found in:** All web forms
+
+**Original Severity:** High
+
+**OWASP Category:** A01:2021 - Broken Access Control
+
+**Original Description:** Web forms did not include CSRF tokens, allowing attackers to forge cross-site requests that execute state-changing operations on behalf of authenticated users.
+
+**Attack Scenario:** Attacker hosts a malicious page that auto-submits a hidden form to `/users/new` or `/admin/security/update` while victim is logged into Loom.
+
+**Resolution:**
+1. Created `app/middleware/csrf.py` implementing the Synchronizer Token Pattern:
+   - Generates cryptographically secure tokens using `secrets.token_urlsafe(32)`
+   - Stores tokens in user sessions
+   - Validates tokens on POST/PUT/PATCH/DELETE requests
+   - Uses constant-time comparison to prevent timing attacks
+2. Added middleware to `app/main.py` after session middleware
+3. Added `csrf_token()` function to template context via `app/utils/template_context.py`
+4. Added `make_csrf_token_func()` helper for routers not using `get_template_context()`
+5. Updated all 21 templates with POST forms to include hidden CSRF token field
+6. Exempt paths: API routes (use Bearer tokens), SAML ACS (receives from IdP), OAuth2 token endpoint
+
+**Files Created:**
+- `app/middleware/csrf.py` - CSRF middleware implementation
+- `tests/test_middleware_csrf.py` - 12 unit tests
+
+**Files Modified:**
+- `app/main.py` - Added CSRFMiddleware
+- `app/utils/template_context.py` - Added csrf_token to context
+- `app/routers/auth.py` - Added csrf_token to manual contexts
+- `app/routers/mfa.py` - Added csrf_token to manual contexts
+- `app/routers/oauth2.py` - Added csrf_token to manual contexts
+- 21 template files - Added hidden csrf_token input fields
+
+---
+
+## [SECURITY] Reflected XSS in Users List Search Parameter
+
+**Status:** Resolved (2026-01-08)
+
+**Found in:** `app/templates/users_list.html:26, 40, 52, 188`
+
+**Original Severity:** Critical
+
+**OWASP Category:** A03:2021 - Injection
+
+**Original Description:** The `search` query parameter was injected directly into JavaScript code without escaping. Jinja2 autoescape protects HTML context but not JavaScript string context.
+
+**Attack Scenario:** Attacker crafts URL like `/users/list?search=';alert(document.cookie);//` which breaks out of the JavaScript string and executes arbitrary code.
+
+**Resolution:**
+- For URL contexts (lines 26, 40, 52, 164, 235): Added `| urlencode` filter to properly escape special characters in query string values
+- For JavaScript context (line 188): Changed from direct string interpolation to `encodeURIComponent({{ search | tojson }})` pattern which:
+  - Uses `tojson` to safely escape the value as a JSON string (handles quotes, backslashes, etc.)
+  - Uses `encodeURIComponent()` to URL-encode the value for the query string
+
+**Files Modified:**
+- `app/templates/users_list.html` - Fixed 6 instances of unescaped search parameter
+
+---
+
 ## Activity Logging: OAuth2 client deletion not logged
 
 **Status:** Resolved (2026-01-05)

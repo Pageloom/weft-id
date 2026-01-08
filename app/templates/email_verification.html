@@ -36,6 +36,7 @@
             {% endif %}
 
             <form method="post" action="/login/verify-code" id="verifyCodeForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-6">
                     <label for="code" class="block text-sm font-medium text-gray-700 mb-2">
                         Enter the 6-digit code
@@ -62,6 +63,7 @@
             <div class="mt-6 pt-6 border-t border-gray-200">
                 <p class="text-sm text-gray-600 text-center mb-3">Didn't receive the code?</p>
                 <form method="post" action="/login/resend-code">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition duration-150 text-sm">
                         Resend code
                     </button>

@@ -184,48 +184,56 @@ def test_handle_export_events_with_no_events(test_tenant, test_admin_user):
         assert result["file_id"] is not None
 
 
-def test_handle_export_events_pagination(test_tenant, test_admin_user):
+def test_handle_export_events_pagination():
     """Test export pagination with large number of events."""
-    import database
     from jobs.export_events import handle_export_events
 
-    # Create 2500 events to force pagination (batch size is 1000)
-    for i in range(2500):
-        combined_metadata, metadata_hash = _prepare_event_metadata()
-        database.event_log.create_event(
-            tenant_id=test_tenant["id"],
-            tenant_id_value=test_tenant["id"],
-            event_type="bulk_test",
-            artifact_type="test",
-            artifact_id=str(uuid4()),
-            actor_user_id=test_admin_user["id"],
-            combined_metadata=combined_metadata,
-            metadata_hash=metadata_hash,
-        )
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    task_id = str(uuid4())
+    file_id = str(uuid4())
 
-    # Create background task record (needed for foreign key)
-    bg_task = database.bg_tasks.create_task(
-        tenant_id=test_tenant["id"],
-        job_type="export_events",
-        created_by=test_admin_user["id"],
-    )
+    # Create mock events - 2500 to force 3 batches (batch size is 1000)
+    def make_mock_event(i):
+        return {
+            "id": str(uuid4()),
+            "tenant_id": tenant_id,
+            "event_type": "bulk_test",
+            "artifact_type": "test",
+            "artifact_id": str(uuid4()),
+            "actor_user_id": user_id,
+            "created_at": datetime.now(UTC),
+            "metadata": {},
+        }
+
+    batch1 = [make_mock_event(i) for i in range(1000)]
+    batch2 = [make_mock_event(i) for i in range(1000)]
+    batch3 = [make_mock_event(i) for i in range(500)]
 
     task = {
-        "id": bg_task["id"],
-        "tenant_id": test_tenant["id"],
-        "created_by": test_admin_user["id"],
+        "id": task_id,
+        "tenant_id": tenant_id,
+        "created_by": user_id,
         "job_type": "export_events",
     }
 
-    with patch("jobs.export_events.storage.get_backend") as mock_get_backend:
+    with patch("jobs.export_events.database") as mock_db, \
+         patch("jobs.export_events.storage.get_backend") as mock_get_backend:
+        # Mock pagination - return batches then empty
+        mock_db.event_log.list_events.side_effect = [batch1, batch2, batch3, []]
+        mock_db.export_files.create_export_file.return_value = {"id": file_id}
+
         mock_backend = MagicMock()
-        mock_backend.save.return_value = f"exports/{test_tenant['id']}/test-file.json.gz"
+        mock_backend.save.return_value = f"exports/{tenant_id}/test-file.json.gz"
         mock_get_backend.return_value = mock_backend
 
         result = handle_export_events(task)
 
-        # Should have all events
+        # Should have all 2500 events
         assert result["records_processed"] == 2500
+
+        # Verify pagination happened (4 calls: 3 batches + 1 empty)
+        assert mock_db.event_log.list_events.call_count == 4
 
 
 def test_handle_export_events_json_structure(test_tenant, test_admin_user):

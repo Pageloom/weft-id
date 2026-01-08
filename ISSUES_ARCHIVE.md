@@ -4,6 +4,53 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Session ID Not Regenerated After Authentication
+
+**Status:** Resolved (2026-01-08)
+
+**Found in:** `app/routers/mfa.py:123`, `app/routers/saml.py:347`
+
+**Original Severity:** High
+
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Original Description:** After successful authentication (including MFA verification), the session ID was not regenerated. Only the `user_id` was written to the existing session, enabling session fixation attacks.
+
+**Attack Scenario:**
+1. Attacker creates session and obtains session cookie
+2. Attacker tricks victim into using that session (via URL or cookie injection)
+3. Victim authenticates
+4. Attacker now has authenticated access via the known session
+
+**Resolution:**
+1. Created `app/utils/session.py` with `regenerate_session()` function that:
+   - Clears ALL existing session data (invalidates pre-auth data)
+   - Creates fresh session with only authenticated user data (user_id, session_start, _max_age)
+   - With Starlette's signed cookie sessions, this effectively creates a new "session ID" since the entire signed payload changes
+
+2. Updated authentication completion points:
+   - `app/routers/mfa.py` - After MFA verification, calls `regenerate_session()` instead of directly setting session values
+   - `app/routers/saml.py` - After SAML authentication (non-MFA path), calls `regenerate_session()`
+
+3. Added comprehensive tests:
+   - Unit tests in `tests/test_utils_session.py` (13 tests)
+   - Integration test `test_session_regenerated_after_mfa_verification` in `tests/test_mfa_e2e.py`
+   - Integration test `test_saml_acs_session_regenerated_after_auth` in `tests/test_routers_saml.py`
+
+**Key Implementation Detail:** In the MFA flow, `pending_timezone` and `pending_locale` are extracted BEFORE calling `regenerate_session()` since the clear destroys all pre-auth session data.
+
+**Files Created:**
+- `app/utils/session.py` - Session regeneration utility
+- `tests/test_utils_session.py` - 13 unit tests
+
+**Files Modified:**
+- `app/routers/mfa.py` - Added import, use `regenerate_session()` after MFA verification
+- `app/routers/saml.py` - Added import, use `regenerate_session()` after SAML auth
+- `tests/test_mfa_e2e.py` - Added session regeneration integration test
+- `tests/test_routers_saml.py` - Added session regeneration integration test
+
+---
+
 ## [SECURITY] No Rate Limiting on Authentication Endpoints
 
 **Status:** Resolved (2026-01-08)

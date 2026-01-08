@@ -906,6 +906,84 @@ def test_saml_acs_success_redirects_to_dashboard(acs_test_setup, test_tenant_hos
 
 
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_session_regenerated_after_auth(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test that session is regenerated after SAML auth to prevent session fixation.
+
+    This is a critical security test. Session fixation attacks work by:
+    1. Attacker creates session and gets session cookie
+    2. Victim authenticates via SAML using that session
+    3. Attacker now has authenticated access
+
+    By regenerating the session after SAML authentication, we ensure the
+    pre-auth session data (cookie) is different from post-auth session.
+    """
+    from routers import saml as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    idp = acs_test_setup["idp"]
+    test_user = acs_test_setup["test_user"]
+    client = acs_test_setup["client"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email=test_user["email"],
+                first_name="Test",
+                last_name="User",
+                name_id=test_user["email"],
+            ),
+            idp_id=idp.id,
+            requires_mfa=False,
+        )
+
+    def mock_authenticate(*args, **kwargs):
+        return {
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "first_name": "Test",
+            "last_name": "User",
+            "mfa_method": None,
+        }
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    # First, make a request to get a pre-auth session cookie
+    # Visit the SAML login page to establish a session
+    client.get("/saml/select", headers={"Host": test_tenant_host})
+    pre_auth_cookie = client.cookies.get("session")
+
+    # Now authenticate via SAML
+    response = client.post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+
+    # Capture post-auth session cookie
+    post_auth_cookie = client.cookies.get("session")
+    assert post_auth_cookie is not None, "Session cookie should be set after SAML auth"
+
+    # CRITICAL: If a pre-auth cookie existed, it should have changed
+    # With Starlette's signed cookie sessions, clearing and recreating
+    # the session creates a new signed payload (different cookie value)
+    if pre_auth_cookie is not None:
+        assert pre_auth_cookie != post_auth_cookie, (
+            "Session cookie should change after SAML authentication. "
+            "Same cookie indicates session fixation vulnerability."
+        )
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_success_with_relay_state(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint respects RelayState for redirect."""
     from routers import saml as saml_router

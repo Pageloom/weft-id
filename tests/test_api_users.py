@@ -4,25 +4,22 @@ These tests use FastAPI dependency overrides and mocks to isolate the API layer.
 For integration tests that use real services, see tests/integration/.
 """
 
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
-from starlette.testclient import TestClient
-
-from main import app
 from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
 from dependencies import get_tenant_id_from_request
+from main import app
 from schemas.api import (
-    UserListResponse,
-    UserSummary,
-    UserDetail,
+    BackupCodesResponse,
+    BackupCodesStatusResponse,
     EmailInfo,
     MFAStatus,
     TOTPSetupResponse,
-    BackupCodesStatusResponse,
-    BackupCodesResponse,
+    UserDetail,
+    UserListResponse,
+    UserSummary,
 )
 from services.exceptions import (
     ConflictError,
@@ -30,14 +27,12 @@ from services.exceptions import (
     NotFoundError,
     ValidationError,
 )
-
+from starlette.testclient import TestClient
 
 # =============================================================================
 # Roles
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_list_roles_as_admin(make_user_dict):
     """Admin can list available roles."""
     admin = make_user_dict(role="admin")
@@ -56,19 +51,13 @@ def test_list_roles_as_admin(make_user_dict):
 
         assert response.status_code == 200
         assert response.json() == ["member", "admin", "super_admin"]
-
-
 # Note: Authorization tests (e.g., member cannot list roles) are better covered
 # in integration tests where the full auth flow is tested. Unit tests focus on
 # testing the business logic when auth is satisfied.
-
-
 # =============================================================================
 # User List
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_list_users_as_admin(make_user_dict):
     """Test listing users as admin."""
     admin = make_user_dict(role="admin")
@@ -82,7 +71,7 @@ def test_list_users_as_admin(make_user_dict):
                 first_name="Test",
                 last_name="User",
                 role="member",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
                 last_login=None,
                 last_activity_at=None,
                 is_inactivated=False,
@@ -115,8 +104,6 @@ def test_list_users_as_admin(make_user_dict):
         assert data["limit"] == 25
         assert data["total"] == 1
 
-
-@pytest.mark.unit
 def test_list_users_with_pagination(make_user_dict):
     """Test listing users with pagination parameters."""
     admin = make_user_dict(role="admin")
@@ -139,12 +126,8 @@ def test_list_users_with_pagination(make_user_dict):
         data = response.json()
         assert data["page"] == 1
         assert data["limit"] == 5
-
-
 # Note: test_list_users_unauthorized is covered in integration tests
 
-
-@pytest.mark.unit
 def test_get_user_as_admin(make_user_dict):
     """Test getting a user's details as admin."""
     admin = make_user_dict(role="admin")
@@ -161,15 +144,15 @@ def test_get_user_as_admin(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[
             EmailInfo(
                 id=str(uuid4()),
                 email="target@example.com",
                 is_primary=True,
-                verified_at=datetime.now(timezone.utc),
-                created_at=datetime.now(timezone.utc),
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
             )
         ],
         is_service_user=False,
@@ -198,8 +181,6 @@ def test_get_user_as_admin(make_user_dict):
         assert "emails" in data
         assert "is_service_user" in data
 
-
-@pytest.mark.unit
 def test_get_user_not_found(make_user_dict):
     """Test getting a non-existent user."""
     admin = make_user_dict(role="admin")
@@ -219,8 +200,6 @@ def test_get_user_not_found(make_user_dict):
 
         assert response.status_code == 404
 
-
-@pytest.mark.unit
 def test_create_user_as_admin(make_user_dict):
     """Test creating a new user as admin."""
     admin = make_user_dict(role="admin")
@@ -237,15 +216,15 @@ def test_create_user_as_admin(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[
             EmailInfo(
                 id=str(uuid4()),
                 email="newuser@test.example.com",
                 is_primary=True,
-                verified_at=datetime.now(timezone.utc),
-                created_at=datetime.now(timezone.utc),
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
             )
         ],
         is_service_user=False,
@@ -283,8 +262,6 @@ def test_create_user_as_admin(make_user_dict):
         assert data["emails"][0]["email"] == "newuser@test.example.com"
         assert data["emails"][0]["is_primary"] is True
 
-
-@pytest.mark.unit
 def test_create_user_duplicate_email(make_user_dict):
     """Test creating a user with duplicate email."""
     admin = make_user_dict(role="admin")
@@ -312,8 +289,6 @@ def test_create_user_duplicate_email(make_user_dict):
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
-
-@pytest.mark.unit
 def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
     """Test that super_admin can create users with super_admin role."""
     super_admin = make_user_dict(role="super_admin")
@@ -330,15 +305,15 @@ def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[
             EmailInfo(
                 id=str(uuid4()),
                 email="newsuperadmin@test.example.com",
                 is_primary=True,
-                verified_at=datetime.now(timezone.utc),
-                created_at=datetime.now(timezone.utc),
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
             )
         ],
         is_service_user=False,
@@ -371,8 +346,6 @@ def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
         data = response.json()
         assert data["role"] == "super_admin"
 
-
-@pytest.mark.unit
 def test_create_user_admin_cannot_create_super_admin(make_user_dict):
     """Test that regular admin cannot create users with super_admin role."""
     admin = make_user_dict(role="admin")
@@ -403,8 +376,6 @@ def test_create_user_admin_cannot_create_super_admin(make_user_dict):
         assert response.status_code == 403
         assert "Only super_admin" in response.json()["detail"]
 
-
-@pytest.mark.unit
 def test_update_user_name(make_user_dict):
     """Test updating a user's name."""
     admin = make_user_dict(role="admin")
@@ -421,7 +392,7 @@ def test_update_user_name(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[],
         is_service_user=False,
@@ -450,8 +421,6 @@ def test_update_user_name(make_user_dict):
         assert data["first_name"] == "Updated"
         assert data["last_name"] == "Name"
 
-
-@pytest.mark.unit
 def test_update_user_role_as_admin(make_user_dict):
     """Test that promoting to admin requires super_admin (not just admin)."""
     admin = make_user_dict(role="admin")
@@ -478,8 +447,6 @@ def test_update_user_role_as_admin(make_user_dict):
         assert response.status_code == 403
         assert "admin" in response.json()["detail"]
 
-
-@pytest.mark.unit
 def test_update_user_role_to_super_admin_requires_super_admin(make_user_dict):
     """Test that promoting to super_admin requires super_admin."""
     admin = make_user_dict(role="admin")
@@ -506,8 +473,6 @@ def test_update_user_role_to_super_admin_requires_super_admin(make_user_dict):
         assert response.status_code == 403
         assert "super_admin" in response.json()["detail"]
 
-
-@pytest.mark.unit
 def test_delete_user(make_user_dict):
     """Test deleting a user."""
     admin = make_user_dict(role="admin")
@@ -528,8 +493,6 @@ def test_delete_user(make_user_dict):
         assert response.status_code == 204
         mock_svc.delete_user.assert_called_once()
 
-
-@pytest.mark.unit
 def test_delete_user_not_found(make_user_dict):
     """Test deleting a non-existent user."""
     admin = make_user_dict(role="admin")
@@ -549,8 +512,6 @@ def test_delete_user_not_found(make_user_dict):
 
         assert response.status_code == 404
 
-
-@pytest.mark.unit
 def test_delete_service_user_fails(make_user_dict):
     """Test that deleting a service user fails."""
     admin = make_user_dict(role="admin")
@@ -574,8 +535,6 @@ def test_delete_service_user_fails(make_user_dict):
         assert response.status_code == 400
         assert "service user" in response.json()["detail"].lower()
 
-
-@pytest.mark.unit
 def test_delete_self_fails(make_user_dict):
     """Test that deleting yourself fails."""
     admin = make_user_dict(role="admin")
@@ -598,14 +557,10 @@ def test_delete_self_fails(make_user_dict):
 
         assert response.status_code == 400
         assert "own account" in response.json()["detail"]
-
-
 # =============================================================================
 # User Email Management
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_list_current_user_emails(make_user_dict):
     """Test listing current user's emails."""
     user = make_user_dict(role="member")
@@ -617,8 +572,8 @@ def test_list_current_user_emails(make_user_dict):
             id=str(uuid4()),
             email="primary@example.com",
             is_primary=True,
-            verified_at=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            verified_at=datetime.now(UTC),
+            created_at=datetime.now(UTC),
         )
     ]
 
@@ -638,8 +593,6 @@ def test_list_current_user_emails(make_user_dict):
         assert "items" in data
         assert len(data["items"]) >= 1
 
-
-@pytest.mark.unit
 def test_add_email_to_current_user(make_user_dict):
     """Test adding an email to current user's account."""
     user = make_user_dict(role="member")
@@ -650,7 +603,7 @@ def test_add_email_to_current_user(make_user_dict):
         email="newemail@test.example.com",
         is_primary=False,
         verified_at=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[get_current_user_api] = lambda: user
@@ -674,8 +627,6 @@ def test_add_email_to_current_user(make_user_dict):
         assert data["is_primary"] is False
         assert data["verified_at"] is None
 
-
-@pytest.mark.unit
 def test_add_duplicate_email_fails(make_user_dict):
     """Test adding a duplicate email fails."""
     user = make_user_dict(role="member")
@@ -697,8 +648,6 @@ def test_add_duplicate_email_fails(make_user_dict):
 
         assert response.status_code == 409
 
-
-@pytest.mark.unit
 def test_delete_email_from_current_user(make_user_dict):
     """Test deleting a secondary email from current user's account."""
     user = make_user_dict(role="member")
@@ -719,8 +668,6 @@ def test_delete_email_from_current_user(make_user_dict):
 
         assert response.status_code == 204
 
-
-@pytest.mark.unit
 def test_cannot_delete_primary_email(make_user_dict):
     """Test that deleting primary email fails."""
     user = make_user_dict(role="member")
@@ -744,8 +691,6 @@ def test_cannot_delete_primary_email(make_user_dict):
         assert response.status_code == 400
         assert "primary" in response.json()["detail"].lower()
 
-
-@pytest.mark.unit
 def test_set_primary_email(make_user_dict):
     """Test setting a verified email as primary."""
     user = make_user_dict(role="member")
@@ -756,8 +701,8 @@ def test_set_primary_email(make_user_dict):
         id=email_id,
         email="newprimary@test.example.com",
         is_primary=True,
-        verified_at=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[get_current_user_api] = lambda: user
@@ -776,8 +721,6 @@ def test_set_primary_email(make_user_dict):
         data = response.json()
         assert data["is_primary"] is True
 
-
-@pytest.mark.unit
 def test_cannot_set_unverified_email_as_primary(make_user_dict):
     """Test that setting an unverified email as primary fails."""
     user = make_user_dict(role="member")
@@ -801,8 +744,6 @@ def test_cannot_set_unverified_email_as_primary(make_user_dict):
         assert response.status_code == 400
         assert "unverified" in response.json()["detail"].lower()
 
-
-@pytest.mark.unit
 def test_resend_email_verification(make_user_dict):
     """Test resending verification email."""
     user = make_user_dict(role="member")
@@ -829,8 +770,6 @@ def test_resend_email_verification(make_user_dict):
         assert response.status_code == 200
         assert "sent" in response.json()["message"].lower()
 
-
-@pytest.mark.unit
 def test_verify_email(make_user_dict):
     """Test verifying an email address."""
     user = make_user_dict(role="member")
@@ -841,8 +780,8 @@ def test_verify_email(make_user_dict):
         id=email_id,
         email="verifytest@test.example.com",
         is_primary=False,
-        verified_at=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[get_current_user_api] = lambda: user
@@ -863,8 +802,6 @@ def test_verify_email(make_user_dict):
         data = response.json()
         assert data["verified_at"] is not None
 
-
-@pytest.mark.unit
 def test_verify_email_invalid_nonce(make_user_dict):
     """Test verifying with invalid nonce fails."""
     user = make_user_dict(role="member")
@@ -889,14 +826,10 @@ def test_verify_email_invalid_nonce(make_user_dict):
         app.dependency_overrides.clear()
 
         assert response.status_code == 400
-
-
 # =============================================================================
 # Admin Email Management
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_admin_list_user_emails(make_user_dict):
     """Test admin listing a user's emails."""
     admin = make_user_dict(role="admin")
@@ -908,8 +841,8 @@ def test_admin_list_user_emails(make_user_dict):
             id=str(uuid4()),
             email="user@example.com",
             is_primary=True,
-            verified_at=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            verified_at=datetime.now(UTC),
+            created_at=datetime.now(UTC),
         )
     ]
 
@@ -928,8 +861,6 @@ def test_admin_list_user_emails(make_user_dict):
         data = response.json()
         assert "items" in data
 
-
-@pytest.mark.unit
 def test_admin_add_email_to_user(make_user_dict):
     """Test admin adding an email to a user (pre-verified)."""
     admin = make_user_dict(role="admin")
@@ -940,8 +871,8 @@ def test_admin_add_email_to_user(make_user_dict):
         id=str(uuid4()),
         email="adminadded@test.example.com",
         is_primary=False,
-        verified_at=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[require_admin_api] = lambda: admin
@@ -963,8 +894,6 @@ def test_admin_add_email_to_user(make_user_dict):
         assert data["email"] == "adminadded@test.example.com"
         assert data["verified_at"] is not None
 
-
-@pytest.mark.unit
 def test_admin_delete_user_email(make_user_dict):
     """Test admin deleting a user's secondary email."""
     admin = make_user_dict(role="admin")
@@ -985,8 +914,6 @@ def test_admin_delete_user_email(make_user_dict):
 
         assert response.status_code == 204
 
-
-@pytest.mark.unit
 def test_admin_set_user_primary_email(make_user_dict):
     """Test admin setting a user's primary email."""
     admin = make_user_dict(role="admin")
@@ -998,8 +925,8 @@ def test_admin_set_user_primary_email(make_user_dict):
         id=email_id,
         email="adminprimary@test.example.com",
         is_primary=True,
-        verified_at=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[require_admin_api] = lambda: admin
@@ -1016,14 +943,10 @@ def test_admin_set_user_primary_email(make_user_dict):
         assert response.status_code == 200
         data = response.json()
         assert data["is_primary"] is True
-
-
 # =============================================================================
 # User MFA Management
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_get_mfa_status(make_user_dict):
     """Test getting current user's MFA status."""
     user = make_user_dict(role="member")
@@ -1052,8 +975,6 @@ def test_get_mfa_status(make_user_dict):
         assert "method" in data
         assert "has_backup_codes" in data
 
-
-@pytest.mark.unit
 def test_setup_totp(make_user_dict):
     """Test initiating TOTP setup."""
     user = make_user_dict(role="member")
@@ -1081,8 +1002,6 @@ def test_setup_totp(make_user_dict):
         assert "uri" in data
         assert "otpauth://" in data["uri"]
 
-
-@pytest.mark.unit
 def test_verify_totp_invalid_code(make_user_dict):
     """Test verifying TOTP with invalid code fails."""
     user = make_user_dict(role="member")
@@ -1107,8 +1026,6 @@ def test_verify_totp_invalid_code(make_user_dict):
 
         assert response.status_code == 400
 
-
-@pytest.mark.unit
 def test_enable_email_mfa(make_user_dict):
     """Test enabling email MFA."""
     user = make_user_dict(role="member")
@@ -1131,8 +1048,6 @@ def test_enable_email_mfa(make_user_dict):
 
         assert response.status_code == 200
 
-
-@pytest.mark.unit
 def test_disable_mfa(make_user_dict):
     """Test disabling MFA."""
     user = make_user_dict(role="member", mfa_enabled=True, mfa_method="email")
@@ -1155,8 +1070,6 @@ def test_disable_mfa(make_user_dict):
         data = response.json()
         assert data["enabled"] is False
 
-
-@pytest.mark.unit
 def test_get_backup_codes_status(make_user_dict):
     """Test getting backup codes status."""
     user = make_user_dict(role="member", mfa_enabled=True)
@@ -1181,8 +1094,6 @@ def test_get_backup_codes_status(make_user_dict):
         assert data["used"] == 0
         assert data["remaining"] == 5
 
-
-@pytest.mark.unit
 def test_regenerate_backup_codes(make_user_dict):
     """Test regenerating backup codes."""
     user = make_user_dict(role="member", mfa_enabled=True, mfa_method="email")
@@ -1210,8 +1121,6 @@ def test_regenerate_backup_codes(make_user_dict):
         assert "codes" in data
         assert len(data["codes"]) == 10
 
-
-@pytest.mark.unit
 def test_regenerate_backup_codes_requires_mfa(make_user_dict):
     """Test that regenerating backup codes requires MFA enabled."""
     user = make_user_dict(role="member", mfa_enabled=False)
@@ -1232,14 +1141,10 @@ def test_regenerate_backup_codes_requires_mfa(make_user_dict):
         app.dependency_overrides.clear()
 
         assert response.status_code == 400
-
-
 # =============================================================================
 # Admin MFA Management
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_admin_reset_user_mfa(make_user_dict):
     """Test admin resetting a user's MFA."""
     admin = make_user_dict(role="admin")
@@ -1262,14 +1167,10 @@ def test_admin_reset_user_mfa(make_user_dict):
         assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is False
-
-
 # =============================================================================
 # User State Management (Inactivate/Reactivate/Anonymize)
 # =============================================================================
 
-
-@pytest.mark.unit
 def test_inactivate_user_as_admin(make_user_dict):
     """Test admin inactivating a user."""
     admin = make_user_dict(role="admin")
@@ -1286,13 +1187,13 @@ def test_inactivate_user_as_admin(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[],
         is_service_user=False,
         is_inactivated=True,
         is_anonymized=False,
-        inactivated_at=datetime.now(timezone.utc),
+        inactivated_at=datetime.now(UTC),
         anonymized_at=None,
     )
 
@@ -1311,12 +1212,8 @@ def test_inactivate_user_as_admin(make_user_dict):
         data = response.json()
         assert data["is_inactivated"] is True
         assert data["inactivated_at"] is not None
-
-
 # Note: test_inactivate_user_as_member_forbidden covered in integration tests
 
-
-@pytest.mark.unit
 def test_inactivate_user_not_found(make_user_dict):
     """Test inactivating non-existent user returns 404."""
     admin = make_user_dict(role="admin")
@@ -1336,8 +1233,6 @@ def test_inactivate_user_not_found(make_user_dict):
 
         assert response.status_code == 404
 
-
-@pytest.mark.unit
 def test_reactivate_user_as_admin(make_user_dict):
     """Test admin reactivating a user."""
     admin = make_user_dict(role="admin")
@@ -1354,7 +1249,7 @@ def test_reactivate_user_as_admin(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[],
         is_service_user=False,
@@ -1379,8 +1274,6 @@ def test_reactivate_user_as_admin(make_user_dict):
         data = response.json()
         assert data["is_inactivated"] is False
 
-
-@pytest.mark.unit
 def test_reactivate_user_not_inactivated(make_user_dict):
     """Test reactivating a user that isn't inactivated returns 400."""
     admin = make_user_dict(role="admin")
@@ -1403,12 +1296,8 @@ def test_reactivate_user_not_inactivated(make_user_dict):
 
         assert response.status_code == 400
         assert "not inactivated" in response.json()["detail"]
-
-
 # Note: test_reactivate_user_as_member_forbidden covered in integration tests
 
-
-@pytest.mark.unit
 def test_anonymize_user_as_super_admin(make_user_dict):
     """Test super_admin anonymizing a user."""
     super_admin = make_user_dict(role="super_admin")
@@ -1425,14 +1314,14 @@ def test_anonymize_user_as_super_admin(make_user_dict):
         locale=None,
         mfa_enabled=False,
         mfa_method=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         last_login=None,
         emails=[],
         is_service_user=False,
         is_inactivated=True,
         is_anonymized=True,
-        inactivated_at=datetime.now(timezone.utc),
-        anonymized_at=datetime.now(timezone.utc),
+        inactivated_at=datetime.now(UTC),
+        anonymized_at=datetime.now(UTC),
     )
 
     app.dependency_overrides[require_super_admin_api] = lambda: super_admin
@@ -1451,7 +1340,5 @@ def test_anonymize_user_as_super_admin(make_user_dict):
         assert data["is_anonymized"] is True
         assert data["anonymized_at"] is not None
         assert data["first_name"] == "[Anonymized]"
-
-
 # Note: test_anonymize_user_as_admin_forbidden and test_anonymize_user_as_member_forbidden
 # are covered in integration tests

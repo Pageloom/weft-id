@@ -6,59 +6,175 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Test Suite Performance: Aggressive Mocking Refactoring
+## 🚀 PRIORITY: Complete Unit Test Refactoring (Apply Pilot Patterns)
 
 **User Story:**
 As a developer
-I want unit tests that mock their dependencies
-So that the test suite runs faster and failures are isolated to specific layers
+I want all tests to run in under 5 seconds
+So that I can iterate quickly with immediate feedback on every change
 
-**Problem:**
-- Service tests hit real database (should mock database layer)
-- API tests hit real services (should mock service layer)
-- Same database functions tested 3x redundantly
-- 1,273 tests running as integration tests when they should be unit tests
+**Why This Is Top Priority:**
+Fast tests are the single most important vehicle for fast iteration. The pilot proved we can achieve **3x speedup** (2.4s vs 7.4s) by mocking dependencies. This must be applied to all remaining test files.
 
-**Acceptance Criteria:**
+**Pilot Results (Completed):**
 
-**Infrastructure:**
+| File | Tests | Unit Time | Integration Time |
+|------|-------|-----------|------------------|
+| `test_services_users.py` | 44 | **1.71s** | 2.55s |
+| `test_api_users.py` | 44 | **0.71s** | 4.84s |
+| **Total Pilot** | 88 | **2.42s** | 7.40s |
 
-- [ ] Add pytest markers (`unit`, `integration`) to `pytest.ini`
-- [ ] Add mock fixtures to `tests/conftest.py`
-- [ ] Create `tests/integration/` directory for explicit integration tests
+**Infrastructure (Completed in Pilot):**
 
-**Service Test Refactoring (mock database layer):**
+- [x] `pytest.ini` - Added `unit` and `integration` markers
+- [x] `tests/conftest.py` - Added factory fixtures (`make_requesting_user`, `make_user_dict`, `make_email_dict`)
+- [x] `tests/integration/` directory created with auto-marking `conftest.py`
 
-- [ ] `test_services_users.py` - pilot
-- [ ] `test_services_activity.py`
-- [ ] `test_services_event_log.py`
-- [ ] `test_services_settings.py`
-- [ ] `test_services_emails.py`
-- [ ] `test_services_mfa.py`
-- [ ] `test_services_oauth2.py`
-- [ ] `test_services_saml.py`
+---
 
-**API Test Refactoring (mock service layer):**
+### Proven Patterns from Pilot
 
-- [ ] `test_api_users.py` - pilot
-- [ ] `test_api_settings.py`
-- [ ] `test_api_events.py`
-- [ ] `test_api_exports.py`
-- [ ] `test_api_jobs.py`
-- [ ] `test_api_oauth2*.py`
-- [ ] `test_api_saml.py`
-- [ ] `test_api_reactivation.py`
+**Pattern 1: Service Unit Tests (Mock Database Layer)**
 
-**Validation:**
+```python
+@pytest.mark.unit
+def test_list_users_as_admin_success(make_requesting_user, make_user_dict):
+    from services import users as users_service
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    requesting_user = make_requesting_user(user_id=admin["id"], tenant_id=tenant_id, role="admin")
 
-- [ ] All tests pass with `pytest -m unit`
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.list_users.return_value = [admin]
+        mock_db.users.count_users.return_value = 1
+
+        result = users_service.list_users(requesting_user)
+
+        assert result.total == 1
+        mock_db.users.list_users.assert_called_once()
+```
+
+**Pattern 2: API Unit Tests (Mock Service Layer + Dependency Overrides)**
+
+```python
+@pytest.mark.unit
+def test_list_users_as_admin(make_user_dict):
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    mock_response = UserListResponse(items=[...], total=1, page=1, limit=25)
+
+    # Override FastAPI dependencies (auth)
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    # Mock at router level where services are imported
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get("/api/v1/users")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+```
+
+**Key Learnings:**
+
+1. **Service tests**: Patch `services.<module>.database` - the database module used by that service
+2. **API tests**: Patch `routers.api.v1.<module>.<service>_service` - where the service is imported
+3. **Auth dependencies**: Use `app.dependency_overrides[dependency_fn] = lambda: mock_user`
+4. **Authorization tests (403 Forbidden)**: Keep in integration tests - FastAPI dependency overrides that raise exceptions don't route through exception handlers properly
+5. **Always clear overrides**: Call `app.dependency_overrides.clear()` after each test
+6. **Return correct types**: Service mocks must return the exact types the router expects (schemas, tuples, dicts)
+
+---
+
+### Remaining Work
+
+**Service Test Refactoring (mock `services.<module>.database`):**
+
+| File | Tests | Status | Notes |
+|------|-------|--------|-------|
+| `test_services_users.py` | 44 | ✅ Done | Pilot |
+| `test_services_emails.py` | ~30 | Pending | |
+| `test_services_mfa.py` | ~25 | Pending | |
+| `test_services_activity.py` | ~10 | Pending | Simple, few DB calls |
+| `test_services_event_log.py` | ~15 | Pending | |
+| `test_services_settings.py` | ~20 | Pending | |
+| `test_services_oauth2.py` | ~35 | Pending | |
+| `test_services_saml.py` | ~85 | Pending | Largest file |
+| `test_services_bg_tasks.py` | ~15 | Pending | |
+
+**API Test Refactoring (mock `routers.api.v1.<module>.<service>_service`):**
+
+| File | Tests | Status | Notes |
+|------|-------|--------|-------|
+| `test_api_users.py` | 44 | ✅ Done | Pilot |
+| `test_api_settings.py` | ~15 | Pending | |
+| `test_api_events.py` | ~10 | Pending | |
+| `test_api_exports.py` | ~10 | Pending | |
+| `test_api_jobs.py` | ~15 | Pending | |
+| `test_api_oauth2.py` | ~25 | Pending | |
+| `test_api_saml.py` | ~40 | Pending | |
+| `test_api_reactivation.py` | ~10 | Pending | |
+
+**Router Test Refactoring (similar to API tests):**
+
+| File | Tests | Status | Notes |
+|------|-------|--------|-------|
+| `test_routers_*.py` | ~200 | Pending | Template routers, follow API pattern |
+
+---
+
+### Process for Each File
+
+1. **Copy original to `tests/integration/`** as `<name>_integration.py`
+2. **Refactor original** to use mocks with `@pytest.mark.unit`
+3. **Run validation**: `pytest tests/<file>.py -m unit -v`
+4. **Verify integration tests still pass**: `pytest tests/integration/<file>_integration.py -v`
+
+---
+
+### New Fixtures Needed
+
+As you encounter new patterns, add fixtures to `tests/conftest.py`:
+
+```python
+# Example: If refactoring email tests
+@pytest.fixture
+def make_oauth2_client_dict():
+    """Factory to create OAuth2 client database record dicts."""
+    def _make(client_id: str | None = None, tenant_id: str | None = None, ...):
+        return { ... }
+    return _make
+```
+
+---
+
+### Acceptance Criteria
+
+- [ ] All `test_services_*.py` files refactored to unit tests
+- [ ] All `test_api_*.py` files refactored to unit tests
+- [ ] All `test_routers_*.py` files refactored to unit tests
+- [ ] Integration versions preserved in `tests/integration/`
+- [ ] `pytest -m unit` runs in **< 10 seconds** for all unit tests
+- [ ] `pytest -m integration` still passes (regression safety)
 - [ ] Coverage unchanged or improved
-- [ ] Document execution time improvement
 
-**Starting Point:** Pilot with `test_services_users.py` + `test_api_users.py` pair
+---
 
-**Effort:** XL
-**Value:** High (Developer Productivity)
+### Commands
+
+```bash
+pytest -m unit              # Fast unit tests (target: <10s)
+pytest -m integration       # Full integration tests (CI, optional locally)
+pytest                      # All tests (unchanged default behavior)
+```
+
+**Effort:** XL (multiple sessions, can be done incrementally)
+**Value:** Critical (Developer Productivity - enables fast iteration)
 
 ---
 

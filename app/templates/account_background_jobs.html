@@ -39,6 +39,7 @@
 
         {% if jobs %}
         <form method="post" action="/account/background-jobs/delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">

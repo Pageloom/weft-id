@@ -2,6 +2,7 @@
 
 from dependencies import get_current_user
 from fastapi import Request
+from middleware.csrf import get_csrf_token
 from pages import get_navigation_context
 from utils.datetime_format import create_datetime_formatter
 
@@ -23,12 +24,18 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
     user_locale = user.get("locale", "en_US") if user else "en_US"
     fmt_datetime = create_datetime_formatter(user_timezone, user_locale)
 
+    # Create CSRF token getter that captures the request
+    def csrf_token() -> str:
+        """Get the CSRF token for this request."""
+        return get_csrf_token(request)
+
     context = {
         "request": request,
         "user": user,
         "nav_items": nav_context.get("top_level_items", []),  # Keep for backward compatibility
         "nav": nav_context,  # Full navigation context
         "fmt_datetime": fmt_datetime,  # Datetime formatter function
+        "csrf_token": csrf_token,  # CSRF token getter function
         **kwargs,
     }
 

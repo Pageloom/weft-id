@@ -6,48 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] Reflected XSS in Users List Search Parameter
-
-**Found in:** `app/templates/users_list.html:26, 40, 52, 188`
-**Severity:** Critical
-**OWASP Category:** A03:2021 - Injection
-
-**Description:** The `search` query parameter is injected directly into JavaScript code without escaping. Jinja2 autoescape protects HTML context but not JavaScript string context.
-
-**Attack Scenario:** Attacker crafts URL like `/users/list?search=';alert(document.cookie);//` which breaks out of the JavaScript string and executes arbitrary code.
-
-**Evidence:**
-```html
-onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}'"
-```
-```javascript
-{% if search %}url += '&search={{ search }}';{% endif %}
-```
-
-**Impact:** Cookie theft, session hijacking, credential harvesting, account takeover.
-
-**Remediation:** Use `{{ search | tojson }}` or JavaScript-escape the value before injection into JS context. Or pass via data attributes and read with JS.
-
----
-
-## [SECURITY] Missing CSRF Token Protection on Forms
-
-**Found in:** All HTML templates with `<form method="post">`, all POST routers
-**Severity:** High
-**OWASP Category:** A01:2021 - Broken Access Control
-
-**Description:** State-changing form submissions (POST methods) are not protected by CSRF tokens. No CSRF validation middleware or token generation found.
-
-**Attack Scenario:** Attacker creates malicious page that submits form to `/admin/privileged-domains/add` or `/account/profile` while victim is authenticated, performing unauthorized actions.
-
-**Evidence:** Search for `csrf` returned no results. Forms lack hidden CSRF token fields.
-
-**Impact:** Unauthorized profile changes, domain manipulation, user management actions by tricking authenticated users.
-
-**Remediation:** Implement CSRF protection using `starlette-csrf` or custom middleware. Add CSRF tokens to all forms and validate on POST.
-
----
-
 ## [SECURITY] No Rate Limiting on Authentication Endpoints
 
 **Found in:** `app/routers/auth.py:136-202`, `app/routers/mfa.py:47-90`
@@ -324,13 +282,13 @@ if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Critical | 1 | XSS |
-| High | 8 | CSRF, Rate Limiting, Session, OAuth2, Secrets, Logging |
+| Critical | 0 | - |
+| High | 7 | Rate Limiting, Session, OAuth2, Secrets, Logging |
 | Medium | 6 | Headers, Exceptions, SAML XSS, SQL patterns, MFA bypass, Auth logging |
 
 **Priority Remediation Order:**
-1. XSS in users_list.html (Critical - immediate exploit)
-2. CSRF protection (High - easy to exploit)
+1. ~~XSS in users_list.html (Critical - immediate exploit)~~ **RESOLVED**
+2. ~~CSRF protection (High - easy to exploit)~~ **RESOLVED**
 3. Rate limiting (High - enables brute force)
 4. Session fixation (High - account takeover)
 5. OAuth2 state validation (High - OAuth CSRF)

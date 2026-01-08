@@ -17,6 +17,7 @@
                         to generate time-based codes</p>
                 </div>
                 <form method="post" action="/account/mfa/setup/email">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
                             class="w-full text-left border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
                         <h3 class="font-medium text-gray-900">Email</h3>
@@ -59,6 +60,7 @@
                 {% endfor %}
             </div>
             <form method="post" action="/account/mfa/regenerate-backup-codes" class="mt-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-md transition duration-150">
                     Regenerate Backup Codes
@@ -67,6 +69,7 @@
             {% else %}
             <p class="text-sm text-gray-600 mb-4">You don't have any backup codes yet.</p>
             <form method="post" action="/account/mfa/generate-backup-codes">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
                     Generate Backup Codes

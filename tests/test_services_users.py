@@ -1,32 +1,15 @@
-"""Comprehensive tests for user service layer functions.
+"""Unit tests for user service layer functions.
 
-This test file covers all user CRUD operations, authorization, and edge cases
-for the services/users.py module.
+These tests use mocks to isolate the service layer from the database.
+For integration tests that use a real database, see tests/integration/.
 """
 
 import pytest
+from unittest.mock import patch, MagicMock
+from uuid import uuid4
+
 from schemas.api import UserCreate, UserProfileUpdate, UserUpdate
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from services.types import RequestingUser
-
-
-def _make_requesting_user(user: dict, tenant_id: str, role: str = None) -> RequestingUser:
-    """Helper to create RequestingUser from test fixture."""
-    return RequestingUser(
-        id=str(user["id"]),
-        tenant_id=tenant_id,
-        role=role or user.get("role", "member"),
-    )
-
-
-def _verify_event_logged(tenant_id: str, event_type: str, artifact_id: str):
-    """Verify that an event was logged."""
-    import database
-
-    events = database.event_log.list_events(tenant_id, limit=1)
-    assert len(events) > 0, f"No events logged for {event_type}"
-    assert events[0]["event_type"] == event_type
-    assert str(events[0]["artifact_id"]) == str(artifact_id)
 
 
 # =============================================================================
@@ -34,34 +17,58 @@ def _verify_event_logged(tenant_id: str, event_type: str, artifact_id: str):
 # =============================================================================
 
 
-def test_list_users_as_admin_success(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_list_users_as_admin_success(make_requesting_user, make_user_dict):
     """Test that an admin can list users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    result = users_service.list_users(requesting_user)
+    tenant_id = str(uuid4())
+    admin = make_user_dict(tenant_id=tenant_id, role="admin")
+    member = make_user_dict(tenant_id=tenant_id, role="member")
 
-    assert result.total >= 2  # At least admin and test_user
-    assert len(result.items) >= 2
-    assert result.page == 1
+    requesting_user = make_requesting_user(
+        user_id=admin["id"], tenant_id=tenant_id, role="admin"
+    )
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.list_users.return_value = [admin, member]
+        mock_db.users.count_users.return_value = 2
+
+        result = users_service.list_users(requesting_user)
+
+        assert result.total == 2
+        assert len(result.items) == 2
+        assert result.page == 1
+        mock_db.users.list_users.assert_called_once()
+        mock_db.users.count_users.assert_called_once()
 
 
-def test_list_users_as_super_admin_success(test_tenant, test_super_admin_user, test_user):
+@pytest.mark.unit
+def test_list_users_as_super_admin_success(make_requesting_user, make_user_dict):
     """Test that a super_admin can list users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    result = users_service.list_users(requesting_user)
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
-    assert result.total >= 2
-    assert len(result.items) >= 2
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.list_users.return_value = [make_user_dict(), make_user_dict()]
+        mock_db.users.count_users.return_value = 2
+
+        result = users_service.list_users(requesting_user)
+
+        assert result.total == 2
+        assert len(result.items) == 2
 
 
-def test_list_users_as_member_forbidden(test_tenant, test_user):
+@pytest.mark.unit
+def test_list_users_as_member_forbidden(make_requesting_user):
     """Test that a regular member cannot list users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    requesting_user = make_requesting_user(role="member")
 
     with pytest.raises(ForbiddenError) as exc_info:
         users_service.list_users(requesting_user)
@@ -69,27 +76,44 @@ def test_list_users_as_member_forbidden(test_tenant, test_user):
     assert exc_info.value.code == "admin_required"
 
 
-def test_list_users_with_pagination(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_list_users_with_pagination(make_requesting_user, make_user_dict):
     """Test user list pagination."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    result = users_service.list_users(requesting_user, page=1, limit=1)
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    assert result.page == 1
-    assert result.limit == 1
-    assert len(result.items) <= 1
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.list_users.return_value = [make_user_dict()]
+        mock_db.users.count_users.return_value = 10
+
+        result = users_service.list_users(requesting_user, page=1, limit=1)
+
+        assert result.page == 1
+        assert result.limit == 1
+        assert len(result.items) == 1
+        assert result.total == 10
 
 
-def test_list_users_empty_result(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_list_users_empty_result(make_requesting_user):
     """Test listing users with search that matches nothing."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    result = users_service.list_users(requesting_user, search="nonexistent12345xyz")
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    assert result.total == 0
-    assert len(result.items) == 0
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.list_users.return_value = []
+        mock_db.users.count_users.return_value = 0
+
+        result = users_service.list_users(requesting_user, search="nonexistent12345xyz")
+
+        assert result.total == 0
+        assert len(result.items) == 0
 
 
 # =============================================================================
@@ -97,78 +121,142 @@ def test_list_users_empty_result(test_tenant, test_admin_user):
 # =============================================================================
 
 
-def test_get_user_as_admin_success(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_get_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can get user details."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    result = users_service.get_user(requesting_user, str(test_user["id"]))
+    tenant_id = str(uuid4())
+    target_user_id = str(uuid4())
+    target_user = make_user_dict(
+        user_id=target_user_id,
+        tenant_id=tenant_id,
+        first_name="Test",
+        last_name="User",
+    )
+    target_email = make_email_dict(user_id=target_user_id, email="test@example.com")
 
-    assert result.id == str(test_user["id"])
-    assert result.first_name == test_user["first_name"]
-    assert result.last_name == test_user["last_name"]
-    assert len(result.emails) >= 1
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.get_user_by_id.return_value = target_user
+        mock_db.user_emails.get_primary_email.return_value = target_email
+        mock_db.user_emails.list_user_emails.return_value = [target_email]
+        mock_db.users.is_service_user.return_value = False
+
+        result = users_service.get_user(requesting_user, target_user_id)
+
+        assert result.id == target_user_id
+        assert result.first_name == "Test"
+        assert result.last_name == "User"
+        assert len(result.emails) == 1
 
 
-def test_get_user_as_super_admin_success(test_tenant, test_super_admin_user, test_user):
+@pytest.mark.unit
+def test_get_user_as_super_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can get user details."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    result = users_service.get_user(requesting_user, str(test_user["id"]))
+    tenant_id = str(uuid4())
+    target_user_id = str(uuid4())
+    target_user = make_user_dict(user_id=target_user_id, tenant_id=tenant_id)
+    target_email = make_email_dict(user_id=target_user_id)
 
-    assert result.id == str(test_user["id"])
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.get_user_by_id.return_value = target_user
+        mock_db.user_emails.get_primary_email.return_value = target_email
+        mock_db.user_emails.list_user_emails.return_value = [target_email]
+        mock_db.users.is_service_user.return_value = False
+
+        result = users_service.get_user(requesting_user, target_user_id)
+
+        assert result.id == target_user_id
 
 
-def test_get_user_as_member_forbidden(test_tenant, test_user, test_admin_user):
+@pytest.mark.unit
+def test_get_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot get other users' details."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    requesting_user = make_requesting_user(role="member")
 
     with pytest.raises(ForbiddenError) as exc_info:
-        users_service.get_user(requesting_user, str(test_admin_user["id"]))
+        users_service.get_user(requesting_user, str(uuid4()))
 
     assert exc_info.value.code == "admin_required"
 
 
-def test_get_user_not_found(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_get_user_not_found(make_requesting_user):
     """Test getting a non-existent user."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     fake_user_id = str(uuid4())
 
-    with pytest.raises(NotFoundError) as exc_info:
-        users_service.get_user(requesting_user, fake_user_id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.get_user_by_id.return_value = None
 
-    assert exc_info.value.code == "user_not_found"
+        with pytest.raises(NotFoundError) as exc_info:
+            users_service.get_user(requesting_user, fake_user_id)
+
+        assert exc_info.value.code == "user_not_found"
 
 
-def test_get_user_includes_emails(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_get_user_includes_emails(make_requesting_user, make_user_dict, make_email_dict):
     """Test that get_user includes the user's email list."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    result = users_service.get_user(requesting_user, str(test_user["id"]))
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user = make_user_dict(user_id=user_id, tenant_id=tenant_id)
+    primary_email = make_email_dict(user_id=user_id, is_primary=True)
+    secondary_email = make_email_dict(user_id=user_id, is_primary=False, email="secondary@example.com")
 
-    assert len(result.emails) >= 1
-    assert any(e.is_primary for e in result.emails)
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.get_user_by_id.return_value = user
+        mock_db.user_emails.get_primary_email.return_value = primary_email
+        mock_db.user_emails.list_user_emails.return_value = [primary_email, secondary_email]
+        mock_db.users.is_service_user.return_value = False
+
+        result = users_service.get_user(requesting_user, user_id)
+
+        assert len(result.emails) == 2
+        assert any(e.is_primary for e in result.emails)
 
 
-def test_get_user_service_user_flag(test_tenant, test_admin_user, b2b_oauth2_client):
+@pytest.mark.unit
+def test_get_user_service_user_flag(make_requesting_user, make_user_dict, make_email_dict):
     """Test that is_service_user flag is set correctly."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    service_user_id = str(uuid4())
+    service_user = make_user_dict(user_id=service_user_id, tenant_id=tenant_id)
+    email = make_email_dict(user_id=service_user_id)
 
-    # b2b_oauth2_client fixture should create a service user
-    service_user_id = b2b_oauth2_client["service_user_id"]
-    result = users_service.get_user(requesting_user, str(service_user_id))
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    assert result.is_service_user is True
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.track_activity"):
+        mock_db.users.get_user_by_id.return_value = service_user
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = True
+
+        result = users_service.get_user(requesting_user, service_user_id)
+
+        assert result.is_service_user is True
 
 
 # =============================================================================
@@ -176,41 +264,59 @@ def test_get_user_service_user_flag(test_tenant, test_admin_user, b2b_oauth2_cli
 # =============================================================================
 
 
-def test_create_user_as_admin_success(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_create_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can create a regular member user."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = f"newuser-{uuid4().hex[:8]}@example.com"
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     user_data = UserCreate(
         first_name="New",
         last_name="User",
-        email=f"newuser-{uuid4().hex[:8]}@example.com",
+        email=email,
         role="member",
     )
 
-    result = users_service.create_user(requesting_user, user_data)
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
+        first_name="New",
+        last_name="User",
+        role="member",
+        email=email,
+    )
+    created_email = make_email_dict(user_id=new_user_id, email=email, is_primary=True)
 
-    assert result.first_name == "New"
-    assert result.last_name == "User"
-    assert result.email == user_data.email
-    assert result.role == "member"
-    assert len(result.emails) == 1
-    assert result.emails[0].is_primary is True
-    assert result.emails[0].verified_at is not None
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = [created_email]
 
-    # Verify event logged
-    _verify_event_logged(test_tenant["id"], "user_created", result.id)
+        result = users_service.create_user(requesting_user, user_data)
+
+        assert result.first_name == "New"
+        assert result.last_name == "User"
+        assert result.role == "member"
+        assert len(result.emails) == 1
+        assert result.emails[0].is_primary is True
+
+        mock_db.user_emails.email_exists.assert_called_once_with(tenant_id, email)
+        mock_db.users.create_user.assert_called_once()
 
 
-def test_create_user_as_admin_creates_admin_forbidden(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_create_user_as_admin_creates_admin_forbidden(make_requesting_user):
     """Test that a regular admin cannot create admin users (role escalation)."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     user_data = UserCreate(
         first_name="Admin",
         last_name="User",
@@ -224,76 +330,115 @@ def test_create_user_as_admin_creates_admin_forbidden(test_tenant, test_admin_us
     assert exc_info.value.code == "role_escalation_denied"
 
 
-def test_create_user_as_super_admin_creates_admin(test_tenant, test_super_admin_user):
+@pytest.mark.unit
+def test_create_user_as_super_admin_creates_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can create admin users."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = f"newadmin-{uuid4().hex[:8]}@example.com"
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
     user_data = UserCreate(
         first_name="New",
         last_name="Admin",
-        email=f"newadmin-{uuid4().hex[:8]}@example.com",
+        email=email,
         role="admin",
     )
 
-    result = users_service.create_user(requesting_user, user_data)
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
+        first_name="New",
+        last_name="Admin",
+        role="admin",
+        email=email,
+    )
+    created_email = make_email_dict(user_id=new_user_id, email=email)
 
-    assert result.role == "admin"
-    _verify_event_logged(test_tenant["id"], "user_created", result.id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = [created_email]
+
+        result = users_service.create_user(requesting_user, user_data)
+
+        assert result.role == "admin"
 
 
-def test_create_user_as_super_admin_creates_super_admin(test_tenant, test_super_admin_user):
+@pytest.mark.unit
+def test_create_user_as_super_admin_creates_super_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can create other super_admin users."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = f"newsuperadmin-{uuid4().hex[:8]}@example.com"
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
     user_data = UserCreate(
         first_name="New",
         last_name="SuperAdmin",
-        email=f"newsuperadmin-{uuid4().hex[:8]}@example.com",
+        email=email,
         role="super_admin",
     )
 
-    result = users_service.create_user(requesting_user, user_data)
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
+        first_name="New",
+        last_name="SuperAdmin",
+        role="super_admin",
+        email=email,
+    )
+    created_email = make_email_dict(user_id=new_user_id, email=email)
 
-    assert result.role == "super_admin"
-    _verify_event_logged(test_tenant["id"], "user_created", result.id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = [created_email]
+
+        result = users_service.create_user(requesting_user, user_data)
+
+        assert result.role == "super_admin"
 
 
-def test_create_user_email_already_exists(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_create_user_email_already_exists(make_requesting_user):
     """Test that creating a user with an existing email fails."""
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    existing_email = "existing@example.com"
 
-    # Get test_user's email
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     user_data = UserCreate(
         first_name="Duplicate",
         last_name="Email",
-        email=primary_email["email"],  # Use existing email
+        email=existing_email,
         role="member",
     )
 
-    with pytest.raises(ConflictError) as exc_info:
-        users_service.create_user(requesting_user, user_data)
+    with patch("services.users.database") as mock_db:
+        mock_db.user_emails.email_exists.return_value = True
 
-    assert exc_info.value.code == "email_exists"
+        with pytest.raises(ConflictError) as exc_info:
+            users_service.create_user(requesting_user, user_data)
+
+        assert exc_info.value.code == "email_exists"
 
 
-def test_create_user_as_member_forbidden(test_tenant, test_user):
+@pytest.mark.unit
+def test_create_user_as_member_forbidden(make_requesting_user):
     """Test that a regular member cannot create users."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    requesting_user = make_requesting_user(role="member")
     user_data = UserCreate(
         first_name="New",
         last_name="User",
@@ -307,31 +452,51 @@ def test_create_user_as_member_forbidden(test_tenant, test_user):
     assert exc_info.value.code == "admin_required"
 
 
-def test_create_user_emits_event_log(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_create_user_emits_event_log(make_requesting_user, make_user_dict, make_email_dict):
     """Test that creating a user emits an event log."""
-    from uuid import uuid4
-
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = f"eventtest-{uuid4().hex[:8]}@example.com"
+
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
     user_data = UserCreate(
         first_name="Event",
         last_name="Test",
-        email=f"eventtest-{uuid4().hex[:8]}@example.com",
+        email=email,
         role="member",
     )
 
-    result = users_service.create_user(requesting_user, user_data)
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
+        first_name="Event",
+        last_name="Test",
+        role="member",
+        email=email,
+    )
+    created_email = make_email_dict(user_id=new_user_id, email=email)
 
-    # Verify event with metadata
-    events = database.event_log.list_events(test_tenant["id"], limit=1)
-    assert events[0]["event_type"] == "user_created"
-    assert str(events[0]["artifact_id"]) == result.id
-    assert events[0]["artifact_type"] == "user"
-    assert str(events[0]["actor_user_id"]) == str(test_admin_user["id"])
-    assert events[0]["metadata"]["email"] == user_data.email
-    assert events[0]["metadata"]["role"] == "member"
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = [created_email]
+
+        users_service.create_user(requesting_user, user_data)
+
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert call_kwargs["event_type"] == "user_created"
+        assert call_kwargs["artifact_id"] == str(new_user_id)
+        assert call_kwargs["artifact_type"] == "user"
+        assert call_kwargs["actor_user_id"] == admin_id
+        assert call_kwargs["metadata"]["email"] == email
+        assert call_kwargs["metadata"]["role"] == "member"
 
 
 # =============================================================================
@@ -339,143 +504,242 @@ def test_create_user_emits_event_log(test_tenant, test_admin_user):
 # =============================================================================
 
 
-def test_update_user_name_as_admin(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_update_user_name_as_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can update a user's name."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Updated",
+        last_name="Name",
+    )
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     update_data = UserUpdate(first_name="Updated", last_name="Name")
 
-    result = users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.side_effect = [original_user, updated_user]
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = False
 
-    assert result.first_name == "Updated"
-    assert result.last_name == "Name"
-    _verify_event_logged(test_tenant["id"], "user_updated", str(test_user["id"]))
+        result = users_service.update_user(requesting_user, user_id, update_data)
+
+        assert result.first_name == "Updated"
+        assert result.last_name == "Name"
 
 
-def test_update_user_role_as_admin(test_tenant, test_admin_user, test_user):
-    """Test that an admin can update a member to admin role."""
+@pytest.mark.unit
+def test_update_user_role_as_admin(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that an admin can update a member's role (keeping as member)."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    # Note: This should fail because only super_admin can create admin role
-    # Let's test member role change instead
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user = make_user_dict(user_id=user_id, tenant_id=tenant_id, role="member")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     update_data = UserUpdate(role="member")
 
-    result = users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = user
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = False
 
-    assert result.role == "member"
+        result = users_service.update_user(requesting_user, user_id, update_data)
+
+        assert result.role == "member"
 
 
-def test_update_user_role_as_admin_to_admin_forbidden(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_update_user_role_as_admin_to_admin_forbidden(make_requesting_user, make_user_dict):
     """Test that an admin cannot escalate a user to admin role."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user = make_user_dict(user_id=user_id, tenant_id=tenant_id, role="member")
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     update_data = UserUpdate(role="admin")
 
-    # This should fail - only super_admin can change to admin
-    with pytest.raises(ForbiddenError) as exc_info:
-        users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = user
 
-    assert exc_info.value.code == "super_admin_role_change_denied"
+        with pytest.raises(ForbiddenError) as exc_info:
+            users_service.update_user(requesting_user, user_id, update_data)
+
+        assert exc_info.value.code == "super_admin_role_change_denied"
 
 
-def test_update_user_role_as_super_admin_to_admin(test_tenant, test_super_admin_user, test_user):
+@pytest.mark.unit
+def test_update_user_role_as_super_admin_to_admin(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can promote a user to admin."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, role="member")
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, role="admin")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
     update_data = UserUpdate(role="admin")
 
-    result = users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.side_effect = [original_user, updated_user]
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = False
 
-    assert result.role == "admin"
-    _verify_event_logged(test_tenant["id"], "user_updated", str(test_user["id"]))
+        result = users_service.update_user(requesting_user, user_id, update_data)
+
+        assert result.role == "admin"
 
 
-def test_update_user_demote_last_super_admin_fails(test_tenant, test_super_admin_user):
+@pytest.mark.unit
+def test_update_user_demote_last_super_admin_fails(make_requesting_user, make_user_dict):
     """Test that demoting the last super_admin is blocked."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    # Try to demote self (assuming this is the only super_admin)
+    tenant_id = str(uuid4())
+    super_admin_id = str(uuid4())
+    super_admin = make_user_dict(user_id=super_admin_id, tenant_id=tenant_id, role="super_admin")
+
+    requesting_user = make_requesting_user(
+        user_id=super_admin_id, tenant_id=tenant_id, role="super_admin"
+    )
     update_data = UserUpdate(role="admin")
 
-    with pytest.raises(ValidationError) as exc_info:
-        users_service.update_user(requesting_user, str(test_super_admin_user["id"]), update_data)
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = super_admin
+        # Return only this one super_admin
+        mock_db.users.list_users.return_value = [super_admin]
 
-    assert exc_info.value.code == "last_super_admin"
+        with pytest.raises(ValidationError) as exc_info:
+            users_service.update_user(requesting_user, super_admin_id, update_data)
+
+        assert exc_info.value.code == "last_super_admin"
 
 
-def test_update_user_not_found(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_update_user_not_found(make_requesting_user):
     """Test updating a non-existent user."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     update_data = UserUpdate(first_name="Ghost")
     fake_user_id = str(uuid4())
 
-    with pytest.raises(NotFoundError) as exc_info:
-        users_service.update_user(requesting_user, fake_user_id, update_data)
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = None
 
-    assert exc_info.value.code == "user_not_found"
+        with pytest.raises(NotFoundError) as exc_info:
+            users_service.update_user(requesting_user, fake_user_id, update_data)
+
+        assert exc_info.value.code == "user_not_found"
 
 
-def test_update_user_as_member_forbidden(test_tenant, test_user, test_admin_user):
+@pytest.mark.unit
+def test_update_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot update other users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    requesting_user = make_requesting_user(role="member")
     update_data = UserUpdate(first_name="Hacker")
 
     with pytest.raises(ForbiddenError) as exc_info:
-        users_service.update_user(requesting_user, str(test_admin_user["id"]), update_data)
+        users_service.update_user(requesting_user, str(uuid4()), update_data)
 
     assert exc_info.value.code == "admin_required"
 
 
-def test_update_user_no_changes_no_event(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_update_user_no_changes_no_event(make_requesting_user, make_user_dict, make_email_dict):
     """Test that updating a user with no changes doesn't emit an event."""
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Test",
+        last_name="User",
+    )
+    email = make_email_dict(user_id=user_id)
 
-    # Get current event count
-    events_before = database.event_log.list_events(test_tenant["id"], limit=10)
-    count_before = len(events_before)
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+    update_data = UserUpdate(first_name="Test", last_name="User")
 
-    # Update with same values (no change)
-    update_data = UserUpdate(first_name=test_user["first_name"], last_name=test_user["last_name"])
-    users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = user
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = False
 
-    # Check event count didn't change
-    events_after = database.event_log.list_events(test_tenant["id"], limit=10)
-    count_after = len(events_after)
+        users_service.update_user(requesting_user, user_id, update_data)
 
-    assert count_after == count_before  # No new event
+        mock_log.assert_not_called()
 
 
-def test_update_user_tracks_changes_metadata(test_tenant, test_admin_user, test_user):
+@pytest.mark.unit
+def test_update_user_tracks_changes_metadata(make_requesting_user, make_user_dict, make_email_dict):
     """Test that update_user includes change tracking in event metadata."""
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    old_first_name = test_user["first_name"]
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Changed",
+        last_name="Name",
+    )
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     update_data = UserUpdate(first_name="Changed")
 
-    users_service.update_user(requesting_user, str(test_user["id"]), update_data)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.side_effect = [original_user, updated_user]
+        mock_db.user_emails.get_primary_email.return_value = email
+        mock_db.user_emails.list_user_emails.return_value = [email]
+        mock_db.users.is_service_user.return_value = False
 
-    # Verify metadata includes changes
-    events = database.event_log.list_events(test_tenant["id"], limit=1)
-    assert "changes" in events[0]["metadata"]
-    assert "first_name" in events[0]["metadata"]["changes"]
-    assert events[0]["metadata"]["changes"]["first_name"]["old"] == old_first_name
-    assert events[0]["metadata"]["changes"]["first_name"]["new"] == "Changed"
+        users_service.update_user(requesting_user, user_id, update_data)
+
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert "changes" in call_kwargs["metadata"]
+        assert "first_name" in call_kwargs["metadata"]["changes"]
+        assert call_kwargs["metadata"]["changes"]["first_name"]["old"] == "Original"
+        assert call_kwargs["metadata"]["changes"]["first_name"]["new"] == "Changed"
 
 
 # =============================================================================
@@ -483,169 +747,177 @@ def test_update_user_tracks_changes_metadata(test_tenant, test_admin_user, test_
 # =============================================================================
 
 
-def test_delete_user_as_admin_success(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_delete_user_as_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that an admin can delete a user."""
-    from uuid import uuid4
-
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-
-    # Create a user to delete
-    user = database.users.create_user(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        first_name="Delete",
-        last_name="Me",
-        email=f"deleteme-{uuid4().hex[:8]}@example.com",
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user_to_delete_id = str(uuid4())
+    user_to_delete = make_user_dict(
+        user_id=user_to_delete_id,
+        tenant_id=tenant_id,
         role="member",
     )
-    user_id = str(user["user_id"])
+    email = make_email_dict(user_id=user_to_delete_id, email="deleteme@example.com")
 
-    # Add email so deletion doesn't fail
-    database.user_emails.add_verified_email(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        user_id=user_id,
-        email=f"deleteme-{uuid4().hex[:8]}@example.com",
-        is_primary=True,
-    )
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    users_service.delete_user(requesting_user, user_id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = user_to_delete
+        mock_db.users.is_service_user.return_value = False
+        mock_db.user_emails.get_primary_email.return_value = email
 
-    # Verify user is deleted
-    deleted_user = database.users.get_user_by_id(test_tenant["id"], user_id)
-    assert deleted_user is None
+        users_service.delete_user(requesting_user, user_to_delete_id)
 
-    # Verify event logged
-    _verify_event_logged(test_tenant["id"], "user_deleted", user_id)
+        mock_db.users.delete_user.assert_called_once_with(tenant_id, user_to_delete_id)
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert call_kwargs["event_type"] == "user_deleted"
 
 
-def test_delete_user_as_super_admin_success(test_tenant, test_super_admin_user):
+@pytest.mark.unit
+def test_delete_user_as_super_admin_success(make_requesting_user, make_user_dict, make_email_dict):
     """Test that a super_admin can delete a user."""
-    from uuid import uuid4
-
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-
-    # Create a user to delete
-    user = database.users.create_user(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        first_name="Delete",
-        last_name="Me",
-        email=f"deleteme-{uuid4().hex[:8]}@example.com",
+    tenant_id = str(uuid4())
+    super_admin_id = str(uuid4())
+    user_to_delete_id = str(uuid4())
+    user_to_delete = make_user_dict(
+        user_id=user_to_delete_id,
+        tenant_id=tenant_id,
         role="member",
     )
-    user_id = str(user["user_id"])
+    email = make_email_dict(user_id=user_to_delete_id)
 
-    database.user_emails.add_verified_email(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        user_id=user_id,
-        email=f"deleteme-{uuid4().hex[:8]}@example.com",
-        is_primary=True,
+    requesting_user = make_requesting_user(
+        user_id=super_admin_id, tenant_id=tenant_id, role="super_admin"
     )
 
-    users_service.delete_user(requesting_user, user_id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = user_to_delete
+        mock_db.users.is_service_user.return_value = False
+        mock_db.user_emails.get_primary_email.return_value = email
 
-    deleted_user = database.users.get_user_by_id(test_tenant["id"], user_id)
-    assert deleted_user is None
+        users_service.delete_user(requesting_user, user_to_delete_id)
+
+        mock_db.users.delete_user.assert_called_once()
 
 
-def test_delete_user_as_member_forbidden(test_tenant, test_user, test_admin_user):
+@pytest.mark.unit
+def test_delete_user_as_member_forbidden(make_requesting_user):
     """Test that a member cannot delete users."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+    requesting_user = make_requesting_user(role="member")
 
     with pytest.raises(ForbiddenError) as exc_info:
-        users_service.delete_user(requesting_user, str(test_admin_user["id"]))
+        users_service.delete_user(requesting_user, str(uuid4()))
 
     assert exc_info.value.code == "admin_required"
 
 
-def test_delete_user_not_found(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_delete_user_not_found(make_requesting_user):
     """Test deleting a non-existent user."""
-    from uuid import uuid4
-
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     fake_user_id = str(uuid4())
 
-    with pytest.raises(NotFoundError) as exc_info:
-        users_service.delete_user(requesting_user, fake_user_id)
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = None
 
-    assert exc_info.value.code == "user_not_found"
+        with pytest.raises(NotFoundError) as exc_info:
+            users_service.delete_user(requesting_user, fake_user_id)
+
+        assert exc_info.value.code == "user_not_found"
 
 
-def test_delete_user_self_deletion_fails(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_delete_user_self_deletion_fails(make_requesting_user, make_user_dict):
     """Test that a user cannot delete themselves."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    admin = make_user_dict(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    with pytest.raises(ValidationError) as exc_info:
-        users_service.delete_user(requesting_user, str(test_admin_user["id"]))
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    assert exc_info.value.code == "self_deletion"
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = admin
+        mock_db.users.is_service_user.return_value = False
+
+        with pytest.raises(ValidationError) as exc_info:
+            users_service.delete_user(requesting_user, admin_id)
+
+        assert exc_info.value.code == "self_deletion"
 
 
-def test_delete_user_service_user_fails(test_tenant, test_admin_user, b2b_oauth2_client):
+@pytest.mark.unit
+def test_delete_user_service_user_fails(make_requesting_user, make_user_dict):
     """Test that service users cannot be deleted directly."""
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-    service_user_id = str(b2b_oauth2_client["service_user_id"])
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    service_user_id = str(uuid4())
+    service_user = make_user_dict(user_id=service_user_id, tenant_id=tenant_id)
 
-    with pytest.raises(ValidationError) as exc_info:
-        users_service.delete_user(requesting_user, service_user_id)
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    assert exc_info.value.code == "service_user_deletion"
+    with patch("services.users.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = service_user
+        mock_db.users.is_service_user.return_value = True
+
+        with pytest.raises(ValidationError) as exc_info:
+            users_service.delete_user(requesting_user, service_user_id)
+
+        assert exc_info.value.code == "service_user_deletion"
 
 
-def test_delete_user_captures_user_info_before_deletion(test_tenant, test_admin_user):
+@pytest.mark.unit
+def test_delete_user_captures_user_info_before_deletion(make_requesting_user, make_user_dict, make_email_dict):
     """Test that user info is captured in event metadata before deletion."""
-    from uuid import uuid4
-
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-
-    email = f"capture-{uuid4().hex[:8]}@example.com"
-    user = database.users.create_user(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    user_to_delete_id = str(uuid4())
+    email = "capture@example.com"
+    user_to_delete = make_user_dict(
+        user_id=user_to_delete_id,
+        tenant_id=tenant_id,
         first_name="Capture",
         last_name="Info",
-        email=email,
         role="member",
     )
-    user_id = str(user["user_id"])
+    user_email = make_email_dict(user_id=user_to_delete_id, email=email)
 
-    database.user_emails.add_verified_email(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        user_id=user_id,
-        email=email,
-        is_primary=True,
-    )
+    requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    users_service.delete_user(requesting_user, user_id)
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = user_to_delete
+        mock_db.users.is_service_user.return_value = False
+        mock_db.user_emails.get_primary_email.return_value = user_email
 
-    # Verify event includes user info
-    events = database.event_log.list_events(test_tenant["id"], limit=1)
-    assert events[0]["event_type"] == "user_deleted"
-    assert "deleted_user_name" in events[0]["metadata"]
-    assert "deleted_user_email" in events[0]["metadata"]
-    assert "deleted_user_role" in events[0]["metadata"]
-    assert events[0]["metadata"]["deleted_user_name"] == "Capture Info"
-    assert events[0]["metadata"]["deleted_user_email"] == email
+        users_service.delete_user(requesting_user, user_to_delete_id)
+
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert call_kwargs["event_type"] == "user_deleted"
+        assert "deleted_user_name" in call_kwargs["metadata"]
+        assert "deleted_user_email" in call_kwargs["metadata"]
+        assert "deleted_user_role" in call_kwargs["metadata"]
+        assert call_kwargs["metadata"]["deleted_user_name"] == "Capture Info"
+        assert call_kwargs["metadata"]["deleted_user_email"] == email
 
 
 # =============================================================================
@@ -653,296 +925,343 @@ def test_delete_user_captures_user_info_before_deletion(test_tenant, test_admin_
 # =============================================================================
 
 
-def test_get_current_user_profile_success(test_tenant, test_user):
+@pytest.mark.unit
+def test_get_current_user_profile_success(make_requesting_user, make_user_dict):
     """Test that any authenticated user can get their own profile."""
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-
-    # Get full user data including email
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    result = users_service.get_current_user_profile(requesting_user, user_data)
-
-    assert result.id == str(test_user["id"])
-    assert result.first_name == test_user["first_name"]
-    assert result.last_name == test_user["last_name"]
-
-
-def test_update_current_user_profile_name(test_tenant, test_user):
-    """Test that a user can update their own name."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    profile_update = UserProfileUpdate(first_name="NewFirst", last_name="NewLast")
-    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
-
-    assert result.first_name == "NewFirst"
-    assert result.last_name == "NewLast"
-    _verify_event_logged(test_tenant["id"], "user_profile_updated", str(test_user["id"]))
-
-
-def test_update_current_user_profile_timezone(test_tenant, test_user):
-    """Test that a user can update their timezone."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    profile_update = UserProfileUpdate(timezone="America/New_York")
-    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
-
-    assert result.timezone == "America/New_York"
-
-
-def test_update_current_user_profile_locale(test_tenant, test_user):
-    """Test that a user can update their locale."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    profile_update = UserProfileUpdate(locale="en")
-    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
-
-    assert result.locale == "en"
-
-
-def test_update_current_user_profile_timezone_and_locale(test_tenant, test_user):
-    """Test that a user can update both timezone and locale together."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    profile_update = UserProfileUpdate(timezone="Europe/Stockholm", locale="sv")
-    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
-
-    assert result.timezone == "Europe/Stockholm"
-    assert result.locale == "sv"
-
-
-def test_update_current_user_profile_full_posix_locale(test_tenant, test_user):
-    """Test that a user can update locale using full POSIX format (e.g., en_US, sv_SE)."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    profile_update = UserProfileUpdate(timezone="America/New_York", locale="en_US")
-    result = users_service.update_current_user_profile(requesting_user, user_data, profile_update)
-
-    assert result.timezone == "America/New_York"
-    assert result.locale == "en_US"
-
-
-def test_update_current_user_profile_no_changes_no_event(test_tenant, test_user):
-    """Test that no event is logged when profile isn't actually changed."""
-    import database
-    from services import users as users_service
-
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
-
-    # Get current event count
-    events_before = database.event_log.list_events(test_tenant["id"], limit=10)
-    count_before = len(events_before)
-
-    # Update with same values
-    profile_update = UserProfileUpdate(
-        first_name=test_user["first_name"], last_name=test_user["last_name"]
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Test",
+        last_name="User",
+        email="test@example.com",
     )
-    users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
-    # Check no new event
-    events_after = database.event_log.list_events(test_tenant["id"], limit=10)
-    count_after = len(events_after)
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
 
-    assert count_after == count_before
+    with patch("services.users.track_activity"):
+        result = users_service.get_current_user_profile(requesting_user, user_data)
+
+        assert result.id == user_id
+        assert result.first_name == "Test"
+        assert result.last_name == "User"
 
 
-def test_update_current_user_profile_tracks_changes(test_tenant, test_user):
+@pytest.mark.unit
+def test_update_current_user_profile_name(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update their own name."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+        email="test@example.com",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="NewFirst",
+        last_name="NewLast",
+        email="test@example.com",
+    )
+    email = make_email_dict(user_id=user_id, email="test@example.com")
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(first_name="NewFirst", last_name="NewLast")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, original_user, profile_update
+        )
+
+        assert result.first_name == "NewFirst"
+        assert result.last_name == "NewLast"
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_timezone(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update their timezone."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, tz=None)
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, tz="America/New_York")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(timezone="America/New_York")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.timezone == "America/New_York"
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_locale(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update their locale."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, locale=None)
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, locale="en")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(locale="en")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.locale == "en"
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_timezone_and_locale(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update both timezone and locale together."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, tz=None, locale=None)
+    updated_user = make_user_dict(
+        user_id=user_id, tenant_id=tenant_id, tz="Europe/Stockholm", locale="sv"
+    )
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(timezone="Europe/Stockholm", locale="sv")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.timezone == "Europe/Stockholm"
+        assert result.locale == "sv"
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_full_posix_locale(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update locale using full POSIX format (e.g., en_US, sv_SE)."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id)
+    updated_user = make_user_dict(
+        user_id=user_id, tenant_id=tenant_id, tz="America/New_York", locale="en_US"
+    )
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(timezone="America/New_York", locale="en_US")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.timezone == "America/New_York"
+        assert result.locale == "en_US"
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_no_changes_no_event(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that no event is logged when profile isn't actually changed."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Test",
+        last_name="User",
+    )
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(first_name="Test", last_name="User")
+
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = user_data
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        users_service.update_current_user_profile(requesting_user, user_data, profile_update)
+
+        mock_log.assert_not_called()
+
+
+@pytest.mark.unit
+def test_update_current_user_profile_tracks_changes(make_requesting_user, make_user_dict, make_email_dict):
     """Test that profile update includes change tracking in metadata."""
-    import database
     from services import users as users_service
 
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-    user_data = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
-    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
-    if primary_email:
-        user_data["email"] = primary_email["email"]
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="Original",
+        last_name="Name",
+    )
+    updated_user = make_user_dict(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        first_name="TrackedChange",
+        last_name="Name",
+    )
+    email = make_email_dict(user_id=user_id)
 
-    old_first_name = test_user["first_name"]
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(first_name="TrackedChange")
-    users_service.update_current_user_profile(requesting_user, user_data, profile_update)
 
-    # Verify metadata
-    events = database.event_log.list_events(test_tenant["id"], limit=1)
-    assert "changes" in events[0]["metadata"]
-    assert "first_name" in events[0]["metadata"]["changes"]
-    assert events[0]["metadata"]["changes"]["first_name"]["old"] == old_first_name
-    assert events[0]["metadata"]["changes"]["first_name"]["new"] == "TrackedChange"
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        users_service.update_current_user_profile(requesting_user, original_user, profile_update)
+
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert "changes" in call_kwargs["metadata"]
+        assert "first_name" in call_kwargs["metadata"]["changes"]
+        assert call_kwargs["metadata"]["changes"]["first_name"]["old"] == "Original"
+        assert call_kwargs["metadata"]["changes"]["first_name"]["new"] == "TrackedChange"
 
 
-def test_create_user_with_auto_create_email_false(test_super_admin_user, test_tenant):
+# =============================================================================
+# Auto Create Email Tests
+# =============================================================================
+
+
+@pytest.mark.unit
+def test_create_user_with_auto_create_email_false(make_requesting_user, make_user_dict):
     """Test create_user with auto_create_email=False does not create email record."""
-    import database
     from services import users as users_service
 
-    requesting_user: RequestingUser = {
-        "id": str(test_super_admin_user["id"]),
-        "tenant_id": str(test_tenant["id"]),
-        "role": "super_admin",
-    }
+    tenant_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = "noemail@example.com"
 
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
     user_data = UserCreate(
         first_name="Test",
         last_name="NoEmail",
-        email="noemail@example.com",
+        email=email,
         role="member",
     )
 
-    # Create user with auto_create_email=False
-    result = users_service.create_user(
-        requesting_user=requesting_user,
-        user_data=user_data,
-        auto_create_email=False,
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
+        first_name="Test",
+        last_name="NoEmail",
+        role="member",
+        email=email,
     )
 
-    # Verify user was created
-    assert result.id is not None
-    assert result.first_name == "Test"
-    assert result.last_name == "NoEmail"
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = []  # No emails created
 
-    # Verify NO email record was created
-    emails = database.fetchall(
-        test_tenant["id"],
-        "SELECT * FROM user_emails WHERE user_id = :user_id",
-        {"user_id": result.id},
-    )
-    assert len(emails) == 0
+        result = users_service.create_user(
+            requesting_user=requesting_user,
+            user_data=user_data,
+            auto_create_email=False,
+        )
+
+        assert result.id is not None
+        assert result.first_name == "Test"
+        assert result.last_name == "NoEmail"
+
+        # Verify add_verified_email was NOT called
+        mock_db.user_emails.add_verified_email.assert_not_called()
 
 
-def test_create_user_with_auto_create_email_true_default(test_super_admin_user, test_tenant):
+@pytest.mark.unit
+def test_create_user_with_auto_create_email_true_default(make_requesting_user, make_user_dict, make_email_dict):
     """Test create_user without auto_create_email creates verified email."""
-    import database
     from services import users as users_service
 
-    requesting_user: RequestingUser = {
-        "id": str(test_super_admin_user["id"]),
-        "tenant_id": str(test_tenant["id"]),
-        "role": "super_admin",
-    }
+    tenant_id = str(uuid4())
+    new_user_id = str(uuid4())
+    email = "withemail@example.com"
 
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
     user_data = UserCreate(
         first_name="Test",
         last_name="WithEmail",
-        email="withemail@example.com",
+        email=email,
         role="member",
     )
 
-    # Create user without specifying auto_create_email (should default to True)
-    result = users_service.create_user(
-        requesting_user=requesting_user,
-        user_data=user_data,
-        # auto_create_email not specified, defaults to True
-    )
-
-    # Verify user was created
-    assert result.id is not None
-
-    # Verify email record was created with is_verified=True
-    emails = database.fetchall(
-        test_tenant["id"],
-        "SELECT * FROM user_emails WHERE user_id = :user_id",
-        {"user_id": result.id},
-    )
-    assert len(emails) == 1
-    assert emails[0]["email"] == "withemail@example.com"
-    assert emails[0]["is_primary"] is True
-    assert emails[0]["verified_at"] is not None  # Should be verified
-
-
-def test_create_user_auto_create_email_false_then_add_email(test_super_admin_user, test_tenant):
-    """Integration test: Create user with auto_create_email=False, then manually add email."""
-    import database
-    from services import users as users_service
-
-    requesting_user: RequestingUser = {
-        "id": str(test_super_admin_user["id"]),
-        "tenant_id": str(test_tenant["id"]),
-        "role": "super_admin",
-    }
-
-    # Step 1: Create user without email
-    user_data = UserCreate(
+    created_user = make_user_dict(
+        user_id=new_user_id,
+        tenant_id=tenant_id,
         first_name="Test",
-        last_name="ManualEmail",
-        email="manualemail@example.com",
+        last_name="WithEmail",
         role="member",
+        email=email,
     )
+    created_email = make_email_dict(user_id=new_user_id, email=email, is_primary=True)
 
-    user = users_service.create_user(
-        requesting_user=requesting_user,
-        user_data=user_data,
-        auto_create_email=False,
-    )
+    with patch("services.users.database") as mock_db, \
+         patch("services.users.log_event"):
+        mock_db.user_emails.email_exists.return_value = False
+        mock_db.users.create_user.return_value = {"user_id": new_user_id}
+        mock_db.users.get_user_by_id.return_value = created_user
+        mock_db.user_emails.list_user_emails.return_value = [created_email]
 
-    # Verify no email exists yet
-    emails_before = database.fetchall(
-        test_tenant["id"],
-        "SELECT * FROM user_emails WHERE user_id = :user_id",
-        {"user_id": user.id},
-    )
-    assert len(emails_before) == 0
+        result = users_service.create_user(
+            requesting_user=requesting_user,
+            user_data=user_data,
+            # auto_create_email not specified, defaults to True
+        )
 
-    # Step 2: Manually add email using add_verified_email_with_nonce
-    email_result = users_service.add_verified_email_with_nonce(
-        tenant_id=str(test_tenant["id"]),
-        user_id=user.id,
-        email="manualemail@example.com",
-        is_primary=True,
-    )
+        assert result.id is not None
+        assert len(result.emails) == 1
+        assert result.emails[0].email == email
+        assert result.emails[0].is_primary is True
 
-    # Verify email was added
-    assert email_result is not None
-    assert email_result["email"] == "manualemail@example.com"
-
-    # Verify both user and email exist now
-    emails_after = database.fetchall(
-        test_tenant["id"],
-        "SELECT * FROM user_emails WHERE user_id = :user_id",
-        {"user_id": user.id},
-    )
-    assert len(emails_after) == 1
-    assert emails_after[0]["email"] == "manualemail@example.com"
-    assert emails_after[0]["is_primary"] is True
+        # Verify add_verified_email WAS called
+        mock_db.user_emails.add_verified_email.assert_called_once()

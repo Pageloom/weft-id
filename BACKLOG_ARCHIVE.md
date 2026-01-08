@@ -4,6 +4,49 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Test Suite Performance: Unit Test Pilot (Users Module)
+
+**Status:** Complete
+
+**User Story:**
+As a developer
+I want unit tests that mock their dependencies
+So that the test suite runs faster and failures are isolated to specific layers
+
+**Completed Work:**
+
+**Infrastructure:**
+
+- [x] Added pytest markers (`unit`, `integration`) to `pytest.ini`
+- [x] Added factory fixtures to `tests/conftest.py` (`make_requesting_user`, `make_user_dict`, `make_email_dict`)
+- [x] Created `tests/integration/` directory with auto-marking `conftest.py`
+
+**Pilot Files Refactored:**
+
+- [x] `test_services_users.py` → 44 unit tests with mocked database layer
+- [x] `test_api_users.py` → 44 unit tests with mocked service layer
+- [x] Original tests preserved in `tests/integration/` for regression safety
+
+**Results:**
+
+| Test Suite | Count | Time |
+|------------|-------|------|
+| Unit tests (`pytest -m unit`) | 88 | **2.42s** |
+| Integration tests (`pytest -m integration`) | 95 | **7.40s** |
+
+**Key Patterns Established:**
+
+1. Service tests: Patch `services.<module>.database`
+2. API tests: Use `app.dependency_overrides` + patch `routers.api.v1.<module>.<service>_service`
+3. Authorization (403) tests kept in integration tests (dependency override exceptions don't route through handlers)
+
+**Next Steps:** See "Complete Unit Test Refactoring" item in BACKLOG.md for remaining work.
+
+**Effort:** M (pilot scope)
+**Value:** High (established patterns for full rollout)
+
+---
+
 ## Email Possession Verification (Anti-Enumeration)
 
 **Status:** Complete

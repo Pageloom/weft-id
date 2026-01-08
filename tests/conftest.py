@@ -637,3 +637,95 @@ def mfa_user_with_backup_codes(test_tenant):
         )
 
     yield user
+
+
+# =============================================================================
+# Test Data Factories (for unit tests with mocks)
+# =============================================================================
+
+
+@pytest.fixture
+def make_requesting_user():
+    """Factory to create RequestingUser for unit tests."""
+    from services.types import RequestingUser
+
+    def _make(
+        user_id: str | None = None,
+        tenant_id: str | None = None,
+        role: str = "member",
+    ) -> RequestingUser:
+        return RequestingUser(
+            id=user_id or str(uuid4()),
+            tenant_id=tenant_id or str(uuid4()),
+            role=role,
+        )
+
+    return _make
+
+
+@pytest.fixture
+def make_user_dict():
+    """Factory to create user database record dicts."""
+    from datetime import datetime, timezone
+
+    def _make(
+        user_id: str | None = None,
+        tenant_id: str | None = None,
+        first_name: str = "Test",
+        last_name: str = "User",
+        role: str = "member",
+        email: str | None = None,
+        **kwargs,
+    ) -> dict:
+        uid = user_id or str(uuid4())
+        return {
+            "id": uid,
+            "tenant_id": tenant_id or str(uuid4()),
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": role,
+            "email": email or f"{uid[:8]}@example.com",
+            "created_at": datetime.now(timezone.utc),
+            "last_login": None,
+            "mfa_enabled": False,
+            "mfa_method": None,
+            "tz": None,
+            "locale": None,
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "inactivated_at": None,
+            "anonymized_at": None,
+            "saml_idp_id": None,
+            "saml_idp_name": None,
+            "has_password": True,
+            **kwargs,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_email_dict():
+    """Factory to create user_emails database record dicts."""
+    from datetime import datetime, timezone
+
+    def _make(
+        email_id: str | None = None,
+        user_id: str | None = None,
+        email: str | None = None,
+        is_primary: bool = True,
+        verified_at=None,
+        **kwargs,
+    ) -> dict:
+        uid = user_id or str(uuid4())
+        return {
+            "id": email_id or str(uuid4()),
+            "user_id": uid,
+            "email": email or f"{uid[:8]}@example.com",
+            "is_primary": is_primary,
+            "verified_at": verified_at or datetime.now(timezone.utc),
+            "created_at": datetime.now(timezone.utc),
+            **kwargs,
+        }
+
+    return _make

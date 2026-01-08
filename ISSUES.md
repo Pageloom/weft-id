@@ -6,30 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] No Rate Limiting on Authentication Endpoints
-
-**Found in:** `app/routers/auth.py:136-202`, `app/routers/mfa.py:47-90`
-**Severity:** High
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-
-**Description:** No rate limiting on login, MFA verification, or password-related endpoints. Attackers can brute force credentials without restriction.
-
-**Attack Scenario:**
-1. Brute force email/password combinations on `/login`
-2. Brute force 6-digit email OTP codes (1M possibilities) on `/mfa/verify`
-3. Enumerate valid email addresses via timing differences
-
-**Evidence:** No `slowapi`, Redis rate limiter, or attempt tracking found.
-
-**Impact:** Account compromise via credential stuffing or brute force attacks.
-
-**Remediation:** Implement rate limiting (e.g., `slowapi` library):
-- Login: Max 5 attempts per 15 minutes per IP/email
-- MFA: Max 5 attempts per 15 minutes per user
-- Account lockout after 10 failures
-
----
-
 ## [SECURITY] Session ID Not Regenerated After Authentication
 
 **Found in:** `app/routers/mfa.py:93`, `app/routers/auth.py:184, 427`
@@ -283,13 +259,13 @@ if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 7 | Rate Limiting, Session, OAuth2, Secrets, Logging |
+| High | 6 | Session, OAuth2, Secrets, Logging |
 | Medium | 6 | Headers, Exceptions, SAML XSS, SQL patterns, MFA bypass, Auth logging |
 
 **Priority Remediation Order:**
 1. ~~XSS in users_list.html (Critical - immediate exploit)~~ **RESOLVED**
 2. ~~CSRF protection (High - easy to exploit)~~ **RESOLVED**
-3. Rate limiting (High - enables brute force)
+3. ~~Rate limiting (High - enables brute force)~~ **RESOLVED**
 4. Session fixation (High - account takeover)
 5. OAuth2 state validation (High - OAuth CSRF)
 6. Security headers (Medium - defense in depth)

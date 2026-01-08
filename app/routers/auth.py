@@ -11,6 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
+from services.exceptions import RateLimitError
 from utils.auth import verify_login_with_status
 from utils.email import (
     send_email_possession_code,
@@ -27,7 +28,21 @@ from utils.email_verification import (
     validate_verification_cookie,
 )
 from utils.mfa import create_email_otp
+from utils.ratelimit import HOUR, MINUTE, ratelimit
 from utils.request_metadata import extract_request_metadata
+
+
+def _get_client_ip(request: Request) -> str:
+    """Get client IP address from request headers or connection."""
+    # Check X-Forwarded-For header (set by reverse proxies)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # Take the first IP in the chain (original client)
+        return forwarded_for.split(",")[0].strip()
+    # Fall back to direct client IP
+    if request.client:
+        return request.client.host
+    return "unknown"
 
 router = APIRouter(prefix="", tags=["auth"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
@@ -94,6 +109,19 @@ def send_verification_code(
     if not email or "@" not in email:
         return RedirectResponse(
             url=f"/login?error=invalid_email&prefill_email={quote(email)}",
+            status_code=303,
+        )
+
+    # Rate limiting: prevent abuse of email sending
+    client_ip = _get_client_ip(request)
+    try:
+        ratelimit.prevent("email_send:ip:{ip}", limit=10, timespan=HOUR, ip=client_ip)
+        ratelimit.prevent(
+            "email_send:email:{email}", limit=5, timespan=MINUTE * 10, email=email
+        )
+    except RateLimitError:
+        return RedirectResponse(
+            url=f"/login?error=too_many_requests&prefill_email={quote(email)}",
             status_code=303,
         )
 
@@ -177,6 +205,22 @@ def verify_code(
     if not email_verify_pending:
         return RedirectResponse(url="/login?error=session_expired", status_code=303)
 
+    # Get email from cookie for rate limiting
+    email_for_limit = get_verification_cookie_email(email_verify_pending) or "unknown"
+    client_ip = _get_client_ip(request)
+
+    # Rate limiting: prevent brute force on verification codes
+    try:
+        ratelimit.prevent(
+            "verify_code:ip:{ip}:email:{email}",
+            limit=5,
+            timespan=MINUTE * 5,
+            ip=client_ip,
+            email=email_for_limit,
+        )
+    except RateLimitError:
+        return RedirectResponse(url="/login/verify?error=too_many_attempts", status_code=303)
+
     # Validate the code
     is_valid, email, cookie_tenant_id = validate_verification_cookie(
         email_verify_pending, code.strip()
@@ -225,6 +269,15 @@ def resend_verification_code(
     email = get_verification_cookie_email(email_verify_pending)
     if not email:
         return RedirectResponse(url="/login", status_code=303)
+
+    # Rate limiting: prevent abuse of resend functionality
+    client_ip = _get_client_ip(request)
+    try:
+        ratelimit.prevent(
+            "resend_code:ip:{ip}", limit=5, timespan=MINUTE * 10, ip=client_ip
+        )
+    except RateLimitError:
+        return RedirectResponse(url="/login/verify?error=too_many_requests", status_code=303)
 
     # Generate new code and send
     code = generate_verification_code()
@@ -388,6 +441,44 @@ def login(
     locale: Annotated[str, Form()] = "",
 ):
     """Handle login form submission (step 2 after email check)."""
+    # Normalize email for consistent rate limiting
+    email_normalized = email.strip().lower()
+    client_ip = _get_client_ip(request)
+
+    # Rate limiting: hard block after too many attempts
+    try:
+        ratelimit.prevent(
+            "login_block:ip:{ip}:email:{email}",
+            limit=20,
+            timespan=MINUTE * 15,
+            ip=client_ip,
+            email=email_normalized,
+        )
+    except RateLimitError:
+        # Check if SSO is enabled for template context
+        sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "request": request,
+                "error": "Too many login attempts. Please try again later.",
+                "sso_enabled": sso_enabled,
+                "prefill_email": email,
+                "show_password": True,
+                "csrf_token": make_csrf_token_func(request),
+            },
+        )
+
+    # Soft limit - log for monitoring
+    ratelimit.log(
+        "login_attempts:ip:{ip}:email:{email}",
+        limit=5,
+        timespan=MINUTE * 5,
+        ip=client_ip,
+        email=email_normalized,
+    )
+
     result = verify_login_with_status(tenant_id, email, password)
 
     # Check if SSO is enabled for template context

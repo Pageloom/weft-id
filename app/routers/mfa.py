@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
+from services.exceptions import RateLimitError
 from utils.email import send_mfa_code_email
 from utils.mfa import (
     create_email_otp,
@@ -18,6 +19,7 @@ from utils.mfa import (
     verify_email_otp,
     verify_totp_code,
 )
+from utils.ratelimit import MINUTE, ratelimit
 
 router = APIRouter(prefix="/mfa", tags=["mfa"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
@@ -41,7 +43,12 @@ def mfa_verify_page(
     return templates.TemplateResponse(
         request,
         "mfa_verify.html",
-        {"method": pending_method, "user": user, "nav": {}, "csrf_token": make_csrf_token_func(request)},
+        {
+            "method": pending_method,
+            "user": user,
+            "nav": {},
+            "csrf_token": make_csrf_token_func(request),
+        },
     )
 
 
@@ -59,6 +66,28 @@ def mfa_verify(
 
     if not pending_user_id:
         return RedirectResponse(url="/login", status_code=303)
+
+    # Rate limiting: prevent brute force on MFA codes
+    try:
+        ratelimit.prevent(
+            "mfa_verify:user:{user_id}",
+            limit=5,
+            timespan=MINUTE * 15,
+            user_id=pending_user_id,
+        )
+    except RateLimitError:
+        user = emails_service.get_user_with_primary_email(tenant_id, pending_user_id)
+        return templates.TemplateResponse(
+            request,
+            "mfa_verify.html",
+            {
+                "method": pending_method,
+                "user": user,
+                "error": "Too many attempts. Please try again later.",
+                "nav": {},
+                "csrf_token": make_csrf_token_func(request),
+            },
+        )
 
     verified = False
     code_clean = code.replace(" ", "").replace("-", "")
@@ -177,6 +206,17 @@ def mfa_send_email_code(
     # Users with TOTP should use their configured method or backup codes
     if pending_method == "totp":
         return RedirectResponse(url="/mfa/verify", status_code=303)
+
+    # Rate limiting: prevent abuse of email sending
+    try:
+        ratelimit.prevent(
+            "mfa_email:user:{user_id}",
+            limit=3,
+            timespan=MINUTE * 5,
+            user_id=pending_user_id,
+        )
+    except RateLimitError:
+        return RedirectResponse(url="/mfa/verify?error=too_many_requests", status_code=303)
 
     # Generate and send email code
     code = create_email_otp(tenant_id, pending_user_id)

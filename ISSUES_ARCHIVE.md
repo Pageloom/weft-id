@@ -4,6 +4,68 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] No Rate Limiting on Authentication Endpoints
+
+**Status:** Resolved (2026-01-08)
+
+**Found in:** `app/routers/auth.py:136-202`, `app/routers/mfa.py:47-90`
+
+**Original Severity:** High
+
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Original Description:** No rate limiting on login, MFA verification, or password-related endpoints. Attackers could brute force credentials without restriction.
+
+**Attack Scenario:**
+1. Brute force email/password combinations on `/login`
+2. Brute force 6-digit email OTP codes (1M possibilities) on `/mfa/verify`
+3. Enumerate valid email addresses via timing differences
+
+**Resolution:**
+1. Created `app/utils/ratelimit.py` implementing rate limiting using existing Memcached infrastructure:
+   - `ratelimit.prevent()` - Hard limit that raises `RateLimitError` exception
+   - `ratelimit.log()` - Soft limit that logs warnings and returns exceeded status
+   - `ratelimit.check()` - Check current count without incrementing
+   - `ratelimit.reset()` - Reset a rate limit counter
+   - Supports compound keys like `login:{ip}:{email}`
+   - Fails open if Memcached is unavailable (security/availability tradeoff)
+
+2. Extended `app/utils/cache.py` with atomic Memcached operations:
+   - `incr()` - Atomic counter increment
+   - `add()` - Add only if key doesn't exist (race condition prevention)
+
+3. Added `RateLimitError` exception to `app/services/exceptions.py`
+
+4. Updated `app/utils/service_errors.py` to handle rate limiting:
+   - `translate_to_http_exception()` returns HTTP 429 with `Retry-After` header
+   - `render_error_page()` renders "Too Many Requests" error page
+
+5. Added rate limiting to authentication endpoints:
+
+| Endpoint | Pattern | Limit | Timespan |
+|----------|---------|-------|----------|
+| `/login/send-code` | `email_send:ip:{ip}` | 10 | 1 hour |
+| `/login/send-code` | `email_send:email:{email}` | 5 | 10 min |
+| `/login/verify-code` | `verify_code:ip:{ip}:email:{email}` | 5 | 5 min |
+| `/login/resend-code` | `resend_code:ip:{ip}` | 5 | 10 min |
+| `/login` | `login_attempts:ip:{ip}:email:{email}` | 5 (log) | 5 min |
+| `/login` | `login_block:ip:{ip}:email:{email}` | 20 | 15 min |
+| `/mfa/verify` | `mfa_verify:user:{user_id}` | 5 | 15 min |
+| `/mfa/verify/send-email` | `mfa_email:user:{user_id}` | 3 | 5 min |
+
+**Files Created:**
+- `app/utils/ratelimit.py` - Rate limiting implementation
+- `tests/test_utils_ratelimit.py` - 26 unit tests
+
+**Files Modified:**
+- `app/utils/cache.py` - Added `incr()` and `add()` methods
+- `app/services/exceptions.py` - Added `RateLimitError` exception
+- `app/utils/service_errors.py` - Added 429 handling
+- `app/routers/auth.py` - Added rate limiting to login endpoints
+- `app/routers/mfa.py` - Added rate limiting to MFA endpoints
+
+---
+
 ## [SECURITY] Missing CSRF Token Protection on Forms
 
 **Status:** Resolved (2026-01-08)

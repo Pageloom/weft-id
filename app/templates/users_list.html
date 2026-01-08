@@ -23,7 +23,7 @@
             <label for="page-size" class="text-sm text-gray-700">Per page:</label>
             <select
                 id="page-size"
-                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}'"
+                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}'"
                 class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
@@ -37,7 +37,7 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
+            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
             class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}onclick="return false;"{% endif %}
         >
@@ -49,7 +49,7 @@
         </span>
 
         <a
-            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
+            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
             class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}onclick="return false;"{% endif %}
         >
@@ -161,7 +161,7 @@
                     </button>
                     {% if roles or statuses %}
                     <a
-                        href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
+                        href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
                         class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                     >
                         Clear Filters
@@ -185,7 +185,7 @@
                 .map(id => document.getElementById(id).value);
 
             let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
-            {% if search %}url += '&search={{ search }}';{% endif %}
+            {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
             if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
             if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
 
@@ -232,7 +232,7 @@
                     <tr>
                         {% macro sort_header(field, label) %}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}{{ filter_params() }}"
+                            <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
                                class="group inline-flex items-center space-x-1 hover:text-gray-700">
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}

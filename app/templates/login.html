@@ -53,6 +53,7 @@
             {% if show_password %}
             {# Step 2: Password form (after email check determined password auth) #}
             <form method="post" action="/login" id="loginForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" id="timezone" name="timezone" value="">
                 <input type="hidden" id="locale" name="locale" value="">
 
@@ -89,6 +90,7 @@
             {% else %}
             {# Step 1: Email entry form (email-first flow with verification) #}
             <form method="post" action="/login/send-code" id="emailForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-6">
                     <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
                     <input type="email"

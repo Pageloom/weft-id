@@ -75,6 +75,7 @@
                             <!-- IdP Binding Controls -->
                             {% if domain.bound_idp_id %}
                             <form method="post" action="/admin/privileged-domains/{{ domain.id }}/unbind">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-sm text-amber-600 hover:text-amber-800"
                                         onclick="return confirm('Unbind this domain from its IdP? New users with this domain will no longer be auto-assigned.')">
                                     Unbind
@@ -82,6 +83,7 @@
                             </form>
                             {% else %}
                             <form method="post" action="/admin/privileged-domains/{{ domain.id }}/bind" class="flex items-center gap-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="idp_id" required class="text-sm border border-gray-300 rounded px-2 py-1">
                                     <option value="">Bind to IdP...</option>
                                     {% for idp in idps %}
@@ -97,6 +99,7 @@
                             {% endif %}
 
                             <form method="post" action="/admin/privileged-domains/delete/{{ domain.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-sm text-red-600 hover:text-red-800"
                                         onclick="return confirm('Are you sure you want to remove this domain?')">
                                     Remove
@@ -117,6 +120,7 @@
         <div class="border-t border-gray-200 pt-6">
             <h2 class="text-lg font-medium mb-4">Add Privileged Domain</h2>
             <form method="post" action="/admin/privileged-domains/add" class="flex gap-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex-1">
                     <input type="text" name="domain" placeholder="company.com"
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

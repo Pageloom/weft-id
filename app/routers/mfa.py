@@ -9,6 +9,7 @@ from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from middleware.csrf import make_csrf_token_func
 from utils.email import send_mfa_code_email
 from utils.mfa import (
     create_email_otp,
@@ -40,7 +41,7 @@ def mfa_verify_page(
     return templates.TemplateResponse(
         request,
         "mfa_verify.html",
-        {"method": pending_method, "user": user, "nav": {}},
+        {"method": pending_method, "user": user, "nav": {}, "csrf_token": make_csrf_token_func(request)},
     )
 
 
@@ -86,6 +87,7 @@ def mfa_verify(
                 "user": user,
                 "error": "Invalid or expired code",
                 "nav": {},
+                "csrf_token": make_csrf_token_func(request),
             },
         )
 

@@ -97,6 +97,7 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <form method="post" action="/admin/reactivation-requests/{{ req.id }}/approve" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         onclick="return confirm('Approve this reactivation request? The user will be able to sign in again.')"
                                         class="text-green-600 hover:text-green-900 mr-4">
@@ -104,6 +105,7 @@
                                 </button>
                             </form>
                             <form method="post" action="/admin/reactivation-requests/{{ req.id }}/deny" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         onclick="return confirm('Deny this reactivation request? The user will not be able to request reactivation again.')"
                                         class="text-red-600 hover:text-red-900">

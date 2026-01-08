@@ -10,6 +10,7 @@ from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from middleware.csrf import make_csrf_token_func
 from utils.auth import verify_login_with_status
 from utils.email import (
     send_email_possession_code,
@@ -66,6 +67,7 @@ def login_page(
             "error": error,
             "prefill_email": prefill_email,
             "show_password": show_password,
+            "csrf_token": make_csrf_token_func(request),
         },
     )
 
@@ -155,6 +157,7 @@ def verify_code_page(
             "email": email,
             "error": error,
             "success": success,
+            "csrf_token": make_csrf_token_func(request),
         },
     )
 
@@ -400,6 +403,7 @@ def login(
                 "sso_enabled": sso_enabled,
                 "prefill_email": email,
                 "show_password": True,
+                "csrf_token": make_csrf_token_func(request),
             },
         )
 
@@ -416,6 +420,7 @@ def login(
                 "inactivated_user": inactivated_user,
                 "status": result["status"],
                 "can_request": result.get("can_request_reactivation", False),
+                "csrf_token": make_csrf_token_func(request),
             },
         )
 
@@ -476,6 +481,7 @@ def request_reactivation(
                     "user": {"id": user_id},
                     "status": "denied",
                     "can_request": False,
+                    "csrf_token": make_csrf_token_func(request),
                 },
             )
         elif reason == "request_pending":
@@ -487,6 +493,7 @@ def request_reactivation(
                     "user": {"id": user_id},
                     "status": "pending",
                     "can_request": False,
+                    "csrf_token": make_csrf_token_func(request),
                 },
             )
         else:
@@ -528,6 +535,7 @@ def request_reactivation(
         {
             "request": request,
             "email": primary_email,
+            "csrf_token": make_csrf_token_func(request),
         },
     )
 
@@ -619,6 +627,7 @@ def set_password_page(
             "email_id": email_id,
             "success": success,
             "error": error,
+            "csrf_token": make_csrf_token_func(request),
         },
     )
 

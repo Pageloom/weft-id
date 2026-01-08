@@ -22,6 +22,7 @@
             {% endif %}
 
             <form method="post" action="/mfa/verify" id="mfaVerifyForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" id="timezone" name="timezone" value="">
                 <input type="hidden" id="locale" name="locale" value="">
                 <div class="mb-6">
@@ -42,6 +43,7 @@
             <div class="mt-6 pt-6 border-t border-gray-200">
                 <p class="text-sm text-gray-600 text-center mb-3">Having trouble?</p>
                 <form method="post" action="/mfa/verify/send-email">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition duration-150 text-sm">Send code to my email</button>
                 </form>
             </div>

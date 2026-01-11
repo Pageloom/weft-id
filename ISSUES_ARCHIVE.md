@@ -885,3 +885,60 @@ JSON key ordering mismatch between Python and PostgreSQL:
 
 ---
 
+## [SECURITY] OAuth2 State Parameter Not Validated (CSRF)
+
+**Status:** Resolved (2026-01-11)
+
+**Found in:** `app/routers/oauth2.py`
+
+**Original Severity:** High
+
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Original Description:** The OAuth2 `state` parameter was accepted and echoed back but never validated server-side. No session-based state storage or verification. This enabled OAuth2 CSRF attacks where an attacker could trick a victim into using their authorization code.
+
+**Attack Scenario:**
+1. Attacker initiates OAuth flow with their own account
+2. Attacker intercepts redirect with authorization code
+3. Attacker tricks victim into clicking the redirect URL
+4. Victim's session gets linked to attacker's account
+
+**Resolution:**
+Implemented server-side authorization request tracking with session-based validation:
+
+1. **GET /oauth2/authorize** now:
+   - Generates a unique `auth_request_id` using `secrets.token_urlsafe(32)`
+   - Stores authorization parameters in session: `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method`, `created_at`
+   - Passes only `auth_request_id` to the template (not individual parameters)
+
+2. **POST /oauth2/authorize** now:
+   - Accepts only `auth_request_id` and `action` from form (not individual OAuth params)
+   - Validates `auth_request_id` exists in session
+   - Validates request hasn't expired (10 minute max age)
+   - Retrieves stored parameters from session (prevents tampering)
+   - Deletes from session after use (one-time use)
+   - Uses stored parameters for authorization flow
+
+3. **Template updated:**
+   - Removed individual hidden fields for `client_id`, `redirect_uri`, `state`, etc.
+   - Only includes `auth_request_id` hidden field
+
+**Security Benefits:**
+- Parameter tampering prevention - `client_id`/`redirect_uri` cannot be changed between GET and POST
+- Request expiry - Stale authorization pages cannot be used after 10 minutes
+- One-time use - Each authorization request can only be submitted once (replay protection)
+- Defense in depth - Additional layer on top of existing CSRF token protection
+
+**Tests Added:**
+- `test_invalid_auth_request_id_rejected` - Fabricated IDs are rejected
+- `test_auth_request_id_single_use` - Replay protection verification
+- `test_expired_auth_request_rejected` - Expiry validation
+- `test_parameters_retrieved_from_session_not_form` - Tampering prevention
+
+**Files Modified:**
+- `app/routers/oauth2.py` - Added auth_request_id generation, storage, and validation
+- `app/templates/oauth2_authorize.html` - Simplified to only include auth_request_id
+- `tests/test_routers_oauth2.py` - Updated existing tests, added 4 security-focused tests
+
+---
+

@@ -6,35 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [SECURITY] OAuth2 State Parameter Not Validated (CSRF)
-
-**Found in:** `app/routers/oauth2.py:29, 104, 120, 179`
-**Severity:** High
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-
-**Description:** The OAuth2 `state` parameter is accepted and echoed back but never validated server-side. No session-based state storage or verification.
-
-**Attack Scenario:** OAuth2 CSRF attack:
-1. Attacker initiates OAuth flow with their own account
-2. Attacker intercepts redirect with authorization code
-3. Attacker tricks victim into clicking the redirect URL
-4. Victim's session gets linked to attacker's account
-
-**Evidence:**
-```python
-return RedirectResponse(
-    url=f"{redirect_uri}?code={code}" + (f"&state={state}" if state else ""),
-    status_code=303,
-)
-```
-No session-based state validation found.
-
-**Impact:** Account linking attacks, unauthorized OAuth grants.
-
-**Remediation:** Generate state with `secrets.token_urlsafe(32)`, store in session, validate on callback before issuing tokens.
-
----
-
 ## [SECURITY] Missing Security Headers
 
 **Found in:** `app/main.py` (no security header middleware)
@@ -443,7 +414,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 5 | OAuth2, Secrets, Logging |
+| High | 4 | Secrets, Logging |
 | Medium | 6 | Headers, Exceptions, SAML XSS, SQL patterns, MFA bypass, Auth logging |
 
 ## Dependency Audit Summary (2026-01-08)
@@ -468,7 +439,7 @@ All production dependencies are at versions that include fixes for known CVEs.
 2. ~~CSRF protection (High - easy to exploit)~~ **RESOLVED**
 3. ~~Rate limiting (High - enables brute force)~~ **RESOLVED**
 4. ~~Session fixation (High - account takeover)~~ **RESOLVED**
-5. OAuth2 state validation (High - OAuth CSRF)
+5. ~~OAuth2 state validation (High - OAuth CSRF)~~ **RESOLVED**
 6. Security headers (Medium - defense in depth)
 7. Logging gaps (High - compliance/detection)
 8. Other Medium items

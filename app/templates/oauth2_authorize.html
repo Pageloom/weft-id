@@ -21,17 +21,7 @@
 
             <form method="post" action="/oauth2/authorize">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="client_id" value="{{ client_id }}">
-                <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
-                {% if state %}
-                <input type="hidden" name="state" value="{{ state }}">
-                {% endif %}
-                {% if code_challenge %}
-                <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
-                {% endif %}
-                {% if code_challenge_method %}
-                <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
-                {% endif %}
+                <input type="hidden" name="auth_request_id" value="{{ auth_request_id }}">
 
                 <div class="flex gap-4">
                     <button

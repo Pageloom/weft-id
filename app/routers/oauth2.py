@@ -1,5 +1,7 @@
 """OAuth2 authorization and token endpoints."""
 
+import secrets
+import time
 from typing import Annotated
 
 import oauth2
@@ -10,6 +12,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
+
+# Maximum age for authorization requests (10 minutes)
+AUTH_REQUEST_MAX_AGE_SECONDS = 600
 
 router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
 templates = Jinja2Templates(directory="app/templates")
@@ -93,6 +98,23 @@ def authorize_page(
             },
         )
 
+    # Generate unique auth request ID and store parameters in session
+    auth_request_id = secrets.token_urlsafe(32)
+
+    # Initialize oauth2_auth_requests dict in session if not present
+    if "oauth2_auth_requests" not in request.session:
+        request.session["oauth2_auth_requests"] = {}
+
+    # Store authorization request parameters (for validation on POST)
+    request.session["oauth2_auth_requests"][auth_request_id] = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": code_challenge_method,
+        "created_at": time.time(),
+    }
+
     # Show authorization page
     return templates.TemplateResponse(
         request,
@@ -100,11 +122,8 @@ def authorize_page(
         {
             "client": client,
             "user": user,
-            "client_id": client_id,
+            "auth_request_id": auth_request_id,
             "redirect_uri": redirect_uri,
-            "state": state,
-            "code_challenge": code_challenge,
-            "code_challenge_method": code_challenge_method,
             "nav": {},
             "csrf_token": make_csrf_token_func(request),
         },
@@ -116,26 +135,59 @@ def authorize_grant(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_current_user)],
-    client_id: Annotated[str, Form()],
-    redirect_uri: Annotated[str, Form()],
+    auth_request_id: Annotated[str, Form()],
     action: Annotated[str, Form()],
-    state: Annotated[str | None, Form()] = None,
-    code_challenge: Annotated[str | None, Form()] = None,
-    code_challenge_method: Annotated[str | None, Form()] = None,
 ):
     """
     OAuth2 authorization endpoint - handle allow/deny.
 
-    User submits form to allow or deny authorization.
+    User submits form to allow or deny authorization. The auth_request_id
+    references a stored authorization request from the session, preventing
+    parameter tampering and providing one-time-use semantics.
 
     Form Data:
-        client_id: OAuth2 client ID
-        redirect_uri: Redirect URI for authorization code
+        auth_request_id: Server-generated ID referencing stored auth request
         action: "allow" or "deny"
-        state: Optional state parameter
-        code_challenge: Optional PKCE code challenge
-        code_challenge_method: Optional PKCE challenge method
     """
+    # Retrieve stored authorization request from session
+    auth_requests = request.session.get("oauth2_auth_requests", {})
+    stored_request = auth_requests.get(auth_request_id)
+
+    if not stored_request:
+        # Invalid or missing auth request - show error page
+        return templates.TemplateResponse(
+            request,
+            "oauth2_error.html",
+            {
+                "error": "Invalid request",
+                "error_description": "Authorization request not found or already used.",
+                "nav": {},
+            },
+        )
+
+    # Extract stored parameters
+    client_id = stored_request["client_id"]
+    redirect_uri = stored_request["redirect_uri"]
+    state = stored_request["state"]
+    code_challenge = stored_request["code_challenge"]
+    code_challenge_method = stored_request["code_challenge_method"]
+    created_at = stored_request["created_at"]
+
+    # Delete from session immediately (one-time use)
+    del request.session["oauth2_auth_requests"][auth_request_id]
+
+    # Validate request hasn't expired
+    if time.time() - created_at > AUTH_REQUEST_MAX_AGE_SECONDS:
+        return templates.TemplateResponse(
+            request,
+            "oauth2_error.html",
+            {
+                "error": "Request expired",
+                "error_description": "Authorization request has expired. Please start over.",
+                "nav": {},
+            },
+        )
+
     # Get client
     client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
 
@@ -146,7 +198,7 @@ def authorize_grant(
             status_code=303,
         )
 
-    # Verify redirect_uri matches
+    # Verify redirect_uri matches (defense in depth - should always match since we stored it)
     if redirect_uri not in (client["redirect_uris"] or []):
         return templates.TemplateResponse(
             request,

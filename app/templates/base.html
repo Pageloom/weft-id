@@ -14,6 +14,17 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-50">
+    <!-- Cookie notice banner -->
+    <div id="cookie-notice" class="hidden fixed bottom-4 right-4 max-w-xs bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
+        <p class="text-sm text-gray-600 mb-3">
+            This site uses cookies for authentication.
+            <a href="https://www.pageloom.com/privacy/" class="underline hover:text-gray-800" target="_blank" rel="noopener">Learn more</a>
+        </p>
+        <button id="cookie-accept" class="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700">
+            Got it
+        </button>
+    </div>
+
     {% if user %}
     <!-- Top-level navigation -->
     <nav class="bg-white border-b border-gray-200">
@@ -124,6 +135,19 @@
         }
     </script>
     {% endif %}
+
+    <!-- Cookie notice logic -->
+    <script>
+        (function() {
+            if (!localStorage.getItem('cookie_notice_dismissed')) {
+                document.getElementById('cookie-notice').classList.remove('hidden');
+            }
+            document.getElementById('cookie-accept')?.addEventListener('click', function() {
+                localStorage.setItem('cookie_notice_dismissed', '1');
+                document.getElementById('cookie-notice').classList.add('hidden');
+            });
+        })();
+    </script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

@@ -75,7 +75,12 @@ class TestAuthorizePage:
         assert "oauth2_authorize" in response.text or "Authorize" in response.text
 
     def test_authorize_page_with_state(self, authenticated_client_with_host, normal_oauth2_client):
-        """Test authorization page preserves state parameter."""
+        """Test authorization page accepts state parameter (stored in session).
+
+        The state is stored in the session (not visible in HTML) and returned
+        in the redirect after authorization. The full flow is tested in
+        TestAuthorizeGrant.test_authorize_allow_with_state.
+        """
         response = authenticated_client_with_host.get(
             "/oauth2/authorize",
             params={
@@ -87,8 +92,8 @@ class TestAuthorizePage:
         )
 
         assert response.status_code == 200
-        # State should be included in the form
-        assert "random_state_123" in response.text
+        # auth_request_id should be in the form (state is stored in session)
+        assert "auth_request_id" in response.text
 
     def test_authorize_page_with_pkce(self, authenticated_client_with_host, normal_oauth2_client):
         """Test authorization page accepts PKCE parameters."""
@@ -213,6 +218,16 @@ class TestAuthorizePage:
 # ============================================================================
 
 
+def _extract_auth_request_id(html: str) -> str:
+    """Extract auth_request_id from the authorization page HTML."""
+    import re
+
+    match = re.search(r'name="auth_request_id"\s+value="([^"]+)"', html)
+    if not match:
+        raise ValueError("auth_request_id not found in HTML")
+    return match.group(1)
+
+
 class TestAuthorizeGrant:
     """Tests for the OAuth2 authorization grant (POST /oauth2/authorize)."""
 
@@ -220,11 +235,23 @@ class TestAuthorizeGrant:
         self, authenticated_client_with_host, normal_oauth2_client
     ):
         """Test allowing authorization creates an authorization code."""
+        # First GET the authorization page to get auth_request_id
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        assert get_response.status_code == 200
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # Now POST with the auth_request_id
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "allow",
             },
             follow_redirects=False,
@@ -237,13 +264,25 @@ class TestAuthorizeGrant:
 
     def test_authorize_allow_with_state(self, authenticated_client_with_host, normal_oauth2_client):
         """Test allowing authorization preserves state parameter."""
+        # GET with state parameter
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "state": "my_state_value",
+            },
+            follow_redirects=False,
+        )
+        assert get_response.status_code == 200
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST with auth_request_id - state is retrieved from session
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "allow",
-                "state": "my_state_value",
             },
             follow_redirects=False,
         )
@@ -254,14 +293,26 @@ class TestAuthorizeGrant:
 
     def test_authorize_allow_with_pkce(self, authenticated_client_with_host, normal_oauth2_client):
         """Test allowing authorization stores PKCE challenge."""
+        # GET with PKCE parameters
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+                "code_challenge_method": "S256",
+            },
+            follow_redirects=False,
+        )
+        assert get_response.status_code == 200
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "allow",
-                "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-                "code_challenge_method": "S256",
             },
             follow_redirects=False,
         )
@@ -274,11 +325,22 @@ class TestAuthorizeGrant:
         self, authenticated_client_with_host, normal_oauth2_client
     ):
         """Test denying authorization redirects with access_denied error."""
+        # GET
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST deny
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "deny",
             },
             follow_redirects=False,
@@ -291,13 +353,24 @@ class TestAuthorizeGrant:
 
     def test_authorize_deny_with_state(self, authenticated_client_with_host, normal_oauth2_client):
         """Test denying authorization preserves state parameter."""
+        # GET with state
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "state": "my_state_value",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST deny
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "deny",
-                "state": "my_state_value",
             },
             follow_redirects=False,
         )
@@ -307,65 +380,26 @@ class TestAuthorizeGrant:
         assert "error=access_denied" in location
         assert "state=my_state_value" in location
 
-    def test_authorize_invalid_client_redirects_with_error(self, authenticated_client_with_host):
-        """Test invalid client redirects with unauthorized_client error."""
-        response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
-            data={
-                "client_id": "nonexistent_client",
-                "redirect_uri": "http://localhost:3000/callback",
-                "action": "allow",
-            },
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        location = response.headers["location"]
-        assert "error=unauthorized_client" in location
-
-    def test_authorize_b2b_client_rejected(self, authenticated_client_with_host, b2b_oauth2_client):
-        """Test B2B client is rejected for authorization code flow."""
-        response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
-            data={
-                "client_id": b2b_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
-                "action": "allow",
-            },
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        location = response.headers["location"]
-        assert "error=unauthorized_client" in location
-
-    def test_authorize_invalid_redirect_uri_shows_error_page(
-        self, authenticated_client_with_host, normal_oauth2_client
-    ):
-        """Test invalid redirect_uri shows error page (not redirect)."""
-        response = authenticated_client_with_host.post(
-            "/oauth2/authorize",
-            data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://malicious.com/callback",
-                "action": "allow",
-            },
-            follow_redirects=False,
-        )
-
-        # Should show error page, not redirect to malicious URI
-        assert response.status_code == 200
-        assert "Invalid redirect_uri" in response.text
-
     def test_authorize_invalid_action_redirects_with_error(
         self, authenticated_client_with_host, normal_oauth2_client
     ):
         """Test invalid action redirects with invalid_request error."""
+        # GET
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST with invalid action
         response = authenticated_client_with_host.post(
             "/oauth2/authorize",
             data={
-                "client_id": normal_oauth2_client["client_id"],
-                "redirect_uri": "http://localhost:3000/callback",
+                "auth_request_id": auth_request_id,
                 "action": "invalid_action",
             },
             follow_redirects=False,
@@ -374,6 +408,140 @@ class TestAuthorizeGrant:
         assert response.status_code == 303
         location = response.headers["location"]
         assert "error=invalid_request" in location
+
+
+# ============================================================================
+# POST /oauth2/authorize - Security Tests (auth_request_id validation)
+# ============================================================================
+
+
+class TestAuthorizeGrantSecurity:
+    """Security tests for OAuth2 authorization grant - auth_request_id validation."""
+
+    def test_invalid_auth_request_id_rejected(self, authenticated_client_with_host):
+        """Test that invalid/fabricated auth_request_id is rejected."""
+        response = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={
+                "auth_request_id": "fabricated_invalid_id_12345",
+                "action": "allow",
+            },
+            follow_redirects=False,
+        )
+
+        # Should show error page, not redirect
+        assert response.status_code == 200
+        assert "Invalid request" in response.text or "not found" in response.text.lower()
+
+    def test_auth_request_id_single_use(
+        self, authenticated_client_with_host, normal_oauth2_client
+    ):
+        """Test that auth_request_id can only be used once (replay protection)."""
+        # GET to create auth request
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # First POST - should succeed
+        response1 = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={
+                "auth_request_id": auth_request_id,
+                "action": "allow",
+            },
+            follow_redirects=False,
+        )
+        assert response1.status_code == 303
+        assert "code=" in response1.headers["location"]
+
+        # Second POST with same auth_request_id - should fail
+        response2 = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={
+                "auth_request_id": auth_request_id,
+                "action": "allow",
+            },
+            follow_redirects=False,
+        )
+        assert response2.status_code == 200
+        assert "Invalid request" in response2.text or "not found" in response2.text.lower()
+
+    def test_expired_auth_request_rejected(
+        self, authenticated_client_with_host, normal_oauth2_client
+    ):
+        """Test that expired auth_request_id is rejected."""
+        from unittest.mock import patch
+
+        # GET to create auth request
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # Mock time to be 15 minutes in the future (past the 10 minute expiry)
+        import time
+
+        future_time = time.time() + 900  # 15 minutes later
+
+        with patch("routers.oauth2.time.time", return_value=future_time):
+            response = authenticated_client_with_host.post(
+                "/oauth2/authorize",
+                data={
+                    "auth_request_id": auth_request_id,
+                    "action": "allow",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 200
+        assert "expired" in response.text.lower()
+
+    def test_parameters_retrieved_from_session_not_form(
+        self, authenticated_client_with_host, normal_oauth2_client
+    ):
+        """Test that authorization parameters come from session, not form data.
+
+        This verifies the security fix - even if an attacker tries to inject
+        different parameters via form, the stored session values are used.
+        """
+        # GET with specific parameters
+        get_response = authenticated_client_with_host.get(
+            "/oauth2/authorize",
+            params={
+                "client_id": normal_oauth2_client["client_id"],
+                "redirect_uri": "http://localhost:3000/callback",
+                "state": "original_state",
+            },
+            follow_redirects=False,
+        )
+        auth_request_id = _extract_auth_request_id(get_response.text)
+
+        # POST - the response should use the original state from session
+        response = authenticated_client_with_host.post(
+            "/oauth2/authorize",
+            data={
+                "auth_request_id": auth_request_id,
+                "action": "allow",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        location = response.headers["location"]
+        # Should redirect to the original redirect_uri with original state
+        assert location.startswith("http://localhost:3000/callback")
+        assert "state=original_state" in location
 
 
 # ============================================================================

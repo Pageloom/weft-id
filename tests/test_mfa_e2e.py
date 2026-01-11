@@ -6,6 +6,8 @@ They require the maildev container to be running (docker compose up maildev).
 Tests are skipped if maildev is not available.
 """
 
+from unittest.mock import patch
+
 import pyotp
 import pytest
 from fastapi.testclient import TestClient
@@ -287,35 +289,35 @@ class TestTOTPMFAFlow:
 
     def test_totp_mfa_login_complete_flow(self, mfa_client, totp_mfa_user):
         """Test complete login flow with TOTP MFA verification."""
-        # Step 1: Submit login credentials
-        response = mfa_client.post(
-            "/login",
-            data={"email": totp_mfa_user["email"], "password": totp_mfa_user["password"]},
-            follow_redirects=False,
-        )
+        with patch("utils.email.send_mfa_code_email") as mock_send_email:
+            # Step 1: Submit login credentials
+            response = mfa_client.post(
+                "/login",
+                data={"email": totp_mfa_user["email"], "password": totp_mfa_user["password"]},
+                follow_redirects=False,
+            )
 
-        # Should redirect to MFA verification
-        assert response.status_code == 303
-        assert response.headers["location"] == "/mfa/verify"
+            # Should redirect to MFA verification
+            assert response.status_code == 303
+            assert response.headers["location"] == "/mfa/verify"
 
-        # Step 2: No email should be sent for TOTP users
-        email = maildev.get_latest_email(totp_mfa_user["email"], timeout=1)
-        assert email is None, "No email should be sent for TOTP MFA users"
+            # Step 2: Verify no email was sent for TOTP users
+            mock_send_email.assert_not_called()
 
-        # Step 3: Generate valid TOTP code using the secret
-        totp = pyotp.TOTP(totp_mfa_user["totp_secret"])
-        code = totp.now()
+            # Step 3: Generate valid TOTP code using the secret
+            totp = pyotp.TOTP(totp_mfa_user["totp_secret"])
+            code = totp.now()
 
-        # Step 4: Submit the TOTP code
-        response = mfa_client.post(
-            "/mfa/verify",
-            data={"code": code},
-            follow_redirects=False,
-        )
+            # Step 4: Submit the TOTP code
+            response = mfa_client.post(
+                "/mfa/verify",
+                data={"code": code},
+                follow_redirects=False,
+            )
 
-        # Should redirect to dashboard after successful MFA
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
+            # Should redirect to dashboard after successful MFA
+            assert response.status_code == 303
+            assert response.headers["location"] == "/dashboard"
 
     def test_totp_mfa_invalid_code_shows_error(self, mfa_client, totp_mfa_user):
         """Test that submitting an invalid TOTP code shows an error."""
@@ -339,23 +341,23 @@ class TestTOTPMFAFlow:
 
     def test_totp_mfa_email_fallback_blocked(self, mfa_client, totp_mfa_user):
         """Test that TOTP users cannot request email codes."""
-        # Login first
-        mfa_client.post(
-            "/login",
-            data={"email": totp_mfa_user["email"], "password": totp_mfa_user["password"]},
-            follow_redirects=False,
-        )
+        with patch("utils.email.send_mfa_code_email") as mock_send_email:
+            # Login first
+            mfa_client.post(
+                "/login",
+                data={"email": totp_mfa_user["email"], "password": totp_mfa_user["password"]},
+                follow_redirects=False,
+            )
 
-        # Try to request email code
-        response = mfa_client.post("/mfa/verify/send-email", follow_redirects=False)
+            # Try to request email code
+            response = mfa_client.post("/mfa/verify/send-email", follow_redirects=False)
 
-        # Should redirect back to /mfa/verify (not send email)
-        assert response.status_code == 303
-        assert "/mfa/verify" in response.headers["location"]
+            # Should redirect back to /mfa/verify (not send email)
+            assert response.status_code == 303
+            assert "/mfa/verify" in response.headers["location"]
 
-        # No email should have been sent
-        email = maildev.get_latest_email(totp_mfa_user["email"], timeout=1)
-        assert email is None, "Email should not be sent for TOTP users"
+            # Verify no email was sent for TOTP users
+            mock_send_email.assert_not_called()
 
 
 # ============================================================================

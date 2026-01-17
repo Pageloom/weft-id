@@ -119,8 +119,8 @@ def update_regional(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    timezone: Annotated[str, Form()],
-    locale: Annotated[str, Form()],
+    timezone: Annotated[str, Form()] = "",
+    locale: Annotated[str, Form()] = "",
 ):
     """Update user's timezone and locale."""
     # Validate timezone using zoneinfo

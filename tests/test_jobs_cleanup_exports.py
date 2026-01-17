@@ -44,8 +44,10 @@ def test_cleanup_expired_exports_success():
         "storage_path": storage_path,
     }
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = [mock_export]
         mock_db.export_files.delete_export_file.return_value = None
 
@@ -82,8 +84,10 @@ def test_cleanup_expired_exports_file_not_found():
         "storage_path": storage_path,
     }
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = [mock_export]
         mock_db.export_files.delete_export_file.return_value = None
 
@@ -119,8 +123,10 @@ def test_cleanup_expired_exports_delete_failure():
         "storage_path": storage_path,
     }
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = [mock_export]
         mock_db.export_files.delete_export_file.return_value = None
 
@@ -153,8 +159,10 @@ def test_cleanup_expired_exports_exception_handling():
         "storage_path": storage_path,
     }
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = [mock_export]
 
         mock_backend = MagicMock()
@@ -180,8 +188,10 @@ def test_cleanup_expired_exports_multiple_files():
         for i in range(3)
     ]
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = mock_exports
         mock_db.export_files.delete_export_file.return_value = None
 
@@ -222,8 +232,10 @@ def test_cleanup_expired_exports_mixed_success_and_failure():
             raise Exception("Storage error")
         return True
 
-    with patch("jobs.cleanup_exports.database") as mock_db, \
-         patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.cleanup_exports.database") as mock_db,
+        patch("jobs.cleanup_exports.storage.get_backend") as mock_get_backend,
+    ):
         mock_db.export_files.get_expired_exports.return_value = mock_exports
         mock_db.export_files.delete_export_file.return_value = None
 

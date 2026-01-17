@@ -217,8 +217,10 @@ def test_handle_export_events_pagination():
         "job_type": "export_events",
     }
 
-    with patch("jobs.export_events.database") as mock_db, \
-         patch("jobs.export_events.storage.get_backend") as mock_get_backend:
+    with (
+        patch("jobs.export_events.database") as mock_db,
+        patch("jobs.export_events.storage.get_backend") as mock_get_backend,
+    ):
         # Mock pagination - return batches then empty
         mock_db.event_log.list_events.side_effect = [batch1, batch2, batch3, []]
         mock_db.export_files.create_export_file.return_value = {"id": file_id}

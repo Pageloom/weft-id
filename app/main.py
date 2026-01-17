@@ -15,6 +15,7 @@ from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from middleware.csrf import CSRFMiddleware  # noqa: E402
+from middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
 from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
@@ -52,6 +53,10 @@ app.add_middleware(DynamicSessionMiddleware, secret_key=settings.SESSION_SECRET_
 # Add CSRF protection middleware (must be after session middleware so it has access to session)
 # API routes, SAML ACS, and OAuth2 token endpoint are exempt
 app.add_middleware(CSRFMiddleware)
+
+# Add security headers middleware
+# Adds HTTP security headers to all responses
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.exception_handler(RedirectError)

@@ -12,6 +12,8 @@ from schemas.oauth2 import (
     ClientWithSecret,
     NormalClientCreate,
 )
+from services.exceptions import ServiceError
+from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/oauth2/clients", tags=["OAuth2 Clients"])
 
@@ -84,8 +86,8 @@ def create_normal_client(
         )
 
         return _client_to_response(client, include_secret=True)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.post("/b2b", response_model=ClientWithSecret, status_code=201)
@@ -121,8 +123,8 @@ def create_b2b_client(
         )
 
         return _client_to_response(client, include_secret=True)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
 
 
 @router.delete("/{client_id}", status_code=204)

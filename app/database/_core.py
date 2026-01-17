@@ -103,7 +103,12 @@ def _maybe_set_local(cur, tenant_id: TenantArg) -> None:
     tid = _normalize_tenant_id(tenant_id)
     if tid is not None:
         # Transaction-scoped so it auto-clears at the end of this block
-        # SET LOCAL doesn't support parameters, but tid is a validated UUID string
+        # SECURITY: SET LOCAL requires literal values, not parameterized queries.
+        # PostgreSQL does not support: SET LOCAL app.tenant_id = $1
+        # This is safe because tid is validated as a UUID via _normalize_tenant_id()
+        # which calls uuid.UUID() (lines 96-99), ensuring only hex chars and hyphens.
+        # Any non-UUID input raises ValueError before reaching this line.
+        # DO NOT modify this pattern without maintaining UUID validation.
         cur.execute(f"set local app.tenant_id = '{tid}'")
 
 
@@ -119,7 +124,12 @@ def session(*, tenant_id: TenantArg):
     with pool.connection() as conn, conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
         tid = _normalize_tenant_id(tenant_id)
         if tid is not None:
-            # SET LOCAL doesn't support parameters, but tid is a validated UUID string
+            # SECURITY: SET LOCAL requires literal values, not parameterized queries.
+            # PostgreSQL does not support: SET LOCAL app.tenant_id = $1
+            # This is safe because tid is validated as a UUID via _normalize_tenant_id()
+            # which calls uuid.UUID() (lines 96-99), ensuring only hex chars and hyphens.
+            # Any non-UUID input raises ValueError before reaching this line.
+            # DO NOT modify this pattern without maintaining UUID validation.
             cur.execute(f"set local app.tenant_id = '{tid}'")
         yield cur
 

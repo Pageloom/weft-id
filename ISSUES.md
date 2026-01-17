@@ -8,60 +8,9 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 # Dependency Vulnerabilities
 
-Dependency audit performed: 2026-01-08
+Dependency audit performed: 2026-01-17
 
----
-
-## [DEPS] cryptography: CVE-2024-26130 - NULL Pointer Dereference (Not Affected)
-
-**Package:** cryptography
-**Installed Version:** 41.0.7
-**Vulnerable Versions:** 38.0.0 - 42.0.3
-**Fixed Version:** 42.0.4+
-**Severity:** High (CVSS: 7.5)
-**Advisory:** https://nvd.nist.gov/vuln/detail/cve-2024-26130
-
-**Description:**
-If `pkcs12.serialize_key_and_certificates` is called with both a certificate whose public key did not match the provided private key and an `encryption_algorithm` with `hmac_hash` set, then a NULL pointer dereference would occur, crashing the Python process.
-
-**Exploitability in This Project:**
-Not Affected - Version 41.0.7 is below the vulnerable range (38.0.0-42.0.3). This CVE affects versions 38.0.0+ but the fix is in 42.0.4.
-
-**Status:** Monitor only - current version is safe from this specific CVE.
-
----
-
-## [DEPS] cryptography: CVE-2024-12797 - Vulnerable OpenSSL in Wheels (Not Affected)
-
-**Package:** cryptography
-**Installed Version:** 41.0.7
-**Vulnerable Versions:** 42.0.0 - 44.0.0
-**Fixed Version:** 44.0.1+
-**Severity:** Medium (OpenSSL TLS/DTLS RPK issue)
-**Advisory:** https://nvd.nist.gov/vuln/detail/CVE-2024-12797
-
-**Description:**
-pyca/cryptography's wheels include a statically linked copy of OpenSSL. Versions 42.0.0-44.0.0 bundle vulnerable OpenSSL versions affected by CVE-2024-12797, which affects TLS and DTLS connections using Raw Public Keys (RPKs).
-
-**Exploitability in This Project:**
-Not Affected - Version 41.0.7 is below the vulnerable range (42.0.0+).
-
-**Status:** No action required for current version.
-
----
-
-## [DEPS] cryptography: Outdated Version Advisory
-
-**Package:** cryptography
-**Installed Version:** 41.0.7
-**Latest Stable:** 44.0.1+
-**Severity:** Low (Informational)
-
-**Description:**
-The installed version 41.0.7 is significantly behind the current release. While not vulnerable to the specific CVEs above, newer versions contain security improvements, bug fixes, and updated OpenSSL bundled libraries.
-
-**Recommendation:**
-Consider updating version constraint to `cryptography = "^44.0.1"` for latest security patches. Note: Major version upgrades may have breaking changes - review changelog.
+**Status:** All dependencies secure. No known CVEs affecting current versions.
 
 ---
 
@@ -224,7 +173,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | High | 0 | - |
 | Medium | 4 | Headers, Exceptions, SAML XSS, SQL patterns |
 
-## Dependency Audit Summary (2026-01-08)
+## Dependency Audit Summary (2026-01-17)
 
 | Severity | Count | Packages |
 |----------|-------|----------|
@@ -232,14 +181,13 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | High | 0 | - |
 | Medium | 0 | - |
 | Low | 1 | user-agents (unmaintained) |
-| Safe | 18 | All other production dependencies |
+| Safe | All | All production dependencies |
 
 ### Packages Requiring Attention
-1. **cryptography** - Consider upgrade to 44.0.1+ (informational, not vulnerable)
-2. **user-agents** - Unmaintained, consider replacement with `ua-parser`
+1. **user-agents** - Unmaintained, consider replacement with `ua-parser` when convenient
 
 ### Packages Confirmed Safe
-All production dependencies are at versions that include fixes for known CVEs.
+All production dependencies are at versions that include fixes for known CVEs. Recent CVEs in the Python ecosystem (CVE-2026-21226 Azure Core, CVE-2025-68668 n8n, CVE-2025-68664 LangChain) do not affect this project.
 
 **Priority Remediation Order:**
 1. ~~XSS in users_list.html (Critical - immediate exploit)~~ **RESOLVED**

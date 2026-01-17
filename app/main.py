@@ -31,10 +31,12 @@ from routers.api.v1 import users as users_api  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# Security warnings for dangerous settings
+# Validate production settings (secrets and dangerous flags)
+settings.validate_production_settings()
+
+# Log warning for BYPASS_OTP even in dev mode (helpful reminder)
 if settings.BYPASS_OTP:
     logger.warning("BYPASS_OTP is enabled. Any 6-digit code will pass MFA verification.")
-    logger.warning("This should ONLY be used in development or controlled on-prem environments.")
 
 app = FastAPI(
     title="Loom Identity Platform API",

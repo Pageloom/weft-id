@@ -16,6 +16,7 @@ os.environ.setdefault("POSTGRES_PASSWORD", "apppass")
 os.environ.setdefault("POSTGRES_DB", "appdb")
 os.environ.setdefault("POSTGRES_PORT", "5432")
 os.environ.setdefault("BASE_DOMAIN", "pageloom.localhost")
+os.environ.setdefault("IS_DEV", "true")  # Tests run in dev mode
 
 from datetime import UTC  # noqa: E402
 

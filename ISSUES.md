@@ -31,27 +31,6 @@ from starlette.middleware import Middleware
 
 ---
 
-## [SECURITY] Default Secret Keys in Settings
-
-**Found in:** `app/settings.py:39-44`
-**Severity:** High
-**OWASP Category:** A05:2021 - Security Misconfiguration
-
-**Description:** Secret keys have insecure default values that could be used if environment variables are not set.
-
-**Evidence:**
-```python
-SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
-MFA_ENCRYPTION_KEY = os.environ.get("MFA_ENCRYPTION_KEY", "dev-mfa-key-change-in-production-must-be-base64")
-SAML_KEY_ENCRYPTION_KEY = os.environ.get("SAML_KEY_ENCRYPTION_KEY", "dev-saml-key-change-in-production-must-be-base64")
-```
-
-**Impact:** If deployed without proper environment config, session forgery and MFA/SAML encryption compromise.
-
-**Remediation:** Remove default values or raise explicit error if not set in production. Add startup check that fails if secrets are default values and `IS_DEV=False`.
-
----
-
 ## [SECURITY] Failed Login Attempts Not Logged
 
 **Found in:** `app/utils/auth.py:23-68`, `app/routers/auth.py:136-162`
@@ -174,28 +153,6 @@ except Exception as e:
 **Impact:** If validation is bypassed or new code paths added without validation, SQL injection becomes possible.
 
 **Remediation:** Refactor to use parameterized queries where possible. Document why f-strings are necessary (e.g., SET LOCAL doesn't support parameters) with clear security notes.
-
----
-
-## [SECURITY] BYPASS_OTP Feature Risk
-
-**Found in:** `app/settings.py:37`, `app/utils/mfa.py:53-55`
-**Severity:** Medium
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-
-**Description:** The `BYPASS_OTP` setting allows any 6-digit code to pass MFA verification. While intended for development, accidental production enablement is catastrophic.
-
-**Evidence:**
-```python
-if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
-    return True  # Accepts ANY 6-digit code
-```
-
-**Impact:** Complete MFA bypass if accidentally enabled in production.
-
-**Remediation:** Add startup check that prevents application from starting if `BYPASS_OTP=True` and `IS_DEV=False`. Or remove the feature entirely.
-
----
 
 ---
 
@@ -414,8 +371,8 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 4 | Secrets, Logging |
-| Medium | 6 | Headers, Exceptions, SAML XSS, SQL patterns, MFA bypass, Auth logging |
+| High | 3 | Logging |
+| Medium | 5 | Headers, Exceptions, SAML XSS, SQL patterns, Auth logging |
 
 ## Dependency Audit Summary (2026-01-08)
 
@@ -440,6 +397,8 @@ All production dependencies are at versions that include fixes for known CVEs.
 3. ~~Rate limiting (High - enables brute force)~~ **RESOLVED**
 4. ~~Session fixation (High - account takeover)~~ **RESOLVED**
 5. ~~OAuth2 state validation (High - OAuth CSRF)~~ **RESOLVED**
-6. Security headers (Medium - defense in depth)
-7. Logging gaps (High - compliance/detection)
-8. Other Medium items
+6. ~~Default secret keys (High - production misconfiguration)~~ **RESOLVED**
+7. ~~BYPASS_OTP risk (Medium - MFA bypass in production)~~ **RESOLVED**
+8. Security headers (Medium - defense in depth)
+9. Logging gaps (High - compliance/detection)
+10. Other Medium items

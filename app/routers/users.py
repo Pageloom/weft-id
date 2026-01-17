@@ -215,9 +215,9 @@ def create_new_user(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
-    email: Annotated[str, Form()],
-    first_name: Annotated[str, Form()],
-    last_name: Annotated[str, Form()],
+    email: Annotated[str, Form()] = "",
+    first_name: Annotated[str, Form()] = "",
+    last_name: Annotated[str, Form()] = "",
     role: Annotated[str, Form()] = "member",
 ):
     """Create a new user account."""
@@ -364,8 +364,8 @@ def update_user_name(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
-    first_name: Annotated[str, Form()],
-    last_name: Annotated[str, Form()],
+    first_name: Annotated[str, Form()] = "",
+    last_name: Annotated[str, Form()] = "",
 ):
     """Update a user's name (admin only)."""
     # Check admin permission

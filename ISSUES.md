@@ -31,73 +31,6 @@ from starlette.middleware import Middleware
 
 ---
 
-## [SECURITY] Failed Login Attempts Not Logged
-
-**Found in:** `app/utils/auth.py:23-68`, `app/routers/auth.py:136-162`
-**Severity:** High
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-
-**Description:** Failed login attempts (invalid credentials, inactive user) return error responses but are not logged to the event log.
-
-**Impact:**
-- Cannot detect brute force attacks
-- No audit trail for security investigations
-- Compliance gap for security monitoring requirements
-
-**Remediation:** Add `log_event()` calls for failed authentication attempts with metadata (email attempted, failure reason, IP address).
-
----
-
-## [SECURITY] Logout Events Not Logged
-
-**Found in:** `app/routers/auth.py:204-208`
-**Severity:** Medium
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-
-**Description:** User logout clears the session but does not create an audit log entry.
-
-**Evidence:**
-```python
-@router.post("/logout")
-def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse(url="/login", status_code=303)
-```
-
-**Impact:** Cannot track user session lifecycle for security audits.
-
-**Remediation:** Add `log_event(tenant_id, user_id, "user", user_id, "user_signed_out", ...)` before clearing session.
-
----
-
-## [SECURITY] Password Changes Not Logged
-
-**Found in:** `app/services/users.py:1128`, `app/routers/auth.py:384-439`
-**Severity:** High
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-
-**Description:** Password updates via `update_password()` and the `/set-password` endpoint do not emit event logs.
-
-**Impact:** Cannot detect unauthorized password changes or track password lifecycle for compliance.
-
-**Remediation:** Add `log_event()` for password changes: `password_set` (initial), `password_changed` (update).
-
----
-
-## [SECURITY] Authorization Failures Not Logged
-
-**Found in:** `app/services/mfa.py:51-58`, `app/services/saml.py:67-74`, `app/services/users.py:607-609`
-**Severity:** Medium
-**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
-
-**Description:** When `ForbiddenError` is raised (unauthorized access attempts), no audit log is created.
-
-**Impact:** Cannot detect privilege escalation attempts or unauthorized access patterns.
-
-**Remediation:** Wrap authorization failures with `log_event()` calls or add logging in the `_require_admin()` and `_require_super_admin()` helper functions.
-
----
-
 ## [SECURITY] Raw Exceptions Exposed in OAuth2 Clients API
 
 **Found in:** `app/routers/api/v1/oauth2_clients.py:87-88, 124-125`
@@ -371,8 +304,8 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 3 | Logging |
-| Medium | 5 | Headers, Exceptions, SAML XSS, SQL patterns, Auth logging |
+| High | 0 | - |
+| Medium | 4 | Headers, Exceptions, SAML XSS, SQL patterns |
 
 ## Dependency Audit Summary (2026-01-08)
 
@@ -399,6 +332,6 @@ All production dependencies are at versions that include fixes for known CVEs.
 5. ~~OAuth2 state validation (High - OAuth CSRF)~~ **RESOLVED**
 6. ~~Default secret keys (High - production misconfiguration)~~ **RESOLVED**
 7. ~~BYPASS_OTP risk (Medium - MFA bypass in production)~~ **RESOLVED**
-8. Security headers (Medium - defense in depth)
-9. Logging gaps (High - compliance/detection)
+8. ~~Logging gaps (High - compliance/detection)~~ **RESOLVED**
+9. Security headers (Medium - defense in depth)
 10. Other Medium items

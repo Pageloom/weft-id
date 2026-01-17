@@ -67,6 +67,20 @@ logger = logging.getLogger(__name__)
 def _require_super_admin(user: RequestingUser) -> None:
     """Raise ForbiddenError if user is not super_admin."""
     if user["role"] != "super_admin":
+        # Log authorization failure before raising
+        log_event(
+            tenant_id=user["tenant_id"],
+            actor_user_id=user["id"],
+            artifact_type="user",
+            artifact_id=user["id"],
+            event_type="authorization_denied",
+            metadata={
+                "required_role": "super_admin",
+                "actual_role": user["role"],
+                "service": "saml",
+            },
+            request_metadata=user.get("request_metadata"),
+        )
         raise ForbiddenError(
             message="Super admin access required",
             code="super_admin_required",

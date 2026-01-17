@@ -4,6 +4,101 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Failed Login Attempts Not Logged
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/utils/auth.py:23-68`, `app/routers/auth.py:136-162`
+
+**Original Severity:** High
+
+**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
+
+**Original Description:** Failed login attempts (invalid credentials, inactive user) returned error responses but were not logged to the event log.
+
+**Resolution:**
+- Added `log_event()` calls in `app/routers/auth.py` for failed login attempts
+- Logs `login_failed` event with metadata: `email_attempted`, `failure_reason`
+- Handles both `invalid_credentials` (unknown user or wrong password) and `inactivated`/`pending`/`denied` user states
+- When user exists but credentials are wrong, logs with their user_id for better tracking
+
+**Files Modified:**
+- `app/routers/auth.py` - Added logging for failed login attempts
+- `tests/test_routers_auth.py` - Added 3 tests for login failure logging
+
+---
+
+## [SECURITY] Logout Events Not Logged
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/routers/auth.py:204-208`
+
+**Original Severity:** Medium
+
+**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
+
+**Original Description:** User logout cleared the session but did not create an audit log entry.
+
+**Resolution:**
+- Added `log_event()` call in logout handler before clearing session
+- Logs `user_signed_out` event with request metadata (IP, user agent)
+- Only logs when user_id exists in session (handles edge case of empty sessions)
+
+**Files Modified:**
+- `app/routers/auth.py` - Added logout event logging
+- `tests/test_routers_auth.py` - Added 2 tests for logout logging
+
+---
+
+## [SECURITY] Password Changes Not Logged
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/services/users.py:1128`, `app/routers/auth.py:384-439`
+
+**Original Severity:** High
+
+**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
+
+**Original Description:** Password updates via `update_password()` and the `/set-password` endpoint did not emit event logs.
+
+**Resolution:**
+- Added `log_event()` call in `/set-password` POST handler after successful password update
+- Logs `password_set` event with request metadata (IP, user agent)
+- Provides audit trail for initial password setting
+
+**Files Modified:**
+- `app/routers/auth.py` - Added password set event logging
+- `tests/test_routers_auth.py` - Added test for password set logging
+
+---
+
+## [SECURITY] Authorization Failures Not Logged
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/services/mfa.py:51-58`, `app/services/saml.py:67-74`, `app/services/users.py:607-609`
+
+**Original Severity:** Medium
+
+**OWASP Category:** A09:2021 - Security Logging and Monitoring Failures
+
+**Original Description:** When `ForbiddenError` was raised (unauthorized access attempts), no audit log was created.
+
+**Resolution:**
+- Modified `_require_admin()` and `_require_super_admin()` helper functions in `mfa.py`, `saml.py`, and `users.py` to log before raising `ForbiddenError`
+- Logs `authorization_denied` event with metadata: `required_role`, `actual_role`, `service`
+- Added specific logging for role change authorization failures in `update_user()` with additional metadata: `action`, `target_user_id`, `current_role`, `attempted_role`
+
+**Files Modified:**
+- `app/services/mfa.py` - Added logging to `_require_admin()`
+- `app/services/saml.py` - Added logging to `_require_super_admin()`
+- `app/services/users.py` - Added logging to `_require_admin()`, `_require_super_admin()`, and role change check
+- `tests/test_services_event_log.py` - Added 6 tests for authorization failure logging
+
+---
+
 ## [SECURITY] Default Secret Keys in Settings
 
 **Status:** Resolved (2026-01-17)

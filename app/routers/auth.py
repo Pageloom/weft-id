@@ -11,6 +11,7 @@ from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
+from services.event_log import log_event
 from services.exceptions import RateLimitError
 from utils.auth import verify_login_with_status
 from utils.email import (
@@ -485,6 +486,22 @@ def login(
     sso_enabled = len(saml_service.get_enabled_idps_for_login(tenant_id)) > 0
 
     if result["status"] == "invalid_credentials":
+        # Log failed login attempt for security monitoring
+        # Try to find user by email to get their ID for the artifact
+        user_id = users_service.get_user_id_by_email(tenant_id, email_normalized)
+        artifact_id = user_id if user_id else tenant_id
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=artifact_id,  # Use user ID if known, tenant ID if unknown
+            artifact_type="user",
+            artifact_id=artifact_id,
+            event_type="login_failed",
+            metadata={
+                "email_attempted": email_normalized,
+                "failure_reason": "invalid_credentials",
+            },
+            request_metadata=extract_request_metadata(request),
+        )
         return templates.TemplateResponse(
             request,
             "login.html",
@@ -503,6 +520,19 @@ def login(
         # Note: use "inactivated_user" instead of "user" to avoid triggering
         # the nav bar in base.html (which requires nav context)
         inactivated_user = result["user"]
+        # Log failed login attempt for inactivated user
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=str(inactivated_user["id"]),
+            artifact_type="user",
+            artifact_id=str(inactivated_user["id"]),
+            event_type="login_failed",
+            metadata={
+                "email_attempted": email_normalized,
+                "failure_reason": result["status"],
+            },
+            request_metadata=extract_request_metadata(request),
+        )
         return templates.TemplateResponse(
             request,
             "account_inactivated.html",
@@ -540,8 +570,22 @@ def login(
 
 
 @router.post("/logout")
-def logout(request: Request):
+def logout(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
     """Handle logout."""
+    # Log the logout event before clearing session
+    user_id = request.session.get("user_id")
+    if user_id:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_signed_out",
+            request_metadata=extract_request_metadata(request),
+        )
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
 
@@ -764,6 +808,16 @@ def set_password(
     # Set the password
     password_hash = hash_password(password)
     users_service.update_password(tenant_id, user["id"], password_hash)
+
+    # Log the password set event
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=str(user["id"]),
+        artifact_type="user",
+        artifact_id=str(user["id"]),
+        event_type="password_set",
+        request_metadata=extract_request_metadata(request),
+    )
 
     # Store user info in session to start MFA flow (same as regular login)
     request.session["pending_mfa_user_id"] = str(user["id"])

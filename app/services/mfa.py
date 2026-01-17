@@ -51,6 +51,20 @@ from utils.mfa import (
 def _require_admin(user: RequestingUser) -> None:
     """Raise ForbiddenError if user is not admin or super_admin."""
     if user["role"] not in ("admin", "super_admin"):
+        # Log authorization failure before raising
+        log_event(
+            tenant_id=user["tenant_id"],
+            actor_user_id=user["id"],
+            artifact_type="user",
+            artifact_id=user["id"],
+            event_type="authorization_denied",
+            metadata={
+                "required_role": "admin",
+                "actual_role": user["role"],
+                "service": "mfa",
+            },
+            request_metadata=user.get("request_metadata"),
+        )
         raise ForbiddenError(
             message="Admin access required",
             code="admin_required",

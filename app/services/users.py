@@ -40,6 +40,20 @@ from services.types import RequestingUser
 def _require_admin(user: RequestingUser) -> None:
     """Raise ForbiddenError if user is not admin or super_admin."""
     if user["role"] not in ("admin", "super_admin"):
+        # Log authorization failure before raising
+        log_event(
+            tenant_id=user["tenant_id"],
+            actor_user_id=user["id"],
+            artifact_type="user",
+            artifact_id=user["id"],
+            event_type="authorization_denied",
+            metadata={
+                "required_role": "admin",
+                "actual_role": user["role"],
+                "service": "users",
+            },
+            request_metadata=user.get("request_metadata"),
+        )
         raise ForbiddenError(
             message="Admin access required",
             code="admin_required",
@@ -50,6 +64,20 @@ def _require_admin(user: RequestingUser) -> None:
 def _require_super_admin(user: RequestingUser) -> None:
     """Raise ForbiddenError if user is not super_admin."""
     if user["role"] != "super_admin":
+        # Log authorization failure before raising
+        log_event(
+            tenant_id=user["tenant_id"],
+            actor_user_id=user["id"],
+            artifact_type="user",
+            artifact_id=user["id"],
+            event_type="authorization_denied",
+            metadata={
+                "required_role": "super_admin",
+                "actual_role": user["role"],
+                "service": "users",
+            },
+            request_metadata=user.get("request_metadata"),
+        )
         raise ForbiddenError(
             message="Super admin access required",
             code="super_admin_required",
@@ -604,6 +632,23 @@ def update_user(
         if (
             new_role in ("admin", "super_admin") or current_role == "super_admin"
         ) and requesting_user["role"] != "super_admin":
+            # Log authorization failure for role change attempt
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="user",
+                artifact_id=user_id,
+                event_type="authorization_denied",
+                metadata={
+                    "required_role": "super_admin",
+                    "actual_role": requesting_user["role"],
+                    "action": "role_change",
+                    "target_user_id": user_id,
+                    "current_role": current_role,
+                    "attempted_role": new_role,
+                },
+                request_metadata=requesting_user.get("request_metadata"),
+            )
             raise ForbiddenError(
                 message="Only super_admin can change admin or super_admin roles",
                 code="super_admin_role_change_denied",
@@ -1161,6 +1206,24 @@ def get_admin_emails(tenant_id: str) -> list[str]:
         List of admin email addresses
     """
     return database.users.get_admin_emails(tenant_id)
+
+
+def get_user_id_by_email(tenant_id: str, email: str) -> str | None:
+    """
+    Look up a user ID by email address.
+
+    This is a utility function without authorization - used for
+    security logging of failed login attempts.
+
+    Args:
+        tenant_id: Tenant ID
+        email: Email address to look up
+
+    Returns:
+        User ID if found, None otherwise
+    """
+    result = database.users.get_user_by_email(tenant_id, email)
+    return str(result["user_id"]) if result else None
 
 
 def get_user_by_id_raw(tenant_id: str, user_id: str) -> dict | None:

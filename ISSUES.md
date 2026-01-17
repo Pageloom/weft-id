@@ -6,6 +6,47 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
+## [COMPLIANCE] Missing Route Registration in pages.py
+
+**Found in:** `app/routers/saml.py:374`
+**Severity:** Medium
+**Principle Violated:** Authorization Pattern Verification (Single source of truth)
+**Description:** The `/saml/select` route renders a page template but is not registered in `app/pages.py`. This breaks the architectural principle of having a single source of truth for page permissions.
+
+**Evidence:**
+```python
+# app/routers/saml.py:374-402
+@router.get("/saml/select")
+def saml_select_idp(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Display IdP selection page when multiple IdPs are available."""
+    # ... renders saml_idp_select.html template
+```
+
+**Impact:**
+- Inconsistent authorization model (most pages registered, this one missing)
+- Route is not documented in the centralized page registry
+- Authorization check would fail if `has_page_access("/saml/select", role)` is called
+- Violates single source of truth principle for page permissions
+
+**Root Cause:** Authentication flow page was added without updating the central page registry.
+
+**Suggested fix:**
+Add to `app/pages.py` in the MFA/auth section (around line 209):
+```python
+Page(
+    path="/saml/select",
+    title="Select Identity Provider",
+    permission=PagePermission.PUBLIC,
+    show_in_nav=False,
+    creates_nav_level=False,
+),
+```
+
+---
+
 ## [BUG] KeyError in list_domain_bindings Service Function
 
 **Found in:** `app/services/saml.py:1598`, `app/database/saml.py:562`
@@ -346,7 +387,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 |----------|-------|------------|
 | Critical | 0 | - |
 | High | 1 | KeyError in list_domain_bindings |
-| Medium | 4 | Headers, Exceptions, SAML XSS, SQL patterns |
+| Medium | 5 | Missing route registration, Headers, Exceptions, SAML XSS, SQL patterns |
 
 ## Dependency Audit Summary (2026-01-08)
 

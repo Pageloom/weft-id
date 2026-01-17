@@ -605,7 +605,9 @@ def test_import_idp_from_xml_as_admin_forbidden(admin_session, test_tenant_host)
 
 
 @pytest.fixture
-def acs_test_setup(client, test_tenant, test_super_admin_user, test_user, test_idp_data, fast_sp_certificate):
+def acs_test_setup(
+    client, test_tenant, test_super_admin_user, test_user, test_idp_data, fast_sp_certificate
+):
     """Setup for ACS tests - creates IdP and mocks tenant_id dependency."""
     from dependencies import get_tenant_id_from_request
     from main import app
@@ -1086,3 +1088,218 @@ def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_h
     # Should redirect to MFA verify
     assert response.status_code == 303
     assert "/mfa/verify" in response.headers.get("location", "")
+
+
+# ==============================================================================
+# XSS Prevention Tests for relay_state Parameter
+# ==============================================================================
+
+
+def test_saml_select_single_idp_encodes_xss_relay_state(
+    client, test_tenant, test_tenant_host, test_super_admin_user
+):
+    """Test that single IdP redirect encodes malicious relay_state to prevent XSS."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create and enable a single IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Single XSS Test IdP",
+        provider_type="okta",
+        entity_id="https://xss-test.example.com/entity",
+        sso_url="https://xss-test.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+        is_enabled=True,
+    )
+
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Attempt XSS via relay_state parameter
+    malicious_payloads = [
+        "javascript:alert('XSS')",
+        "<script>alert('XSS')</script>",
+        "' onload='alert(1)",
+        "data:text/html,<script>alert('XSS')</script>",
+    ]
+
+    for payload in malicious_payloads:
+        response = client.get(
+            f"/saml/select?relay_state={payload}",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        location = response.headers.get("location", "")
+
+        # Verify that the malicious payload is URL-encoded in the redirect
+        # Should not contain literal javascript:, <script>, etc.
+        assert "javascript:" not in location.lower()
+        assert "<script>" not in location.lower()
+        assert "onload=" not in location.lower()
+
+        # Verify it contains the URL-encoded relay_state parameter
+        assert "relay_state=" in location
+
+
+def test_saml_select_multiple_idps_encodes_xss_relay_state(
+    client, test_tenant, test_tenant_host, test_super_admin_user
+):
+    """Test that multiple IdP selection page encodes relay_state to prevent XSS."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create two IdPs to trigger selection page
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    for i in range(2):
+        data = IdPCreate(
+            name=f"Multi XSS Test IdP {i}",
+            provider_type="okta",
+            entity_id=f"https://multi-xss-test-{i}.example.com/entity",
+            sso_url=f"https://multi-xss-test-{i}.example.com/sso",
+            certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+            is_enabled=True,
+        )
+        saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Attempt XSS via relay_state parameter
+    malicious_payload = "javascript:alert('XSS')"
+    response = client.get(
+        f"/saml/select?relay_state={malicious_payload}",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    html = response.text
+
+    # Verify the malicious payload is URL-encoded in the template href attributes
+    # Should not contain literal javascript: in href
+    assert 'href="/saml/login/' in html
+    assert f'relay_state={malicious_payload}"' not in html
+
+    # Should contain URL-encoded version (javascript%3A...)
+    # The | urlencode filter encodes the colon and other special chars
+    assert "javascript%3A" in html or "javascript:" not in html
+
+
+def test_saml_select_encodes_special_characters(
+    client, test_tenant, test_tenant_host, test_super_admin_user
+):
+    """Test that special characters in relay_state are properly URL-encoded."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create a single IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Special Chars Test IdP",
+        provider_type="okta",
+        entity_id="https://special-chars.example.com/entity",
+        sso_url="https://special-chars.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+        is_enabled=True,
+    )
+
+    saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Test with various special characters
+    relay_state_with_special_chars = "/users/list?search=test&role=admin&foo=bar"
+
+    response = client.get(
+        f"/saml/select?relay_state={relay_state_with_special_chars}",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+
+    # Verify special chars are encoded
+    # The '&' and '=' should be URL-encoded
+    assert "relay_state=" in location
+    # Original unencoded string should not appear
+    assert "search=test&role=admin" not in location
+
+
+def test_saml_select_allows_legitimate_relay_states(
+    client, test_tenant, test_tenant_host, test_super_admin_user
+):
+    """Test that legitimate relay_state values still work correctly."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.types import RequestingUser
+
+    # Create a single IdP
+    requesting_user = RequestingUser(
+        id=str(test_super_admin_user["id"]),
+        tenant_id=str(test_tenant["id"]),
+        role="super_admin",
+    )
+
+    data = IdPCreate(
+        name="Legitimate Test IdP",
+        provider_type="okta",
+        entity_id="https://legitimate.example.com/entity",
+        sso_url="https://legitimate.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjMwMTAxMDAwMDAwWhcNMjQwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
+-----END CERTIFICATE-----""",
+        is_enabled=True,
+    )
+
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Test legitimate relay states
+    legitimate_states = [
+        "/dashboard",
+        "/account/settings",
+        "/users",
+    ]
+
+    for state in legitimate_states:
+        response = client.get(
+            f"/saml/select?relay_state={state}",
+            headers={"Host": test_tenant_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        location = response.headers.get("location", "")
+
+        # Should redirect to SAML login with relay_state
+        assert f"/saml/login/{idp.id}" in location
+        assert "relay_state=" in location

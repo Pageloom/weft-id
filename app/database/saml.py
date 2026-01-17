@@ -277,6 +277,23 @@ def update_identity_provider(
     Returns:
         Dict with updated IdP details
     """
+    # SECURITY: Dynamic SET clause construction with field name validation.
+    #
+    # This function updates only whitelisted fields (lines 283-291).
+    # Field names are validated against allowed_fields before being used in SQL.
+    # Values are ALWAYS parameterized (e.g., :name, :sso_url) - never interpolated.
+    #
+    # Example: If field="name", SQL becomes: "name = :name"
+    # - "name" comes from allowed_fields whitelist (safe)
+    # - :name is a parameterized value handled by psycopg (safe)
+    #
+    # Attack scenarios prevented:
+    # - f"{malicious_field} = :value" → blocked by whitelist check (line 296)
+    # - f"name = {malicious_value}" → impossible, we use :name parameter
+    #
+    # DO NOT add fields to allowed_fields without security review.
+    # DO NOT change parameterization pattern (line 299).
+
     # Build SET clause dynamically from provided kwargs
     allowed_fields = {
         "name",

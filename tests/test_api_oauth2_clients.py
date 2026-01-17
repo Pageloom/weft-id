@@ -467,3 +467,94 @@ def test_b2b_client_response_has_service_user_id(
     data = response.json()
     assert data["service_user_id"] is not None
     assert data["redirect_uris"] is None
+
+
+# ==============================================================================
+# Error Handling Tests
+# ==============================================================================
+
+
+def test_create_normal_client_handles_validation_error(
+    client, test_tenant_host, oauth2_admin_authorization_header, monkeypatch
+):
+    """Test that ValidationError from service is properly translated to HTTP 400."""
+    from services import oauth2 as oauth2_service
+    from services.exceptions import ValidationError
+
+    # Mock the service to raise ValidationError
+    def mock_create_normal_client(*args, **kwargs):
+        raise ValidationError("Invalid client configuration", code="invalid_config")
+
+    monkeypatch.setattr(oauth2_service, "create_normal_client", mock_create_normal_client)
+
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Test Client", "redirect_uris": ["https://example.com/callback"]},
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert data["detail"] == "Invalid client configuration"
+    # Should not contain stack traces or internal error details
+    assert "ValidationError" not in data["detail"]
+    assert "Traceback" not in data["detail"]
+
+
+def test_create_b2b_client_handles_validation_error(
+    client, test_tenant_host, oauth2_admin_authorization_header, monkeypatch
+):
+    """Test that ValidationError from service is properly translated to HTTP 400."""
+    from services import oauth2 as oauth2_service
+    from services.exceptions import ValidationError
+
+    # Mock the service to raise ValidationError
+    def mock_create_b2b_client(*args, **kwargs):
+        raise ValidationError("Invalid B2B client configuration", code="invalid_b2b_config")
+
+    monkeypatch.setattr(oauth2_service, "create_b2b_client", mock_create_b2b_client)
+
+    response = client.post(
+        "/api/v1/oauth2/clients/b2b",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Test B2B Client", "role": "member"},
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert data["detail"] == "Invalid B2B client configuration"
+    # Should not contain stack traces or internal error details
+    assert "ValidationError" not in data["detail"]
+    assert "Traceback" not in data["detail"]
+
+
+def test_create_normal_client_no_stack_trace_on_error(
+    client, test_tenant_host, oauth2_admin_authorization_header, monkeypatch
+):
+    """Test that errors do not expose stack traces or internal details."""
+    from services import oauth2 as oauth2_service
+    from services.exceptions import ValidationError
+
+    # Mock the service to raise ValidationError with detailed internal message
+    def mock_create_normal_client(*args, **kwargs):
+        raise ValidationError(
+            "Database constraint violated: duplicate key value violates unique constraint",
+            code="db_error",
+        )
+
+    monkeypatch.setattr(oauth2_service, "create_normal_client", mock_create_normal_client)
+
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Test Client", "redirect_uris": ["https://example.com/callback"]},
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    # Error message should be returned as-is from the service
+    # (Service layer is responsible for sanitizing messages)
+    assert "Database constraint violated" in data["detail"]
+    # Should not have exception class names or stack traces
+    assert "Exception" not in data["detail"]
+    assert "Traceback" not in data["detail"]

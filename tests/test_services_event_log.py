@@ -41,9 +41,11 @@ def test_user_create_logs_event(make_requesting_user, make_user_dict, make_email
     )
     new_email = make_email_dict(user_id=new_user_id, email=unique_email)
 
-    with patch("services.users.database") as mock_db, \
-         patch("services.users.track_activity"), \
-         patch("services.users.log_event") as mock_log:
+    with (
+        patch("services.users.database") as mock_db,
+        patch("services.users.track_activity"),
+        patch("services.users.log_event") as mock_log,
+    ):
         # Email check - no existing email
         mock_db.user_emails.email_exists.return_value = False
         # User creation - returns user_id not id
@@ -66,6 +68,7 @@ def test_user_create_logs_event(make_requesting_user, make_user_dict, make_email
         assert call_kwargs["event_type"] == "user_created"
         assert call_kwargs["metadata"]["role"] == "member"
 
+
 def test_user_update_logs_event(make_requesting_user, make_user_dict):
     """Test that updating a user logs an event."""
     from schemas.api import UserUpdate
@@ -85,9 +88,11 @@ def test_user_update_logs_event(make_requesting_user, make_user_dict):
         last_name="Name",
     )
 
-    with patch("services.users.database") as mock_db, \
-         patch("services.users.track_activity"), \
-         patch("services.users.log_event") as mock_log:
+    with (
+        patch("services.users.database") as mock_db,
+        patch("services.users.track_activity"),
+        patch("services.users.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.users.update_user.return_value = None
         mock_db.user_emails.get_primary_email.return_value = {"email": target_user["email"]}
@@ -99,6 +104,7 @@ def test_user_update_logs_event(make_requesting_user, make_user_dict):
         assert call_kwargs["artifact_type"] == "user"
         assert call_kwargs["event_type"] == "user_updated"
         assert "changes" in call_kwargs["metadata"]
+
 
 def test_user_inactivate_logs_event(make_requesting_user, make_user_dict, make_email_dict):
     """Test that inactivating a user logs an event."""
@@ -115,9 +121,11 @@ def test_user_inactivate_logs_event(make_requesting_user, make_user_dict, make_e
 
     target_email = make_email_dict(user_id=target_user["id"])
 
-    with patch("services.users.database") as mock_db, \
-         patch("services.users.track_activity"), \
-         patch("services.users.log_event") as mock_log:
+    with (
+        patch("services.users.database") as mock_db,
+        patch("services.users.track_activity"),
+        patch("services.users.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
         # Not a service user
         mock_db.users.is_service_user.return_value = False
@@ -133,6 +141,7 @@ def test_user_inactivate_logs_event(make_requesting_user, make_user_dict, make_e
         assert call_kwargs["artifact_type"] == "user"
         assert call_kwargs["event_type"] == "user_inactivated"
 
+
 def test_user_reactivate_logs_event(make_requesting_user, make_user_dict, make_email_dict):
     """Test that reactivating a user logs an event."""
     from services import users
@@ -147,9 +156,11 @@ def test_user_reactivate_logs_event(make_requesting_user, make_user_dict, make_e
         role="admin",
     )
 
-    with patch("services.users.database") as mock_db, \
-         patch("services.users.track_activity"), \
-         patch("services.users.log_event") as mock_log:
+    with (
+        patch("services.users.database") as mock_db,
+        patch("services.users.track_activity"),
+        patch("services.users.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.users.reactivate_user.return_value = None
         # For the return value (get_user call)
@@ -164,6 +175,7 @@ def test_user_reactivate_logs_event(make_requesting_user, make_user_dict, make_e
         assert call_kwargs["artifact_type"] == "user"
         assert call_kwargs["event_type"] == "user_reactivated"
 
+
 def test_privileged_domain_add_logs_event(make_requesting_user):
     """Test that adding a privileged domain logs an event."""
     from schemas.settings import PrivilegedDomainCreate
@@ -176,9 +188,11 @@ def test_privileged_domain_add_logs_event(make_requesting_user):
     domain_data = PrivilegedDomainCreate(domain=unique_domain)
     domain_id = str(uuid4())
 
-    with patch("services.settings.database") as mock_db, \
-         patch("services.settings.track_activity"), \
-         patch("services.settings.log_event") as mock_log:
+    with (
+        patch("services.settings.database") as mock_db,
+        patch("services.settings.track_activity"),
+        patch("services.settings.log_event") as mock_log,
+    ):
         # Check domain doesn't exist
         mock_db.settings.privileged_domain_exists.return_value = False
         # Create domain - doesn't need return value
@@ -204,6 +218,7 @@ def test_privileged_domain_add_logs_event(make_requesting_user):
         assert call_kwargs["event_type"] == "privileged_domain_added"
         assert call_kwargs["metadata"]["domain"] == unique_domain
 
+
 def test_privileged_domain_delete_logs_event(make_requesting_user):
     """Test that deleting a privileged domain logs an event."""
     from services import settings
@@ -214,9 +229,11 @@ def test_privileged_domain_delete_logs_event(make_requesting_user):
     domain_id = str(uuid4())
     unique_domain = f"delete-{uuid4().hex[:8]}.example.com"
 
-    with patch("services.settings.database") as mock_db, \
-         patch("services.settings.track_activity"), \
-         patch("services.settings.log_event") as mock_log:
+    with (
+        patch("services.settings.database") as mock_db,
+        patch("services.settings.track_activity"),
+        patch("services.settings.log_event") as mock_log,
+    ):
         # Domain lookup returns list of domains
         mock_db.settings.list_privileged_domains.return_value = [
             {"id": domain_id, "domain": unique_domain}
@@ -231,6 +248,7 @@ def test_privileged_domain_delete_logs_event(make_requesting_user):
         assert call_kwargs["event_type"] == "privileged_domain_deleted"
         assert call_kwargs["metadata"]["domain"] == unique_domain
 
+
 def test_tenant_settings_update_logs_event(make_requesting_user):
     """Test that updating tenant settings logs an event."""
     from schemas.settings import TenantSecuritySettingsUpdate
@@ -243,9 +261,11 @@ def test_tenant_settings_update_logs_event(make_requesting_user):
         session_timeout_seconds=7200,
     )
 
-    with patch("services.settings.database") as mock_db, \
-         patch("services.settings.track_activity"), \
-         patch("services.settings.log_event") as mock_log:
+    with (
+        patch("services.settings.database") as mock_db,
+        patch("services.settings.track_activity"),
+        patch("services.settings.log_event") as mock_log,
+    ):
         # Mock getting current settings to calculate changes
         mock_db.tenant_settings.get_settings.return_value = {
             "session_timeout_seconds": 3600,
@@ -261,6 +281,7 @@ def test_tenant_settings_update_logs_event(make_requesting_user):
         assert call_kwargs["event_type"] == "tenant_settings_updated"
         assert "changes" in call_kwargs["metadata"]
 
+
 def test_oauth2_client_created_logs_event(make_requesting_user):
     """Test that creating an OAuth2 client logs an event."""
     from services import oauth2
@@ -270,8 +291,10 @@ def test_oauth2_client_created_logs_event(make_requesting_user):
     client_id = str(uuid4())
     unique_name = f"Test Client {uuid4().hex[:8]}"
 
-    with patch("services.oauth2.database") as mock_db, \
-         patch("services.oauth2.log_event") as mock_log:
+    with (
+        patch("services.oauth2.database") as mock_db,
+        patch("services.oauth2.log_event") as mock_log,
+    ):
         mock_db.oauth2.create_normal_client.return_value = {
             "id": client_id,
             "name": unique_name,
@@ -293,6 +316,7 @@ def test_oauth2_client_created_logs_event(make_requesting_user):
         assert call_kwargs["metadata"]["name"] == unique_name
         assert call_kwargs["metadata"]["type"] == "normal"
 
+
 def test_log_event_helper_function(make_requesting_user):
     """Test the log_event helper function directly."""
     from services.event_log import log_event
@@ -301,8 +325,10 @@ def test_log_event_helper_function(make_requesting_user):
     user_id = str(uuid4())
     unique_event_type = f"test_helper_{uuid4().hex[:8]}"
 
-    with patch("services.event_log.database") as mock_db, \
-         patch("services.event_log.track_activity"):
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
         mock_db.event_log.create_event.return_value = None
 
         log_event(
@@ -322,12 +348,15 @@ def test_log_event_helper_function(make_requesting_user):
         assert call_kwargs["event_type"] == unique_event_type
         assert call_kwargs["combined_metadata"]["test"] is True
 
+
 def test_log_event_does_not_raise_on_failure(make_requesting_user):
     """Test that log_event fails silently and doesn't disrupt operations."""
     from services.event_log import log_event
 
-    with patch("services.event_log.database") as mock_db, \
-         patch("services.event_log.track_activity"):
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
         # Make the database call raise an exception
         mock_db.event_log.create_event.side_effect = Exception("Database error")
 
@@ -349,9 +378,9 @@ def test_log_event_does_not_raise_on_failure(make_requesting_user):
 
 def test_mfa_require_admin_logs_authorization_denied(make_requesting_user):
     """Test that _require_admin in MFA service logs authorization denied events."""
-    from services.exceptions import ForbiddenError
-    from services import mfa
     import pytest
+    from services import mfa
+    from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
     member_user = make_requesting_user(
@@ -375,9 +404,9 @@ def test_mfa_require_admin_logs_authorization_denied(make_requesting_user):
 
 def test_saml_require_super_admin_logs_authorization_denied(make_requesting_user):
     """Test that _require_super_admin in SAML service logs authorization denied events."""
-    from services.exceptions import ForbiddenError
-    from services import saml
     import pytest
+    from services import saml
+    from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
     admin_user = make_requesting_user(
@@ -401,9 +430,9 @@ def test_saml_require_super_admin_logs_authorization_denied(make_requesting_user
 
 def test_users_require_admin_logs_authorization_denied(make_requesting_user):
     """Test that _require_admin in users service logs authorization denied events."""
-    from services.exceptions import ForbiddenError
-    from services import users
     import pytest
+    from services import users
+    from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
     member_user = make_requesting_user(
@@ -424,9 +453,9 @@ def test_users_require_admin_logs_authorization_denied(make_requesting_user):
 
 def test_users_require_super_admin_logs_authorization_denied(make_requesting_user):
     """Test that _require_super_admin in users service logs authorization denied events."""
-    from services.exceptions import ForbiddenError
-    from services import users
     import pytest
+    from services import users
+    from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
     admin_user = make_requesting_user(
@@ -447,10 +476,10 @@ def test_users_require_super_admin_logs_authorization_denied(make_requesting_use
 
 def test_users_role_change_logs_authorization_denied(make_requesting_user, make_user_dict):
     """Test that unauthorized role change attempts are logged."""
-    from services.exceptions import ForbiddenError
-    from services import users
-    from schemas.api import UserUpdate
     import pytest
+    from schemas.api import UserUpdate
+    from services import users
+    from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
     admin_user = make_requesting_user(
@@ -462,9 +491,11 @@ def test_users_role_change_logs_authorization_denied(make_requesting_user, make_
     # Try to promote to admin (requires super_admin)
     user_update = UserUpdate(role="admin")
 
-    with patch("services.users.database") as mock_db, \
-         patch("services.users.track_activity"), \
-         patch("services.users.log_event") as mock_log:
+    with (
+        patch("services.users.database") as mock_db,
+        patch("services.users.track_activity"),
+        patch("services.users.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
 
         with pytest.raises(ForbiddenError) as exc_info:

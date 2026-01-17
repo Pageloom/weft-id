@@ -13,6 +13,7 @@ All functions:
 
 import database
 from services.event_log import log_event
+from services.exceptions import ValidationError
 
 # =============================================================================
 # Client Operations
@@ -229,7 +230,7 @@ def create_normal_client(
     )
 
     if result is None:
-        raise ValueError("Failed to create OAuth2 client")
+        raise ValidationError("Failed to create OAuth2 client", code="client_creation_failed")
 
     # Log the event
     log_event(
@@ -278,7 +279,9 @@ def create_b2b_client(
     )
 
     if result is None:
-        raise ValueError("Failed to create B2B OAuth2 client")
+        raise ValidationError(
+            "Failed to create B2B OAuth2 client", code="b2b_client_creation_failed"
+        )
 
     # Log the event
     log_event(

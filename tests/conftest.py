@@ -35,6 +35,7 @@ TEST_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$XhgX
 ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$ocxCG8Nzju65QCi+4/brYQ$WShYetd5Jt5sIqaEzNlq26Sw9u1TRD0YllNGl3+I0K8"  # AdminPassword123!
 SUPER_ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$8WO+qwvaZiS2UEu4+QEbvA$8ese7/6HdJ/8FqITrwYkYuxa1swp0pbV4HnWOBQKh5M"  # SuperAdminPassword123!
 
+
 def _get_cached_sp_certificate():
     """
     Generate SP certificate once and cache it.

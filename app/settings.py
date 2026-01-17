@@ -86,6 +86,7 @@ def validate_production_settings() -> None:
     if errors:
         raise RuntimeError(f"Invalid production configuration: {'; '.join(errors)}")
 
+
 # Email possession verification settings
 VERIFICATION_CODE_EXPIRY_SECONDS = 300  # 5 minutes
 TRUST_COOKIE_EXPIRY_DAYS = 30

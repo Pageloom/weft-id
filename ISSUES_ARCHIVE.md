@@ -1130,3 +1130,102 @@ Implemented server-side authorization request tracking with session-based valida
 
 ---
 
+## [SECURITY] Missing Security Headers
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/main.py` (no security header middleware)
+
+**Original Severity:** Medium
+
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:** Standard HTTP security headers were not configured (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, Referrer-Policy), increasing attack surface for XSS, clickjacking, and other client-side attacks.
+
+**Resolution:**
+- Created new `SecurityHeadersMiddleware` in `app/middleware/security_headers.py`
+- Configured CSP to allow self-hosted resources, Tailwind inline styles, and QR code server for TOTP
+- Added X-Frame-Options (DENY), X-Content-Type-Options (nosniff), HSTS (HTTPS only), and Referrer-Policy
+- Registered middleware in `app/main.py` after CSRF middleware
+- HSTS only applied on HTTPS connections (not in development)
+
+**Files Modified:**
+- `app/middleware/security_headers.py` (NEW) - Security headers middleware implementation
+- `app/main.py` - Registered security headers middleware
+- `tests/test_middleware_security_headers.py` (NEW) - Comprehensive test coverage (13 tests)
+
+---
+
+## [SECURITY] Raw Exceptions Exposed in OAuth2 Clients API
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/routers/api/v1/oauth2_clients.py:87-88, 124-125`
+
+**Original Severity:** Medium
+
+**OWASP Category:** A02:2021 - Cryptographic Failures (Information Disclosure)
+
+**Original Description:** Generic exceptions were caught and converted directly to HTTP response details using `str(e)`, potentially exposing SQL errors, database structure, or internal logic to attackers.
+
+**Resolution:**
+- Updated service layer to raise `ValidationError` instead of `ValueError` with descriptive error codes
+- Updated router layer to catch `ServiceError` and use `translate_to_http_exception()` pattern
+- Error responses now return safe, user-friendly messages without exposing internals
+
+**Files Modified:**
+- `app/services/oauth2.py` - Changed ValueError to ValidationError with error codes
+- `app/routers/api/v1/oauth2_clients.py` - Added proper ServiceError handling pattern
+- `tests/test_api_oauth2_clients.py` - Added 3 tests verifying safe error handling
+
+---
+
+## [SECURITY] Reflected XSS in SAML relay_state Parameter
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/templates/saml_idp_select.html:24`, `app/routers/saml.py:389-391`
+
+**Original Severity:** Medium
+
+**OWASP Category:** A03:2021 - Injection
+
+**Original Description:** The `relay_state` parameter was reflected into URLs without proper URL encoding, allowing XSS injection through malicious payloads like `javascript:alert('XSS')`.
+
+**Resolution:**
+- Added `| urlencode` filter to template rendering of relay_state
+- Added `quote(relay_state, safe='')` in router redirect URL construction
+- Both template and router now properly URL-encode relay_state parameter
+
+**Files Modified:**
+- `app/templates/saml_idp_select.html` - Added `| urlencode` filter
+- `app/routers/saml.py` - Import quote() and use for relay_state encoding
+- `tests/test_routers_saml.py` - Added 4 comprehensive XSS prevention tests
+
+---
+
+## [SECURITY] SQL f-string Patterns (Defense in Depth)
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/database/_core.py:107, 123`, `app/database/users.py:300-324`, `app/database/saml.py:290-317`
+
+**Original Severity:** Medium (Mitigated)
+
+**OWASP Category:** A03:2021 - Injection
+
+**Original Description:** Several database functions used f-strings to construct SQL queries. While currently mitigated by input validation, this pattern was fragile and lacked clear security documentation.
+
+**Resolution:**
+- Added comprehensive inline security comments explaining WHY f-strings are necessary (PostgreSQL limitations)
+- Documented HOW safety is guaranteed (UUID validation, collation DB validation, field whitelists)
+- Added warnings for future developers about maintaining validation
+- No code changes needed as existing validation patterns are sufficient
+
+**Files Modified:**
+- `app/database/_core.py` - Enhanced security comments for SET LOCAL pattern (2 locations)
+- `app/database/users.py` - Added comprehensive security documentation for dynamic ORDER BY
+- `app/database/saml.py` - Added security documentation for dynamic SET clause construction
+
+---
+

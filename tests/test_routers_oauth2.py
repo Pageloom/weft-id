@@ -433,9 +433,7 @@ class TestAuthorizeGrantSecurity:
         assert response.status_code == 200
         assert "Invalid request" in response.text or "not found" in response.text.lower()
 
-    def test_auth_request_id_single_use(
-        self, authenticated_client_with_host, normal_oauth2_client
-    ):
+    def test_auth_request_id_single_use(self, authenticated_client_with_host, normal_oauth2_client):
         """Test that auth_request_id can only be used once (replay protection)."""
         # GET to create auth request
         get_response = authenticated_client_with_host.get(

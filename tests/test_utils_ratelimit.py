@@ -1,14 +1,14 @@
 """Tests for rate limiting utilities."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
+import pytest
 from services.exceptions import RateLimitError
 from utils.ratelimit import (
-    SECOND,
-    MINUTE,
     HOUR,
     KEY_PREFIX,
+    MINUTE,
+    SECOND,
     RateLimiter,
     ratelimit,
 )
@@ -52,9 +52,7 @@ class TestRateLimiterKeyBuilding:
     def test_build_key_multiple_placeholders(self):
         """Should substitute multiple placeholders."""
         limiter = RateLimiter()
-        key = limiter._build_key(
-            "login:{ip}:{email}", ip="192.168.1.1", email="user@example.com"
-        )
+        key = limiter._build_key("login:{ip}:{email}", ip="192.168.1.1", email="user@example.com")
         assert key == "ratelimit:login:192.168.1.1:user@example.com"
 
 

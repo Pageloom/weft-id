@@ -23,9 +23,158 @@ import json
 import re
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# =============================================================================
+# Severity Cache
+# =============================================================================
+
+CACHE_DIR = Path.home() / ".cache" / "deps_check"
+CACHE_FILE = CACHE_DIR / "severity_cache.json"
+CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
+
+
+def _load_severity_cache() -> dict[str, dict[str, Any]]:
+    """Load the severity cache from disk."""
+    if not CACHE_FILE.exists():
+        return {}
+    try:
+        with open(CACHE_FILE) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_severity_cache(cache: dict[str, dict[str, Any]]) -> None:
+    """Save the severity cache to disk."""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CACHE_FILE, "w") as f:
+            json.dump(cache, f, indent=2)
+    except OSError:
+        pass  # Ignore cache write errors
+
+
+def _get_cached_severity(vuln_id: str) -> str | None:
+    """Get severity from cache if valid."""
+    cache = _load_severity_cache()
+    entry = cache.get(vuln_id)
+    if entry:
+        timestamp = entry.get("timestamp", 0)
+        if time.time() - timestamp < CACHE_TTL_SECONDS:
+            return entry.get("severity")
+    return None
+
+
+def _cache_severity(vuln_id: str, severity: str) -> None:
+    """Cache a severity lookup."""
+    cache = _load_severity_cache()
+    cache[vuln_id] = {
+        "severity": severity,
+        "timestamp": time.time(),
+    }
+    _save_severity_cache(cache)
+
+
+# =============================================================================
+# GitHub Advisory API
+# =============================================================================
+
+
+def fetch_severity_from_github(vuln_id: str) -> str:
+    """
+    Fetch severity from GitHub Advisory API.
+
+    Args:
+        vuln_id: GHSA-* or CVE-* identifier
+
+    Returns:
+        Severity string: critical, high, medium, low, or unknown
+    """
+    # Check cache first
+    cached = _get_cached_severity(vuln_id)
+    if cached:
+        return cached
+
+    try:
+        if vuln_id.startswith("GHSA-"):
+            url = f"https://api.github.com/advisories/{vuln_id}"
+        elif vuln_id.startswith("CVE-"):
+            url = f"https://api.github.com/advisories?cve={vuln_id}"
+        elif vuln_id.startswith("PYSEC-"):
+            # PYSEC IDs need to be looked up via aliases in OSV first
+            # For now, return unknown for these
+            return "unknown"
+        else:
+            return "unknown"
+
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "deps-check-script",
+            },
+        )
+
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+
+            # Handle search results (CVE query returns a list)
+            if isinstance(data, list):
+                if not data:
+                    return "unknown"
+                data = data[0]
+
+            severity = data.get("severity", "unknown")
+            if severity:
+                severity = severity.lower()
+                # Cache the result
+                _cache_severity(vuln_id, severity)
+                return severity
+
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError):
+        pass
+
+    return "unknown"
+
+
+def fetch_severity_for_vuln(vuln_id: str, aliases: list[str]) -> str:
+    """
+    Fetch severity, trying the primary ID first then aliases.
+
+    Args:
+        vuln_id: Primary vulnerability ID (may be PYSEC, CVE, or GHSA)
+        aliases: List of alias IDs
+
+    Returns:
+        Severity string
+    """
+    # Try GHSA IDs first (most reliable)
+    ghsa_ids = [a for a in aliases if a.startswith("GHSA-")]
+    if vuln_id.startswith("GHSA-"):
+        ghsa_ids.insert(0, vuln_id)
+
+    for ghsa_id in ghsa_ids:
+        severity = fetch_severity_from_github(ghsa_id)
+        if severity != "unknown":
+            return severity
+
+    # Try CVE IDs next
+    cve_ids = [a for a in aliases if a.startswith("CVE-")]
+    if vuln_id.startswith("CVE-"):
+        cve_ids.insert(0, vuln_id)
+
+    for cve_id in cve_ids:
+        severity = fetch_severity_from_github(cve_id)
+        if severity != "unknown":
+            return severity
+
+    return "unknown"
 
 
 @dataclass
@@ -315,9 +464,6 @@ def query_osv_api(package: str, version: str) -> list[dict[str, Any]]:
 
     This is a fallback if pip-audit is not available.
     """
-    import urllib.error
-    import urllib.request
-
     url = "https://api.osv.dev/v1/query"
     payload = json.dumps(
         {
@@ -414,8 +560,8 @@ def scan_with_pip_audit(
                 # Get aliases (CVE IDs, etc.)
                 aliases = v.get("aliases", [])
 
-                # Determine severity
-                severity = map_severity(v.get("severity"))
+                # Fetch severity from GitHub API (with caching)
+                severity = fetch_severity_for_vuln(vuln_id, aliases)
 
                 report.add(
                     Vulnerability(

@@ -460,6 +460,101 @@ def test_reactivate_user_clears_reactivation_denied(test_tenant, test_admin_user
     assert user["reactivation_denied_at"] is None
 
 
+def test_self_reactivate_super_admin_success(test_tenant, test_super_admin_user):
+    """Test that a super admin can self-reactivate their account."""
+    import database
+    from services import users as users_service
+
+    # Inactivate the super admin
+    database.users.inactivate_user(test_tenant["id"], test_super_admin_user["id"])
+
+    # Verify user is inactivated
+    user = database.users.get_user_by_id(test_tenant["id"], test_super_admin_user["id"])
+    assert user["is_inactivated"] is True
+
+    # Self-reactivate
+    users_service.self_reactivate_super_admin(
+        tenant_id=test_tenant["id"],
+        user_id=str(test_super_admin_user["id"]),
+    )
+
+    # Verify user is reactivated
+    user = database.users.get_user_by_id(test_tenant["id"], test_super_admin_user["id"])
+    assert user["is_inactivated"] is False
+
+
+def test_self_reactivate_non_super_admin_forbidden(test_tenant, test_admin_user):
+    """Test that non-super admins cannot self-reactivate."""
+    import database
+    from services import users as users_service
+    from services.exceptions import ForbiddenError
+
+    # Inactivate the admin
+    database.users.inactivate_user(test_tenant["id"], test_admin_user["id"])
+
+    # Attempt self-reactivation should fail
+    with pytest.raises(ForbiddenError) as exc_info:
+        users_service.self_reactivate_super_admin(
+            tenant_id=test_tenant["id"],
+            user_id=str(test_admin_user["id"]),
+        )
+    assert exc_info.value.code == "super_admin_required"
+
+
+def test_self_reactivate_active_user_validation_error(test_tenant, test_super_admin_user):
+    """Test that attempting to self-reactivate an active user fails."""
+    from services import users as users_service
+    from services.exceptions import ValidationError
+
+    # Attempt self-reactivation of active user should fail
+    with pytest.raises(ValidationError) as exc_info:
+        users_service.self_reactivate_super_admin(
+            tenant_id=test_tenant["id"],
+            user_id=str(test_super_admin_user["id"]),
+        )
+    assert exc_info.value.code == "not_inactivated"
+
+
+def test_self_reactivate_anonymized_user_validation_error(test_tenant, test_super_admin_user):
+    """Test that attempting to self-reactivate an anonymized user fails."""
+    import database
+    from services import users as users_service
+    from services.exceptions import ValidationError
+
+    # Anonymize the super admin
+    database.users.anonymize_user(test_tenant["id"], test_super_admin_user["id"])
+
+    # Attempt self-reactivation should fail
+    with pytest.raises(ValidationError) as exc_info:
+        users_service.self_reactivate_super_admin(
+            tenant_id=test_tenant["id"],
+            user_id=str(test_super_admin_user["id"]),
+        )
+    assert exc_info.value.code == "user_anonymized"
+
+
+def test_self_reactivate_logs_event(test_tenant, test_super_admin_user):
+    """Test that super admin self-reactivation logs an event."""
+    import database
+    from services import users as users_service
+
+    # Inactivate the super admin
+    database.users.inactivate_user(test_tenant["id"], test_super_admin_user["id"])
+
+    # Self-reactivate
+    users_service.self_reactivate_super_admin(
+        tenant_id=test_tenant["id"],
+        user_id=str(test_super_admin_user["id"]),
+    )
+
+    # Verify event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert len(events) > 0
+    assert events[0]["event_type"] == "super_admin_self_reactivated"
+    assert str(events[0]["artifact_id"]) == str(test_super_admin_user["id"])
+    assert str(events[0]["actor_user_id"]) == str(test_super_admin_user["id"])
+
+
 def test_anonymize_user_logs_event_with_metadata(test_tenant, test_super_admin_user, test_user):
     """Test that anonymizing a user logs an event with pre-anonymization metadata."""
     import database

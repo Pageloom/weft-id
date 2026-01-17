@@ -221,6 +221,14 @@ PAGES = [
             ),
         ],
     ),
+    # SAML authentication flow pages
+    Page(
+        path="/saml/select",
+        title="Select Identity Provider",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
 ]
 
 

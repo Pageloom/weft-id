@@ -4,6 +4,48 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] KeyError in list_domain_bindings Service Function
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/services/saml.py:1598`, `app/database/saml.py:562`
+
+**Original Severity:** High
+
+**Original Description:** The `list_domain_bindings` service function crashed with `KeyError: 'idp_id'` when called because the database query didn't select the `idp_id` column.
+
+**Resolution:**
+- Added `db.idp_id` to the SELECT clause in `app/database/saml.py:562`
+- Fixed test to use correct attribute name (`bindings.items` instead of `bindings.bindings`)
+- Removed `@pytest.mark.xfail` decorator from test since bug is now fixed
+
+**Files Modified:**
+- `app/database/saml.py` - Added `db.idp_id` to SELECT clause
+- `tests/test_services_saml.py` - Fixed attribute access and removed xfail marker
+
+---
+
+## [COMPLIANCE] Missing Route Registration in pages.py
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/routers/saml.py:374`
+
+**Original Severity:** Medium
+
+**Principle Violated:** Authorization Pattern Verification (Single source of truth)
+
+**Original Description:** The `/saml/select` route rendered a page template but was not registered in `app/pages.py`, breaking the architectural principle of having a single source of truth for page permissions.
+
+**Resolution:**
+- Added `/saml/select` page registration to `app/pages.py` after the MFA section
+- Configured as PUBLIC permission with show_in_nav=False, matching other authentication flow pages
+
+**Files Modified:**
+- `app/pages.py` - Added SAML select page registration
+
+---
+
 ## [SECURITY] Failed Login Attempts Not Logged
 
 **Status:** Resolved (2026-01-17)

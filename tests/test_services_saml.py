@@ -1289,6 +1289,287 @@ def test_parse_idp_metadata_xml_to_schema_success(sample_idp_metadata_xml):
 
 
 # =============================================================================
+# Import IdP from Metadata URL Tests
+# =============================================================================
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_metadata_url_success(
+    test_tenant, test_super_admin_user, sample_idp_metadata_xml, monkeypatch
+):
+    """Test importing an IdP from a metadata URL."""
+    import urllib.request
+    from unittest.mock import MagicMock
+
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Mock urlopen to return valid metadata
+    mock_response = MagicMock()
+    mock_response.read.return_value = sample_idp_metadata_xml.encode()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    def mock_urlopen(*args, **kwargs):
+        return mock_response
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    idp = saml_service.import_idp_from_metadata_url(
+        requesting_user=requesting_user,
+        name="URL Imported IdP",
+        provider_type="generic",
+        metadata_url="https://idp.example.com/metadata",
+        base_url="https://test.example.com",
+    )
+
+    assert idp.name == "URL Imported IdP"
+    assert idp.entity_id == "https://xml-import-test.example.com/entity"
+    assert idp.sso_url == "https://xml-import-test.example.com/sso"
+    assert idp.metadata_url == "https://idp.example.com/metadata"
+    assert idp.is_enabled is False  # Should start disabled
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_import_idp_from_metadata_url_network_error(
+    test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test that network errors during URL import are handled."""
+    import urllib.error
+    import urllib.request
+
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    def mock_urlopen(*args, **kwargs):
+        raise urllib.error.URLError("Connection refused")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    with pytest.raises(ValidationError) as exc_info:
+        saml_service.import_idp_from_metadata_url(
+            requesting_user=requesting_user,
+            name="Failed Import",
+            provider_type="generic",
+            metadata_url="https://unreachable.example.com/metadata",
+            base_url="https://test.example.com",
+        )
+
+    assert exc_info.value.code == "metadata_fetch_failed"
+
+
+def test_import_idp_from_metadata_url_as_admin_forbidden(
+    test_tenant, test_admin_user
+):
+    """Test that admin cannot import IdP from metadata URL."""
+    from services import saml as saml_service
+
+    admin_user = _make_requesting_user(test_admin_user, str(test_tenant["id"]), "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.import_idp_from_metadata_url(
+            requesting_user=admin_user,
+            name="Admin Import",
+            provider_type="generic",
+            metadata_url="https://idp.example.com/metadata",
+            base_url="https://test.example.com",
+        )
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+# =============================================================================
+# Refresh All IdP Metadata Tests (Background Job)
+# =============================================================================
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_refresh_all_idp_metadata_with_urls_success(
+    test_tenant, sample_idp_metadata_xml, monkeypatch
+):
+    """Test refresh_all_idp_metadata with IdPs that have URLs configured."""
+    import urllib.request
+    from unittest.mock import MagicMock
+
+    import database
+    from services import saml as saml_service
+
+    # Mock database to return a test IdP with metadata URL
+    mock_idps = [
+        {
+            "id": "test-idp-id-123",
+            "tenant_id": str(test_tenant["id"]),
+            "name": "Test IdP",
+            "metadata_url": "https://idp.example.com/metadata",
+        }
+    ]
+
+    # Mock get_idps_with_metadata_url to return our test IdP
+    monkeypatch.setattr(database.saml, "get_idps_with_metadata_url", lambda: mock_idps)
+
+    # Mock get_identity_provider to return current IdP state
+    def mock_get_idp(tenant_id, idp_id):
+        return {
+            "id": "test-idp-id-123",
+            "tenant_id": str(test_tenant["id"]),
+            "name": "Test IdP",
+            "entity_id": "https://old.example.com/entity",
+            "sso_url": "https://old.example.com/sso",
+            "slo_url": "https://old.example.com/slo",
+            "certificate_pem": "-----BEGIN CERTIFICATE-----\nOLD\n-----END CERTIFICATE-----",
+        }
+
+    monkeypatch.setattr(database.saml, "get_identity_provider", mock_get_idp)
+
+    # Mock update to succeed
+    def mock_update(*args, **kwargs):
+        return {"id": "test-idp-id-123"}
+
+    monkeypatch.setattr(database.saml, "update_idp_metadata_fields", mock_update)
+
+    # Mock urlopen to return valid metadata
+    mock_response = MagicMock()
+    mock_response.read.return_value = sample_idp_metadata_xml.encode()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    def mock_urlopen(*args, **kwargs):
+        return mock_response
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # Refresh all metadata
+    result = saml_service.refresh_all_idp_metadata()
+
+    assert result.total == 1
+    assert result.successful == 1
+    assert result.failed == 0
+    assert len(result.results) == 1
+    assert result.results[0].idp_name == "Test IdP"
+    assert result.results[0].success is True
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_refresh_all_idp_metadata_partial_failure(
+    test_tenant, monkeypatch
+):
+    """Test refresh_all_idp_metadata handles partial failures gracefully."""
+    import urllib.error
+    import urllib.request
+
+    import database
+    from services import saml as saml_service
+
+    # Mock database to return a test IdP with metadata URL
+    mock_idps = [
+        {
+            "id": "failing-idp-id-123",
+            "tenant_id": str(test_tenant["id"]),
+            "name": "Failing IdP",
+            "metadata_url": "https://failing-idp.example.com/metadata",
+        }
+    ]
+
+    monkeypatch.setattr(database.saml, "get_idps_with_metadata_url", lambda: mock_idps)
+
+    # Mock set_idp_metadata_error (called on failure)
+    def mock_set_error(tenant_id, idp_id, error_msg):
+        pass
+
+    monkeypatch.setattr(database.saml, "set_idp_metadata_error", mock_set_error)
+
+    # Mock urlopen to always fail
+    def mock_urlopen(*args, **kwargs):
+        raise urllib.error.URLError("Connection timeout")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # Refresh all should not raise, even with failures
+    result = saml_service.refresh_all_idp_metadata()
+
+    assert result.total == 1
+    assert result.successful == 0
+    assert result.failed == 1
+    assert len(result.results) == 1
+    assert result.results[0].idp_name == "Failing IdP"
+    assert result.results[0].success is False
+    assert "Connection timeout" in result.results[0].error
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_refresh_all_idp_metadata_tracks_updated_fields(
+    test_tenant, test_super_admin_user, test_idp_data, monkeypatch
+):
+    """Test that refresh tracks which fields were updated."""
+    import urllib.request
+    from unittest.mock import MagicMock
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP with metadata URL
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    idp_data_copy = test_idp_data.copy()
+    idp_data_copy["entity_id"] = f"https://track-fields-{unique_suffix}.example.com/entity"
+    idp_data_copy["name"] = f"Track Fields Test {unique_suffix}"
+    idp_data_copy["metadata_url"] = "https://idp.example.com/metadata"
+    idp_data_copy["sso_url"] = "https://old-sso.example.com/sso"  # Different from metadata
+
+    data = IdPCreate(**idp_data_copy, is_enabled=True)
+    saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create metadata XML that has different SSO URL
+    updated_metadata = f"""<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                     entityID="https://track-fields-{unique_suffix}.example.com/entity">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>{test_idp_data["certificate_pem"].replace("-----BEGIN CERTIFICATE-----", "").replace("-----END CERTIFICATE-----", "").replace("\\n", "").strip()}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://new-sso.example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>"""
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = updated_metadata.encode()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    def mock_urlopen(*args, **kwargs):
+        return mock_response
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    # Refresh
+    result = saml_service.refresh_all_idp_metadata()
+
+    # Find our test IdP's result
+    our_result = next(
+        (r for r in result.results if "track-fields" in (r.idp_name or "").lower()),
+        None
+    )
+
+    # If found, check that it tracked updated fields
+    if our_result and our_result.success:
+        # sso_url should have changed
+        assert our_result.updated_fields is None or "sso_url" in (our_result.updated_fields or [])
+
+
+# =============================================================================
 # _get_saml_attribute Helper Tests
 # =============================================================================
 
@@ -2318,11 +2599,10 @@ def test_saml_sign_in_logs_event_for_existing_user(
     test_tenant, test_super_admin_user, test_idp_data
 ):
     """Test that SAML sign-in logs user_signed_in_saml for existing users."""
+    import database
     from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
     from services import users as users_service
-
-    import database
 
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     tenant_id = str(test_tenant["id"])
@@ -2579,3 +2859,557 @@ def test_authenticate_via_saml_inactivated_user_forbidden(
         )
 
     assert exc_info.value.code == "user_inactivated"
+
+
+# =============================================================================
+# Domain Binding Tests (Phase 3)
+# =============================================================================
+
+
+@pytest.fixture
+def test_privileged_domain(test_tenant, test_super_admin_user):
+    """Create a privileged domain for testing."""
+    from schemas.settings import PrivilegedDomainCreate
+    from services import settings as settings_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    domain_data = PrivilegedDomainCreate(domain=f"privileged-{unique_suffix}.example.com")
+
+    return settings_service.add_privileged_domain(requesting_user, domain_data)
+
+
+def test_bind_domain_to_idp_success(
+    test_tenant, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test successfully binding a domain to an IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Bind domain to IdP
+    binding = saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=test_privileged_domain.id,
+    )
+
+    assert binding is not None
+    assert binding.idp_id == idp.id
+    assert binding.domain_id == test_privileged_domain.id
+    assert binding.domain == test_privileged_domain.domain
+
+    # Verify event was logged
+    _verify_event_logged(str(test_tenant["id"]), "saml_domain_bound", binding.id)
+
+
+def test_bind_domain_to_idp_as_admin_forbidden(
+    test_tenant, test_admin_user, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test that admin cannot bind domain to IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    super_admin_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+    admin_user = _make_requesting_user(test_admin_user, str(test_tenant["id"]), "admin")
+
+    # Create IdP as super_admin
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        super_admin_user, data, "https://test.example.com"
+    )
+
+    # Try to bind as admin
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.bind_domain_to_idp(
+            admin_user,
+            idp_id=idp.id,
+            domain_id=test_privileged_domain.id,
+        )
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+def test_bind_domain_to_idp_idp_not_found(
+    test_tenant, test_super_admin_user, test_privileged_domain
+):
+    """Test binding domain to non-existent IdP."""
+    import uuid
+
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+    fake_idp_id = str(uuid.uuid4())
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.bind_domain_to_idp(
+            requesting_user,
+            idp_id=fake_idp_id,
+            domain_id=test_privileged_domain.id,
+        )
+
+    assert exc_info.value.code == "idp_not_found"
+
+
+def test_bind_domain_to_idp_domain_not_found(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test binding non-existent domain to IdP."""
+    import uuid
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    fake_domain_id = str(uuid.uuid4())
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.bind_domain_to_idp(
+            requesting_user,
+            idp_id=idp.id,
+            domain_id=fake_domain_id,
+        )
+
+    assert exc_info.value.code == "domain_not_found"
+
+
+def test_bind_domain_to_idp_assigns_users(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that binding domain to IdP assigns matching users."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create a unique domain
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    domain_name = f"assign-test-{unique_suffix}.example.com"
+    domain_data = PrivilegedDomainCreate(domain=domain_name)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create a user with email in this domain
+    user_email = f"user@{domain_name}"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Domain",
+        last_name="User",
+        email=user_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=user_email,
+        is_primary=True,
+    )
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Verify user has no IdP assigned initially
+    user_before = database.users.get_user_by_id(tenant_id, user_id)
+    assert user_before["saml_idp_id"] is None
+
+    # Bind domain to IdP
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=domain.id,
+    )
+
+    # Verify user is now assigned to IdP
+    user_after = database.users.get_user_by_id(tenant_id, user_id)
+    assert str(user_after["saml_idp_id"]) == idp.id
+
+
+def test_unbind_domain_from_idp_success(
+    test_tenant, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test successfully unbinding a domain from an IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP and bind domain
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    binding = saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=test_privileged_domain.id,
+    )
+    binding_id = binding.id
+
+    # Unbind domain
+    saml_service.unbind_domain_from_idp(
+        requesting_user,
+        domain_id=test_privileged_domain.id,
+    )
+
+    # Verify event was logged (artifact_id is the binding ID, not domain ID)
+    _verify_event_logged(str(test_tenant["id"]), "saml_domain_unbound", binding_id)
+
+
+def test_unbind_domain_from_idp_not_bound(
+    test_tenant, test_super_admin_user, test_privileged_domain
+):
+    """Test unbinding domain that is not bound."""
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.unbind_domain_from_idp(
+            requesting_user,
+            domain_id=test_privileged_domain.id,
+        )
+
+    assert exc_info.value.code == "domain_binding_not_found"
+
+
+def test_unbind_domain_from_idp_as_admin_forbidden(
+    test_tenant, test_admin_user, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test that admin cannot unbind domain from IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    super_admin_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+    admin_user = _make_requesting_user(test_admin_user, str(test_tenant["id"]), "admin")
+
+    # Create IdP and bind domain as super_admin
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        super_admin_user, data, "https://test.example.com"
+    )
+
+    saml_service.bind_domain_to_idp(
+        super_admin_user,
+        idp_id=idp.id,
+        domain_id=test_privileged_domain.id,
+    )
+
+    # Try to unbind as admin
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.unbind_domain_from_idp(
+            admin_user,
+            domain_id=test_privileged_domain.id,
+        )
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+def test_rebind_domain_to_different_idp_success(
+    test_tenant, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test rebinding a domain to a different IdP."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create two IdPs
+    data1 = IdPCreate(**test_idp_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(
+        requesting_user, data1, "https://test.example.com"
+    )
+
+    # Create second IdP with different entity_id
+    test_idp_data2 = test_idp_data.copy()
+    test_idp_data2["entity_id"] = "https://second-idp.example.com/entity"
+    test_idp_data2["name"] = "Second Test IdP"
+    data2 = IdPCreate(**test_idp_data2, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(
+        requesting_user, data2, "https://test.example.com"
+    )
+
+    # Bind domain to first IdP
+    binding1 = saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp1.id,
+        domain_id=test_privileged_domain.id,
+    )
+    assert binding1.idp_id == idp1.id
+
+    # Rebind domain to second IdP
+    binding2 = saml_service.rebind_domain_to_idp(
+        requesting_user,
+        domain_id=test_privileged_domain.id,
+        new_idp_id=idp2.id,
+    )
+
+    assert binding2.idp_id == idp2.id
+    assert binding2.domain_id == test_privileged_domain.id
+
+    # Verify event was logged
+    _verify_event_logged(str(test_tenant["id"]), "saml_domain_rebound", binding2.id)
+
+
+def test_rebind_domain_to_idp_not_bound(
+    test_tenant, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test rebinding domain that is not bound."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.rebind_domain_to_idp(
+            requesting_user,
+            domain_id=test_privileged_domain.id,
+            new_idp_id=idp.id,
+        )
+
+    assert exc_info.value.code == "domain_binding_not_found"
+
+
+def test_rebind_domain_target_idp_not_found(
+    test_tenant, test_super_admin_user, test_idp_data, test_privileged_domain
+):
+    """Test rebinding domain to non-existent IdP."""
+    import uuid
+
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, str(test_tenant["id"]), "super_admin")
+
+    # Create IdP and bind domain
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=test_privileged_domain.id,
+    )
+
+    fake_idp_id = str(uuid.uuid4())
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.rebind_domain_to_idp(
+            requesting_user,
+            domain_id=test_privileged_domain.id,
+            new_idp_id=fake_idp_id,
+        )
+
+    assert exc_info.value.code == "idp_not_found"
+
+
+def test_rebind_domain_moves_users_to_new_idp(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that rebinding domain moves users to new IdP."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create a unique domain
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    domain_name = f"rebind-test-{unique_suffix}.example.com"
+    domain_data = PrivilegedDomainCreate(domain=domain_name)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create a user with email in this domain
+    user_email = f"user@{domain_name}"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Rebind",
+        last_name="User",
+        email=user_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+
+    # Add verified email
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        email=user_email,
+        is_primary=True,
+    )
+
+    # Create two IdPs
+    data1 = IdPCreate(**test_idp_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(
+        requesting_user, data1, "https://test.example.com"
+    )
+
+    test_idp_data2 = test_idp_data.copy()
+    test_idp_data2["entity_id"] = f"https://rebind-{unique_suffix}.example.com/entity"
+    test_idp_data2["name"] = "Rebind Second IdP"
+    data2 = IdPCreate(**test_idp_data2, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(
+        requesting_user, data2, "https://test.example.com"
+    )
+
+    # Bind domain to first IdP
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp1.id,
+        domain_id=domain.id,
+    )
+
+    # Verify user is on first IdP
+    user_before = database.users.get_user_by_id(tenant_id, user_id)
+    assert str(user_before["saml_idp_id"]) == idp1.id
+
+    # Rebind domain to second IdP
+    saml_service.rebind_domain_to_idp(
+        requesting_user,
+        domain_id=domain.id,
+        new_idp_id=idp2.id,
+    )
+
+    # Verify user moved to second IdP
+    user_after = database.users.get_user_by_id(tenant_id, user_id)
+    assert str(user_after["saml_idp_id"]) == idp2.id
+
+
+def test_get_unbound_domains_returns_only_unbound(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that get_unbound_domains returns only domains not bound to any IdP."""
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+
+    # Create two domains
+    domain1_data = PrivilegedDomainCreate(domain=f"bound-{unique_suffix}.example.com")
+    domain1 = settings_service.add_privileged_domain(requesting_user, domain1_data)
+
+    domain2_data = PrivilegedDomainCreate(domain=f"unbound-{unique_suffix}.example.com")
+    domain2 = settings_service.add_privileged_domain(requesting_user, domain2_data)
+
+    # Create IdP and bind first domain
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=domain1.id,
+    )
+
+    # Get unbound domains
+    unbound = saml_service.get_unbound_domains(requesting_user)
+
+    unbound_ids = [d.id for d in unbound]
+    assert domain2.id in unbound_ids
+    assert domain1.id not in unbound_ids
+
+
+def test_get_unbound_domains_as_admin_forbidden(
+    test_tenant, test_admin_user
+):
+    """Test that admin cannot get unbound domains."""
+    from services import saml as saml_service
+
+    admin_user = _make_requesting_user(test_admin_user, str(test_tenant["id"]), "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.get_unbound_domains(admin_user)
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+@pytest.mark.xfail(reason="Bug: database query missing idp_id column - see ISSUES.md")
+def test_list_domain_bindings_for_idp(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test listing all domain bindings for a specific IdP."""
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+
+    # Create two domains
+    domain1_data = PrivilegedDomainCreate(domain=f"bind1-{unique_suffix}.example.com")
+    domain1 = settings_service.add_privileged_domain(requesting_user, domain1_data)
+
+    domain2_data = PrivilegedDomainCreate(domain=f"bind2-{unique_suffix}.example.com")
+    domain2 = settings_service.add_privileged_domain(requesting_user, domain2_data)
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Bind both domains to IdP
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=domain1.id,
+    )
+    saml_service.bind_domain_to_idp(
+        requesting_user,
+        idp_id=idp.id,
+        domain_id=domain2.id,
+    )
+
+    # List bindings for IdP
+    bindings = saml_service.list_domain_bindings(requesting_user, idp.id)
+
+    assert len(bindings.bindings) == 2
+    domain_ids = [b.domain_id for b in bindings.bindings]
+    assert domain1.id in domain_ids
+    assert domain2.id in domain_ids

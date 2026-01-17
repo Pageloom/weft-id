@@ -559,7 +559,7 @@ def get_domain_bindings_for_idp(tenant_id: TenantArg, idp_id: str) -> list[dict]
     return fetchall(
         tenant_id,
         """
-        select db.id, db.domain_id, pd.domain, db.created_at
+        select db.id, db.domain_id, pd.domain, db.idp_id, db.created_at
         from saml_idp_domain_bindings db
         join tenant_privileged_domains pd on db.domain_id = pd.id
         where db.idp_id = :idp_id

@@ -16,6 +16,10 @@
                 Password set successfully! You can now log in.
                 {% elif success == 'already_verified' %}
                 Your email is already verified. Please log in.
+                {% elif success == 'account_reactivated' %}
+                Your account has been reactivated! You can now log in.
+                {% elif success == 'account_reactivated_no_password' %}
+                Your account has been reactivated, but you don't have a password set. Please contact an administrator to set a password or assign you to an identity provider.
                 {% else %}
                 {{ success }}
                 {% endif %}
@@ -36,6 +40,8 @@
                 No account found with this email address.
                 {% elif error == 'account_inactivated' %}
                 This account has been inactivated. Please contact your administrator.
+                {% elif error == 'reactivation_failed' %}
+                Your account could not be reactivated. Please try again or contact your administrator.
                 {% elif error == 'no_password_set' %}
                 No password set for this account. Please contact your administrator.
                 {% elif error == 'no_auth_method' %}

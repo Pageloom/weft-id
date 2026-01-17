@@ -3369,3 +3369,174 @@ def test_list_domain_bindings_for_idp(test_tenant, test_super_admin_user, test_i
     domain_ids = [b.domain_id for b in bindings.items]
     assert domain1.id in domain_ids
     assert domain2.id in domain_ids
+
+
+# ============================================================================
+# Password Retention Tests
+# ============================================================================
+
+
+def test_assign_user_idp_preserves_password(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that assigning a user to an IdP preserves their password."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Verify user has password before IdP assignment
+    user_before = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_before["has_password"] is True
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Assign user to IdP
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Verify password is preserved
+    user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_after["has_password"] is True
+    assert user_after["saml_idp_id"] is not None
+
+
+def test_authenticate_via_saml_preserves_password(test_tenant, test_user, test_idp_data):
+    """Test that SAML authentication preserves user's existing password."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Get primary email for SAML assertion
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    email = primary_email["email"]
+
+    # Create IdP with JIT provisioning disabled
+    super_admin_result = database.users.create_user(
+        tenant_id, tenant_id, "Admin", "User", "admin@test.com", "super_admin"
+    )
+    super_admin = database.users.get_user_by_id(tenant_id, super_admin_result["user_id"])
+    requesting_user = _make_requesting_user(super_admin, tenant_id, "super_admin")
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Verify user has password before SAML auth
+    user_before = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_before["has_password"] is True
+
+    # Simulate SAML authentication
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=email,
+            first_name="Test",
+            last_name="User",
+            name_id="test_nameid",
+        ),
+        session_index="test_session",
+        idp_id=idp.id,
+        requires_mfa=False,
+    )
+
+    authenticated_user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+
+    # Verify password is preserved
+    user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_after["has_password"] is True
+
+
+def test_bind_domain_to_idp_preserves_passwords(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that binding a domain to an IdP preserves user passwords."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Get user's email domain
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    email_domain = primary_email["email"].split("@")[1]
+
+    # Create privileged domain
+    domain_data = PrivilegedDomainCreate(domain=email_domain)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Verify user has password before domain binding
+    user_before = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_before["has_password"] is True
+
+    # Bind domain to IdP (this assigns all users in domain to IdP)
+    saml_service.bind_domain_to_idp(requesting_user, idp.id, domain.id)
+
+    # Verify password is preserved
+    user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_after["has_password"] is True
+    assert user_after["saml_idp_id"] is not None
+
+
+def test_remove_user_from_idp_inactivates_and_preserves_password(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that removing a user from IdP inactivates them but preserves password."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Create IdP and assign user
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Verify user has IdP and password
+    user_with_idp = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_with_idp["saml_idp_id"] is not None
+    assert user_with_idp["has_password"] is True
+
+    # Remove user from IdP (set to None)
+    saml_service.assign_user_idp(requesting_user, user_id, None)
+
+    # Verify user is inactivated but password is preserved
+    user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_after["saml_idp_id"] is None
+    assert user_after["is_inactivated"] is True
+    assert user_after["has_password"] is True  # Password should be preserved!

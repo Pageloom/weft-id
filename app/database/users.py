@@ -909,10 +909,11 @@ def bulk_assign_users_to_idp(
     saml_idp_id: str,
 ) -> int:
     """
-    Assign multiple users to a SAML IdP and wipe their passwords.
+    Assign multiple users to a SAML IdP, preserving passwords.
 
     Used when binding a domain to an IdP - all users with that domain
-    are immediately assigned to the IdP.
+    are immediately assigned to the IdP. Passwords are preserved but
+    unusable while saml_idp_id is set.
 
     Args:
         tenant_id: Tenant ID for scoping
@@ -928,7 +929,7 @@ def bulk_assign_users_to_idp(
         tenant_id,
         """
         update users
-        set saml_idp_id = :saml_idp_id, password_hash = null
+        set saml_idp_id = :saml_idp_id
         where id = any(:user_ids)
         """,
         {"saml_idp_id": saml_idp_id, "user_ids": user_ids},

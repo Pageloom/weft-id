@@ -6,6 +6,47 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
+## [BUG] KeyError in list_domain_bindings Service Function
+
+**Found in:** `app/services/saml.py:1598`, `app/database/saml.py:562`
+**Severity:** High
+**Description:** The `list_domain_bindings` service function crashes with `KeyError: 'idp_id'` when called.
+
+**Evidence:**
+The service function at `app/services/saml.py:1593-1599` tries to access `row["idp_id"]`:
+```python
+items = [
+    DomainBinding(
+        id=str(row["id"]),
+        domain_id=str(row["domain_id"]),
+        domain=row["domain"],
+        idp_id=str(row["idp_id"]),  # <-- KeyError here
+        created_at=row["created_at"],
+```
+
+But the database query at `app/database/saml.py:562` only returns:
+```sql
+select db.id, db.domain_id, pd.domain, db.created_at
+from saml_idp_domain_bindings db
+```
+
+The `idp_id` column is not selected.
+
+**Impact:** Any attempt to list domain bindings for an IdP will crash the application with a KeyError. This affects the SAML IdP admin pages.
+
+**Root Cause:** Database query was not updated when the service layer was created, or the service function added a field that the query doesn't provide.
+
+**Suggested fix:**
+Add `db.idp_id` to the SELECT in `app/database/saml.py:562`:
+```sql
+select db.id, db.domain_id, pd.domain, db.idp_id, db.created_at
+```
+
+**Files to modify:**
+- `app/database/saml.py:562` - Add `db.idp_id` to the SELECT clause
+
+---
+
 ## [SECURITY] Missing Security Headers
 
 **Found in:** `app/main.py` (no security header middleware)
@@ -304,7 +345,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 0 | - |
+| High | 1 | KeyError in list_domain_bindings |
 | Medium | 4 | Headers, Exceptions, SAML XSS, SQL patterns |
 
 ## Dependency Audit Summary (2026-01-08)

@@ -97,52 +97,105 @@ Any operation a user can perform in the web interface must be possible to implem
 - SAML ACS/SLO endpoints - protocol-specific browser flows
 - Admin UI conveniences that combine multiple API operations
 
+## Automated Compliance Script
+
+**IMPORTANT: Always run the automated compliance script FIRST before manual scanning.**
+
+The script `scripts/compliance_check.py` performs AST-based analysis to catch common violations automatically, saving significant time and tokens.
+
+### Running the Script
+
+```bash
+# Full compliance check (all principles)
+python scripts/compliance_check.py
+
+# Check specific principle
+python scripts/compliance_check.py --check architecture  # Router imports
+python scripts/compliance_check.py --check activity      # Activity/event logging
+python scripts/compliance_check.py --check tenant        # Tenant isolation
+python scripts/compliance_check.py --check api-first     # API coverage
+
+# JSON output for programmatic use
+python scripts/compliance_check.py --json
+```
+
+### What the Script Checks
+
+| Principle | Script Coverage | Manual Review Needed |
+|-----------|-----------------|---------------------|
+| Service Layer Architecture | ✅ Full (router imports) | Rarely |
+| Activity/Event Logging | ✅ Good (RequestingUser + mutations) | Complex logic flows |
+| Tenant Isolation | ✅ Good (database function signatures) | SQL content review |
+| API-First | ✅ Basic (service vs API router presence) | Endpoint coverage details |
+| Authorization | ❌ Not covered | Always manual |
+
+### Interpreting Script Results
+
+- **High severity**: Likely real violations, investigate immediately
+- **Medium severity**: May be legitimate exceptions, verify manually
+- **0 violations**: Codebase is likely compliant (for checked principles)
+
+### When to Do Manual Review
+
+After running the script, you should manually review:
+1. Any violations the script found (verify they're real)
+2. Authorization patterns (script doesn't check these)
+3. Complex service functions where the script might miss edge cases
+4. API endpoint coverage details (script only checks router existence)
+
 ## Your Workflow
 
-### Step 1: Orientation
-When invoked, ask the user:
+### Step 1: Run Automated Checks
+**Always start here.** Run the compliance script:
+
+```bash
+python scripts/compliance_check.py
+```
+
+If the script finds violations, report them. If it finds none for certain principles, you can skip manual scanning for those principles unless the user specifically requests it.
+
+### Step 2: Orientation
+Ask the user:
 1. **Scan scope**: Full codebase scan or targeted module?
-2. **Focus area**: Check all four principles or focus on one?
+2. **Focus area**: Check all five principles or focus on one?
 3. **Mode**: Initial scan or verification mode (re-scan after fixes)?
 
-### Step 2: Systematic Scanning
+Based on the script results, recommend whether manual scanning is needed for each principle.
 
-Based on user's answers, systematically scan the relevant areas:
+### Step 3: Targeted Manual Scanning
 
-**For Activity/Event Logging (Service Layer)**:
-1. List all modules in `app/services/`
-2. For each module, identify functions with `RequestingUser` parameter
-3. For each function, determine if it's a read or write operation
-4. Verify `track_activity()` for reads, `log_event()` for writes
-5. Check event_type naming conventions
+Based on script results and user's answers, focus manual review on:
 
-**For Tenant Isolation (Database Layer)**:
-1. List all modules in `app/database/`
-2. For each function, inspect SQL queries
-3. Verify SELECT queries filter by `tenant_id` (unless system operation)
-4. Verify INSERT includes `tenant_id`, UPDATE/DELETE filter by `tenant_id`
-5. Check for RLS policy references in comments
+**For Activity/Event Logging** (if script found issues OR manual review requested):
+1. Focus on functions the script flagged
+2. Review complex logic flows the script might miss
+3. Verify `track_activity()` for reads, `log_event()` for writes
+4. Check event_type naming conventions
 
-**For Authorization (Routes + Services)**:
+**For Tenant Isolation** (if script found issues OR manual review requested):
+1. Focus on functions the script flagged
+2. Review SQL content for complex queries
+3. This codebase uses RLS (Row-Level Security) where `tenant_id` is passed to wrapper functions (`fetchall`, `fetchone`, `execute`)
+4. Functions can use `UNSCOPED` for intentional cross-tenant operations
+5. Check that all database functions have `tenant_id` parameter or use `UNSCOPED`
+
+**For Authorization** (always manual - script doesn't cover):
 1. List all modules in `app/routers/`
 2. Verify each route is registered in `app/pages.py`
 3. Check service functions enforce role-based access
 4. Verify no privilege escalation vulnerabilities
 
-**For Architecture (Routers)**:
-1. Inspect imports in `app/routers/` modules
-2. Flag any imports from `app/database/`
-3. Verify routers only call service layer
-4. Check exception handling patterns
+**For Architecture** (if script found issues):
+1. Focus on imports the script flagged
+2. Verify routers only call service layer
+3. Check exception handling patterns
 
-**For API-First (Service vs API Coverage)**:
-1. List all service modules in `app/services/`
-2. For each service, identify the domain operations (create, read, update, delete, list, etc.)
-3. Check `app/routers/api/v1/` for corresponding RESTful endpoints
-4. Flag any service operations that have no API exposure
-5. Verify API follows REST conventions (resource-based URLs, proper HTTP methods)
+**For API-First** (if script found issues OR manual review requested):
+1. Focus on services the script flagged as missing API coverage
+2. Determine if missing API coverage is a violation or acceptable exception
+3. Verify API follows REST conventions (resource-based URLs, proper HTTP methods)
 
-### Step 3: Evidence Collection
+### Step 4: Evidence Collection
 
 For each violation found:
 - Document exact file path and line number
@@ -152,7 +205,7 @@ For each violation found:
 - Assess impact (what could go wrong?)
 - Provide specific fix guidance
 
-### Step 4: Reporting
+### Step 5: Reporting
 
 Log ALL findings to `ISSUES.md` using the format below. Use HIGH severity for violations that:
 - Bypass event logging (breaks audit trail)
@@ -160,10 +213,11 @@ Log ALL findings to `ISSUES.md` using the format below. Use HIGH severity for vi
 - Enable privilege escalation (security vulnerability)
 - Break architectural layers (maintainability risk)
 
-### Step 5: Verification Mode
+### Step 6: Verification Mode
 
 When user requests verification after fixes:
-- Re-scan the specific areas that had violations
+- Re-run the compliance script first
+- Re-scan specific areas manually if needed
 - Confirm violations are resolved
 - Note in your response which issues are now fixed
 
@@ -413,23 +467,37 @@ def create_user(...):
 
 ## Start Here
 
-When invoked, begin by asking the user three questions:
+When invoked:
 
-1. **What area should I scan?**
-   - Full codebase scan (all services, routers, database modules)
-   - Specific module (e.g., just `app/services/users.py`)
-   - Specific principle (e.g., just activity/event logging)
+### 1. Run the Automated Script First
 
-2. **What's your focus?**
-   - Check all five principles
-   - Focus on activity/event logging only
-   - Focus on tenant isolation only
-   - Focus on authorization patterns only
-   - Focus on service layer architecture only
-   - Focus on API-first methodology only
+```bash
+python scripts/compliance_check.py
+```
+
+Report what the script found (or that it found no violations).
+
+### 2. Ask the User
+
+Based on script results, ask:
+
+1. **The script found [N] violations. Should I investigate them?**
+   - Yes, investigate all
+   - Yes, but focus on HIGH severity only
+   - No, skip to manual scanning
+
+2. **What additional manual scanning do you need?**
+   - Full manual scan (all principles including Authorization)
+   - Authorization patterns only (not covered by script)
+   - Specific module or principle
+   - None, script results are sufficient
 
 3. **Is this verification after fixes?**
-   - No, initial scan (log all violations found)
-   - Yes, verification mode (confirm previous issues are resolved)
+   - No, initial scan
+   - Yes, verification mode
 
-Then proceed with systematic scanning based on their answers.
+### 3. Proceed Based on Answers
+
+- If script found violations → investigate and log to ISSUES.md
+- If user wants manual scanning → proceed with targeted review
+- If verification mode → re-run script and compare results

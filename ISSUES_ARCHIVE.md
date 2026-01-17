@@ -4,6 +4,57 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] Default Secret Keys in Settings
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/settings.py:39-48`
+
+**Original Severity:** High
+
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:** Secret keys have insecure default values that could be used if environment variables are not set, enabling session forgery and MFA/SAML encryption compromise.
+
+**Resolution:**
+1. Added `validate_production_settings()` function in `app/settings.py` that checks all secret keys against their default values when `IS_DEV=False`
+2. Function raises `RuntimeError` at startup if any secret has its default value in production
+3. Validation runs at module load time in `app/main.py`, preventing the application from starting with insecure configuration
+4. Added `_DEFAULT_SECRETS` dict to track known insecure default values
+
+**Files Modified:**
+- `app/settings.py` - Added `_DEFAULT_SECRETS` dict and `validate_production_settings()` function
+- `app/main.py` - Added call to `validate_production_settings()` at startup
+- `tests/test_settings.py` - New file with 8 tests covering all validation scenarios
+- `tests/conftest.py` - Added `IS_DEV=true` to test environment
+
+---
+
+## [SECURITY] BYPASS_OTP Feature Risk
+
+**Status:** Resolved (2026-01-17)
+
+**Found in:** `app/settings.py:37`, `app/utils/mfa.py:53-55`
+
+**Original Severity:** Medium
+
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Original Description:** The `BYPASS_OTP` setting allows any 6-digit code to pass MFA verification. While intended for development, accidental production enablement would cause complete MFA bypass.
+
+**Resolution:**
+1. Extended `validate_production_settings()` function to also check `BYPASS_OTP` setting
+2. Function raises `RuntimeError` at startup if `BYPASS_OTP=True` and `IS_DEV=False`
+3. Warning message is still logged in dev mode as a helpful reminder
+4. This ensures BYPASS_OTP can never be accidentally enabled in production
+
+**Files Modified:**
+- `app/settings.py` - Extended `validate_production_settings()` to check BYPASS_OTP
+- `app/main.py` - Simplified BYPASS_OTP warning (validation handles the enforcement)
+- `tests/test_settings.py` - Added test for BYPASS_OTP validation
+
+---
+
 ## [SECURITY] Session ID Not Regenerated After Authentication
 
 **Status:** Resolved (2026-01-08)

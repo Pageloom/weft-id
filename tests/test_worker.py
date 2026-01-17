@@ -192,6 +192,24 @@ def test_maybe_run_inactivation_respects_interval(mock_datetime):
     worker._run_inactivation.assert_not_called()
 
 
+@patch("worker.datetime")
+def test_maybe_run_inactivation_runs_after_interval(mock_datetime):
+    """Test inactivation runs after interval has elapsed."""
+    from worker import Worker
+
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
+    mock_datetime.now.return_value = now
+
+    worker = Worker(inactivation_interval_hours=24)
+    worker._run_inactivation = MagicMock()
+    worker.last_inactivation = now - timedelta(hours=25)  # 25 hours ago
+
+    worker._maybe_run_inactivation()
+
+    worker._run_inactivation.assert_called_once()
+    assert worker.last_inactivation == now
+
+
 # =============================================================================
 # Task Processing Tests
 # =============================================================================
@@ -287,3 +305,363 @@ def test_process_task_uses_tenant_scoped_session(mock_database, mock_get_handler
 
     # Verify session was created with correct tenant_id
     mock_session.assert_called_once_with(tenant_id=tenant_id)
+
+
+# =============================================================================
+# SAML Refresh Timing Tests
+# =============================================================================
+
+
+def test_worker_init_saml_refresh_interval():
+    """Test Worker initializes with custom SAML refresh interval."""
+    from worker import Worker
+
+    worker = Worker(saml_refresh_interval_hours=12)
+
+    assert worker.saml_refresh_interval == timedelta(hours=12)
+    assert worker.last_saml_refresh is None
+
+
+@patch("worker.datetime")
+def test_maybe_run_saml_refresh_first_run(mock_datetime):
+    """Test SAML refresh runs on first iteration."""
+    from worker import Worker
+
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
+    mock_datetime.now.return_value = now
+
+    worker = Worker()
+    worker._run_saml_refresh = MagicMock()
+
+    assert worker.last_saml_refresh is None
+
+    worker._maybe_run_saml_refresh()
+
+    worker._run_saml_refresh.assert_called_once()
+    assert worker.last_saml_refresh == now
+
+
+@patch("worker.datetime")
+def test_maybe_run_saml_refresh_respects_interval(mock_datetime):
+    """Test SAML refresh respects 24h interval."""
+    from worker import Worker
+
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
+    mock_datetime.now.return_value = now
+
+    worker = Worker(saml_refresh_interval_hours=24)
+    worker._run_saml_refresh = MagicMock()
+    worker.last_saml_refresh = now - timedelta(hours=12)  # Only 12 hours ago
+
+    worker._maybe_run_saml_refresh()
+
+    worker._run_saml_refresh.assert_not_called()
+
+
+@patch("worker.datetime")
+def test_maybe_run_saml_refresh_runs_after_interval(mock_datetime):
+    """Test SAML refresh runs after interval has elapsed."""
+    from worker import Worker
+
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
+    mock_datetime.now.return_value = now
+
+    worker = Worker(saml_refresh_interval_hours=24)
+    worker._run_saml_refresh = MagicMock()
+    worker.last_saml_refresh = now - timedelta(hours=25)  # 25 hours ago
+
+    worker._maybe_run_saml_refresh()
+
+    worker._run_saml_refresh.assert_called_once()
+    assert worker.last_saml_refresh == now
+
+
+# =============================================================================
+# Periodic Job Execution Tests
+# =============================================================================
+
+
+@patch("jobs.cleanup_exports.cleanup_expired_exports")
+def test_run_cleanup_success(mock_cleanup):
+    """Test _run_cleanup calls cleanup_expired_exports successfully."""
+    from worker import Worker
+
+    mock_cleanup.return_value = {"deleted_files": 5}
+
+    worker = Worker()
+    worker._run_cleanup()
+
+    mock_cleanup.assert_called_once()
+
+
+@patch("jobs.cleanup_exports.cleanup_expired_exports")
+def test_run_cleanup_exception(mock_cleanup):
+    """Test _run_cleanup handles exceptions gracefully."""
+    from worker import Worker
+
+    mock_cleanup.side_effect = RuntimeError("Database connection failed")
+
+    worker = Worker()
+    # Should not raise, just log
+    worker._run_cleanup()
+
+    mock_cleanup.assert_called_once()
+
+
+@patch("jobs.inactivate_idle_users.inactivate_idle_users")
+def test_run_inactivation_success(mock_inactivation):
+    """Test _run_inactivation calls inactivate_idle_users successfully."""
+    from worker import Worker
+
+    mock_inactivation.return_value = {"inactivated_count": 3}
+
+    worker = Worker()
+    worker._run_inactivation()
+
+    mock_inactivation.assert_called_once()
+
+
+@patch("jobs.inactivate_idle_users.inactivate_idle_users")
+def test_run_inactivation_exception(mock_inactivation):
+    """Test _run_inactivation handles exceptions gracefully."""
+    from worker import Worker
+
+    mock_inactivation.side_effect = RuntimeError("Inactivation job exploded")
+
+    worker = Worker()
+    # Should not raise, just log
+    worker._run_inactivation()
+
+    mock_inactivation.assert_called_once()
+
+
+@patch("jobs.refresh_saml_metadata.refresh_saml_metadata")
+def test_run_saml_refresh_success(mock_refresh):
+    """Test _run_saml_refresh calls refresh_saml_metadata successfully."""
+    from worker import Worker
+
+    mock_refresh.return_value = {"refreshed_count": 2}
+
+    worker = Worker()
+    worker._run_saml_refresh()
+
+    mock_refresh.assert_called_once()
+
+
+@patch("jobs.refresh_saml_metadata.refresh_saml_metadata")
+def test_run_saml_refresh_exception(mock_refresh):
+    """Test _run_saml_refresh handles exceptions gracefully."""
+    from worker import Worker
+
+    mock_refresh.side_effect = RuntimeError("SAML refresh failed")
+
+    worker = Worker()
+    # Should not raise, just log
+    worker._run_saml_refresh()
+
+    mock_refresh.assert_called_once()
+
+
+# =============================================================================
+# Main Worker Loop Tests
+# =============================================================================
+
+
+@patch("worker.time.sleep")
+@patch("worker.database")
+def test_worker_run_stops_when_running_false(mock_database, mock_sleep):
+    """Test worker loop exits when running is set to False."""
+    from worker import Worker
+
+    mock_database.bg_tasks.claim_next_task.return_value = None
+
+    worker = Worker(poll_interval=1)
+    # Mock periodic jobs to avoid actual execution
+    worker._maybe_run_cleanup = MagicMock()
+    worker._maybe_run_inactivation = MagicMock()
+    worker._maybe_run_saml_refresh = MagicMock()
+
+    # Stop after first sleep
+    def stop_after_first_call(*args):
+        worker.running = False
+
+    mock_sleep.side_effect = stop_after_first_call
+
+    worker.run()
+
+    # Should have called periodic jobs at least once
+    worker._maybe_run_cleanup.assert_called()
+    worker._maybe_run_inactivation.assert_called()
+    worker._maybe_run_saml_refresh.assert_called()
+    mock_database.bg_tasks.claim_next_task.assert_called()
+
+
+@patch("worker.time.sleep")
+@patch("worker.database")
+def test_worker_run_processes_task_when_available(mock_database, mock_sleep):
+    """Test worker loop processes task when one is claimed."""
+    from worker import Worker
+
+    task = _make_task()
+    # First call returns task, second call returns None (to allow loop exit)
+    mock_database.bg_tasks.claim_next_task.side_effect = [task, None]
+
+    worker = Worker(poll_interval=1)
+    worker._maybe_run_cleanup = MagicMock()
+    worker._maybe_run_inactivation = MagicMock()
+    worker._maybe_run_saml_refresh = MagicMock()
+    worker._process_task = MagicMock()
+
+    # Stop after processing
+    def stop_after_sleep(*args):
+        worker.running = False
+
+    mock_sleep.side_effect = stop_after_sleep
+
+    worker.run()
+
+    # Should have processed the task
+    worker._process_task.assert_called_once_with(task)
+
+
+@patch("worker.time.sleep")
+@patch("worker.database")
+def test_worker_run_handles_exception_and_continues(mock_database, mock_sleep):
+    """Test worker loop handles exceptions without crashing."""
+    from worker import Worker
+
+    # First call raises, second call returns None
+    mock_database.bg_tasks.claim_next_task.side_effect = [
+        RuntimeError("Database exploded"),
+        None,
+    ]
+
+    worker = Worker(poll_interval=1)
+    worker._maybe_run_cleanup = MagicMock()
+    worker._maybe_run_inactivation = MagicMock()
+    worker._maybe_run_saml_refresh = MagicMock()
+
+    call_count = [0]
+
+    def stop_after_two_sleeps(*args):
+        call_count[0] += 1
+        if call_count[0] >= 2:
+            worker.running = False
+
+    mock_sleep.side_effect = stop_after_two_sleeps
+
+    # Should not raise
+    worker.run()
+
+    # Should have slept twice (once after exception, once after no task)
+    assert mock_sleep.call_count >= 2
+
+
+# =============================================================================
+# register_handler Decorator Tests
+# =============================================================================
+
+
+def test_register_handler_decorator_returns_callable():
+    """Test register_handler re-exports from jobs.registry."""
+    from worker import register_handler
+
+    # The decorator should be callable
+    assert callable(register_handler)
+
+    # It should return a decorator when called
+    decorator = register_handler("test_job_type")
+    assert callable(decorator)
+
+
+# =============================================================================
+# main() Entry Point Tests
+# =============================================================================
+
+
+@patch("worker.Worker")
+@patch("worker.signal.signal")
+def test_main_imports_job_handlers(mock_signal, mock_worker_class):
+    """Test main() imports job handlers before creating worker."""
+    from worker import main
+
+    mock_worker = MagicMock()
+    mock_worker_class.return_value = mock_worker
+    mock_worker.run.side_effect = KeyboardInterrupt  # Exit immediately
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+
+    # Worker should have been created
+    mock_worker_class.assert_called_once()
+
+
+@patch("worker.Worker")
+@patch("worker.signal.signal")
+def test_main_sets_up_signal_handlers(mock_signal, mock_worker_class):
+    """Test main() registers signal handlers for graceful shutdown."""
+    import signal as sig
+
+    from worker import main
+
+    mock_worker = MagicMock()
+    mock_worker_class.return_value = mock_worker
+    mock_worker.run.side_effect = KeyboardInterrupt  # Exit immediately
+
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+
+    # Should register SIGTERM and SIGINT handlers
+    signal_calls = [call[0][0] for call in mock_signal.call_args_list]
+    assert sig.SIGTERM in signal_calls
+    assert sig.SIGINT in signal_calls
+
+
+@patch("worker.Worker")
+@patch("worker.signal.signal")
+def test_main_runs_worker(mock_signal, mock_worker_class):
+    """Test main() calls worker.run()."""
+    from worker import main
+
+    mock_worker = MagicMock()
+    mock_worker_class.return_value = mock_worker
+    mock_worker.run.return_value = None
+
+    main()
+
+    mock_worker.run.assert_called_once()
+
+
+@patch("worker.Worker")
+@patch("worker.signal.signal")
+@patch("worker.logger")
+def test_main_handles_import_failure(mock_logger, mock_signal, mock_worker_class):
+    """Test main() logs warning if job handlers can't be imported."""
+    import builtins
+
+    from worker import main
+
+    mock_worker = MagicMock()
+    mock_worker_class.return_value = mock_worker
+    mock_worker.run.return_value = None
+
+    # Simulate ImportError by making the import fail
+    original_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "jobs" or name.startswith("jobs."):
+            raise ImportError("Mocked import failure")
+        return original_import(name, *args, **kwargs)
+
+    with patch.object(builtins, "__import__", side_effect=mock_import):
+        main()
+
+    # Worker should still run despite import failure
+    mock_worker.run.assert_called_once()
+    # Logger should have warned about import failure
+    mock_logger.warning.assert_called_once()
+    assert "Could not import job handlers" in mock_logger.warning.call_args[0][0]

@@ -47,6 +47,45 @@ EMAIL_VERIFICATION_KEY = os.environ.get(
     "EMAIL_VERIFICATION_KEY", "dev-email-verification-key-change-in-production"
 )
 
+# Default values that indicate unconfigured secrets (used for production validation)
+_DEFAULT_SECRETS = {
+    "SESSION_SECRET_KEY": "dev-secret-key-change-in-production",
+    "MFA_ENCRYPTION_KEY": "dev-mfa-key-change-in-production-must-be-base64",
+    "SAML_KEY_ENCRYPTION_KEY": "dev-saml-key-change-in-production-must-be-base64",
+    "EMAIL_VERIFICATION_KEY": "dev-email-verification-key-change-in-production",
+}
+
+
+def validate_production_settings() -> None:
+    """
+    Validate settings are properly configured for production.
+
+    Raises RuntimeError if IS_DEV=False and:
+    - Any secret has its default value, OR
+    - BYPASS_OTP is enabled
+    """
+    if IS_DEV:
+        return  # Skip validation in development mode
+
+    errors = []
+
+    # Check for default secret values
+    if SESSION_SECRET_KEY == _DEFAULT_SECRETS["SESSION_SECRET_KEY"]:
+        errors.append("SESSION_SECRET_KEY has insecure default value")
+    if MFA_ENCRYPTION_KEY == _DEFAULT_SECRETS["MFA_ENCRYPTION_KEY"]:
+        errors.append("MFA_ENCRYPTION_KEY has insecure default value")
+    if SAML_KEY_ENCRYPTION_KEY == _DEFAULT_SECRETS["SAML_KEY_ENCRYPTION_KEY"]:
+        errors.append("SAML_KEY_ENCRYPTION_KEY has insecure default value")
+    if EMAIL_VERIFICATION_KEY == _DEFAULT_SECRETS["EMAIL_VERIFICATION_KEY"]:
+        errors.append("EMAIL_VERIFICATION_KEY has insecure default value")
+
+    # Check for dangerous development-only settings
+    if BYPASS_OTP:
+        errors.append("BYPASS_OTP must be disabled in production")
+
+    if errors:
+        raise RuntimeError(f"Invalid production configuration: {'; '.join(errors)}")
+
 # Email possession verification settings
 VERIFICATION_CODE_EXPIRY_SECONDS = 300  # 5 minutes
 TRUST_COOKIE_EXPIRY_DAYS = 30

@@ -1167,3 +1167,307 @@ def test_set_password_logs_event(test_tenant):
                                     assert call_kwargs["event_type"] == "password_set"
                                     assert call_kwargs["artifact_id"] == "user-123"
                                     assert call_kwargs["actor_user_id"] == "user-123"
+
+
+# =============================================================================
+# Route Type Failure Tests (using deprecated /login/check-email endpoint)
+# =============================================================================
+
+
+def test_check_email_route_idp_disabled(test_tenant):
+    """Test check-email handles idp_disabled route type."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = Mock(route_type="idp_disabled", idp_id=None, user_id=None)
+
+        client = TestClient(app)
+        response = client.post(
+            "/login/check-email",
+            data={"email": "test@example.com"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=idp_disabled" in response.headers["location"]
+
+
+def test_check_email_route_no_auth_method(test_tenant):
+    """Test check-email handles no_auth_method route type."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = Mock(route_type="no_auth_method", idp_id=None, user_id=None)
+
+        client = TestClient(app)
+        response = client.post(
+            "/login/check-email",
+            data={"email": "test@example.com"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=no_auth_method" in response.headers["location"]
+
+
+def test_check_email_route_invalid_email(test_tenant):
+    """Test check-email handles invalid_email route type."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = Mock(route_type="invalid_email", idp_id=None, user_id=None)
+
+        client = TestClient(app)
+        response = client.post(
+            "/login/check-email",
+            data={"email": "invalid-email"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=invalid_email" in response.headers["location"]
+
+
+def test_check_email_route_unknown_type_fallback(test_tenant):
+    """Test check-email handles unknown route type with password fallback."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.saml_service.determine_auth_route") as mock_route:
+        mock_route.return_value = Mock(route_type="some_unknown_type", idp_id=None, user_id=None)
+
+        client = TestClient(app)
+        response = client.post(
+            "/login/check-email",
+            data={"email": "test@example.com"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        # Unknown route type falls back to password form
+        assert "show_password=true" in response.headers["location"]
+
+
+# =============================================================================
+# Set Password Edge Cases Tests
+# =============================================================================
+
+
+def test_set_password_page_missing_email_id(test_tenant):
+    """Test set-password GET redirects when email_id is missing."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    client = TestClient(app)
+    response = client.get("/set-password", follow_redirects=False)
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_set_password_page_email_not_found(test_tenant):
+    """Test set-password GET redirects when email is not found."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/set-password?email_id=non-existent", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=invalid_link" in response.headers["location"]
+
+
+def test_set_password_page_email_not_verified(test_tenant):
+    """Test set-password GET redirects when email is not verified."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_get:
+        mock_get.return_value = {"id": "email-123", "verified_at": None, "user_id": "user-123"}
+
+        client = TestClient(app)
+        response = client.get("/set-password?email_id=email-123", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=email_not_verified" in response.headers["location"]
+
+
+def test_set_password_page_user_already_has_password(test_tenant):
+    """Test set-password GET redirects when user already has password."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_email:
+        with patch("routers.auth.users_service.get_user_by_id_raw") as mock_user:
+            mock_email.return_value = {
+                "id": "email-123",
+                "verified_at": "2025-01-15T12:00:00Z",
+                "user_id": "user-123",
+            }
+            mock_user.return_value = {
+                "id": "user-123",
+                "password_hash": "existing_hash",
+            }
+
+            client = TestClient(app)
+            response = client.get("/set-password?email_id=email-123", follow_redirects=False)
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert response.headers["location"] == "/login"
+
+
+def test_set_password_post_email_not_found(test_tenant):
+    """Test set-password POST redirects when email is not found."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/set-password",
+            data={
+                "email_id": "non-existent",
+                "password": "test123!",
+                "password_confirm": "test123!",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=invalid_link" in response.headers["location"]
+
+
+def test_set_password_post_email_not_verified(test_tenant):
+    """Test set-password POST redirects when email is not verified."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_get:
+        mock_get.return_value = {"id": "email-123", "verified_at": None, "user_id": "user-123"}
+
+        client = TestClient(app)
+        response = client.post(
+            "/set-password",
+            data={"email_id": "email-123", "password": "test123!", "password_confirm": "test123!"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=email_not_verified" in response.headers["location"]
+
+
+def test_set_password_post_user_already_has_password(test_tenant):
+    """Test set-password POST redirects when user already has password."""
+    from dependencies import get_tenant_id_from_request
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
+
+    with patch("routers.auth.emails_service.get_email_for_verification") as mock_email:
+        with patch("routers.auth.users_service.get_user_by_id_raw") as mock_user:
+            mock_email.return_value = {
+                "id": "email-123",
+                "verified_at": "2025-01-15T12:00:00Z",
+                "user_id": "user-123",
+            }
+            mock_user.return_value = {
+                "id": "user-123",
+                "password_hash": "existing_hash",
+            }
+
+            client = TestClient(app)
+            response = client.post(
+                "/set-password",
+                data={
+                    "email_id": "email-123",
+                    "password": "test123!",
+                    "password_confirm": "test123!",
+                },
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert response.headers["location"] == "/login"
+
+
+# =============================================================================
+# Client IP Extraction Tests
+# =============================================================================
+
+
+def test_get_client_ip_from_forwarded_header():
+    """Test _get_client_ip extracts IP from X-Forwarded-For header."""
+    from routers.auth import _get_client_ip
+
+    mock_request = Mock()
+    mock_request.headers = {"X-Forwarded-For": "192.168.1.100, 10.0.0.1, 127.0.0.1"}
+    mock_request.client = Mock(host="172.16.0.1")
+
+    ip = _get_client_ip(mock_request)
+
+    assert ip == "192.168.1.100"
+
+
+def test_get_client_ip_from_client_when_no_forwarded():
+    """Test _get_client_ip uses client IP when no X-Forwarded-For."""
+    from routers.auth import _get_client_ip
+
+    mock_request = Mock()
+    mock_request.headers = {}
+    mock_request.client = Mock(host="192.168.1.50")
+
+    ip = _get_client_ip(mock_request)
+
+    assert ip == "192.168.1.50"
+
+
+def test_get_client_ip_returns_unknown_when_no_client():
+    """Test _get_client_ip returns 'unknown' when no client info."""
+    from routers.auth import _get_client_ip
+
+    mock_request = Mock()
+    mock_request.headers = {}
+    mock_request.client = None
+
+    ip = _get_client_ip(mock_request)
+
+    assert ip == "unknown"

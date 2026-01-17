@@ -275,14 +275,17 @@
 
                 <div class="p-3 bg-amber-50 border border-amber-200 rounded-md">
                     <p class="text-xs text-amber-800">
-                        <strong>Warning:</strong> Assigning to an IdP wipes the user's password.
+                        <strong>Warning:</strong> Assigning to an IdP preserves the user's password but makes it unusable until removed from IdP.
                         Removing from an IdP will inactivate the user and unverify their emails.
+                        {% if not target_user.has_password %}
+                        <br><strong>Note:</strong> This user has no password. If disconnected from IdP, they will need a password set or new IdP assigned after reactivation.
+                        {% endif %}
                     </p>
                 </div>
 
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        onclick="return confirm('Are you sure? This action may wipe the user\'s password or inactivate their account.')">
+                        onclick="return confirm('Are you sure? This action may make the user\'s password unusable or inactivate their account.')">
                     Update Authentication
                 </button>
             </form>

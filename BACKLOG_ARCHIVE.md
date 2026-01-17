@@ -4,6 +4,73 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Password Retention & Controlled Deactivation
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want user passwords preserved when assigning users to IdPs and controlled reactivation flows
+So that users have a recovery path if their IdP connection is severed
+
+**Completed Work:**
+
+**Password Retention:**
+
+- [x] When a user is assigned to an IdP, password hash is PRESERVED (not wiped)
+- [x] When a user authenticates via SAML, password hash is PRESERVED
+- [x] When a domain is bound to an IdP (bulk assignment), passwords are PRESERVED
+- [x] Password is NOT usable while user has an IdP assigned (IdP authentication is mandatory)
+
+**IdP Disconnection & Deactivation:**
+
+- [x] When a user is disconnected from an IdP (saml_idp_id → NULL):
+  - User is automatically inactivated
+  - All emails are unverified (existing behavior)
+  - Password hash remains intact
+- [x] Moving a user from one IdP to another does NOT trigger deactivation (existing behavior)
+
+**Reactivation Flows:**
+
+- [x] Admin reactivation (existing): Admin/Super Admin can reactivate any inactivated user
+- [x] Super Admin self-reactivation (NEW):
+  - Super Admins can initiate self-reactivation from login page
+  - Must prove email possession (6-digit code flow)
+  - After code verification, if user is inactivated super admin → auto-reactivate
+  - Event logged: `super_admin_self_reactivated`
+- [x] Regular users/admins cannot self-reactivate (must contact an admin)
+
+**Password Setup on Reactivation:**
+
+- [x] If reactivated user has a password → can immediately log in with password
+- [x] If reactivated user has NO password (JIT-provisioned):
+  - After reactivation, admin triggers "set password" invite email
+  - User sets password via existing `/set-password` flow
+  - OR admin assigns them to a new IdP
+
+**UI Changes:**
+
+- [x] Login page for inactivated super admins shows "Reactivate Account" option
+- [x] Option only appears AFTER email possession is proven
+- [x] User management page shows password status indicator (has password / no password)
+- [x] Warning when disconnecting users without passwords
+
+**Technical Implementation:**
+
+- Removed `wipe_user_password()` calls in `app/services/saml.py`
+- Modified `assign_user_idp()` to preserve password
+- Modified `bind_domain_to_idp()` to preserve passwords in bulk
+- Modified SAML auth flow to preserve password on first SAML login
+- Added `self_reactivate_super_admin()` service function
+- Added password status tracking in user detail views
+- Modified `app/routers/auth.py` for super admin self-reactivation flow
+- Added comprehensive unit and integration tests
+
+**Effort:** M
+**Value:** High (Security - recovery path, operational resilience)
+
+---
+
 ## Test Suite Performance: Unit Test Pilot (Users Module)
 
 **Status:** Complete

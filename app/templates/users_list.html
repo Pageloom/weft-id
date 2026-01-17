@@ -260,6 +260,9 @@
                         {{ sort_header('status', 'Status') }}
                         {{ sort_header('last_activity_at', 'Last Activity') }}
                         {{ sort_header('created_at', 'Created') }}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Auth Method
+                        </th>
                         {% if user.role in ['admin', 'super_admin'] %}
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Actions
@@ -312,6 +315,21 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {{ fmt_datetime(u.created_at) }}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if u.saml_idp_id %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    IdP{% if u.has_password %}*{% endif %}
+                                </span>
+                                {% elif u.has_password %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                    Password
+                                </span>
+                                {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                    None
+                                </span>
+                                {% endif %}
+                            </td>
                             {% if user.role in ['admin', 'super_admin'] %}
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
                                 <a href="/users/{{ u.id }}" class="text-blue-600 hover:text-blue-900" title="Edit user">
@@ -325,7 +343,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}7{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
+                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}8{% else %}7{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
                                 {% if search %}
                                     No users found matching "{{ search }}"
                                 {% else %}
@@ -336,6 +354,11 @@
                     {% endif %}
                 </tbody>
             </table>
+
+            <!-- Auth Method Legend -->
+            <div class="mt-2 px-2 text-xs text-gray-500">
+                <strong>Auth Method:</strong> IdP* = Password preserved, IdP required
+            </div>
         </div>
 
         <!-- Pagination Controls - Bottom -->

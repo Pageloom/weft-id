@@ -1526,11 +1526,9 @@ def authenticate_via_saml(
 
     user_id = str(user["id"])
 
-    # Security: Wipe password on SAML auth (user is now "locked in" to SAML)
+    # Password is preserved but unusable while saml_idp_id is set
     # MFA info is preserved - IdP may require additional platform MFA
-    if user.get("password_hash"):
-        database.users.wipe_user_password(tenant_id, user_id)
-        logger.info(f"Password wiped for user {user_id} after SAML authentication")
+    logger.info(f"User {user_id} authenticated via SAML (password preserved)")
 
     # Ensure user is linked to this IdP
     current_idp_id = user.get("saml_idp_id")
@@ -1547,7 +1545,7 @@ def authenticate_via_saml(
         metadata={
             "idp_id": saml_result.idp_id,
             "email": email,
-            "password_wiped": bool(user.get("password_hash")),
+            "password_preserved": bool(user.get("password_hash")),
         },
         request_metadata=None,  # Will be added by router
     )
@@ -1709,7 +1707,7 @@ def bind_domain_to_idp(
                 "idp_name": idp["name"],
                 "assigned_via": "domain_binding",
                 "domain": domain["domain"],
-                "password_wiped": True,
+                "password_wiped": False,
             },
             request_metadata=requesting_user.get("request_metadata"),
         )
@@ -1997,10 +1995,11 @@ def assign_user_idp(
     had_idp = current_idp_id is not None
     will_have_idp = saml_idp_id is not None
 
-    # Security: Wipe password when assigning to IdP
-    if will_have_idp:
-        database.users.wipe_user_password(tenant_id, user_id)
-        logger.info(f"Password wiped for user {user_id} on IdP assignment")
+    # Log password status when assigning to IdP
+    if will_have_idp and user.get("has_password"):
+        logger.info(f"User {user_id} assigned to IdP (password preserved)")
+    elif will_have_idp:
+        logger.warning(f"User {user_id} assigned to IdP without password")
 
     # Security: Inactivate + unverify when removing from IdP (not when moving to another)
     user_inactivated = False
@@ -2027,7 +2026,7 @@ def assign_user_idp(
             "saml_idp_id": saml_idp_id,
             "idp_name": idp_name,
             "previous_idp_id": str(current_idp_id) if current_idp_id else None,
-            "password_wiped": will_have_idp,
+            "password_wiped": False,
             "user_inactivated": user_inactivated,
         },
         request_metadata=requesting_user.get("request_metadata"),

@@ -189,9 +189,7 @@ class TestRefreshSamlMetadataJob:
         import logging
 
         with patch("jobs.refresh_saml_metadata.saml_service") as mock_service:
-            mock_service.refresh_all_idp_metadata.side_effect = ValueError(
-                "Unexpected error"
-            )
+            mock_service.refresh_all_idp_metadata.side_effect = ValueError("Unexpected error")
 
             with caplog.at_level(logging.ERROR):
                 refresh_saml_metadata()

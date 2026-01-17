@@ -2,6 +2,7 @@
 
 import base64
 from typing import Annotated
+from urllib.parse import quote
 
 from dependencies import (
     build_requesting_user,
@@ -389,7 +390,7 @@ def saml_select_idp(
     if len(idps) == 1:
         relay_state = request.query_params.get("relay_state", "/dashboard")
         return RedirectResponse(
-            url=f"/saml/login/{idps[0].id}?relay_state={relay_state}",
+            url=f"/saml/login/{idps[0].id}?relay_state={quote(relay_state, safe='')}",
             status_code=303,
         )
 

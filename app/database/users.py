@@ -297,6 +297,25 @@ def list_users(
     if where_clauses:
         where_clause = "where " + " and ".join(where_clauses)
 
+    # SECURITY: Dynamic collation and field names in ORDER BY clause.
+    #
+    # Collation safety (line 301):
+    # - collation parameter is validated via check_collation_exists() in router
+    # - Only database-recognized collations are allowed (SQL injection impossible)
+    # - Still wrapped in double quotes as defense-in-depth
+    #
+    # Field name safety (lines 308-316):
+    # - sort_field is validated against a whitelist dictionary
+    # - Only pre-defined keys are accepted: name, email, role, status, etc.
+    # - Values in the dict are controlled template strings, not user input
+    #
+    # Sort order safety (lines 321-322):
+    # - sort_order validated against literal ['asc', 'desc']
+    # - Any other value defaults to 'desc'
+    #
+    # DO NOT add new sort fields without adding to the whitelist.
+    # DO NOT use user input directly in ORDER BY.
+
     # Build ORDER BY clause
     collate_clause = f' COLLATE "{collation}"' if collation else ""
     # Status sort: Active=1, Inactivated=2, Anonymized=3

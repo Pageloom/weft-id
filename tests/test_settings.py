@@ -92,9 +92,7 @@ class TestValidateProductionSettings:
             with pytest.raises(RuntimeError) as exc_info:
                 settings.validate_production_settings()
 
-            assert "SAML_KEY_ENCRYPTION_KEY has insecure default value" in str(
-                exc_info.value
-            )
+            assert "SAML_KEY_ENCRYPTION_KEY has insecure default value" in str(exc_info.value)
 
     def test_validate_fails_with_default_email_key(self):
         """Error when EMAIL_VERIFICATION_KEY has default value in production."""
@@ -112,9 +110,7 @@ class TestValidateProductionSettings:
             with pytest.raises(RuntimeError) as exc_info:
                 settings.validate_production_settings()
 
-            assert "EMAIL_VERIFICATION_KEY has insecure default value" in str(
-                exc_info.value
-            )
+            assert "EMAIL_VERIFICATION_KEY has insecure default value" in str(exc_info.value)
 
     def test_validate_fails_with_bypass_otp_enabled(self):
         """Error when BYPASS_OTP=True in production."""

@@ -45,6 +45,7 @@ def _get_client_ip(request: Request) -> str:
         return request.client.host
     return "unknown"
 
+
 router = APIRouter(prefix="", tags=["auth"], include_in_schema=False)
 templates = Jinja2Templates(directory="templates")
 
@@ -117,9 +118,7 @@ def send_verification_code(
     client_ip = _get_client_ip(request)
     try:
         ratelimit.prevent("email_send:ip:{ip}", limit=10, timespan=HOUR, ip=client_ip)
-        ratelimit.prevent(
-            "email_send:email:{email}", limit=5, timespan=MINUTE * 10, email=email
-        )
+        ratelimit.prevent("email_send:email:{email}", limit=5, timespan=MINUTE * 10, email=email)
     except RateLimitError:
         return RedirectResponse(
             url=f"/login?error=too_many_requests&prefill_email={quote(email)}",
@@ -274,9 +273,7 @@ def resend_verification_code(
     # Rate limiting: prevent abuse of resend functionality
     client_ip = _get_client_ip(request)
     try:
-        ratelimit.prevent(
-            "resend_code:ip:{ip}", limit=5, timespan=MINUTE * 10, ip=client_ip
-        )
+        ratelimit.prevent("resend_code:ip:{ip}", limit=5, timespan=MINUTE * 10, ip=client_ip)
     except RateLimitError:
         return RedirectResponse(url="/login/verify?error=too_many_requests", status_code=303)
 

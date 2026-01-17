@@ -1,15 +1,15 @@
 """Tests for CSRF middleware."""
 
-import pytest
+from unittest.mock import MagicMock
+
 from middleware.csrf import (
     CSRF_FORM_FIELD,
     CSRF_HEADER_NAME,
     CSRF_SESSION_KEY,
+    _is_exempt,
     generate_csrf_token,
     get_csrf_token,
-    _is_exempt,
 )
-from unittest.mock import MagicMock
 
 
 class TestGenerateCsrfToken:

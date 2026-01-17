@@ -1,6 +1,5 @@
 """Tests for email possession verification utilities."""
 
-import time
 from unittest.mock import patch
 
 from app.utils.email_verification import (
@@ -88,9 +87,7 @@ class TestVerificationCookie:
         assert len(cookie) > 0
 
         # Validate with correct code
-        is_valid, retrieved_email, retrieved_tenant = validate_verification_cookie(
-            cookie, code
-        )
+        is_valid, retrieved_email, retrieved_tenant = validate_verification_cookie(cookie, code)
         assert is_valid is True
         assert retrieved_email == email.lower()
         assert retrieved_tenant == tenant_id

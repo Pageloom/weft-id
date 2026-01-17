@@ -772,9 +772,7 @@ def test_verify_code_success_routes_to_password(test_tenant):
         assert response.status_code == 303
         assert "show_password=true" in response.headers["location"]
         # Trust cookie should be set
-        assert any(
-            name.startswith("email_trust_") for name in response.cookies.keys()
-        )
+        assert any(name.startswith("email_trust_") for name in response.cookies.keys())
 
 
 def test_verify_code_success_routes_to_idp(test_tenant):

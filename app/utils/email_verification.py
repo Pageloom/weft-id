@@ -184,9 +184,7 @@ def create_trust_cookie(email: str, tenant_id: str) -> str:
     return encrypted.decode()
 
 
-def validate_trust_cookie(
-    cookie_value: str, email: str, tenant_id: str
-) -> bool:
+def validate_trust_cookie(cookie_value: str, email: str, tenant_id: str) -> bool:
     """
     Validate a trust cookie for a given email and tenant.
 

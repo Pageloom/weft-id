@@ -8,9 +8,10 @@
         <h1 class="text-2xl font-semibold mb-6">Privileged Domains</h1>
 
         <p class="text-sm text-gray-600 mb-6">
-            Privileged domains are domains that your organization has an increased interest in (e.g., @company.com,
-            @company.org).
-            Users with email addresses from these domains can be granted additional privileges or access rights.
+            Privileged domains are email domains that your organization controls or that you have chosen to trust
+            (e.g., @company.com, @company.org). Users created with email addresses from these domains are automatically
+            verified. Additionally, domains can be bound to an Identity Provider to automatically assign users
+            to that IdP.
         </p>
 
         {% if success %}
@@ -82,7 +83,8 @@
                                 </button>
                             </form>
                             {% else %}
-                            <form method="post" action="/admin/privileged-domains/{{ domain.id }}/bind" class="flex items-center gap-2">
+                            <form method="post" action="/admin/privileged-domains/{{ domain.id }}/bind"
+                                  class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="idp_id" required class="text-sm border border-gray-300 rounded px-2 py-1">
                                     <option value="">Bind to IdP...</option>

@@ -165,3 +165,140 @@ def test_get_current_user_no_timeout_configured(test_user):
 
     assert user is not None
     assert user["id"] == test_user["id"]
+
+
+# =============================================================================
+# verify_login_with_status Tests
+# =============================================================================
+
+
+def test_verify_login_with_status_success(test_tenant, test_user):
+    """Test successful login returns status='success'."""
+    from utils.auth import verify_login_with_status
+
+    result = verify_login_with_status(test_tenant["id"], test_user["email"], "TestPassword123!")
+
+    assert result["status"] == "success"
+    assert result["user"] is not None
+    assert result["user"]["id"] == test_user["id"]
+
+
+def test_verify_login_with_status_invalid_email(test_tenant):
+    """Test that unknown email returns status='invalid_credentials'."""
+    from utils.auth import verify_login_with_status
+
+    result = verify_login_with_status(test_tenant["id"], "unknown@example.com", "password")
+
+    assert result["status"] == "invalid_credentials"
+    assert result["user"] is None
+
+
+def test_verify_login_with_status_wrong_password(test_tenant, test_user):
+    """Test that wrong password returns status='invalid_credentials'."""
+    from utils.auth import verify_login_with_status
+
+    result = verify_login_with_status(test_tenant["id"], test_user["email"], "WrongPassword!")
+
+    assert result["status"] == "invalid_credentials"
+    assert result["user"] is None
+
+
+def test_verify_login_with_status_inactivated(test_tenant, test_user):
+    """Test that inactivated user returns status='inactivated' with can_request=True."""
+    from utils.auth import verify_login_with_status
+
+    # Inactivate the user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    result = verify_login_with_status(test_tenant["id"], test_user["email"], "TestPassword123!")
+
+    assert result["status"] == "inactivated"
+    assert result["user"] is not None
+    assert result["can_request_reactivation"] is True
+
+
+def test_verify_login_with_status_denied(test_tenant, test_user):
+    """Test that denied reactivation returns status='denied' with can_request=False."""
+    from utils.auth import verify_login_with_status
+
+    # Inactivate the user and deny reactivation
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+    database.users.set_reactivation_denied(test_tenant["id"], test_user["id"])
+
+    result = verify_login_with_status(test_tenant["id"], test_user["email"], "TestPassword123!")
+
+    assert result["status"] == "denied"
+    assert result["user"] is not None
+    assert result["can_request_reactivation"] is False
+
+
+def test_verify_login_with_status_pending(test_tenant, test_user):
+    """Test that pending reactivation request returns status='pending' with can_request=False."""
+    from utils.auth import verify_login_with_status
+
+    # Inactivate the user and create a pending reactivation request
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+    database.reactivation.create_request(test_tenant["id"], test_tenant["id"], test_user["id"])
+
+    result = verify_login_with_status(test_tenant["id"], test_user["email"], "TestPassword123!")
+
+    assert result["status"] == "pending"
+    assert result["user"] is not None
+    assert result["can_request_reactivation"] is False
+
+
+def test_get_current_user_session_timeout(test_tenant, test_user):
+    """Test that expired session clears session and returns None."""
+    import time
+
+    from utils.auth import get_current_user
+
+    # Set session timeout to 1 second
+    database.security.update_security_settings(
+        tenant_id=test_tenant["id"],
+        timeout_seconds=1,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        updated_by=test_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    # Create a mock request with an expired session (2 seconds ago)
+    request = Mock()
+    session_dict = {
+        "user_id": str(test_user["id"]),
+        "session_start": int(time.time()) - 2,  # Started 2 seconds ago
+    }
+    request.session = session_dict
+
+    result = get_current_user(request, test_tenant["id"])
+
+    assert result is None
+    # Verify session was cleared
+    assert len(session_dict) == 0
+
+
+def test_get_current_user_inactivated_clears_session(test_tenant, test_user):
+    """Test that inactivated user mid-session clears session and returns None."""
+    import time
+
+    from utils.auth import get_current_user
+
+    # Inactivate the user
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    # Create a mock request with valid session
+    request = Mock()
+    session_dict = {
+        "user_id": str(test_user["id"]),
+        "session_start": int(time.time()),
+    }
+    request.session = session_dict
+
+    result = get_current_user(request, test_tenant["id"])
+
+    assert result is None
+    # Verify session was cleared
+    assert len(session_dict) == 0

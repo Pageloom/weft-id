@@ -356,3 +356,147 @@ def test_active_user_can_login(test_tenant, test_user):
     result = verify_login(test_tenant["id"], test_user["email"], "TestPassword123!")
     assert result is not None
     assert result["id"] == test_user["id"]
+
+
+# =============================================================================
+# Event Logging Tests
+# =============================================================================
+
+
+def test_inactivate_user_logs_event(test_tenant, test_admin_user, test_user):
+    """Test that inactivating a user logs an event."""
+    import database
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    users_service.inactivate_user(requesting_user, str(test_user["id"]))
+
+    # Verify event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert len(events) > 0
+    assert events[0]["event_type"] == "user_inactivated"
+    assert str(events[0]["artifact_id"]) == str(test_user["id"])
+    assert str(events[0]["actor_user_id"]) == str(test_admin_user["id"])
+
+
+def test_inactivate_user_revokes_oauth_tokens(
+    test_tenant, test_admin_user, test_user, normal_oauth2_client
+):
+    """Test that inactivating a user revokes their OAuth tokens."""
+    import database
+    from services import users as users_service
+
+    # Create an OAuth token for the user
+    refresh_token, refresh_token_id = database.oauth2.create_refresh_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+    )
+
+    access_token = database.oauth2.create_access_token(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        client_id=normal_oauth2_client["id"],
+        user_id=test_user["id"],
+        parent_token_id=refresh_token_id,
+    )
+
+    # Verify tokens are valid before inactivation
+    assert database.oauth2.validate_token(access_token, test_tenant["id"]) is not None
+
+    # Inactivate the user
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    users_service.inactivate_user(requesting_user, str(test_user["id"]))
+
+    # Verify tokens are now revoked
+    assert database.oauth2.validate_token(access_token, test_tenant["id"]) is None
+    assert (
+        database.oauth2.validate_refresh_token(
+            test_tenant["id"], refresh_token, normal_oauth2_client["id"]
+        )
+        is None
+    )
+
+
+def test_reactivate_user_logs_event(test_tenant, test_admin_user, test_user):
+    """Test that reactivating a user logs an event."""
+    import database
+    from services import users as users_service
+
+    # Inactivate the user first
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    users_service.reactivate_user(requesting_user, str(test_user["id"]))
+
+    # Verify event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert len(events) > 0
+    assert events[0]["event_type"] == "user_reactivated"
+    assert str(events[0]["artifact_id"]) == str(test_user["id"])
+
+
+def test_reactivate_user_clears_reactivation_denied(test_tenant, test_admin_user, test_user):
+    """Test that reactivating a user clears the reactivation_denied_at flag."""
+    import database
+    from services import users as users_service
+
+    # Inactivate and deny reactivation
+    database.users.inactivate_user(test_tenant["id"], test_user["id"])
+    database.users.set_reactivation_denied(test_tenant["id"], test_user["id"])
+
+    # Verify the flag is set
+    user = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    assert user["reactivation_denied_at"] is not None
+
+    # Reactivate the user
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    users_service.reactivate_user(requesting_user, str(test_user["id"]))
+
+    # Verify the flag is cleared
+    user = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    assert user["reactivation_denied_at"] is None
+
+
+def test_anonymize_user_logs_event_with_metadata(test_tenant, test_super_admin_user, test_user):
+    """Test that anonymizing a user logs an event with pre-anonymization metadata."""
+    import database
+    from services import users as users_service
+
+    # Capture user info before anonymization
+    user_before = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    primary_email = database.user_emails.get_primary_email(test_tenant["id"], test_user["id"])
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    users_service.anonymize_user(requesting_user, str(test_user["id"]))
+
+    # Verify event was logged with pre-anonymization info
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert len(events) > 0
+    assert events[0]["event_type"] == "user_anonymized"
+    assert str(events[0]["artifact_id"]) == str(test_user["id"])
+
+    # Verify metadata contains pre-anonymization info
+    metadata = events[0]["metadata"]
+    assert (
+        metadata["anonymized_user_name"]
+        == f"{user_before['first_name']} {user_before['last_name']}"
+    )
+    assert metadata["anonymized_user_email"] == primary_email["email"]
+    assert metadata["anonymized_user_role"] == user_before["role"]
+
+
+def test_reactivate_nonexistent_user_fails(test_tenant, test_admin_user):
+    """Test that reactivating a nonexistent user fails."""
+    from uuid import uuid4
+
+    from services import users as users_service
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    with pytest.raises(NotFoundError) as exc_info:
+        users_service.reactivate_user(requesting_user, str(uuid4()))
+
+    assert exc_info.value.code == "user_not_found"

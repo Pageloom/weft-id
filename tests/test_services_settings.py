@@ -541,3 +541,108 @@ def test_get_session_settings_returns_dict_when_set(test_tenant, test_super_admi
     assert isinstance(result, dict)
     assert result["session_timeout_seconds"] == 1800
     assert result["persistent_sessions"] is False
+
+
+# =============================================================================
+# Privileged Domains - Validation Tests
+# =============================================================================
+
+
+def test_add_privileged_domain_too_short(test_tenant, test_admin_user):
+    """Test that adding a domain with less than 3 characters fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import PrivilegedDomainCreate
+
+    with pytest.raises(PydanticValidationError):
+        PrivilegedDomainCreate(domain="ab")
+
+
+def test_add_privileged_domain_too_long(test_tenant, test_admin_user):
+    """Test that adding a domain longer than 253 characters fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import PrivilegedDomainCreate
+
+    # Create a domain that's 254 characters
+    long_domain = "a" * 250 + ".com"
+
+    with pytest.raises(PydanticValidationError):
+        PrivilegedDomainCreate(domain=long_domain)
+
+
+def test_add_privileged_domain_min_length(test_tenant, test_admin_user):
+    """Test that adding a domain with exactly 3 characters succeeds."""
+    from schemas.settings import PrivilegedDomainCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_data = PrivilegedDomainCreate(domain="a.b")
+
+    result = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    assert result.domain == "a.b"
+
+
+# =============================================================================
+# Security Settings - Validation Tests
+# =============================================================================
+
+
+def test_update_security_settings_zero_timeout_fails(test_tenant, test_super_admin_user):
+    """Test that setting session timeout to 0 fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(session_timeout_seconds=0)
+
+
+def test_update_security_settings_negative_timeout_fails(test_tenant, test_super_admin_user):
+    """Test that setting session timeout to negative value fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(session_timeout_seconds=-1)
+
+
+# =============================================================================
+# Inactivity Threshold Tests
+# =============================================================================
+
+
+def test_get_inactivity_threshold_not_set(test_tenant):
+    """Test that get_inactivity_threshold returns None when not configured."""
+    result = settings_service.get_inactivity_threshold(test_tenant["id"])
+
+    assert result is None
+
+
+def test_get_inactivity_threshold_set(test_tenant, test_super_admin_user):
+    """Test that get_inactivity_threshold returns correct value when set."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    # Set inactivity threshold
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(inactivity_threshold_days=90)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    result = settings_service.get_inactivity_threshold(test_tenant["id"])
+
+    assert result == 90
+
+
+def test_delete_privileged_domain_as_super_admin(test_tenant, test_super_admin_user):
+    """Test that a super_admin can delete a privileged domain."""
+    from schemas.settings import PrivilegedDomainCreate
+
+    # First add a domain
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    domain_data = PrivilegedDomainCreate(domain="deletetest.com")
+    created = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Now delete it (returns None on success)
+    settings_service.delete_privileged_domain(requesting_user, str(created.id))
+
+    # Verify it was deleted by listing domains
+    domains = settings_service.list_privileged_domains(requesting_user)
+    domain_ids = [str(d.id) for d in domains]
+    assert str(created.id) not in domain_ids

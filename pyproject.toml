@@ -37,6 +37,7 @@ ruff = "^0.7.0"
 mypy = "^1.13.0"
 pytest-cov = "^7.0.0"
 pytest-xdist = "^3.5.0"
+pip-audit = "^2.10.0"
 
 [tool.black]
 line-length = 100

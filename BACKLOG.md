@@ -212,6 +212,228 @@ So that downstream applications can bootstrap teams, channels, and access contro
 
 ---
 
+## SAML Identity Provider - Phase 1: Core IdP (SP-Initiated SSO)
+
+**User Story:**
+As a super admin
+I want to register downstream applications as SAML Service Providers
+So that those applications can authenticate users via SSO against my tenant's identity provider
+
+**Context:**
+
+This is the foundational phase of making the platform act as a SAML Identity Provider. Currently the platform federates with upstream IdPs (Okta, Azure AD, etc.). This feature enables the reverse: downstream applications trust this platform as their IdP. How users actually authenticate internally (password, MFA, upstream IdP) is opaque to the downstream SP.
+
+**Acceptance Criteria:**
+
+**Service Provider Registration:**
+
+- [ ] Super admin can register downstream apps (SPs) via:
+  - Pasted SAML metadata XML
+  - Metadata URL (fetched and parsed)
+- [ ] Metadata parsing extracts: Entity ID, ACS URL(s), SP certificate (if present), NameID format
+- [ ] Manual fallback: if metadata incomplete, allow manual entry of Entity ID and ACS URL
+- [ ] SP has name field (required) for display purposes
+- [ ] Basic SP list view (super admin only): Name, Entity ID, Created At
+- [ ] Delete SP (for correcting mistakes)
+
+**IdP Metadata Exposure:**
+
+- [ ] Tenant-specific IdP metadata endpoint: `GET /saml/idp/metadata`
+- [ ] Metadata includes: Entity ID, SSO endpoint URL, signing certificate, supported NameID formats
+- [ ] Downloadable as XML file
+- [ ] Copyable metadata URL for SP configuration
+
+**SP-Initiated SSO Flow:**
+
+- [ ] SSO endpoint: `POST/GET /saml/idp/sso` receives SAML AuthnRequest
+- [ ] Parse and validate AuthnRequest (issuer must match registered SP)
+- [ ] If user has no active session: redirect to login page, then return to SSO flow
+- [ ] If user has active session: show consent screen
+- [ ] Consent screen displays: app name, attributes being shared (email, first name, last name)
+- [ ] "Continue" proceeds with assertion; "Cancel" returns to dashboard
+
+**SAML Assertion Generation:**
+
+- [ ] Generate signed SAML Response with Assertion
+- [ ] Default attribute mappings: email, firstName, lastName (standard SAML attribute URIs)
+- [ ] NameID set to user's email (format: emailAddress)
+- [ ] Assertion signed with tenant's certificate (reuse existing SAML certificate infrastructure)
+- [ ] POST assertion to SP's ACS URL via auto-submitting form
+
+**Access Model (Phase 1):**
+
+- [ ] All authenticated users in the tenant can access all registered SPs
+- [ ] No per-user assignment in this phase (comes in Phase 2)
+
+**Technical Implementation:**
+
+- Database migration:
+  - `service_providers`: id, tenant_id, name, entity_id, acs_url, certificate, metadata_xml, created_at
+- New router: `app/routers/saml_idp.py` (separate from `saml.py` which handles upstream)
+- New service: `app/services/saml_idp.py`
+- New database module: `app/database/service_providers.py`
+- SAML assertion generation using existing `python3-saml` library
+- Signing with tenant's existing SAML certificate
+- UI: SP registration form, SP list, consent screen
+
+**Dependencies:**
+
+- Existing SAML infrastructure (certificates, python3-saml library)
+- Organizational Structure & Grouping System (recommended before Phase 2)
+
+**Effort:** L
+**Value:** High (Core IdP capability - enables downstream app integration)
+
+**Notes:**
+
+- This phase delivers a working IdP that integrators can test against
+- The "all users can access all SPs" model is intentionally simple for Phase 1
+- Study existing upstream IdP registration flow in `app/routers/saml.py` for patterns
+
+---
+
+## SAML Identity Provider - Phase 2: Dashboard & App Assignment
+
+**User Story:**
+As a user
+I want to see my assigned applications on my dashboard and launch them with a single click
+So that I can access my work tools without remembering individual URLs
+
+As an admin
+I want to assign applications to specific users
+So that I can control which users have access to which downstream applications
+
+**Context:**
+
+Phase 1 established the core IdP infrastructure with SP-initiated SSO. This phase adds the user-facing experience: a "My Apps" dashboard section where users see and launch their assigned applications (IdP-initiated SSO), plus the assignment model for admins to control access.
+
+**Acceptance Criteria:**
+
+**App Assignment Model:**
+
+- [ ] Super admins and admins can assign SPs to individual users
+- [ ] Assignment UI: select SP, then select users to assign
+- [ ] View assignments per SP (list of assigned users)
+- [ ] Remove assignments
+- [ ] Bulk assignment: select multiple users at once
+
+**Access Control:**
+
+- [ ] If an SP has any assignments: only assigned users can access it
+- [ ] If an SP has no assignments: all authenticated tenant users can access it (backward compatible with Phase 1)
+- [ ] SP-initiated SSO validates user has access before showing consent screen
+- [ ] Unauthorized access shows clear error message
+
+**User Dashboard - My Apps:**
+
+- [ ] "My Apps" section on user dashboard (visible to all users)
+- [ ] Shows all SPs the user has access to (direct assignment or no-assignment-means-all)
+- [ ] App display: name, optional description
+- [ ] Click app tile to launch (IdP-initiated SSO)
+- [ ] Empty state when user has no accessible apps: "No applications available"
+
+**IdP-Initiated SSO:**
+
+- [ ] Launching from dashboard generates SAML Response without prior AuthnRequest
+- [ ] Same consent screen as SP-initiated flow
+- [ ] RelayState optional (can be configured per SP for deep linking, future enhancement)
+- [ ] POST assertion to SP's ACS URL
+
+**SP Enhancements:**
+
+- [ ] Add description field to SPs (optional, shown in dashboard)
+- [ ] Add icon/logo URL field (optional, for future dashboard display)
+
+**Technical Implementation:**
+
+- Database migration:
+  - `sp_assignments`: id, sp_id, user_id, assigned_by, assigned_at
+  - Add `description` column to `service_providers`
+- Update `app/services/saml_idp.py` with assignment logic
+- Update `app/database/service_providers.py` with assignment queries
+- Dashboard template updates for My Apps section
+- Assignment management UI (admin pages)
+
+**Dependencies:**
+
+- SAML IdP Phase 1 complete
+
+**Effort:** M
+**Value:** High (User-facing feature, admin control over access)
+
+**Notes:**
+
+- The "no assignments means all users" model provides backward compatibility
+- Consider showing "Available to all" badge on unassigned SPs in admin view
+- Dashboard My Apps section is the foundation for other dashboard content later
+
+---
+
+## SAML Identity Provider - Phase 3: Attribute Mapping & SP Management
+
+**User Story:**
+As a super admin
+I want to customize attribute mappings per application and manage SP lifecycle
+So that I can integrate applications with non-standard attribute requirements and maintain SPs over time
+
+**Context:**
+
+Phases 1 and 2 established the IdP with default attribute mappings (email, firstName, lastName). Some applications expect different attribute names or formats. This phase adds per-SP customization and operational SP management features.
+
+**Acceptance Criteria:**
+
+**Per-SP Attribute Mapping:**
+
+- [ ] Default attribute mappings remain: email → standard URI, firstName → standard URI, lastName → standard URI
+- [ ] Per-SP attribute mapping overrides (e.g., map `email` to `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
+- [ ] Attribute mapping UI: list current mappings, add/edit/remove custom mappings
+- [ ] Support for common IdP attribute URI formats (SAML 2.0 standard, Azure AD claims, custom)
+- [ ] Preview: show what the assertion attributes will look like
+
+**SP Management:**
+
+- [ ] Edit SP configuration: name, description, ACS URL
+- [ ] Enable/disable SPs (disabled SPs reject SSO requests with clear error)
+- [ ] Re-import metadata (update SP config from new metadata XML or URL)
+- [ ] Delete SP with confirmation (warns about active assignments)
+
+**NameID Configuration:**
+
+- [ ] Per-SP NameID format selection: emailAddress (default), persistent, transient, unspecified
+- [ ] Persistent NameID generates stable opaque identifier per user-SP pair
+- [ ] Transient NameID generates new identifier per session
+
+**Error Handling & Troubleshooting:**
+
+- [ ] Clear error messages for common SAML failures (unknown SP, disabled SP, unauthorized user)
+- [ ] Event log entries for SSO attempts (success and failure) with SP name
+- [ ] Super admin can view recent SSO events per SP
+
+**Technical Implementation:**
+
+- Database migration:
+  - `sp_attribute_mappings`: id, sp_id, internal_attribute, saml_attribute_uri
+  - Add `enabled`, `nameid_format` columns to `service_providers`
+  - Add `persistent_nameid` table for persistent NameID storage (user_id, sp_id, nameid_value)
+- Update assertion generation to use custom mappings
+- SP edit/management UI
+- Event logging integration
+
+**Dependencies:**
+
+- SAML IdP Phase 2 complete
+
+**Effort:** M
+**Value:** Medium (Flexibility for production integrations)
+
+**Notes:**
+
+- Attribute mapping presets for common SPs (Salesforce, ServiceNow, etc.) could be a future enhancement
+- NameID format is important for applications that use it as the primary user identifier
+- Consider SAML debugging tools (assertion viewer) as separate backlog item, similar to upstream SAML Phase 4
+
+---
+
 ## Multi-Region Tenant Routing Infrastructure
 
 **User Story:**

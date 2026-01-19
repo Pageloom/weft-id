@@ -4264,3 +4264,254 @@ def test_get_saml_debug_entry_as_admin_forbidden(test_tenant, test_admin_user):
         saml_service.get_saml_debug_entry(requesting_user, "00000000-0000-0000-0000-000000000000")
 
     assert exc_info.value.code == "super_admin_required"
+
+
+# =============================================================================
+# Password Retention: Event Logging Verification Tests
+# =============================================================================
+
+
+def test_assign_user_idp_logs_password_wiped_false_in_metadata(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that assigning user to IdP logs 'password_wiped: False' in event metadata."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Assign user to IdP
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Verify event was logged with password_wiped: False
+    events = database.event_log.list_events(
+        tenant_id, limit=10, event_type="user_saml_idp_assigned", artifact_id=user_id
+    )
+    assert len(events) > 0, "No user_saml_idp_assigned event found"
+
+    event = events[0]
+    metadata = event.get("metadata") or {}
+    assert metadata.get("password_wiped") is False, "Event should log password_wiped: False"
+    assert metadata.get("saml_idp_id") == idp.id, "Event should log the assigned IdP ID"
+
+
+def test_assign_user_idp_logs_user_inactivated_on_disconnect(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that disconnecting user from IdP logs 'user_inactivated: True' in event metadata."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Create IdP and assign user
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Disconnect user from IdP
+    saml_service.assign_user_idp(requesting_user, user_id, None)
+
+    # Verify event was logged with user_inactivated: True
+    events = database.event_log.list_events(
+        tenant_id, limit=10, event_type="user_saml_idp_assigned", artifact_id=user_id
+    )
+    # Should have 2 events: assign then disconnect
+    disconnect_events = [e for e in events if e.get("metadata", {}).get("saml_idp_id") is None]
+    assert len(disconnect_events) > 0, "No disconnect event found"
+
+    event = disconnect_events[0]
+    metadata = event.get("metadata") or {}
+    assert metadata.get("user_inactivated") is True, "Event should log user_inactivated: True"
+    assert metadata.get("saml_idp_id") is None, "Event should log saml_idp_id: None"
+
+
+# =============================================================================
+# Password Retention: IdP Disconnect Side Effects Tests
+# =============================================================================
+
+
+def test_remove_user_from_idp_unverifies_emails(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that disconnecting user from IdP unverifies all their emails."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Get all emails and verify at least one is verified before test
+    emails_before = database.user_emails.list_user_emails(tenant_id, user_id)
+    assert len(emails_before) > 0, "Test user should have emails"
+    primary_before = [e for e in emails_before if e["is_primary"]]
+    assert len(primary_before) > 0, "Test user should have a primary email"
+    assert primary_before[0]["verified_at"] is not None, "Test user should have verified email"
+
+    # Create IdP and assign user
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Verify email still verified while on IdP
+    emails_with_idp = database.user_emails.list_user_emails(tenant_id, user_id)
+    primary_with_idp = [e for e in emails_with_idp if e["is_primary"]]
+    assert primary_with_idp[0]["verified_at"] is not None
+
+    # Disconnect user from IdP
+    saml_service.assign_user_idp(requesting_user, user_id, None)
+
+    # Verify email is now unverified
+    emails_after = database.user_emails.list_user_emails(tenant_id, user_id)
+    primary_after = [e for e in emails_after if e["is_primary"]]
+    assert (
+        primary_after[0]["verified_at"] is None
+    ), "Email should be unverified after IdP disconnect"
+
+
+@pytest.mark.xfail(reason="BUG: OAuth tokens not revoked on IdP disconnect - see ISSUES.md")
+def test_remove_user_from_idp_revokes_oauth_tokens(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that disconnecting user from IdP revokes their OAuth tokens.
+
+    This test is expected to fail until the bug is fixed.
+    See ISSUES.md: "[BUG] OAuth Tokens Not Revoked When User Disconnected from IdP"
+    """
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Create an OAuth client for testing
+    client = database.oauth2.create_client(
+        tenant_id=tenant_id,
+        name="Test Client",
+        redirect_uris=["https://example.com/callback"],
+        client_type="confidential",
+        flow_type="authorization_code",
+        created_by=requesting_user["id"],
+    )
+
+    # Create a token for the user
+    database.oauth2.create_access_token(
+        tenant_id=tenant_id,
+        client_id=str(client["id"]),
+        user_id=user_id,
+        scopes=["openid", "profile"],
+        expires_in=3600,
+    )
+
+    # Verify token exists
+    tokens_before = database.oauth2.get_user_tokens(tenant_id, user_id)
+    assert len(tokens_before) > 0, "User should have OAuth token"
+
+    # Create IdP and assign user
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Disconnect user from IdP (should trigger token revocation)
+    saml_service.assign_user_idp(requesting_user, user_id, None)
+
+    # Verify tokens are revoked
+    tokens_after = database.oauth2.get_user_tokens(tenant_id, user_id)
+    assert len(tokens_after) == 0, "OAuth tokens should be revoked after IdP disconnect"
+
+
+# =============================================================================
+# Password Retention: Full Flow Integration Tests
+# =============================================================================
+
+
+def test_jit_user_disconnect_needs_password_setup(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """E2E: JIT user (no password) → IdP → disconnect → reactivate → still needs password.
+
+    This tests the complete flow for a JIT-provisioned user:
+    1. User created via JIT (no password)
+    2. User assigned to IdP (still no password)
+    3. User disconnected from IdP (inactivated, still no password)
+    4. Admin reactivates user
+    5. User still has no password (must go through set-password flow)
+    """
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Step 1: Create a JIT-like user (no password)
+    result = database.users.create_user(
+        tenant_id,
+        tenant_id,
+        "JIT",
+        "Disconnect",
+        f"jit_disconnect_{tenant_id[:8]}@example.com",
+        "member",
+    )
+    jit_user_id = str(result["user_id"])
+
+    # Verify user has no password
+    user_step1 = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_step1["has_password"] is False
+    assert user_step1["is_inactivated"] is False
+    assert user_step1["saml_idp_id"] is None
+
+    # Step 2: Create IdP and assign user
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.assign_user_idp(requesting_user, jit_user_id, idp.id)
+
+    # Verify user has IdP, still no password
+    user_step2 = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_step2["saml_idp_id"] is not None
+    assert user_step2["has_password"] is False
+    assert user_step2["is_inactivated"] is False
+
+    # Step 3: Disconnect user from IdP (triggers inactivation)
+    saml_service.assign_user_idp(requesting_user, jit_user_id, None)
+
+    # Verify user is inactivated, still no password
+    user_step3 = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_step3["saml_idp_id"] is None
+    assert user_step3["is_inactivated"] is True
+    assert user_step3["has_password"] is False  # Still no password!
+
+    # Step 4: Admin reactivates the user
+    users_service.reactivate_user(requesting_user, jit_user_id)
+
+    # Verify user is active but still has no password
+    user_step4 = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_step4["is_inactivated"] is False
+    assert user_step4["has_password"] is False  # Still no password - must set one
+
+    # The user must now go through the set-password flow or be assigned to another IdP

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}SAML Debug Log - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-semibold">SAML Debug Log</h1>
+                <p class="text-sm text-gray-600 mt-1">Recent SAML authentication failures (last 24 hours)</p>
+            </div>
+            <a href="/admin/identity-providers"
+               class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+                Back to IdP List
+            </a>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 bg-red-50 rounded-md">
+            <p class="text-sm text-red-800">
+                {% if error == 'entry_not_found' %}
+                    Debug entry not found or has expired.
+                {% else %}
+                    {{ error }}
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p class="text-sm text-blue-800">
+                Debug entries are automatically cleaned up after 24 hours. Use this log to troubleshoot SAML configuration issues.
+            </p>
+        </div>
+
+        {% if entries|length == 0 %}
+        <div class="text-center py-12 border-t border-gray-200">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-gray-500 text-lg mt-2">No authentication failures</p>
+            <p class="text-gray-400 text-sm mt-1">
+                No SAML authentication errors have been recorded in the last 24 hours.
+            </p>
+        </div>
+        {% else %}
+        <div class="border-t border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Time
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Error Type
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            IdP
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Client IP
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for entry in entries %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ fmt_datetime(entry.created_at) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                {% if entry.error_type == 'signature_error' %}
+                                    bg-red-100 text-red-800
+                                {% elif entry.error_type == 'expired' %}
+                                    bg-yellow-100 text-yellow-800
+                                {% elif entry.error_type == 'user_not_found' %}
+                                    bg-orange-100 text-orange-800
+                                {% else %}
+                                    bg-gray-100 text-gray-800
+                                {% endif %}
+                            ">
+                                {{ entry.error_type|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {{ entry.idp_name or 'Unknown' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ entry.request_ip or 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a href="/admin/identity-providers/debug/{{ entry.id }}" class="text-blue-600 hover:text-blue-900">
+                                View Details
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

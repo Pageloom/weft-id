@@ -44,6 +44,55 @@ def _decode_saml_response_for_debug(saml_response: str) -> str | None:
         return None
 
 
+def _store_saml_debug_and_respond(
+    request: Request,
+    tenant_id: str,
+    error_type: str,
+    error_detail: str | None,
+    saml_response_b64: str | None,
+    idp_id: str | None = None,
+    idp_name: str | None = None,
+) -> Response:
+    """
+    Store a SAML debug entry and return an error template response.
+
+    This is a helper that:
+    1. Stores the debug entry for super admin review
+    2. Returns the appropriate error page to the user
+    """
+    # Get request metadata for debug entry
+    request_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # Store debug entry
+    saml_service.store_saml_debug_entry(
+        tenant_id=tenant_id,
+        error_type=error_type,
+        error_detail=error_detail,
+        idp_id=idp_id,
+        idp_name=idp_name,
+        saml_response_b64=saml_response_b64,
+        request_ip=request_ip,
+        user_agent=user_agent,
+    )
+
+    # Decode XML for display in dev mode
+    raw_saml_xml = None
+    if IS_DEV and saml_response_b64:
+        raw_saml_xml = _decode_saml_response_for_debug(saml_response_b64)
+
+    return templates.TemplateResponse(
+        request,
+        "saml_error.html",
+        {
+            "error_type": error_type,
+            "error_detail": error_detail,
+            "is_dev": IS_DEV,
+            "raw_saml_xml": raw_saml_xml,
+        },
+    )
+
+
 def _handle_saml_test_response(
     request: Request,
     tenant_id: str,
@@ -195,61 +244,49 @@ def saml_acs(
     expected_request_id = request.session.pop("saml_request_id", None)
     stored_idp_id = request.session.pop("saml_idp_id", None)
 
-    # Prepare debug info (only used if IS_DEV is True)
-    raw_saml_xml = _decode_saml_response_for_debug(SAMLResponse) if IS_DEV else None
-
     # Extract Issuer from SAML response to look up IdP
     issuer = extract_issuer_from_response(SAMLResponse)
     if not issuer:
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "invalid_response",
-                "error_detail": "Could not extract Issuer from SAML response",
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="invalid_response",
+            error_detail="Could not extract Issuer from SAML response",
+            saml_response_b64=SAMLResponse,
         )
 
     # Look up IdP by issuer (entity_id)
     try:
         idp = saml_service.get_idp_by_issuer(tenant_id, issuer)
         idp_id = idp.id
+        idp_name = idp.name
     except NotFoundError:
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "idp_not_found",
-                "error_detail": f"No IdP configured for issuer: {issuer}",
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="idp_not_found",
+            error_detail=f"No IdP configured for issuer: {issuer}",
+            saml_response_b64=SAMLResponse,
         )
     except ServiceError as e:
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "idp_disabled",
-                "error_detail": str(e),
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="idp_disabled",
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
         )
 
     # Verify IdP matches session (prevent response injection from different IdP)
     if stored_idp_id and stored_idp_id != idp_id:
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "invalid_response",
-                "error_detail": "IdP mismatch - response from unexpected IdP",
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="invalid_response",
+            error_detail="IdP mismatch - response from unexpected IdP",
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+            idp_name=idp_name,
         )
 
     # Build request data for python3-saml
@@ -280,60 +317,55 @@ def saml_acs(
         error_type = "signature_error" if "signature" in str(e).lower() else "invalid_response"
         if "expired" in str(e).lower():
             error_type = "expired"
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": error_type,
-                "error_detail": str(e),
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type=error_type,
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+            idp_name=idp_name,
         )
     except NotFoundError as e:
         if "user" in e.code.lower():
             email_detail = e.details.get("email") if e.details else None
-            return templates.TemplateResponse(
-                request,
-                "saml_error.html",
-                {
-                    "error_type": "user_not_found",
-                    "error_detail": email_detail,
-                    "is_dev": IS_DEV,
-                    "raw_saml_xml": raw_saml_xml,
-                },
+            return _store_saml_debug_and_respond(
+                request=request,
+                tenant_id=tenant_id,
+                error_type="user_not_found",
+                error_detail=email_detail,
+                saml_response_b64=SAMLResponse,
+                idp_id=idp_id,
+                idp_name=idp_name,
             )
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "idp_not_found",
-                "error_detail": str(e),
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="idp_not_found",
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+            idp_name=idp_name,
         )
     except ServiceError as e:
         if "disabled" in str(e).lower():
-            return templates.TemplateResponse(
-                request,
-                "saml_error.html",
-                {
-                    "error_type": "idp_disabled",
-                    "error_detail": str(e),
-                    "is_dev": IS_DEV,
-                    "raw_saml_xml": raw_saml_xml,
-                },
+            return _store_saml_debug_and_respond(
+                request=request,
+                tenant_id=tenant_id,
+                error_type="idp_disabled",
+                error_detail=str(e),
+                saml_response_b64=SAMLResponse,
+                idp_id=idp_id,
+                idp_name=idp_name,
             )
-        return templates.TemplateResponse(
-            request,
-            "saml_error.html",
-            {
-                "error_type": "configuration_error",
-                "error_detail": str(e),
-                "is_dev": IS_DEV,
-                "raw_saml_xml": raw_saml_xml,
-            },
+        return _store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="configuration_error",
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+            idp_name=idp_name,
         )
 
     # Check if MFA is required
@@ -364,12 +396,110 @@ def saml_acs(
 
     # CRITICAL: Regenerate session to prevent session fixation attacks
     # This clears all pre-auth data and creates a fresh authenticated session
-    regenerate_session(request, str(user["id"]), max_age)
+    # Include SAML session data for SLO support (Phase 4)
+    saml_session_data = {
+        "saml_idp_id": saml_result.idp_id,
+        "saml_name_id": saml_result.attributes.name_id,
+        "saml_name_id_format": saml_result.name_id_format,
+        "saml_session_index": saml_result.session_index,
+    }
+    regenerate_session(request, str(user["id"]), max_age, additional_data=saml_session_data)
 
     # Update last login
     users_service.update_last_login(tenant_id, str(user["id"]))
 
     return RedirectResponse(url=RelayState, status_code=303)
+
+
+@router.get("/saml/slo")
+def saml_slo_get(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """
+    Handle SLO via HTTP-Redirect binding (GET).
+
+    This can be either:
+    1. SP-initiated: LogoutResponse from IdP after we initiated logout
+    2. IdP-initiated: LogoutRequest from IdP via redirect binding
+
+    We check for SAMLRequest (IdP-initiated) or SAMLResponse (SP callback).
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    saml_request = request.query_params.get("SAMLRequest")
+    saml_response = request.query_params.get("SAMLResponse")
+
+    if saml_request:
+        # IdP-initiated logout via GET (HTTP-Redirect binding)
+        logger.info("IdP-initiated SLO received via GET")
+        base_url = _get_base_url(request)
+
+        redirect_url = saml_service.process_idp_logout_request(
+            tenant_id=tenant_id,
+            saml_request=saml_request,
+            base_url=base_url,
+        )
+
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+        # If processing failed, just redirect to login
+        return RedirectResponse(url="/login?slo=complete", status_code=303)
+
+    elif saml_response:
+        # SP-initiated callback (LogoutResponse from IdP)
+        logger.info("SLO callback received with LogoutResponse")
+
+    else:
+        logger.info("SLO callback received (no request or response)")
+
+    # Always redirect to login - session is already cleared
+    return RedirectResponse(url="/login?slo=complete", status_code=303)
+
+
+@router.post("/saml/slo")
+def saml_slo_post(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    saml_request: Annotated[str | None, Form(alias="SAMLRequest")] = None,
+    saml_response: Annotated[str | None, Form(alias="SAMLResponse")] = None,
+):
+    """
+    Handle SLO via HTTP-POST binding.
+
+    This is typically IdP-initiated logout where the IdP sends
+    a LogoutRequest via POST.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if saml_request:
+        # IdP-initiated logout via POST
+        logger.info("IdP-initiated SLO received via POST")
+        base_url = _get_base_url(request)
+
+        redirect_url = saml_service.process_idp_logout_request(
+            tenant_id=tenant_id,
+            saml_request=saml_request,
+            base_url=base_url,
+        )
+
+        if redirect_url:
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+    elif saml_response:
+        # SP-initiated callback via POST (less common)
+        logger.info("SLO callback received via POST with LogoutResponse")
+
+    else:
+        logger.warning("SLO POST received with no SAMLRequest or SAMLResponse")
+
+    # Always redirect to login
+    return RedirectResponse(url="/login?slo=complete", status_code=303)
 
 
 @router.get("/saml/select")
@@ -896,6 +1026,34 @@ def delete_idp(
     return RedirectResponse(url="/admin/identity-providers?success=deleted", status_code=303)
 
 
+@router.post(
+    "/admin/identity-providers/rotate-certificate",
+    dependencies=[Depends(require_super_admin)],
+)
+def rotate_certificate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Rotate the SP certificate with a 7-day grace period."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/admin/identity-providers?error=No+SP+certificate+exists+to+rotate",
+            status_code=303,
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers?error={str(e)}",
+            status_code=303,
+        )
+
+    return RedirectResponse(url="/admin/identity-providers?success=rotated", status_code=303)
+
+
 # ============================================================================
 # Domain Binding Web Routes (Phase 3)
 # ============================================================================
@@ -964,4 +1122,68 @@ def unbind_domain(
     return RedirectResponse(
         url=f"/admin/identity-providers/{idp_id}?success=domain_unbound",
         status_code=303,
+    )
+
+
+# ============================================================================
+# SAML Debug Web Routes (Phase 4)
+# ============================================================================
+
+
+@router.get(
+    "/admin/identity-providers/debug",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def saml_debug_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """List recent SAML authentication failures for debugging."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    entries = saml_service.list_saml_debug_entries(requesting_user, limit=50)
+
+    return templates.TemplateResponse(
+        request,
+        "saml_debug_list.html",
+        get_template_context(
+            request,
+            tenant_id,
+            entries=entries,
+        ),
+    )
+
+
+@router.get(
+    "/admin/identity-providers/debug/{entry_id}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def saml_debug_detail(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    entry_id: str,
+):
+    """View detailed SAML debug entry with XML."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        entry = saml_service.get_saml_debug_entry(requesting_user, entry_id)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/admin/identity-providers/debug?error=entry_not_found",
+            status_code=303,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "saml_debug_detail.html",
+        get_template_context(
+            request,
+            tenant_id,
+            entry=entry,
+        ),
     )

@@ -677,3 +677,151 @@ def test_import_idp_from_xml_missing_fields(client, test_tenant_host, oauth2_sup
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# SAML Phase 4: Provider Presets API Tests
+# =============================================================================
+
+
+def test_get_provider_presets_okta(client, test_tenant_host):
+    """Get Okta provider presets (no auth required)."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/okta",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_type"] == "okta"
+    assert "attribute_mapping" in data
+    assert data["attribute_mapping"]["email"] == "email"
+    assert data["attribute_mapping"]["first_name"] == "firstName"
+    assert data["attribute_mapping"]["last_name"] == "lastName"
+    assert "setup_guide_url" in data
+
+
+def test_get_provider_presets_azure_ad(client, test_tenant_host):
+    """Get Azure AD provider presets with full URN claim names."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/azure_ad",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_type"] == "azure_ad"
+    assert "xmlsoap.org" in data["attribute_mapping"]["email"]  # Full URN format
+    assert "setup_guide_url" in data
+
+
+def test_get_provider_presets_google(client, test_tenant_host):
+    """Get Google provider presets."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/google",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_type"] == "google"
+    assert data["attribute_mapping"]["first_name"] == "first_name"  # Underscore format
+    assert "setup_guide_url" in data
+
+
+def test_get_provider_presets_generic(client, test_tenant_host):
+    """Get generic provider presets (fallback)."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/generic",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_type"] == "generic"
+
+
+def test_get_provider_presets_unknown(client, test_tenant_host):
+    """Unknown provider type returns 404."""
+    response = client.get(
+        "/api/v1/saml/provider-presets/unknown_provider",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 404
+
+
+# =============================================================================
+# SAML Phase 4: Certificate Rotation API Tests
+# =============================================================================
+
+
+def test_rotate_sp_certificate_as_super_admin(
+    client, test_tenant_host, oauth2_super_admin_header, fast_sp_certificate
+):
+    """Super admin can rotate SP certificate."""
+    # First ensure a certificate exists (creates one if not)
+    get_response = client.get(
+        "/api/v1/saml/sp/certificate",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+    assert get_response.status_code == 200
+
+    # Now rotate
+    response = client.post(
+        "/api/v1/saml/sp/certificate/rotate",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "new_certificate_pem" in data
+    assert data["new_certificate_pem"].startswith("-----BEGIN CERTIFICATE-----")
+    assert "new_expires_at" in data
+    assert "grace_period_ends_at" in data
+    assert "warning" in data
+
+
+def test_rotate_sp_certificate_custom_grace_period(
+    client, test_tenant_host, oauth2_super_admin_header, fast_sp_certificate
+):
+    """Certificate rotation with custom grace period."""
+    # First ensure a certificate exists (creates one if not)
+    get_response = client.get(
+        "/api/v1/saml/sp/certificate",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+    assert get_response.status_code == 200
+
+    # Now rotate with custom grace period
+    response = client.post(
+        "/api/v1/saml/sp/certificate/rotate?grace_period_days=14",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Grace period should be ~14 days from now
+    assert "grace_period_ends_at" in data
+
+
+def test_rotate_sp_certificate_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Regular admin cannot rotate SP certificate."""
+    response = client.post(
+        "/api/v1/saml/sp/certificate/rotate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_rotate_sp_certificate_unauthenticated(client, test_tenant_host):
+    """Unauthenticated request returns 401."""
+    response = client.post(
+        "/api/v1/saml/sp/certificate/rotate",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401

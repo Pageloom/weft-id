@@ -6,6 +6,47 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
+## [BUG] SAML Router Route Ordering Bug - Phase 4 Endpoints Partially Unreachable
+
+**Found in:** `app/routers/saml.py`
+**Severity:** High
+**Description:** FastAPI route ordering bug prevents two SAML Phase 4 endpoints from being reached. The parameterized route `/admin/identity-providers/{idp_id}` is defined (line 742) before the literal routes `/admin/identity-providers/rotate-certificate` (line 1029) and `/admin/identity-providers/debug` (line 1134). This causes FastAPI to match "rotate-certificate" and "debug" as `idp_id` values, routing requests to the wrong handler.
+
+**Evidence:**
+- `POST /admin/identity-providers/rotate-certificate` returns 422 Unprocessable Entity with validation errors for `name`, `sso_url`, `certificate_pem` (fields from `update_idp` handler)
+- `GET /admin/identity-providers/debug` fails similarly (matched as `idp_id="debug"`)
+- Route order in file: `{idp_id}` at line 742, `rotate-certificate` at line 1029, `debug` at line 1134
+- Note: `/admin/identity-providers/debug/{entry_id}` works because it has 4 path segments vs 3 for `{idp_id}`
+
+**Impact:**
+- Certificate rotation feature is completely inaccessible via web UI
+- Debug log list feature is inaccessible via web UI
+- Debug detail view WORKS (different path depth)
+
+**Root Cause:** FastAPI matches routes in definition order. Literal paths must be defined BEFORE parameterized paths to take precedence.
+
+**Suggested Fix:**
+Move these routes BEFORE line 742 (before `{idp_id}` routes):
+1. `/admin/identity-providers/rotate-certificate` (currently at line 1029)
+2. `/admin/identity-providers/debug` (currently at line 1134)
+
+Note: `/admin/identity-providers/debug/{entry_id}` does NOT need to be moved (different segment count).
+
+**Files to modify:**
+- `app/routers/saml.py` - Reorder route definitions
+
+**Verification:**
+After fixing, remove `@pytest.mark.xfail` from these 4 tests in `tests/test_routers_saml.py`:
+1. `test_rotate_certificate_as_super_admin_success`
+2. `test_rotate_certificate_no_existing_cert_shows_error`
+3. `test_debug_list_as_super_admin_success`
+4. `test_debug_list_shows_entries`
+
+Then run: `poetry run pytest tests/test_routers_saml.py -k "rotate_certificate or debug_list" -v`
+All 4 tests should pass after the fix.
+
+---
+
 # Dependency Vulnerabilities
 
 Dependency audit performed: 2026-01-17

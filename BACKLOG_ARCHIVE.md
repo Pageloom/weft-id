@@ -4,6 +4,65 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Upstream IdP Support - Phase 4: Provider Helpers, SLO & Certificate Management
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want streamlined setup experiences for common IdPs, single logout support, and certificate lifecycle management
+So that I can quickly configure enterprise SSO and maintain it over time without deep SAML expertise
+
+**Completed Work:**
+
+**Provider-Specific Attribute Presets:**
+
+- [x] When selecting provider type (Okta, Azure AD, Google), auto-fill default attribute mappings
+- [x] Okta defaults: `email`, `firstName`, `lastName`
+- [x] Azure AD defaults: `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`, etc.
+- [x] Google defaults: Google's SAML attribute names
+- [x] Setup guide links in UI pointing to each provider's SAML app configuration docs
+
+**Single Logout (SLO):**
+
+- [x] Per-IdP setting: `slo_url` (optional)
+- [x] `GET/POST /saml/slo` endpoint handles:
+  - SP-initiated logout: When user logs out, send LogoutRequest to IdP
+  - IdP-initiated logout: Process LogoutRequest from IdP (best-effort with cookie sessions)
+- [x] If IdP has no SLO URL configured, logout only affects local session
+- [x] SLO errors logged but don't block local logout
+- [x] SLO URL field in form with note explaining its purpose
+
+**SP Certificate Management:**
+
+- [x] "Rotate Certificate" button on IdP list page (tenant-level action)
+- [x] Generates new SP certificate with configurable grace period (default 7 days)
+- [x] Warning modal explaining need to update IdP metadata
+- [x] Old certificate valid during grace period (both certs in rotation window)
+- [x] API endpoint for certificate rotation
+
+**Debugging & Troubleshooting:**
+
+- [x] SAML response viewer (super admin only): shows raw SAML XML for failed authentications
+- [x] Debug log stores failed SAML authentications with decoded XML
+- [x] Troubleshooting tips shown based on error type
+- [x] Debug entries auto-cleaned after 24 hours
+
+**Technical Implementation:**
+
+- Provider-specific attribute mapping presets in `app/schemas/saml.py`
+- SLO endpoints in `app/routers/saml.py` and `app/routers/auth.py`
+- Certificate rotation with overlap period in `app/services/saml.py`
+- SAML debug storage in `app/database/saml.py`
+- Migrations: `00023_saml_certificate_rotation.sql`, `00024_saml_debug_storage.sql`
+
+**Notes:**
+
+- IdP-initiated SLO is "best effort" due to cookie-based sessions (cannot server-side invalidate)
+- Documentation page deferred (troubleshooting tips embedded in debug detail view)
+
+---
+
 ## Password Retention & Controlled Deactivation
 
 **Status:** Complete

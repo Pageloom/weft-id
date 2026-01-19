@@ -4400,16 +4400,12 @@ def test_remove_user_from_idp_unverifies_emails(
     ), "Email should be unverified after IdP disconnect"
 
 
-@pytest.mark.xfail(reason="BUG: OAuth tokens not revoked on IdP disconnect - see ISSUES.md")
 def test_remove_user_from_idp_revokes_oauth_tokens(
     test_tenant, test_super_admin_user, test_user, test_idp_data
 ):
-    """Test that disconnecting user from IdP revokes their OAuth tokens.
-
-    This test is expected to fail until the bug is fixed.
-    See ISSUES.md: "[BUG] OAuth Tokens Not Revoked When User Disconnected from IdP"
-    """
+    """Test that disconnecting user from IdP revokes their OAuth tokens."""
     import database
+    from database._core import fetchone
     from schemas.saml import IdPCreate
     from services import saml as saml_service
 
@@ -4418,27 +4414,29 @@ def test_remove_user_from_idp_revokes_oauth_tokens(
     user_id = str(test_user["id"])
 
     # Create an OAuth client for testing
-    client = database.oauth2.create_client(
+    client = database.oauth2.create_normal_client(
         tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
         name="Test Client",
         redirect_uris=["https://example.com/callback"],
-        client_type="confidential",
-        flow_type="authorization_code",
         created_by=requesting_user["id"],
     )
 
     # Create a token for the user
     database.oauth2.create_access_token(
         tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
         client_id=str(client["id"]),
         user_id=user_id,
-        scopes=["openid", "profile"],
-        expires_in=3600,
     )
 
     # Verify token exists
-    tokens_before = database.oauth2.get_user_tokens(tenant_id, user_id)
-    assert len(tokens_before) > 0, "User should have OAuth token"
+    token_count_before = fetchone(
+        tenant_id,
+        "select count(*) as cnt from oauth2_tokens where user_id = :user_id",
+        {"user_id": user_id},
+    )
+    assert token_count_before["cnt"] > 0, "User should have OAuth token"
 
     # Create IdP and assign user
     data = IdPCreate(**test_idp_data, is_enabled=True)
@@ -4449,8 +4447,12 @@ def test_remove_user_from_idp_revokes_oauth_tokens(
     saml_service.assign_user_idp(requesting_user, user_id, None)
 
     # Verify tokens are revoked
-    tokens_after = database.oauth2.get_user_tokens(tenant_id, user_id)
-    assert len(tokens_after) == 0, "OAuth tokens should be revoked after IdP disconnect"
+    token_count_after = fetchone(
+        tenant_id,
+        "select count(*) as cnt from oauth2_tokens where user_id = :user_id",
+        {"user_id": user_id},
+    )
+    assert token_count_after["cnt"] == 0, "OAuth tokens should be revoked after IdP disconnect"
 
 
 # =============================================================================

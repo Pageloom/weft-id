@@ -1434,3 +1434,170 @@ def test_anonymize_user_as_super_admin(make_user_dict):
 
 # Note: test_anonymize_user_as_admin_forbidden and test_anonymize_user_as_member_forbidden
 # are covered in integration tests
+
+
+# =============================================================================
+# Password Status Field Tests
+# =============================================================================
+
+
+def test_get_user_includes_has_password_true(make_user_dict):
+    """Test that GET /api/v1/users/{id} returns has_password=True for users with passwords."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    target_user_id = str(uuid4())
+
+    mock_detail = UserDetail(
+        id=target_user_id,
+        email="user-with-password@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[
+            EmailInfo(
+                id=str(uuid4()),
+                email="user-with-password@example.com",
+                is_primary=True,
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
+            )
+        ],
+        is_service_user=False,
+        is_inactivated=False,
+        is_anonymized=False,
+        inactivated_at=None,
+        anonymized_at=None,
+        has_password=True,  # User has a password set
+    )
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.get_user.return_value = mock_detail
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{target_user_id}")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "has_password" in data
+        assert data["has_password"] is True
+
+
+def test_get_user_includes_has_password_false(make_user_dict):
+    """Test that GET /api/v1/users/{id} returns has_password=False for passwordless users."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    target_user_id = str(uuid4())
+
+    mock_detail = UserDetail(
+        id=target_user_id,
+        email="jit-user@example.com",
+        first_name="JIT",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[
+            EmailInfo(
+                id=str(uuid4()),
+                email="jit-user@example.com",
+                is_primary=True,
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
+            )
+        ],
+        is_service_user=False,
+        is_inactivated=False,
+        is_anonymized=False,
+        inactivated_at=None,
+        anonymized_at=None,
+        has_password=False,  # JIT-provisioned user without password
+    )
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.get_user.return_value = mock_detail
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{target_user_id}")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "has_password" in data
+        assert data["has_password"] is False
+
+
+def test_get_user_includes_saml_idp_info(make_user_dict):
+    """Test that GET /api/v1/users/{id} returns SAML IdP assignment info."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    target_user_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    mock_detail = UserDetail(
+        id=target_user_id,
+        email="saml-user@example.com",
+        first_name="SAML",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[
+            EmailInfo(
+                id=str(uuid4()),
+                email="saml-user@example.com",
+                is_primary=True,
+                verified_at=datetime.now(UTC),
+                created_at=datetime.now(UTC),
+            )
+        ],
+        is_service_user=False,
+        is_inactivated=False,
+        is_anonymized=False,
+        inactivated_at=None,
+        anonymized_at=None,
+        has_password=True,
+        saml_idp_id=idp_id,
+        saml_idp_name="Okta Corporate",
+    )
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.get_user.return_value = mock_detail
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{target_user_id}")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "saml_idp_id" in data
+        assert "saml_idp_name" in data
+        assert data["saml_idp_id"] == idp_id
+        assert data["saml_idp_name"] == "Okta Corporate"
+        assert data["has_password"] is True  # Password preserved with IdP

@@ -1508,7 +1508,6 @@ def test_slo_post_idp_initiated_failure_redirects_to_login(
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
 def test_rotate_certificate_as_super_admin_success(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
 ):
@@ -1550,7 +1549,6 @@ def test_rotate_certificate_as_admin_forbidden(admin_session, test_tenant_host):
     assert response.status_code in (303, 403)
 
 
-@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
 def test_rotate_certificate_no_existing_cert_shows_error(
     super_admin_session, test_tenant_host, monkeypatch
 ):
@@ -1599,7 +1597,6 @@ def test_rotate_certificate_unauthenticated_redirects(client, test_tenant_host):
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
 def test_debug_list_as_super_admin_success(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
 ):
@@ -1649,30 +1646,30 @@ def test_debug_list_unauthenticated_redirects(client, test_tenant_host):
     assert response.status_code in (303, 401, 403)
 
 
-@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
 def test_debug_list_shows_entries(
     super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
 ):
     """Test debug list shows recent debug entries."""
     from datetime import UTC, datetime
 
-    from schemas.saml import SAMLDebugEntry
     from services import saml as saml_service
 
-    # Mock entries (using correct schema fields)
+    # Mock entries as dicts (matching real service return type)
     mock_entries = [
-        SAMLDebugEntry(
-            timestamp=datetime.now(UTC),
-            error_type="signature_error",
-            error_detail="Signature validation failed",
-            idp_name="Test IdP",
-        ),
-        SAMLDebugEntry(
-            timestamp=datetime.now(UTC),
-            error_type="expired",
-            error_detail="Assertion has expired",
-            idp_name="Another IdP",
-        ),
+        {
+            "id": "entry-1",
+            "created_at": datetime.now(UTC),
+            "error_type": "signature_error",
+            "error_detail": "Signature validation failed",
+            "idp_name": "Test IdP",
+        },
+        {
+            "id": "entry-2",
+            "created_at": datetime.now(UTC),
+            "error_type": "expired",
+            "error_detail": "Assertion has expired",
+            "idp_name": "Another IdP",
+        },
     ]
 
     monkeypatch.setattr(

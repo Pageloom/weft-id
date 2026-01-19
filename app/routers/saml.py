@@ -738,6 +738,64 @@ def import_from_metadata_xml(
     return RedirectResponse(url="/admin/identity-providers?success=created", status_code=303)
 
 
+# NOTE: Literal routes must be defined BEFORE parameterized routes like {idp_id}
+# to ensure FastAPI matches them correctly (routes are matched in definition order)
+
+
+@router.post(
+    "/admin/identity-providers/rotate-certificate",
+    dependencies=[Depends(require_super_admin)],
+)
+def rotate_certificate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Rotate the SP certificate with a 7-day grace period."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
+    except NotFoundError:
+        return RedirectResponse(
+            url="/admin/identity-providers?error=No+SP+certificate+exists+to+rotate",
+            status_code=303,
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"/admin/identity-providers?error={str(e)}",
+            status_code=303,
+        )
+
+    return RedirectResponse(url="/admin/identity-providers?success=rotated", status_code=303)
+
+
+@router.get(
+    "/admin/identity-providers/debug",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def saml_debug_list(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """List recent SAML authentication failures for debugging."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    entries = saml_service.list_saml_debug_entries(requesting_user, limit=50)
+
+    return templates.TemplateResponse(
+        request,
+        "saml_debug_list.html",
+        get_template_context(
+            request,
+            tenant_id,
+            entries=entries,
+        ),
+    )
+
+
 @router.get(
     "/admin/identity-providers/{idp_id}",
     response_class=HTMLResponse,
@@ -1026,34 +1084,6 @@ def delete_idp(
     return RedirectResponse(url="/admin/identity-providers?success=deleted", status_code=303)
 
 
-@router.post(
-    "/admin/identity-providers/rotate-certificate",
-    dependencies=[Depends(require_super_admin)],
-)
-def rotate_certificate(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Rotate the SP certificate with a 7-day grace period."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    try:
-        saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
-    except NotFoundError:
-        return RedirectResponse(
-            url="/admin/identity-providers?error=No+SP+certificate+exists+to+rotate",
-            status_code=303,
-        )
-    except ServiceError as e:
-        return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
-            status_code=303,
-        )
-
-    return RedirectResponse(url="/admin/identity-providers?success=rotated", status_code=303)
-
-
 # ============================================================================
 # Domain Binding Web Routes (Phase 3)
 # ============================================================================
@@ -1126,34 +1156,10 @@ def unbind_domain(
 
 
 # ============================================================================
-# SAML Debug Web Routes (Phase 4)
+# SAML Debug Detail Route (Phase 4)
+# NOTE: The /admin/identity-providers/debug list route is defined earlier in
+# this file (before {idp_id} routes) due to FastAPI route ordering requirements
 # ============================================================================
-
-
-@router.get(
-    "/admin/identity-providers/debug",
-    response_class=HTMLResponse,
-    dependencies=[Depends(require_super_admin)],
-)
-def saml_debug_list(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """List recent SAML authentication failures for debugging."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    entries = saml_service.list_saml_debug_entries(requesting_user, limit=50)
-
-    return templates.TemplateResponse(
-        request,
-        "saml_debug_list.html",
-        get_template_context(
-            request,
-            tenant_id,
-            entries=entries,
-        ),
-    )
 
 
 @router.get(

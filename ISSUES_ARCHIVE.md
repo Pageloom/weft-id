@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] SAML Router Route Ordering Bug - Phase 4 Endpoints Partially Unreachable
+
+**Status:** Resolved (2026-01-19)
+
+**Found in:** `app/routers/saml.py`
+
+**Original Severity:** High
+
+**Original Description:** FastAPI route ordering bug prevented two SAML Phase 4 endpoints from being reached. The parameterized route `/admin/identity-providers/{idp_id}` was defined before the literal routes `/admin/identity-providers/rotate-certificate` and `/admin/identity-providers/debug`, causing FastAPI to match "rotate-certificate" and "debug" as `idp_id` values.
+
+**Resolution:**
+- Moved `rotate_certificate` and `saml_debug_list` routes before the `{idp_id}` parameterized route (FastAPI matches routes in definition order)
+- Added explanatory comment about route ordering requirements
+- Updated section header for debug detail route to explain the split location
+- Fixed test `test_debug_list_shows_entries` to mock with dicts instead of schema objects (matching real service behavior)
+- Removed `@pytest.mark.xfail` decorators from 4 tests
+
+**Files Modified:**
+- `app/routers/saml.py` - Reordered route definitions
+- `tests/test_routers_saml.py` - Removed xfail markers, fixed mock data format
+
+**Verification:** All 53 SAML router tests pass.
+
+---
+
 ## [BUG] KeyError in list_domain_bindings Service Function
 
 **Status:** Resolved (2026-01-17)

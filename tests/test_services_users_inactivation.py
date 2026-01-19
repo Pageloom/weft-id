@@ -595,3 +595,95 @@ def test_reactivate_nonexistent_user_fails(test_tenant, test_admin_user):
         users_service.reactivate_user(requesting_user, str(uuid4()))
 
     assert exc_info.value.code == "user_not_found"
+
+
+# =============================================================================
+# Password Preservation E2E Tests
+# =============================================================================
+
+
+def test_super_admin_self_reactivate_preserves_password(test_tenant, test_super_admin_user):
+    """E2E: Super admin with password → inactivated → self-reactivate → password preserved."""
+    import database
+    from services import users as users_service
+    from utils.password import hash_password, verify_password
+
+    tenant_id = str(test_tenant["id"])
+    user_id = str(test_super_admin_user["id"])
+
+    # Step 1: Set a password for the super admin
+    original_password = "super_admin_secure_pw_456"
+    password_hash = hash_password(original_password)
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Verify super admin has password
+    user_before = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_before["has_password"] is True
+    assert user_before["is_inactivated"] is False
+
+    # Step 2: Inactivate the super admin
+    database.users.inactivate_user(tenant_id, user_id)
+
+    # Verify inactivated but password still exists (in DB)
+    user_inactivated = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_inactivated["is_inactivated"] is True
+    assert user_inactivated["has_password"] is True
+
+    # Step 3: Super admin self-reactivates
+    users_service.self_reactivate_super_admin(tenant_id, user_id)
+
+    # Verify reactivated with password intact
+    user_after = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_after["is_inactivated"] is False
+    assert user_after["has_password"] is True
+
+    # Step 4: Verify the password still validates correctly
+    from database._core import fetchone
+
+    user_with_hash = fetchone(
+        tenant_id,
+        "select password_hash from users where id = :user_id",
+        {"user_id": user_id},
+    )
+    assert user_with_hash["password_hash"] is not None
+    assert verify_password(user_with_hash["password_hash"], original_password) is True
+
+
+def test_jit_user_reactivated_has_no_password(test_tenant, test_admin_user):
+    """E2E: JIT user (no password) → inactivated → reactivated → still has no password."""
+    import database
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # Step 1: Create a JIT-like user (no password set)
+    result = database.users.create_user(
+        tenant_id,
+        tenant_id,
+        "JIT",
+        "User",
+        f"jit_user_{tenant_id[:8]}@example.com",
+        "member",
+    )
+    jit_user_id = str(result["user_id"])
+
+    # Verify user has no password (simulating JIT provisioning)
+    user_before = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_before["has_password"] is False
+    assert user_before["is_inactivated"] is False
+
+    # Step 2: Inactivate the JIT user
+    database.users.inactivate_user(tenant_id, jit_user_id)
+
+    user_inactivated = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_inactivated["is_inactivated"] is True
+    assert user_inactivated["has_password"] is False
+
+    # Step 3: Admin reactivates the JIT user
+    requesting_user = _make_requesting_user(test_admin_user, tenant_id, "admin")
+    users_service.reactivate_user(requesting_user, jit_user_id)
+
+    # Step 4: Verify user is active but still has no password
+    user_after = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_after["is_inactivated"] is False
+    assert user_after["has_password"] is False  # Still no password - must go through set-password flow

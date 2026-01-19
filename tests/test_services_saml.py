@@ -3552,6 +3552,275 @@ def test_remove_user_from_idp_inactivates_and_preserves_password(
     assert user_after["has_password"] is True  # Password should be preserved!
 
 
+def test_moving_user_between_idps_does_not_inactivate(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that moving a user from IdP A to IdP B does NOT trigger inactivation."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Create IdP A - override the name in the fixture
+    idp_a_data_dict = dict(test_idp_data)
+    idp_a_data_dict["name"] = "IdP A"
+    idp_a_data = IdPCreate(**idp_a_data_dict, is_enabled=True)
+    idp_a = saml_service.create_identity_provider(
+        requesting_user, idp_a_data, "https://test.example.com"
+    )
+
+    # Create IdP B with different entity_id and name
+    idp_b_data_dict = dict(test_idp_data)
+    idp_b_data_dict["entity_id"] = "https://idp-b.example.com/entity"
+    idp_b_data_dict["name"] = "IdP B"
+    idp_b_data = IdPCreate(**idp_b_data_dict, is_enabled=True)
+    idp_b = saml_service.create_identity_provider(
+        requesting_user, idp_b_data, "https://test.example.com"
+    )
+
+    # Assign user to IdP A
+    saml_service.assign_user_idp(requesting_user, user_id, idp_a.id)
+
+    # Verify user is assigned to IdP A and NOT inactivated
+    user_with_idp_a = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert str(user_with_idp_a["saml_idp_id"]) == idp_a.id
+    assert user_with_idp_a["is_inactivated"] is False
+    assert user_with_idp_a["has_password"] is True
+
+    # Move user from IdP A to IdP B (NOT setting to None)
+    saml_service.assign_user_idp(requesting_user, user_id, idp_b.id)
+
+    # Verify user is now assigned to IdP B, NOT inactivated, password preserved
+    user_with_idp_b = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert str(user_with_idp_b["saml_idp_id"]) == idp_b.id
+    assert user_with_idp_b["is_inactivated"] is False  # Key assertion: NOT inactivated
+    assert user_with_idp_b["has_password"] is True
+
+
+def test_determine_auth_route_user_with_idp_routes_to_saml(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that users with IdP assigned are routed to SAML, not password form."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Get user's primary email
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    email = primary_email["email"]
+
+    # Before IdP assignment - user should route to password form
+    route_before = saml_service.determine_auth_route(tenant_id, email)
+    assert route_before.route_type == "password"
+
+    # Create IdP and assign user
+    idp_data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, idp_data, "https://test.example.com"
+    )
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # After IdP assignment - user should route to IdP (SAML), not password
+    route_after = saml_service.determine_auth_route(tenant_id, email)
+    assert route_after.route_type == "idp"  # Routes to SAML, not password
+    assert route_after.idp_id == idp.id
+    assert route_after.idp_name == idp.name
+
+
+def test_full_flow_disconnect_reactivate_password_works(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """E2E: User with password → assign to IdP → disconnect → reactivate → password works."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services import users as users_service
+    from utils.password import hash_password, verify_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Step 1: Set a password for the test user
+    original_password = "my_secure_password_123"
+    password_hash = hash_password(original_password)
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Verify user has password
+    user_step1 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step1["has_password"] is True
+    assert user_step1["is_inactivated"] is False
+
+    # Step 2: Create IdP and assign user
+    idp_data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, idp_data, "https://test.example.com"
+    )
+    saml_service.assign_user_idp(requesting_user, user_id, idp.id)
+
+    # Verify: password preserved, user assigned to IdP
+    user_step2 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step2["has_password"] is True  # Password preserved!
+    assert user_step2["saml_idp_id"] is not None
+    assert user_step2["is_inactivated"] is False
+
+    # Step 3: Disconnect user from IdP (triggers inactivation)
+    saml_service.assign_user_idp(requesting_user, user_id, None)
+
+    # Verify: user is now inactivated but password is preserved
+    user_step3 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step3["has_password"] is True  # Password still preserved!
+    assert user_step3["saml_idp_id"] is None
+    assert user_step3["is_inactivated"] is True
+
+    # Step 4: Admin reactivates the user
+    users_service.reactivate_user(requesting_user, user_id)
+
+    # Verify: user is active again with password intact
+    user_step4 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step4["has_password"] is True  # Password still works!
+    assert user_step4["is_inactivated"] is False
+
+    # Step 5: Verify the password still validates correctly
+    # Note: We verify the password by checking the stored hash directly from the database
+    # since get_user_by_id doesn't return the hash (for security)
+    from database._core import fetchone
+
+    user_with_hash = fetchone(
+        tenant_id,
+        "select password_hash from users where id = :user_id",
+        {"user_id": user_id},
+    )
+    assert user_with_hash["password_hash"] is not None
+    assert verify_password(user_with_hash["password_hash"], original_password) is True
+
+
+# =============================================================================
+# Edge Case Tests
+# =============================================================================
+
+
+def test_assign_passwordless_user_to_idp(test_tenant, test_super_admin_user, test_idp_data):
+    """Test assigning a JIT-provisioned user (no password) to an IdP works correctly."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create a JIT-like user (no password set)
+    result = database.users.create_user(
+        tenant_id,
+        tenant_id,
+        "JIT",
+        "User",
+        f"jit_user_idp_{tenant_id[:8]}@example.com",
+        "member",
+    )
+    jit_user_id = str(result["user_id"])
+
+    # Verify user has no password
+    user_before = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert user_before["has_password"] is False
+    assert user_before["saml_idp_id"] is None
+
+    # Create IdP
+    idp_data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(
+        requesting_user, idp_data, "https://test.example.com"
+    )
+
+    # Assign passwordless user to IdP
+    saml_service.assign_user_idp(requesting_user, jit_user_id, idp.id)
+
+    # Verify assignment successful, has_password still False
+    user_after = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
+    assert str(user_after["saml_idp_id"]) == idp.id
+    assert user_after["has_password"] is False  # Still no password
+    assert user_after["is_inactivated"] is False
+
+
+def test_rebind_domain_users_not_inactivated(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that rebinding domain from IdP A to IdP B doesn't inactivate users."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from utils.password import hash_password
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    user_id = str(test_user["id"])
+
+    # Set a password for the test user
+    password_hash = hash_password("test_password_123")
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Get user's email domain
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    email_domain = primary_email["email"].split("@")[1]
+
+    # Create privileged domain
+    domain_data = PrivilegedDomainCreate(domain=email_domain)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create IdP A
+    idp_a_data_dict = dict(test_idp_data)
+    idp_a_data_dict["name"] = "IdP A Rebind"
+    idp_a_data = IdPCreate(**idp_a_data_dict, is_enabled=True)
+    idp_a = saml_service.create_identity_provider(
+        requesting_user, idp_a_data, "https://test.example.com"
+    )
+
+    # Create IdP B with different entity_id
+    idp_b_data_dict = dict(test_idp_data)
+    idp_b_data_dict["entity_id"] = "https://idp-b-rebind.example.com/entity"
+    idp_b_data_dict["name"] = "IdP B Rebind"
+    idp_b_data = IdPCreate(**idp_b_data_dict, is_enabled=True)
+    idp_b = saml_service.create_identity_provider(
+        requesting_user, idp_b_data, "https://test.example.com"
+    )
+
+    # Bind domain to IdP A - users get assigned
+    saml_service.bind_domain_to_idp(requesting_user, idp_a.id, domain.id)
+
+    # Verify user is assigned to IdP A
+    user_with_idp_a = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert str(user_with_idp_a["saml_idp_id"]) == idp_a.id
+    assert user_with_idp_a["is_inactivated"] is False
+    assert user_with_idp_a["has_password"] is True
+
+    # Rebind domain from IdP A to IdP B (args: requesting_user, domain_id, new_idp_id)
+    saml_service.rebind_domain_to_idp(requesting_user, domain.id, idp_b.id)
+
+    # Verify user is now assigned to IdP B, NOT inactivated
+    user_with_idp_b = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert str(user_with_idp_b["saml_idp_id"]) == idp_b.id
+    assert user_with_idp_b["is_inactivated"] is False  # Key: NOT inactivated!
+    assert user_with_idp_b["has_password"] is True  # Password preserved
+
+
 # =============================================================================
 # Phase 4: Provider Presets Tests
 # =============================================================================

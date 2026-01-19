@@ -49,7 +49,14 @@ Follow these architectural principles:
 - Every service write must emit an event log (when implemented)
 - New pages/routes must be registered in `app/pages.py`
 - Migrations go in `db-init/` with sequential numbering
-- Run format/lint/typecheck before committing
+
+**Before committing:**
+1. Format code: `poetry run black app/ tests/`
+2. Fix linting issues: `poetry run ruff check --fix app/ tests/`
+3. Type check: `poetry run mypy app/`
+4. Run all tests: `poetry run pytest`
+
+All four checks must pass before committing.
 
 **Testing Requirements:**
 - Aim for ~100% test coverage on new code

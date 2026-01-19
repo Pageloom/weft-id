@@ -20,6 +20,79 @@ Request → Router → Service → Database → PostgreSQL
 - **Services** (`app/services/`): Business logic and authorization. Receives `RequestingUser`, returns Pydantic schemas, raises `ServiceError` subclasses.
 - **Database** (`app/database/`): SQL execution with tenant scoping. Returns dicts.
 
+## Development Commands
+
+### Python Development Tasks (Use Poetry)
+
+**Run tests:**
+```bash
+poetry run pytest                                    # Run all tests
+poetry run pytest --cov=app --cov-report=term-missing  # With coverage
+poetry run pytest -n auto                             # Parallel execution
+```
+
+**Linting:**
+```bash
+poetry run ruff check app/ tests/           # Check for issues
+poetry run ruff check --fix app/ tests/     # Auto-fix issues
+```
+
+**Formatting:**
+```bash
+poetry run black app/ tests/                # Format code
+poetry run ruff check --fix app/ tests/     # Fix style issues
+```
+
+**Type checking:**
+```bash
+poetry run mypy app/                        # Check types
+```
+
+**Dependency security scanning:**
+```bash
+python scripts/deps_check.py                # Scan dependencies
+python scripts/deps_check.py --include-dev  # Include dev deps
+```
+
+**Architectural compliance:**
+```bash
+python scripts/compliance_check.py          # Check all principles
+python scripts/compliance_check.py --check activity  # Specific check
+```
+
+### Docker Infrastructure (Use Make)
+
+**Service management:**
+```bash
+make up          # Build and start all services
+make down        # Stop and remove containers
+make status      # Show service status
+make db-reset    # Wipe DB volume
+make restart-app # Restart specific service
+```
+
+**Logs and debugging:**
+```bash
+make logs        # Tail all logs
+make logs-app    # Tail specific service logs
+make sh-app      # Open shell in service container
+```
+
+**Quick reference:**
+```bash
+make help        # Show all available targets
+```
+
+### Development Workflow
+
+Before committing code:
+1. Run formatting: `poetry run black app/ tests/`
+2. Run linting: `poetry run ruff check --fix app/ tests/`
+3. Run type checking: `poetry run mypy app/`
+4. Run tests: `poetry run pytest`
+
+All four must pass before committing.
+
 ## Best Practices
 
 1. **All writes go through the service layer** - routers never call database modules directly

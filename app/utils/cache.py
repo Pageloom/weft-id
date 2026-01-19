@@ -98,7 +98,7 @@ def incr(key: str, value: int = 1) -> int | None:
     if client is None:
         return None
     try:
-        result = client.incr(key, value)
+        result: int | None = client.incr(key, value)
         return result
     except Exception as e:
         logger.warning("Memcached incr failed for key %s: %s", key, e)
@@ -119,7 +119,8 @@ def add(key: str, value: Any, ttl: int = 0) -> bool:
     if client is None:
         return False
     try:
-        return client.add(key, value, expire=ttl)
+        result: bool = client.add(key, value, expire=ttl)
+        return result
     except Exception as e:
         logger.warning("Memcached add failed for key %s: %s", key, e)
         return False

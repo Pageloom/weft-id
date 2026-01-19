@@ -195,9 +195,11 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
     pool = get_pool()
     with pool.connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 select tenant_id, inactivity_threshold_days
                 from tenant_security_settings
                 where inactivity_threshold_days is not null
-            """)
+            """
+            )
             return list(cur.fetchall())

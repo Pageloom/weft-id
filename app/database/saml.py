@@ -957,11 +957,13 @@ def get_idps_with_metadata_url() -> list[dict]:
     pool = get_pool()
     with pool.connection() as conn:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 select id, tenant_id, name, metadata_url
                 from saml_identity_providers
                 where metadata_url is not null
-            """)
+            """
+            )
             return list(cur.fetchall())
 
 

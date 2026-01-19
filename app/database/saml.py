@@ -16,13 +16,18 @@ def get_sp_certificate(tenant_id: TenantArg) -> dict | None:
 
     Returns:
         Dict with id, tenant_id, certificate_pem, private_key_pem_enc,
-        expires_at, created_by, created_at, or None if not found.
+        expires_at, created_by, created_at, plus rotation fields:
+        previous_certificate_pem, previous_private_key_pem_enc,
+        previous_expires_at, rotation_grace_period_ends_at.
+        Returns None if not found.
     """
     return fetchone(
         tenant_id,
         """
         select id, tenant_id, certificate_pem, private_key_pem_enc,
-               expires_at, created_by, created_at
+               expires_at, created_by, created_at,
+               previous_certificate_pem, previous_private_key_pem_enc,
+               previous_expires_at, rotation_grace_period_ends_at
         from saml_sp_certificates
         """,
         {},
@@ -95,13 +100,96 @@ def update_sp_certificate(
             private_key_pem_enc = :private_key_pem_enc,
             expires_at = :expires_at
         returning id, tenant_id, certificate_pem, private_key_pem_enc,
-                  expires_at, created_by, created_at
+                  expires_at, created_by, created_at,
+                  previous_certificate_pem, previous_private_key_pem_enc,
+                  previous_expires_at, rotation_grace_period_ends_at
         """,
         {
             "certificate_pem": certificate_pem,
             "private_key_pem_enc": private_key_pem_enc,
             "expires_at": expires_at,
         },
+    )
+
+
+def rotate_sp_certificate(
+    tenant_id: TenantArg,
+    new_certificate_pem: str,
+    new_private_key_pem_enc: str,
+    new_expires_at: Any,
+    previous_certificate_pem: str,
+    previous_private_key_pem_enc: str,
+    previous_expires_at: Any,
+    rotation_grace_period_ends_at: Any,
+) -> dict | None:
+    """
+    Rotate the SP certificate with grace period support.
+
+    Moves the current certificate to previous_* columns and sets the new certificate.
+    Both certificates remain valid during the grace period.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        new_certificate_pem: The new certificate (becomes current)
+        new_private_key_pem_enc: Encrypted private key for new cert
+        new_expires_at: Expiry of new certificate
+        previous_certificate_pem: Current certificate (becomes previous)
+        previous_private_key_pem_enc: Encrypted private key of current cert
+        previous_expires_at: Expiry of current/previous certificate
+        rotation_grace_period_ends_at: When grace period ends
+
+    Returns:
+        Dict with updated certificate details including all rotation fields
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update saml_sp_certificates
+        set certificate_pem = :new_certificate_pem,
+            private_key_pem_enc = :new_private_key_pem_enc,
+            expires_at = :new_expires_at,
+            previous_certificate_pem = :previous_certificate_pem,
+            previous_private_key_pem_enc = :previous_private_key_pem_enc,
+            previous_expires_at = :previous_expires_at,
+            rotation_grace_period_ends_at = :rotation_grace_period_ends_at
+        returning id, tenant_id, certificate_pem, private_key_pem_enc,
+                  expires_at, created_by, created_at,
+                  previous_certificate_pem, previous_private_key_pem_enc,
+                  previous_expires_at, rotation_grace_period_ends_at
+        """,
+        {
+            "new_certificate_pem": new_certificate_pem,
+            "new_private_key_pem_enc": new_private_key_pem_enc,
+            "new_expires_at": new_expires_at,
+            "previous_certificate_pem": previous_certificate_pem,
+            "previous_private_key_pem_enc": previous_private_key_pem_enc,
+            "previous_expires_at": previous_expires_at,
+            "rotation_grace_period_ends_at": rotation_grace_period_ends_at,
+        },
+    )
+
+
+def clear_previous_certificate(tenant_id: TenantArg) -> dict | None:
+    """
+    Clear the previous certificate after grace period has ended.
+
+    Returns:
+        Dict with updated certificate details
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update saml_sp_certificates
+        set previous_certificate_pem = null,
+            previous_private_key_pem_enc = null,
+            previous_expires_at = null,
+            rotation_grace_period_ends_at = null
+        returning id, tenant_id, certificate_pem, private_key_pem_enc,
+                  expires_at, created_by, created_at,
+                  previous_certificate_pem, previous_private_key_pem_enc,
+                  previous_expires_at, rotation_grace_period_ends_at
+        """,
+        {},
     )
 
 
@@ -875,3 +963,148 @@ def get_idps_with_metadata_url() -> list[dict]:
                 where metadata_url is not null
             """)
             return list(cur.fetchall())
+
+
+# ============================================================================
+# SAML Debug Operations (Phase 4)
+# ============================================================================
+
+
+def store_debug_entry(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    error_type: str,
+    error_detail: str | None = None,
+    idp_id: str | None = None,
+    idp_name: str | None = None,
+    saml_response_b64: str | None = None,
+    saml_response_xml: str | None = None,
+    request_ip: str | None = None,
+    user_agent: str | None = None,
+) -> dict | None:
+    """
+    Store a SAML debug entry for a failed authentication.
+
+    Args:
+        tenant_id: Tenant context for RLS
+        tenant_id_value: Tenant ID value
+        error_type: Type of error (e.g., 'signature_error', 'expired', 'invalid_response')
+        error_detail: Detailed error message
+        idp_id: ID of the IdP that caused the failure (if known)
+        idp_name: Name of the IdP (for display even if IdP is deleted)
+        saml_response_b64: Base64-encoded SAML response
+        saml_response_xml: Decoded XML content
+        request_ip: IP address of the request
+        user_agent: User agent string
+
+    Returns:
+        Dict with the created debug entry
+    """
+    return fetchone(
+        tenant_id,
+        """
+        insert into saml_debug_entries (
+            tenant_id, idp_id, idp_name, error_type, error_detail,
+            saml_response_b64, saml_response_xml, request_ip, user_agent
+        )
+        values (
+            :tenant_id, :idp_id, :idp_name, :error_type, :error_detail,
+            :saml_response_b64, :saml_response_xml, :request_ip, :user_agent
+        )
+        returning id, tenant_id, idp_id, idp_name, error_type, error_detail,
+                  saml_response_b64, saml_response_xml, request_ip, user_agent, created_at
+        """,
+        {
+            "tenant_id": tenant_id_value,
+            "idp_id": idp_id,
+            "idp_name": idp_name,
+            "error_type": error_type,
+            "error_detail": error_detail,
+            "saml_response_b64": saml_response_b64,
+            "saml_response_xml": saml_response_xml,
+            "request_ip": request_ip,
+            "user_agent": user_agent,
+        },
+    )
+
+
+def get_debug_entries(
+    tenant_id: TenantArg,
+    limit: int = 50,
+) -> list[dict]:
+    """
+    Get recent SAML debug entries for a tenant.
+
+    Args:
+        tenant_id: Tenant context for RLS
+        limit: Maximum number of entries to return
+
+    Returns:
+        List of debug entry dicts, most recent first
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select id, tenant_id, idp_id, idp_name, error_type, error_detail,
+               saml_response_b64, saml_response_xml, request_ip, user_agent, created_at
+        from saml_debug_entries
+        order by created_at desc
+        limit :limit
+        """,
+        {"limit": limit},
+    )
+
+
+def get_debug_entry(
+    tenant_id: TenantArg,
+    entry_id: str,
+) -> dict | None:
+    """
+    Get a specific SAML debug entry.
+
+    Args:
+        tenant_id: Tenant context for RLS
+        entry_id: Debug entry UUID
+
+    Returns:
+        Debug entry dict or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, tenant_id, idp_id, idp_name, error_type, error_detail,
+               saml_response_b64, saml_response_xml, request_ip, user_agent, created_at
+        from saml_debug_entries
+        where id = :entry_id
+        """,
+        {"entry_id": entry_id},
+    )
+
+
+def delete_old_debug_entries(hours: int = 24) -> int:
+    """
+    Delete debug entries older than the specified hours.
+
+    Does not use RLS (called by background job).
+
+    Args:
+        hours: Age threshold in hours (default 24)
+
+    Returns:
+        Number of entries deleted
+    """
+    from psycopg.rows import dict_row
+
+    from ._core import get_pool
+
+    pool = get_pool()
+    with pool.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                delete from saml_debug_entries
+                where created_at < now() - interval '%s hours'
+                """,
+                (hours,),
+            )
+            return cur.rowcount

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}SAML Debug Entry - Loom{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-semibold">SAML Debug Entry</h1>
+                <p class="text-sm text-gray-600 mt-1">Detailed view of authentication failure</p>
+            </div>
+            <a href="/admin/identity-providers/debug"
+               class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+                Back to Debug Log
+            </a>
+        </div>
+
+        <!-- Error Summary -->
+        <div class="mb-6 p-4 border border-red-200 bg-red-50 rounded-md">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">
+                        {{ entry.error_type|replace('_', ' ')|title }}
+                    </h3>
+                    {% if entry.error_detail %}
+                    <p class="mt-1 text-sm text-red-700">
+                        {{ entry.error_detail }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Metadata Grid -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="p-4 bg-gray-50 rounded-md">
+                <h4 class="text-xs font-medium text-gray-500 uppercase">Timestamp</h4>
+                <p class="mt-1 text-sm text-gray-900">{{ fmt_datetime(entry.created_at) }}</p>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-md">
+                <h4 class="text-xs font-medium text-gray-500 uppercase">Identity Provider</h4>
+                <p class="mt-1 text-sm text-gray-900">{{ entry.idp_name or 'Unknown' }}</p>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-md">
+                <h4 class="text-xs font-medium text-gray-500 uppercase">Client IP</h4>
+                <p class="mt-1 text-sm text-gray-900">{{ entry.request_ip or 'N/A' }}</p>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-md">
+                <h4 class="text-xs font-medium text-gray-500 uppercase">User Agent</h4>
+                <p class="mt-1 text-sm text-gray-900 truncate" title="{{ entry.user_agent }}">
+                    {{ entry.user_agent[:60] + '...' if entry.user_agent and entry.user_agent|length > 60 else entry.user_agent or 'N/A' }}
+                </p>
+            </div>
+        </div>
+
+        <!-- SAML Response XML -->
+        {% if entry.saml_response_xml %}
+        <div class="mt-6">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-medium text-gray-900">SAML Response XML</h3>
+                <button onclick="copyXmlToClipboard()" class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
+                    Copy XML
+                </button>
+            </div>
+            <div class="border border-gray-200 rounded-md overflow-hidden">
+                <pre id="saml-xml" class="p-4 bg-gray-900 text-green-400 text-xs overflow-x-auto" style="max-height: 500px;">{{ entry.saml_response_xml }}</pre>
+            </div>
+            <p class="mt-2 text-xs text-gray-500">
+                This is the raw SAML response received from the Identity Provider. Use this to troubleshoot signature, certificate, or assertion issues.
+            </p>
+        </div>
+        {% else %}
+        <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
+            <p class="text-sm text-gray-600">
+                No SAML response XML available for this entry.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Troubleshooting Tips -->
+        <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <h3 class="text-sm font-medium text-blue-800 mb-2">Troubleshooting Tips</h3>
+            <ul class="text-sm text-blue-700 list-disc list-inside space-y-1">
+                {% if entry.error_type == 'signature_error' %}
+                <li>Verify the IdP certificate is correctly configured in Loom</li>
+                <li>Check if the IdP certificate has been rotated recently</li>
+                <li>Ensure the certificate format is correct (PEM format, no extra whitespace)</li>
+                {% elif entry.error_type == 'expired' %}
+                <li>The SAML assertion has expired. This can happen if clocks are out of sync.</li>
+                <li>Check that the server time is synchronized (NTP)</li>
+                <li>The IdP may have a short assertion validity period</li>
+                {% elif entry.error_type == 'user_not_found' %}
+                <li>The user's email from the SAML assertion does not match any user in Loom</li>
+                <li>Enable Just-in-Time (JIT) provisioning to auto-create users</li>
+                <li>Verify the attribute mapping for email is correct</li>
+                {% elif entry.error_type == 'idp_not_found' %}
+                <li>The SAML response came from an unrecognized IdP</li>
+                <li>Verify the IdP Entity ID matches the configuration</li>
+                <li>The IdP may not be enabled in Loom</li>
+                {% elif entry.error_type == 'invalid_response' %}
+                <li>The SAML response could not be parsed or validated</li>
+                <li>Check that the ACS URL is correctly configured in the IdP</li>
+                <li>Verify there are no encoding issues with the response</li>
+                {% else %}
+                <li>Review the error detail above for specific guidance</li>
+                <li>Check the IdP configuration matches the settings in Loom</li>
+                <li>Verify certificates and endpoints are correctly configured</li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyXmlToClipboard() {
+    const xml = document.getElementById('saml-xml').textContent;
+    navigator.clipboard.writeText(xml).then(() => {
+        // Show brief feedback
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = originalText, 2000);
+    });
+}
+</script>
+{% endblock %}

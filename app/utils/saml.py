@@ -210,7 +210,7 @@ def fetch_idp_metadata(url: str, timeout: int = 10) -> str:
             headers={"Accept": "application/xml, text/xml, application/samlmetadata+xml"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
-            content = response.read().decode("utf-8")
+            content: str = response.read().decode("utf-8")
 
             # Basic validation that it looks like XML
             if not content.strip().startswith("<?xml") and not content.strip().startswith("<"):

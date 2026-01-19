@@ -13,7 +13,10 @@ from uuid import uuid4
 import pytest
 
 # Pre-computed password hash for tests (TestPassword123!)
-TEST_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"
+TEST_PASSWORD_HASH = (
+    "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$"
+    "XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"
+)
 
 
 @pytest.fixture(autouse=True)

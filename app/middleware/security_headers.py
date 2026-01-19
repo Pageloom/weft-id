@@ -8,7 +8,7 @@ This middleware adds standard HTTP security headers to all responses:
 - Referrer-Policy: Controls referrer information leakage
 """
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -82,14 +82,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.hsts = hsts or DEFAULT_HSTS
         self.referrer_policy = referrer_policy or DEFAULT_REFERRER_POLICY
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process the request and add security headers to the response."""
         # Skip non-HTTP requests
         if request.scope["type"] != "http":
             return await call_next(request)
 
         # Call the next middleware/route handler
-        response = await call_next(request)
+        response: Response = await call_next(request)
 
         # Add security headers to the response
         response.headers["Content-Security-Policy"] = self.csp

@@ -10,7 +10,7 @@ SAML ACS is exempt (receives POST from external IdPs).
 """
 
 import secrets
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -54,10 +54,11 @@ def get_csrf_token(request: Request) -> str:
     session = request.session
     if CSRF_SESSION_KEY not in session:
         session[CSRF_SESSION_KEY] = generate_csrf_token()
-    return session[CSRF_SESSION_KEY]
+    token: str = session[CSRF_SESSION_KEY]
+    return token
 
 
-def make_csrf_token_func(request: Request) -> callable:
+def make_csrf_token_func(request: Request) -> Callable[[], str]:
     """Create a csrf_token() function bound to a request.
 
     Use this in template contexts that don't use get_template_context():
@@ -94,7 +95,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         X-CSRF-Token: <token value>
     """
 
-    def __init__(self, app: ASGIApp, error_handler: Callable | None = None):
+    def __init__(self, app: ASGIApp, error_handler: Callable[[Request], Response] | None = None):
         """Initialize the middleware.
 
         Args:
@@ -105,25 +106,31 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.error_handler = error_handler
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process the request and validate CSRF token if needed."""
         # Skip non-HTTP requests
         if request.scope["type"] != "http":
-            return await call_next(request)
+            response: Response = await call_next(request)
+            return response
 
         # Skip safe methods (GET, HEAD, OPTIONS)
         if request.method not in CSRF_PROTECTED_METHODS:
-            return await call_next(request)
+            response = await call_next(request)
+            return response
 
         # Skip exempt paths
         if _is_exempt(request.url.path):
-            return await call_next(request)
+            response = await call_next(request)
+            return response
 
         # Validate CSRF token
         if not await self._validate_csrf_token(request):
             return self._csrf_failure_response(request)
 
-        return await call_next(request)
+        response = await call_next(request)
+        return response
 
     async def _validate_csrf_token(self, request: Request) -> bool:
         """Validate the CSRF token from request against session.
@@ -154,13 +161,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             if "application/x-www-form-urlencoded" in content_type:
                 try:
                     form = await request.form()
-                    request_token = form.get(CSRF_FORM_FIELD)
+                    form_token = form.get(CSRF_FORM_FIELD)
+                    # CSRF token is always a string, not an UploadFile
+                    if isinstance(form_token, str):
+                        request_token = form_token
                 except Exception:
                     return False
             elif "multipart/form-data" in content_type:
                 try:
                     form = await request.form()
-                    request_token = form.get(CSRF_FORM_FIELD)
+                    form_token = form.get(CSRF_FORM_FIELD)
+                    # CSRF token is always a string, not an UploadFile
+                    if isinstance(form_token, str):
+                        request_token = form_token
                 except Exception:
                     return False
 

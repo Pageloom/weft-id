@@ -10,7 +10,8 @@ Usage:
 
 Principles checked:
     1. architecture   - Router should not import from database layer
-    2. activity       - Service functions with RequestingUser must call track_activity() or log_event()
+    2. activity       - Service functions with RequestingUser must call track_activity()
+                        or log_event()
     3. tenant         - SQL queries should filter by tenant_id
     4. api-first      - Service operations should have corresponding API endpoints
 
@@ -21,7 +22,6 @@ Output:
 import argparse
 import ast
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -114,7 +114,7 @@ def check_architecture_violations(report: ComplianceReport) -> None:
         report.files_scanned += 1
 
         try:
-            with open(py_file, "r") as f:
+            with open(py_file) as f:
                 source = f.read()
             tree = ast.parse(source)
         except (SyntaxError, UnicodeDecodeError):
@@ -134,7 +134,10 @@ def check_architecture_violations(report: ComplianceReport) -> None:
                                 function_name=None,
                                 description="Router imports directly from database layer",
                                 evidence=f"import {alias.name}",
-                                suggested_fix="Import from services layer instead: from services import module_name",
+                                suggested_fix=(
+                                    "Import from services layer instead: "
+                                    "from services import module_name"
+                                ),
                             )
                         )
                     if alias.name.startswith("app.database"):
@@ -168,7 +171,10 @@ def check_architecture_violations(report: ComplianceReport) -> None:
                             function_name=None,
                             description="Router imports directly from database layer",
                             evidence=f"from {node.module} import {names}",
-                            suggested_fix="Call service layer functions instead of database functions directly",
+                            suggested_fix=(
+                                "Call service layer functions instead of "
+                                "database functions directly"
+                            ),
                         )
                     )
 
@@ -193,7 +199,7 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
         self.has_mutation = False
         self.mutation_evidence: list[str] = []
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         # Skip private functions (but not _require_admin etc which are helpers)
         if node.name.startswith("__"):
             self.generic_visit(node)
@@ -251,7 +257,7 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
                             '    tenant_id=requesting_user["tenant_id"],\n'
                             '    actor_user_id=requesting_user["id"],\n'
                             '    artifact_type="...",\n'
-                            '    artifact_id=...,\n'
+                            "    artifact_id=...,\n"
                             '    event_type="..._created|updated|deleted",\n'
                             ")"
                         ),
@@ -268,11 +274,16 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
                             file_path=str(self.file_path.relative_to(get_project_root())),
                             line_number=node.lineno,
                             function_name=node.name,
-                            description="Service function with RequestingUser missing track_activity()",
-                            evidence=f"Function {node.name} has RequestingUser but no tracking call",
+                            description=(
+                                "Service function with RequestingUser " "missing track_activity()"
+                            ),
+                            evidence=(
+                                f"Function {node.name} has RequestingUser " "but no tracking call"
+                            ),
                             suggested_fix=(
                                 "Add track_activity() at function start:\n"
-                                'track_activity(requesting_user["tenant_id"], requesting_user["id"])'
+                                "track_activity(requesting_user['tenant_id'], "
+                                "requesting_user['id'])"
                             ),
                         )
                     )
@@ -351,7 +362,7 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
         report.files_scanned += 1
 
         try:
-            with open(py_file, "r") as f:
+            with open(py_file) as f:
                 source = f.read()
             source_lines = source.splitlines()
             tree = ast.parse(source)
@@ -387,7 +398,7 @@ class TenantIsolationVisitor(ast.NodeVisitor):
         # Wrapper functions that handle RLS scoping
         self.rls_wrappers = {"fetchall", "fetchone", "execute", "fetchval"}
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         # Skip private/dunder functions
         if node.name.startswith("_"):
             self.generic_visit(node)
@@ -397,9 +408,7 @@ class TenantIsolationVisitor(ast.NodeVisitor):
         # It should have tenant_id as a parameter OR use UNSCOPED explicitly
         if node.args.args:
             # Check if tenant_id appears anywhere in parameters
-            has_tenant_arg = any(
-                arg.arg in ("tenant_id", "tenant") for arg in node.args.args
-            )
+            has_tenant_arg = any(arg.arg in ("tenant_id", "tenant") for arg in node.args.args)
 
             if not has_tenant_arg:
                 # Check if function body contains SQL operations
@@ -427,8 +436,15 @@ class TenantIsolationVisitor(ast.NodeVisitor):
                             line_number=node.lineno,
                             function_name=node.name,
                             description="Database function missing tenant_id parameter",
-                            evidence=f"Function {node.name} performs SQL operations but has no tenant_id parameter",
-                            suggested_fix="Add tenant_id as the first parameter to ensure RLS scoping, or use UNSCOPED if cross-tenant access is intentional",
+                            evidence=(
+                                f"Function {node.name} performs SQL operations "
+                                "but has no tenant_id parameter"
+                            ),
+                            suggested_fix=(
+                                "Add tenant_id as the first parameter to ensure "
+                                "RLS scoping, or use UNSCOPED if cross-tenant "
+                                "access is intentional"
+                            ),
                         )
                     )
 
@@ -471,7 +487,7 @@ def check_tenant_isolation_violations(report: ComplianceReport) -> None:
         report.files_scanned += 1
 
         try:
-            with open(py_file, "r") as f:
+            with open(py_file) as f:
                 source = f.read()
             tree = ast.parse(source)
         except (SyntaxError, UnicodeDecodeError):
@@ -521,7 +537,7 @@ def check_api_first_violations(report: ComplianceReport) -> None:
         module_name = py_file.stem
 
         try:
-            with open(py_file, "r") as f:
+            with open(py_file) as f:
                 source = f.read()
             tree = ast.parse(source)
         except (SyntaxError, UnicodeDecodeError):
@@ -534,9 +550,7 @@ def check_api_first_violations(report: ComplianceReport) -> None:
                 if node.name.startswith("_"):
                     continue
                 # Check if it has RequestingUser (indicates it's a business operation)
-                has_requesting_user = any(
-                    arg.arg == "requesting_user" for arg in node.args.args
-                )
+                has_requesting_user = any(arg.arg == "requesting_user" for arg in node.args.args)
                 if has_requesting_user:
                     functions.append(node.name)
 
@@ -551,7 +565,7 @@ def check_api_first_violations(report: ComplianceReport) -> None:
             continue
 
         try:
-            with open(py_file, "r") as f:
+            with open(py_file) as f:
                 source = f.read()
             tree = ast.parse(source)
         except (SyntaxError, UnicodeDecodeError):
@@ -584,6 +598,9 @@ def check_api_first_violations(report: ComplianceReport) -> None:
                     break
 
             if not found_similar and len(functions) > 0:
+                func_list = ", ".join(functions[:5])
+                if len(functions) > 5:
+                    func_list += "..."
                 report.add(
                     Violation(
                         principle="API-First Methodology",
@@ -592,8 +609,11 @@ def check_api_first_violations(report: ComplianceReport) -> None:
                         line_number=1,
                         function_name=None,
                         description=f"Service module '{module}' has no corresponding API router",
-                        evidence=f"Service functions: {', '.join(functions[:5])}{'...' if len(functions) > 5 else ''}",
-                        suggested_fix=f"Create app/routers/api/v1/{module}.py with RESTful endpoints for these operations",
+                        evidence=f"Service functions: {func_list}",
+                        suggested_fix=(
+                            f"Create app/routers/api/v1/{module}.py with "
+                            "RESTful endpoints for these operations"
+                        ),
                     )
                 )
 

@@ -31,9 +31,19 @@ settings.BASE_DOMAIN = os.environ["BASE_DOMAIN"]
 
 # Pre-computed argon2 password hashes to avoid slow hashing during test setup
 # Each hash takes ~300-400ms to compute, so pre-computing saves significant time
-TEST_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"  # TestPassword123!
-ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$ocxCG8Nzju65QCi+4/brYQ$WShYetd5Jt5sIqaEzNlq26Sw9u1TRD0YllNGl3+I0K8"  # AdminPassword123!
-SUPER_ADMIN_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$8WO+qwvaZiS2UEu4+QEbvA$8ese7/6HdJ/8FqITrwYkYuxa1swp0pbV4HnWOBQKh5M"  # SuperAdminPassword123!
+# noqa comments suppress line-length warnings for these hash constants
+TEST_PASSWORD_HASH = (  # noqa: E501
+    "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$"
+    "XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"  # TestPassword123!
+)
+ADMIN_PASSWORD_HASH = (  # noqa: E501
+    "$argon2id$v=19$m=65536,t=3,p=4$ocxCG8Nzju65QCi+4/brYQ$"
+    "WShYetd5Jt5sIqaEzNlq26Sw9u1TRD0YllNGl3+I0K8"  # AdminPassword123!
+)
+SUPER_ADMIN_PASSWORD_HASH = (  # noqa: E501
+    "$argon2id$v=19$m=65536,t=3,p=4$8WO+qwvaZiS2UEu4+QEbvA$"
+    "8ese7/6HdJ/8FqITrwYkYuxa1swp0pbV4HnWOBQKh5M"  # SuperAdminPassword123!
+)
 
 
 def _get_cached_sp_certificate():

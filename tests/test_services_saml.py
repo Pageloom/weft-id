@@ -1524,6 +1524,13 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
     saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Create metadata XML that has different SSO URL
+    cert_raw = (
+        test_idp_data["certificate_pem"]
+        .replace("-----BEGIN CERTIFICATE-----", "")
+        .replace("-----END CERTIFICATE-----", "")
+        .replace("\n", "")
+        .strip()
+    )
     updated_metadata = f"""<?xml version="1.0"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
                      xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
@@ -1532,7 +1539,7 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
     <md:KeyDescriptor use="signing">
       <ds:KeyInfo>
         <ds:X509Data>
-          <ds:X509Certificate>{test_idp_data["certificate_pem"].replace("-----BEGIN CERTIFICATE-----", "").replace("-----END CERTIFICATE-----", "").replace("\\n", "").strip()}</ds:X509Certificate>
+          <ds:X509Certificate>{cert_raw}</ds:X509Certificate>
         </ds:X509Data>
       </ds:KeyInfo>
     </md:KeyDescriptor>
@@ -2366,7 +2373,8 @@ def test_jit_race_condition_email_exists_returns_existing_user(
         saml_result=saml_result,
     )
 
-    # Should return the existing user (authenticate_via_saml returns id, first_name, last_name, role)
+    # Should return the existing user
+    # (authenticate_via_saml returns id, first_name, last_name, role)
     assert result_user is not None
     assert result_user["first_name"] == "Existing"  # Original name, not SAML name
 
@@ -2539,7 +2547,8 @@ def test_user_idp_updated_on_auth_via_different_idp(
         saml_result=saml_result_idp2,
     )
 
-    # Verify user's saml_idp_id is updated to IdP2 (user is now linked to the IdP they authenticated with)
+    # Verify user's saml_idp_id is updated to IdP2
+    # (user is now linked to the IdP they authenticated with)
     assigned_idp_after = database.saml.get_user_assigned_idp(tenant_id, str(user_via_idp2["id"]))
     assert assigned_idp_after is not None
     assert (
@@ -3464,7 +3473,7 @@ def test_authenticate_via_saml_preserves_password(test_tenant, test_user, test_i
         requires_mfa=False,
     )
 
-    authenticated_user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+    saml_service.authenticate_via_saml(tenant_id, saml_result)
 
     # Verify password is preserved
     user_after = database.users.get_user_with_saml_info(tenant_id, user_id)

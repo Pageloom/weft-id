@@ -694,7 +694,7 @@ def test_jit_user_reactivated_has_no_password(test_tenant, test_admin_user):
 def test_admin_reactivate_idp_disconnected_user_preserves_password(
     test_tenant, test_super_admin_user, test_admin_user, test_user
 ):
-    """E2E: User with password -> IdP -> disconnect (inactivated) -> admin reactivates -> password works.
+    """E2E: User with password -> IdP -> disconnect -> admin reactivates -> password works.
 
     This tests the full password retention flow through IdP lifecycle:
     1. User has a password

@@ -10,10 +10,16 @@
                 <h1 class="text-2xl font-semibold">Identity Providers</h1>
                 <p class="text-sm text-gray-600 mt-1">Configure SAML SSO providers for your organization</p>
             </div>
-            <a href="/admin/identity-providers/new"
-               class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                Add Identity Provider
-            </a>
+            <div class="flex gap-2">
+                <a href="/admin/identity-providers/debug"
+                   class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Debug Log
+                </a>
+                <a href="/admin/identity-providers/new"
+                   class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Add Identity Provider
+                </a>
+            </div>
         </div>
 
         {% if success == 'created' %}
@@ -88,8 +94,23 @@
                     View XML
                 </a>
             </div>
-            <p class="text-xs text-blue-600 mt-2">
-                Certificate expires: {{ fmt_datetime(sp_metadata.certificate_expires_at) }}
+            <div class="flex items-center justify-between mt-3 pt-3 border-t border-blue-200">
+                <p class="text-xs text-blue-600">
+                    Certificate expires: {{ fmt_datetime(sp_metadata.certificate_expires_at) }}
+                </p>
+                <button type="button" onclick="showRotateCertModal()"
+                        class="px-3 py-1.5 text-xs border border-blue-600 text-blue-600 rounded hover:bg-blue-50">
+                    Rotate Certificate
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if success == 'rotated' %}
+        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
+            <p class="text-sm text-green-800 font-medium">Certificate rotated successfully!</p>
+            <p class="text-xs text-green-700 mt-1">
+                The old certificate will remain valid for 7 days. Update your IdP metadata configurations within this grace period.
             </p>
         </div>
         {% endif %}
@@ -223,4 +244,60 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Rotate Certificate Modal -->
+<div id="rotate-cert-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Rotate SP Certificate</h3>
+        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p class="text-sm text-yellow-800">
+                <strong>Warning:</strong> After rotating the certificate, you must update the SP metadata
+                in all configured identity providers within 7 days. Both certificates will be valid during
+                this grace period.
+            </p>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">
+            Are you sure you want to rotate the SP certificate?
+        </p>
+        <div class="flex justify-end gap-3">
+            <button type="button" onclick="hideRotateCertModal()"
+                    class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                Cancel
+            </button>
+            <form method="post" action="/admin/identity-providers/rotate-certificate" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Rotate Certificate
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showRotateCertModal() {
+    document.getElementById('rotate-cert-modal').classList.remove('hidden');
+    document.getElementById('rotate-cert-modal').classList.add('flex');
+}
+
+function hideRotateCertModal() {
+    document.getElementById('rotate-cert-modal').classList.add('hidden');
+    document.getElementById('rotate-cert-modal').classList.remove('flex');
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        hideRotateCertModal();
+    }
+});
+
+// Close modal on backdrop click
+document.getElementById('rotate-cert-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideRotateCertModal();
+    }
+});
+</script>
 {% endblock %}

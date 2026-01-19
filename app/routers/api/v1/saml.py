@@ -6,6 +6,7 @@ from api_dependencies import require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, status
 from schemas.saml import (
+    CertificateRotationResult,
     DomainBinding,
     DomainBindingCreate,
     DomainBindingList,
@@ -18,6 +19,7 @@ from schemas.saml import (
     IdPMetadataImportXML,
     IdPUpdate,
     MetadataRefreshResult,
+    ProviderPresets,
     SPCertificate,
     SPMetadata,
     UnboundDomain,
@@ -33,6 +35,47 @@ def _get_base_url(request: Request) -> str:
     """Get base URL from request for building SAML URLs (always HTTPS)."""
     host = request.headers.get("x-forwarded-host", request.url.netloc)
     return f"https://{host}"
+
+
+# =============================================================================
+# Provider Presets (Phase 4)
+# =============================================================================
+
+
+@router.get("/provider-presets/{provider_type}", response_model=ProviderPresets)
+def get_provider_presets(
+    provider_type: str,
+):
+    """
+    Get provider-specific attribute mapping presets and setup guide.
+
+    No authentication required (helper for IdP configuration).
+
+    Returns known-good attribute mappings for common IdP providers.
+    These presets help configure attribute mapping correctly for:
+    - Okta: Uses email, firstName, lastName
+    - Azure AD: Uses full URN claim names
+    - Google: Uses email, first_name, last_name
+    - Generic: Uses default mapping (email, firstName, lastName)
+
+    Path parameters:
+    - provider_type: One of 'okta', 'azure_ad', 'google', 'generic'
+
+    Returns:
+    - provider_type: The provider type
+    - attribute_mapping: Dictionary of field names to SAML attribute names
+    - setup_guide_url: URL to official setup documentation (if available)
+    """
+    result = saml_service.get_provider_presets(provider_type)
+    if result is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown provider type: {provider_type}. "
+            f"Valid types: okta, azure_ad, google, generic",
+        )
+    return result
 
 
 # =============================================================================
@@ -403,6 +446,38 @@ def get_sp_metadata(
     base_url = _get_base_url(request)
     try:
         return saml_service.get_sp_metadata(requesting_user, base_url)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/sp/certificate/rotate", response_model=CertificateRotationResult)
+def rotate_sp_certificate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    grace_period_days: int = 7,
+):
+    """
+    Rotate the SP certificate with grace period.
+
+    Requires super_admin role.
+
+    Generates a new SP certificate and keeps the old one valid for
+    the grace period. Both certificates are included in the SP metadata
+    during this period, allowing IdP administrators time to update their
+    configuration.
+
+    Query parameters:
+    - grace_period_days: Number of days old cert remains valid (default: 7)
+
+    Returns:
+    - new_certificate_pem: The new certificate in PEM format
+    - new_expires_at: When the new certificate expires
+    - grace_period_ends_at: When the old certificate stops being valid
+    - warning: Reminder to update IdP metadata
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return saml_service.rotate_sp_certificate(requesting_user, grace_period_days)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

@@ -14,11 +14,15 @@ All functions follow the service layer pattern:
 """
 
 import logging
+from datetime import UTC
 from typing import Any
 
 import database
 from schemas.saml import (
+    PROVIDER_ATTRIBUTE_PRESETS,
+    PROVIDER_SETUP_GUIDES,
     AuthRouteResult,
+    CertificateRotationResult,
     DomainBinding,
     DomainBindingList,
     IdPConfig,
@@ -30,6 +34,7 @@ from schemas.saml import (
     IdPUpdate,
     MetadataRefreshResult,
     MetadataRefreshSummary,
+    ProviderPresets,
     SAMLAttributes,
     SAMLAuthResult,
     SAMLTestResult,
@@ -47,6 +52,8 @@ from services.exceptions import (
 )
 from services.types import RequestingUser
 from utils.saml import (
+    build_logout_request,
+    build_saml_settings,
     decrypt_private_key,
     encrypt_private_key,
     fetch_idp_metadata,
@@ -86,6 +93,36 @@ def _require_super_admin(user: RequestingUser) -> None:
             code="super_admin_required",
             required_role="super_admin",
         )
+
+
+# ============================================================================
+# Provider Presets (Phase 4)
+# ============================================================================
+
+
+def get_provider_presets(provider_type: str) -> ProviderPresets | None:
+    """
+    Get provider-specific attribute mapping presets and setup guide.
+
+    This is a public function that doesn't require authentication.
+    It helps users configure IdPs by providing known-good attribute mappings
+    for common providers (Okta, Azure AD, Google).
+
+    Args:
+        provider_type: One of 'okta', 'azure_ad', 'google', 'generic'
+
+    Returns:
+        ProviderPresets with attribute_mapping and setup_guide_url,
+        or None if provider_type is not recognized.
+    """
+    if provider_type not in PROVIDER_ATTRIBUTE_PRESETS:
+        return None
+
+    return ProviderPresets(
+        provider_type=provider_type,
+        attribute_mapping=PROVIDER_ATTRIBUTE_PRESETS[provider_type],
+        setup_guide_url=PROVIDER_SETUP_GUIDES.get(provider_type),
+    )
 
 
 # ============================================================================
@@ -193,6 +230,88 @@ def get_sp_metadata(
         metadata_url=metadata_url,
         certificate_pem=cert.certificate_pem,
         certificate_expires_at=cert.expires_at,
+    )
+
+
+def rotate_sp_certificate(
+    requesting_user: RequestingUser,
+    grace_period_days: int = 7,
+) -> CertificateRotationResult:
+    """
+    Rotate SP certificate with grace period.
+
+    Authorization: Requires super_admin role.
+
+    The old certificate remains valid during the grace period, allowing
+    IdP administrators time to update their SP metadata configuration.
+    Both certificates are included in the SP metadata during the grace period.
+
+    Args:
+        requesting_user: The authenticated user
+        grace_period_days: Number of days the old certificate remains valid (default 7)
+
+    Returns:
+        CertificateRotationResult with new cert info and grace period details
+    """
+    from datetime import timedelta
+
+    _require_super_admin(requesting_user)
+    tenant_id = requesting_user["tenant_id"]
+
+    # Get current certificate
+    current = database.saml.get_sp_certificate(tenant_id)
+    if not current:
+        raise NotFoundError(
+            message="No SP certificate exists to rotate",
+            code="sp_certificate_not_found",
+        )
+
+    # Generate new certificate
+    new_cert_pem, new_key_pem = generate_sp_certificate(tenant_id)
+    new_encrypted_key = encrypt_private_key(new_key_pem)
+    new_expires_at = get_certificate_expiry(new_cert_pem)
+
+    # Calculate grace period end
+    from datetime import datetime
+
+    grace_period_ends = datetime.now(UTC) + timedelta(days=grace_period_days)
+
+    # Rotate: current becomes previous, new becomes current
+    result = database.saml.rotate_sp_certificate(
+        tenant_id=tenant_id,
+        new_certificate_pem=new_cert_pem,
+        new_private_key_pem_enc=new_encrypted_key,
+        new_expires_at=new_expires_at,
+        previous_certificate_pem=current["certificate_pem"],
+        previous_private_key_pem_enc=current["private_key_pem_enc"],
+        previous_expires_at=current["expires_at"],
+        rotation_grace_period_ends_at=grace_period_ends,
+    )
+
+    if result is None:
+        raise ValidationError(
+            message="Failed to rotate SP certificate",
+            code="sp_certificate_rotation_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="saml_sp_certificate",
+        artifact_id=str(result["id"]),
+        event_type="saml_sp_certificate_rotated",
+        metadata={
+            "grace_period_days": grace_period_days,
+            "grace_period_ends_at": str(grace_period_ends),
+            "new_expires_at": str(new_expires_at),
+        },
+        request_metadata=requesting_user.get("request_metadata"),
+    )
+
+    return CertificateRotationResult(
+        new_certificate_pem=new_cert_pem,
+        new_expires_at=new_expires_at,
+        grace_period_ends_at=grace_period_ends,
     )
 
 
@@ -1174,6 +1293,7 @@ def process_saml_response(
     # Extract attributes using IdP's attribute mapping
     raw_attributes = auth.get_attributes()
     name_id = auth.get_nameid()
+    name_id_format = auth.get_nameid_format()
 
     # Map attributes using IdP configuration
     mapping = idp.attribute_mapping
@@ -1195,6 +1315,7 @@ def process_saml_response(
             name_id=name_id,
         ),
         session_index=auth.get_session_index(),
+        name_id_format=name_id_format,
         idp_id=idp_id,
         requires_mfa=idp.require_platform_mfa,
     )
@@ -2034,6 +2155,185 @@ def assign_user_idp(
 
 
 # ============================================================================
+# Single Logout (SLO) - Phase 4
+# ============================================================================
+
+
+def initiate_sp_logout(
+    tenant_id: str,
+    saml_idp_id: str,
+    name_id: str,
+    name_id_format: str | None,
+    session_index: str | None,
+    base_url: str,
+) -> str | None:
+    """
+    Build SP-initiated logout request.
+
+    No authorization required (called during logout flow).
+
+    Returns redirect URL if IdP has SLO configured, None otherwise.
+    SLO errors are logged but don't raise exceptions (non-blocking).
+
+    Args:
+        tenant_id: Tenant ID
+        saml_idp_id: ID of the IdP the user logged in with
+        name_id: NameID from the original SAML assertion
+        name_id_format: NameID format (optional)
+        session_index: Session index from the original assertion (optional)
+        base_url: Base URL for building SP SLO URL
+
+    Returns:
+        Redirect URL for IdP SLO, or None if SLO not configured
+    """
+    try:
+        # Get IdP configuration
+        idp = database.saml.get_identity_provider(tenant_id, saml_idp_id)
+        if not idp or not idp.get("slo_url"):
+            return None
+
+        # Get SP certificate
+        sp_cert = database.saml.get_sp_certificate(tenant_id)
+        if not sp_cert:
+            logger.warning(f"No SP certificate for tenant {tenant_id}, skipping SLO")
+            return None
+
+        # Decrypt private key
+        sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
+
+        # Build SAML settings
+        sp_entity_id = f"{base_url}/saml/metadata"
+        sp_acs_url = f"{base_url}/saml/acs"
+        sp_slo_url = f"{base_url}/saml/slo"
+
+        settings = build_saml_settings(
+            sp_entity_id=sp_entity_id,
+            sp_acs_url=sp_acs_url,
+            sp_certificate_pem=sp_cert["certificate_pem"],
+            sp_private_key_pem=sp_private_key,
+            idp_entity_id=idp["entity_id"],
+            idp_sso_url=idp["sso_url"],
+            idp_certificate_pem=idp["certificate_pem"],
+            idp_slo_url=idp["slo_url"],
+            sp_slo_url=sp_slo_url,
+        )
+
+        # Build logout request
+        redirect_url, request_id = build_logout_request(
+            settings=settings,
+            name_id=name_id,
+            name_id_format=name_id_format,
+            session_index=session_index,
+        )
+
+        logger.info(f"SLO initiated for tenant {tenant_id}, IdP {saml_idp_id}")
+        return redirect_url
+
+    except Exception as e:
+        # SLO errors should never block logout
+        logger.warning(f"SLO initiation failed for tenant {tenant_id}: {e}")
+        return None
+
+
+def process_idp_logout_request(
+    tenant_id: str,
+    saml_request: str,
+    base_url: str,
+    issuer: str | None = None,
+) -> str | None:
+    """
+    Process an IdP-initiated LogoutRequest and return a LogoutResponse.
+
+    No authorization required (called during logout flow).
+
+    This is a "best effort" implementation. With cookie-based sessions,
+    we cannot truly invalidate a specific user's session server-side.
+    We acknowledge the request and return a success response to maintain
+    protocol compliance with the IdP.
+
+    Args:
+        tenant_id: Tenant ID
+        saml_request: Base64-encoded SAMLRequest (LogoutRequest)
+        base_url: Base URL for SP
+        issuer: Issuer from the request (used to identify IdP)
+
+    Returns:
+        Redirect URL with LogoutResponse, or None if processing fails
+    """
+    from utils.saml import build_logout_response, extract_issuer_from_response
+
+    try:
+        # Try to extract issuer from the SAML request if not provided
+        if not issuer:
+            issuer = extract_issuer_from_response(saml_request)
+
+        if not issuer:
+            logger.warning("IdP-initiated SLO: Could not determine issuer")
+            return None
+
+        # Get IdP by issuer
+        idp = database.saml.get_identity_provider_by_entity_id(tenant_id, issuer)
+        if not idp or not idp.get("slo_url"):
+            logger.warning(f"IdP-initiated SLO: No IdP found for issuer {issuer}")
+            return None
+
+        # Get SP certificate
+        sp_cert = database.saml.get_sp_certificate(tenant_id)
+        if not sp_cert:
+            logger.warning(f"IdP-initiated SLO: No SP certificate for tenant {tenant_id}")
+            return None
+
+        # Build SAML settings
+        sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
+        sp_entity_id = f"{base_url}/saml/metadata"
+        sp_acs_url = f"{base_url}/saml/acs"
+        sp_slo_url = f"{base_url}/saml/slo"
+
+        settings = build_saml_settings(
+            sp_entity_id=sp_entity_id,
+            sp_acs_url=sp_acs_url,
+            sp_certificate_pem=sp_cert["certificate_pem"],
+            sp_private_key_pem=sp_private_key,
+            idp_entity_id=idp["entity_id"],
+            idp_sso_url=idp["sso_url"],
+            idp_certificate_pem=idp["certificate_pem"],
+            idp_slo_url=idp["slo_url"],
+            sp_slo_url=sp_slo_url,
+        )
+
+        # Process the incoming LogoutRequest
+        from utils.saml import process_logout_request
+
+        request_data = {
+            "http_host": "",
+            "script_name": "",
+            "get_data": {"SAMLRequest": saml_request},
+            "post_data": {},
+        }
+
+        name_id, session_index, request_id = process_logout_request(settings, request_data)
+
+        if name_id:
+            logger.info(
+                f"IdP-initiated SLO for NameID {name_id} from IdP {idp['name']}. "
+                "Note: Cookie-based sessions cannot be server-side invalidated."
+            )
+
+        # Build and return LogoutResponse
+        redirect_url = build_logout_response(settings, in_response_to=request_id)
+
+        # Note: We don't log this event to the user event log because:
+        # 1. There's no authenticated user context (IdP is the actor)
+        # 2. The warning log above captures the event for operational monitoring
+
+        return redirect_url
+
+    except Exception as e:
+        logger.warning(f"IdP-initiated SLO failed for tenant {tenant_id}: {e}")
+        return None
+
+
+# ============================================================================
 # Authentication Routing (Phase 3)
 # ============================================================================
 
@@ -2140,3 +2440,118 @@ def determine_auth_route(
     return AuthRouteResult(
         route_type="not_found",
     )
+
+
+# ============================================================================
+# SAML Debug Functions (Phase 4)
+# ============================================================================
+
+
+def store_saml_debug_entry(
+    tenant_id: str,
+    error_type: str,
+    error_detail: str | None = None,
+    idp_id: str | None = None,
+    idp_name: str | None = None,
+    saml_response_b64: str | None = None,
+    request_ip: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    """
+    Store a SAML authentication failure for debugging.
+
+    No authorization required (called from authentication flow).
+
+    This stores the failure details for super admins to review.
+    Entries are automatically cleaned up after 24 hours.
+
+    Args:
+        tenant_id: Tenant ID
+        error_type: Type of error (signature_error, expired, invalid_response, etc.)
+        error_detail: Detailed error message
+        idp_id: IdP UUID if known
+        idp_name: IdP name for display
+        saml_response_b64: Raw base64-encoded SAML response
+        request_ip: Client IP address
+        user_agent: Client user agent
+    """
+    import base64
+
+    # Try to decode the XML for easier viewing
+    saml_response_xml = None
+    if saml_response_b64:
+        try:
+            saml_response_xml = base64.b64decode(saml_response_b64).decode("utf-8")
+        except Exception:
+            pass  # Keep XML as None if decoding fails
+
+    try:
+        database.saml.store_debug_entry(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            error_type=error_type,
+            error_detail=error_detail,
+            idp_id=idp_id,
+            idp_name=idp_name,
+            saml_response_b64=saml_response_b64,
+            saml_response_xml=saml_response_xml,
+            request_ip=request_ip,
+            user_agent=user_agent,
+        )
+    except Exception as e:
+        # Don't let debug storage failures affect authentication
+        logger.warning(f"Failed to store SAML debug entry: {e}")
+
+
+def list_saml_debug_entries(
+    requesting_user: RequestingUser,
+    limit: int = 50,
+) -> list[dict]:
+    """
+    List recent SAML debug entries.
+
+    Authorization: Requires super_admin role.
+
+    Args:
+        requesting_user: The authenticated user
+        limit: Maximum entries to return
+
+    Returns:
+        List of debug entry dicts
+    """
+    _require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    return database.saml.get_debug_entries(requesting_user["tenant_id"], limit)
+
+
+def get_saml_debug_entry(
+    requesting_user: RequestingUser,
+    entry_id: str,
+) -> dict:
+    """
+    Get a specific SAML debug entry.
+
+    Authorization: Requires super_admin role.
+
+    Args:
+        requesting_user: The authenticated user
+        entry_id: Debug entry UUID
+
+    Returns:
+        Debug entry dict
+
+    Raises:
+        NotFoundError if entry doesn't exist
+    """
+    _require_super_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    entry = database.saml.get_debug_entry(requesting_user["tenant_id"], entry_id)
+    if entry is None:
+        raise NotFoundError(
+            message="Debug entry not found",
+            code="debug_entry_not_found",
+        )
+
+    return entry

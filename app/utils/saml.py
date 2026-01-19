@@ -418,3 +418,180 @@ def extract_issuer_from_response(saml_response_b64: str) -> str | None:
         # If anything fails, return None - the full SAML validation will
         # catch any real errors
         return None
+
+
+# ============================================================================
+# Single Logout (SLO) Utilities (Phase 4)
+# ============================================================================
+
+
+def build_logout_request(
+    settings: dict[str, Any],
+    name_id: str,
+    name_id_format: str | None = None,
+    session_index: str | None = None,
+) -> tuple[str, str]:
+    """
+    Build a SAML LogoutRequest and return the redirect URL.
+
+    Args:
+        settings: python3-saml settings dict (from build_saml_settings)
+        name_id: The NameID from the original SAML assertion
+        name_id_format: NameID format (default: emailAddress)
+        session_index: Session index from the original assertion (optional)
+
+    Returns:
+        Tuple of (redirect_url, request_id)
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+
+    # Create a minimal request dict for python3-saml
+    request_data = {
+        "http_host": "",
+        "script_name": "",
+        "get_data": {},
+        "post_data": {},
+    }
+
+    auth = OneLogin_Saml2_Auth(request_data, settings)
+
+    # Build the logout request
+    redirect_url = auth.logout(
+        name_id=name_id,
+        name_id_format=name_id_format or "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        session_index=session_index,
+        return_to=None,  # We'll handle redirect after SLO completes
+    )
+
+    # Get the request ID for validation later (optional)
+    request_id = auth.get_last_request_id()
+
+    return redirect_url, request_id
+
+
+def process_logout_response(
+    settings: dict[str, Any],
+    get_data: dict[str, str],
+    request_id: str | None = None,
+) -> tuple[bool, str | None]:
+    """
+    Process a SAML LogoutResponse from the IdP.
+
+    Args:
+        settings: python3-saml settings dict
+        get_data: GET parameters from the redirect (SAMLResponse, etc.)
+        request_id: Optional request ID to validate against
+
+    Returns:
+        Tuple of (success, error_message)
+        - success: True if logout was successful
+        - error_message: Error description if failed, None otherwise
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+
+    # Create a minimal request dict for python3-saml
+    request_data = {
+        "http_host": "",
+        "script_name": "",
+        "get_data": get_data,
+        "post_data": {},
+    }
+
+    auth = OneLogin_Saml2_Auth(request_data, settings)
+
+    try:
+        # Process the logout response
+        auth.process_slo(
+            keep_local_session=True,  # We handle session ourselves
+            request_id=request_id,
+            delete_session_cb=lambda: None,  # No-op, we handle session
+        )
+
+        errors = auth.get_errors()
+        if errors:
+            return False, ", ".join(errors)
+
+        return True, None
+
+    except Exception as e:
+        return False, str(e)
+
+
+def process_logout_request(
+    settings: dict[str, Any],
+    request_data: dict[str, Any],
+) -> tuple[str | None, str | None, str | None]:
+    """
+    Process an incoming SAML LogoutRequest from IdP (IdP-initiated SLO).
+
+    Args:
+        settings: python3-saml settings dict (from build_saml_settings)
+        request_data: Request data dict with get_data or post_data containing SAMLRequest
+
+    Returns:
+        Tuple of (name_id, session_index, request_id)
+        - name_id: The NameID of the user to log out (None if parsing fails)
+        - session_index: The session index (None if not provided)
+        - request_id: The ID of the LogoutRequest (for response correlation)
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+
+    auth = OneLogin_Saml2_Auth(request_data, settings)
+
+    try:
+        # Process the SLO request (this validates signature, etc.)
+        # We use keep_local_session=True because we handle session ourselves
+        auth.process_slo(
+            keep_local_session=True,
+            delete_session_cb=lambda: None,
+        )
+
+        # Get the NameID from the request
+        name_id = auth.get_nameid()
+        session_index = auth.get_session_index()
+        request_id = auth.get_last_request_id()
+
+        return name_id, session_index, request_id
+
+    except Exception:
+        return None, None, None
+
+
+def build_logout_response(
+    settings: dict[str, Any],
+    in_response_to: str | None = None,
+) -> str:
+    """
+    Build a SAML LogoutResponse for IdP-initiated SLO.
+
+    Args:
+        settings: python3-saml settings dict (from build_saml_settings)
+        in_response_to: The ID of the LogoutRequest we're responding to
+
+    Returns:
+        Redirect URL with encoded LogoutResponse
+    """
+    from onelogin.saml2.logout_response import OneLogin_Saml2_Logout_Response
+    from onelogin.saml2.settings import OneLogin_Saml2_Settings
+    from onelogin.saml2.utils import OneLogin_Saml2_Utils
+
+    saml_settings = OneLogin_Saml2_Settings(settings)
+
+    # Build the logout response
+    logout_response = OneLogin_Saml2_Logout_Response(saml_settings)
+    logout_response.build(in_response_to)
+
+    # Get the IdP's SLO URL
+    idp_slo_url = settings.get("idp", {}).get("singleLogoutService", {}).get("url", "")
+
+    if not idp_slo_url:
+        raise ValueError("IdP has no SLO URL configured")
+
+    # Encode and build redirect URL
+    response_encoded = OneLogin_Saml2_Utils.deflate_and_base64_encode(logout_response.get_xml())
+
+    # Build redirect URL with SAMLResponse parameter
+    separator = "&" if "?" in idp_slo_url else "?"
+    redirect_url = f"{idp_slo_url}{separator}SAMLResponse={response_encoded}"
+
+    return redirect_url

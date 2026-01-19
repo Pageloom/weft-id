@@ -1,6 +1,6 @@
 """Pydantic schemas for SAML IdP management and authentication."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,34 @@ DEFAULT_ATTRIBUTE_MAPPING = {
     "email": "email",
     "first_name": "firstName",
     "last_name": "lastName",
+}
+
+# Provider-specific attribute mapping presets (Phase 4)
+PROVIDER_ATTRIBUTE_PRESETS: dict[str, dict[str, str]] = {
+    "okta": {
+        "email": "email",
+        "first_name": "firstName",
+        "last_name": "lastName",
+    },
+    "azure_ad": {
+        "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+        "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+    },
+    "google": {
+        "email": "email",
+        "first_name": "first_name",
+        "last_name": "last_name",
+    },
+    "generic": DEFAULT_ATTRIBUTE_MAPPING,
+}
+
+# Provider setup guide URLs (Phase 4)
+PROVIDER_SETUP_GUIDES: dict[str, str | None] = {
+    "okta": "https://developer.okta.com/docs/guides/build-sso-integration/saml2/main/",
+    "azure_ad": "https://learn.microsoft.com/en-us/entra/identity/saas-apps/tutorial-list",
+    "google": "https://support.google.com/a/answer/6087519",
+    "generic": None,
 }
 
 
@@ -176,6 +204,7 @@ class SAMLAuthResult(BaseModel):
 
     attributes: SAMLAttributes
     session_index: str | None = None
+    name_id_format: str | None = None  # Needed for SLO (Phase 4)
     idp_id: str
     user_id: str | None = None  # Set after user lookup
     requires_mfa: bool = False
@@ -340,3 +369,76 @@ class UserIdpAssignment(BaseModel):
         None,
         description="IdP UUID to assign, or null for password-only user",
     )
+
+
+# ============================================================================
+# Provider Presets Schemas (Phase 4)
+# ============================================================================
+
+
+class ProviderPresets(BaseModel):
+    """Provider-specific attribute presets and setup info."""
+
+    provider_type: str
+    attribute_mapping: dict[str, str]
+    setup_guide_url: str | None = None
+
+
+# ============================================================================
+# Certificate Rotation Schemas (Phase 4)
+# ============================================================================
+
+
+class SPCertificateWithRotation(BaseModel):
+    """SP certificate info with rotation details."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    certificate_pem: str
+    expires_at: datetime
+    created_at: datetime
+    # Rotation fields
+    previous_certificate_pem: str | None = None
+    previous_expires_at: datetime | None = None
+    rotation_grace_period_ends_at: datetime | None = None
+
+    @property
+    def is_in_rotation_grace_period(self) -> bool:
+        """Check if certificate is currently in rotation grace period."""
+        if not self.rotation_grace_period_ends_at:
+            return False
+
+        return datetime.now(UTC) < self.rotation_grace_period_ends_at
+
+
+class CertificateRotationResult(BaseModel):
+    """Result of SP certificate rotation."""
+
+    new_certificate_pem: str
+    new_expires_at: datetime
+    grace_period_ends_at: datetime
+    warning: str = "Update your IdP metadata configuration within the grace period."
+
+
+# ============================================================================
+# SAML Debug Schemas (Phase 4)
+# ============================================================================
+
+
+class SAMLDebugEntry(BaseModel):
+    """A stored SAML debug entry for failed authentications."""
+
+    timestamp: datetime
+    saml_response_xml: str | None = None
+    error_type: str
+    error_detail: str | None = None
+    idp_id: str | None = None
+    idp_name: str | None = None
+
+
+class SAMLDebugList(BaseModel):
+    """List of SAML debug entries."""
+
+    items: list[SAMLDebugEntry]
+    total: int

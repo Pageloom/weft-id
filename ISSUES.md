@@ -165,52 +165,13 @@ No CVEs found in vulnerability databases for these packages at their installed v
 
 ---
 
-## [BUG] OAuth Tokens Not Revoked When User Disconnected from IdP
-
-**Found in:** `app/services/saml.py:2129`
-**Severity:** High
-**Description:** When a user is disconnected from a SAML IdP (saml_idp_id set to NULL), they are correctly inactivated but their OAuth access tokens remain valid. This allows continued API access after account lockout.
-
-**Evidence:**
-- `app/services/users.py:870` - The service-level `inactivate_user()` calls `database.oauth2.revoke_all_user_tokens(tenant_id, user_id)` after inactivation
-- `app/services/saml.py:2129` - The `assign_user_idp()` function calls `database.users.inactivate_user()` DIRECTLY, bypassing the service layer
-- This means OAuth token revocation is skipped when users are disconnected from IdPs
-
-**Impact:**
-- Users disconnected from their IdP are inactivated (cannot log in via web)
-- BUT their existing OAuth tokens remain valid
-- API access persists after account is supposed to be locked out
-- Violates principle of immediate access revocation on inactivation
-
-**Root Cause:**
-The `assign_user_idp()` function in saml.py bypasses the service layer when inactivating users. It calls `database.users.inactivate_user()` directly instead of going through `services.users.inactivate_user()` which would also revoke tokens.
-
-**Suggested fix:**
-Add `database.oauth2.revoke_all_user_tokens(tenant_id, user_id)` after line 2129 in `app/services/saml.py`:
-
-```python
-# Security: Inactivate + unverify when removing from IdP (not when moving to another)
-user_inactivated = False
-if had_idp and not will_have_idp:
-    database.users.unverify_user_emails(tenant_id, user_id)
-    database.users.inactivate_user(tenant_id, user_id)
-    database.oauth2.revoke_all_user_tokens(tenant_id, user_id)  # ADD THIS LINE
-    user_inactivated = True
-    logger.info(f"User {user_id} inactivated after being removed from IdP")
-```
-
-**Files that need to be modified:**
-- `app/services/saml.py` - Add token revocation call
-
----
-
 # Summary
 
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 1 | OAuth token revocation on IdP disconnect |
-| Medium | 4 | Headers, Exceptions, SAML XSS, SQL patterns |
+| High | 0 | - |
+| Medium | 0 | - |
 
 ## Dependency Audit Summary (2026-01-17)
 

@@ -1254,3 +1254,26 @@ Implemented server-side authorization request tracking with session-based valida
 
 ---
 
+## [BUG] OAuth Tokens Not Revoked When User Disconnected from IdP
+
+**Status:** Resolved (2026-01-19)
+
+**Found in:** `app/services/saml.py:2129`
+
+**Original Severity:** High
+
+**Original Description:** When a user was disconnected from a SAML IdP (saml_idp_id set to NULL), they were correctly inactivated but their OAuth access tokens remained valid. This allowed continued API access after account lockout.
+
+**Root Cause:** The `assign_user_idp()` function in saml.py bypassed the service layer when inactivating users. It called `database.users.inactivate_user()` directly instead of going through `services.users.inactivate_user()` which would also revoke tokens.
+
+**Resolution:**
+- Added `database.oauth2.revoke_all_user_tokens(tenant_id, user_id)` call after inactivating the user
+- Removed `@pytest.mark.xfail` decorator from test
+- Test now verifies OAuth tokens are properly revoked when users are disconnected from IdPs
+
+**Files Modified:**
+- `app/services/saml.py` - Added token revocation call after user inactivation
+- `tests/test_services_saml.py` - Removed xfail marker and updated docstring
+
+---
+

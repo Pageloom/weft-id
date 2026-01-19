@@ -145,19 +145,16 @@ def test_acs_test_mode_missing_test_context(client, test_tenant_host, test_idp):
                 assert "request_id" in call_kwargs
 
 
-def test_acs_test_mode_idp_not_found_during_processing(
-    client, test_tenant_host
-):
+def test_acs_test_mode_idp_not_found_during_processing(client, test_tenant_host):
     """Test POST ACS test mode when IdP lookup fails."""
     fake_idp_id = str(uuid4())
 
     with patch("routers.saml.saml_service.process_saml_test_response") as mock_process:
         with patch("routers.saml.saml_service.get_idp_for_saml_login") as mock_get_idp:
             with patch("routers.saml.templates.TemplateResponse") as mock_template:
-                from services.exceptions import ServiceError
-
                 # Mock process succeeding but IdP lookup failing
                 from schemas.saml import SAMLTestResult
+                from services.exceptions import ServiceError
 
                 mock_process.return_value = SAMLTestResult(
                     success=True,

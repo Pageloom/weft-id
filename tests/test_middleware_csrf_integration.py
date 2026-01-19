@@ -6,19 +6,17 @@ testing the full request/response cycle.
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.sessions import SessionMiddleware
-
 from middleware.csrf import (
     CSRF_FORM_FIELD,
     CSRF_HEADER_NAME,
     CSRF_SESSION_KEY,
     CSRFMiddleware,
 )
+from starlette.middleware.sessions import SessionMiddleware
 
 
 @pytest.fixture(autouse=True)

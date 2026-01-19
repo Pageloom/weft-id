@@ -951,7 +951,7 @@ def test_email_normalization_in_send_code(test_tenant):
             mock_send.return_value = True
 
             client = TestClient(app)
-            response = client.post(
+            client.post(
                 "/login/send-code",
                 data={"email": "USER@EXAMPLE.COM"},
                 follow_redirects=False,
@@ -1126,7 +1126,7 @@ def test_set_password_logs_event(test_tenant):
 
     with patch("services.emails.get_email_for_verification") as mock_get_email:
         with patch("services.users.get_user_by_id_raw") as mock_get_user:
-            with patch("services.users.update_password") as mock_update:
+            with patch("services.users.update_password"):
                 with patch("utils.password.hash_password") as mock_hash:
                     with patch("routers.auth.create_email_otp") as mock_create_otp:
                         with patch("services.emails.get_primary_email") as mock_get_primary:

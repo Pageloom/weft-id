@@ -1123,7 +1123,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
         is_enabled=True,
     )
 
-    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+    saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Attempt XSS via relay_state parameter
     malicious_payloads = [

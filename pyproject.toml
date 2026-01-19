@@ -63,7 +63,7 @@ namespace_packages = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pymemcache.*", "sendgrid.*", "user_agents.*"]
+module = ["pymemcache.*", "sendgrid.*", "user_agents.*", "onelogin.*", "requests.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

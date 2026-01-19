@@ -6,7 +6,7 @@ from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse, RedirectResponse
-from schemas.bg_tasks import JobListItem
+from schemas.bg_tasks import JobListItem, JobStatus
 from schemas.event_log import ExportListResponse
 from services import bg_tasks as bg_tasks_service
 from services import exports as exports_service
@@ -61,7 +61,7 @@ def create_export(
         return JobListItem(
             id=str(result["id"]),
             job_type="export_events",
-            status="pending",
+            status=JobStatus.PENDING,
             created_at=result["created_at"],
             started_at=None,
             completed_at=None,

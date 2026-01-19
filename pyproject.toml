@@ -39,6 +39,14 @@ pytest-cov = "^7.0.0"
 pytest-xdist = "^3.5.0"
 pip-audit = "^2.10.0"
 
+[tool.poetry.scripts]
+# Note: These are for documentation. Run commands directly:
+#   poetry run pytest
+#   poetry run ruff check app/ tests/
+#   poetry run black app/ tests/
+#   poetry run mypy app/
+# The scripts below are not used but document the standard commands.
+
 [tool.black]
 line-length = 100
 target-version = ['py312']

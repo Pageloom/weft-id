@@ -686,4 +686,98 @@ def test_jit_user_reactivated_has_no_password(test_tenant, test_admin_user):
     # Step 4: Verify user is active but still has no password
     user_after = database.users.get_user_with_saml_info(tenant_id, jit_user_id)
     assert user_after["is_inactivated"] is False
-    assert user_after["has_password"] is False  # Still no password - must go through set-password flow
+    assert (
+        user_after["has_password"] is False
+    )  # Still no password - must go through set-password flow
+
+
+def test_admin_reactivate_idp_disconnected_user_preserves_password(
+    test_tenant, test_super_admin_user, test_admin_user, test_user
+):
+    """E2E: User with password -> IdP -> disconnect (inactivated) -> admin reactivates -> password works.
+
+    This tests the full password retention flow through IdP lifecycle:
+    1. User has a password
+    2. User is assigned to an IdP (password preserved but unusable)
+    3. User is disconnected from IdP (triggers automatic inactivation)
+    4. Admin reactivates user
+    5. Password still works for authentication
+    """
+    import database
+    from database._core import fetchone
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services import users as users_service
+    from utils.password import hash_password, verify_password
+
+    tenant_id = str(test_tenant["id"])
+    super_admin_requesting = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+    admin_requesting = _make_requesting_user(test_admin_user, tenant_id, "admin")
+    user_id = str(test_user["id"])
+
+    # Step 1: Set a password for the user
+    original_password = "my_secure_password_456"
+    password_hash = hash_password(original_password)
+    database.users.update_password(tenant_id, user_id, password_hash)
+
+    # Verify user has password and is active
+    user_step1 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step1["has_password"] is True
+    assert user_step1["is_inactivated"] is False
+    assert user_step1["saml_idp_id"] is None
+
+    # Step 2: Create IdP and assign user
+    idp_data = IdPCreate(
+        name="Test IdP for Retention",
+        provider_type="generic",
+        entity_id="https://idp.example.com/retention-test",
+        sso_url="https://idp.example.com/sso",
+        certificate_pem="""-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQDU+pQ4P2S1jzANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDJ
+5a3PZp7bLrvI0w0D6oRMU6EqE5H5p5n0S5N1T2CPXQ5V6mWg1G1L3eSmpV6NLGKl
+xpJ1NKT9GvMNJoEFvb0q5Nz5KqzJrL8N1SvOJ4x7L2qK8LZ5mNT8w0VPpSCR5N0Z
+q4Z3BwH1GcKm3LMJ1Pk3Xn5xKvKxmy5r+U5BQnJk5g8s4wnVwbLhFCzYhB5CZ2z6
+c6q5b+E6b7q8qrPCxLLPQa9LxmpRbqHp6+U5PvAqC3FkP8QJ7LmEqlM6bB2N7o5j
+BvqJl2E5m6lyLBwNVXthLWP5k1LRE7V8LhqN5m1nmU1P5MBXD7k2Pn8R1xab4Lnm
+F6q1y5P5E6mJ+X6qAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAA==
+-----END CERTIFICATE-----""",
+        is_enabled=True,
+    )
+    idp = saml_service.create_identity_provider(
+        super_admin_requesting, idp_data, "https://test.example.com"
+    )
+    saml_service.assign_user_idp(super_admin_requesting, user_id, idp.id)
+
+    # Verify user has IdP, password preserved
+    user_step2 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step2["saml_idp_id"] is not None
+    assert user_step2["has_password"] is True  # Password preserved!
+    assert user_step2["is_inactivated"] is False
+
+    # Step 3: Disconnect user from IdP (triggers automatic inactivation)
+    saml_service.assign_user_idp(super_admin_requesting, user_id, None)
+
+    # Verify user is inactivated but password is preserved
+    user_step3 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step3["saml_idp_id"] is None
+    assert user_step3["is_inactivated"] is True
+    assert user_step3["has_password"] is True  # Password still preserved!
+
+    # Step 4: Admin reactivates the user
+    users_service.reactivate_user(admin_requesting, user_id)
+
+    # Verify user is active with password intact
+    user_step4 = database.users.get_user_with_saml_info(tenant_id, user_id)
+    assert user_step4["is_inactivated"] is False
+    assert user_step4["has_password"] is True
+
+    # Step 5: Verify the password actually validates correctly
+    user_with_hash = fetchone(
+        tenant_id,
+        "select password_hash from users where id = :user_id",
+        {"user_id": user_id},
+    )
+    assert user_with_hash["password_hash"] is not None
+    assert verify_password(user_with_hash["password_hash"], original_password) is True

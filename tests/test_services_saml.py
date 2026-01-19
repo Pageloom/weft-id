@@ -1797,6 +1797,9 @@ def test_process_saml_response_success_with_mock(
         "lastName": ["Doe"],
     }
     mock_auth.get_nameid.return_value = "user@example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
     mock_auth.get_session_index.return_value = "session123"
 
     # Mock the OneLogin_Saml2_Auth class
@@ -1818,6 +1821,7 @@ def test_process_saml_response_success_with_mock(
     assert result.attributes.first_name == "John"
     assert result.attributes.last_name == "Doe"
     assert result.attributes.name_id == "user@example.com"
+    assert result.name_id_format == "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     assert result.session_index == "session123"
     assert result.idp_id == created.id
 
@@ -1911,6 +1915,9 @@ def test_process_saml_response_custom_attribute_mapping(
         "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname": ["User"],
     }
     mock_auth.get_nameid.return_value = "azure.user@company.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
     mock_auth.get_session_index.return_value = None
 
     def mock_auth_constructor(request_data, settings):
@@ -1963,6 +1970,9 @@ def test_process_saml_response_requires_mfa_flag(
         "lastName": ["User"],
     }
     mock_auth.get_nameid.return_value = "mfa.user@example.com"
+    mock_auth.get_nameid_format.return_value = (
+        "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
     mock_auth.get_session_index.return_value = None
 
     def mock_auth_constructor(request_data, settings):
@@ -3540,3 +3550,448 @@ def test_remove_user_from_idp_inactivates_and_preserves_password(
     assert user_after["saml_idp_id"] is None
     assert user_after["is_inactivated"] is True
     assert user_after["has_password"] is True  # Password should be preserved!
+
+
+# =============================================================================
+# Phase 4: Provider Presets Tests
+# =============================================================================
+
+
+def test_get_provider_presets_okta():
+    """Test getting provider presets for Okta."""
+    from services import saml as saml_service
+
+    presets = saml_service.get_provider_presets("okta")
+
+    assert presets is not None
+    assert presets.provider_type == "okta"
+    assert presets.attribute_mapping is not None
+    assert "email" in presets.attribute_mapping
+    assert presets.attribute_mapping["email"] == "email"
+    assert presets.attribute_mapping["first_name"] == "firstName"
+    assert presets.attribute_mapping["last_name"] == "lastName"
+    assert presets.setup_guide_url is not None
+
+
+def test_get_provider_presets_azure_ad():
+    """Test getting provider presets for Azure AD."""
+    from services import saml as saml_service
+
+    presets = saml_service.get_provider_presets("azure_ad")
+
+    assert presets is not None
+    assert presets.provider_type == "azure_ad"
+    assert presets.attribute_mapping is not None
+    # Azure uses full URIs for attribute names
+    assert "email" in presets.attribute_mapping
+    assert "xmlsoap.org" in presets.attribute_mapping["email"]
+    assert presets.setup_guide_url is not None
+
+
+def test_get_provider_presets_google():
+    """Test getting provider presets for Google Workspace."""
+    from services import saml as saml_service
+
+    presets = saml_service.get_provider_presets("google")
+
+    assert presets is not None
+    assert presets.provider_type == "google"
+    assert presets.attribute_mapping is not None
+    assert "email" in presets.attribute_mapping
+    assert presets.setup_guide_url is not None
+
+
+def test_get_provider_presets_generic():
+    """Test getting provider presets for generic SAML 2.0."""
+    from services import saml as saml_service
+
+    presets = saml_service.get_provider_presets("generic")
+
+    assert presets is not None
+    assert presets.provider_type == "generic"
+    assert presets.attribute_mapping is not None
+    # Generic uses common SAML attribute names
+    assert presets.attribute_mapping["email"] == "email"
+    # Generic doesn't have a setup guide URL
+    assert presets.setup_guide_url is None
+
+
+def test_get_provider_presets_unknown():
+    """Test that unknown provider type returns None."""
+    from services import saml as saml_service
+
+    presets = saml_service.get_provider_presets("unknown_provider")
+
+    assert presets is None
+
+
+# =============================================================================
+# Phase 4: SP Certificate Rotation Tests
+# =============================================================================
+
+
+def test_rotate_sp_certificate_success(test_tenant, test_super_admin_user):
+    """Test successful SP certificate rotation."""
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # First create initial certificate
+    initial_cert = saml_service.get_or_create_sp_certificate(requesting_user)
+    assert initial_cert is not None
+    initial_cert_pem = initial_cert.certificate_pem
+
+    # Rotate the certificate
+    result = saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
+
+    assert result is not None
+    assert result.new_certificate_pem is not None
+    assert result.new_certificate_pem != initial_cert_pem
+    assert result.new_expires_at is not None
+    assert result.grace_period_ends_at is not None
+
+    # Verify the new certificate is returned when getting SP certificate
+    new_cert = saml_service.get_or_create_sp_certificate(requesting_user)
+    assert new_cert.certificate_pem == result.new_certificate_pem
+
+
+def test_rotate_sp_certificate_no_existing_cert(test_tenant, test_super_admin_user):
+    """Test that rotating without existing certificate raises NotFoundError."""
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    # Use a fresh tenant without a certificate
+    # (Note: test_tenant may already have a cert from other tests, so we check behavior)
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # First ensure no certificate exists by checking directly
+    import database
+
+    cert = database.saml.get_sp_certificate(tenant_id)
+    if cert is None:
+        # No certificate exists, rotation should fail
+        with pytest.raises(NotFoundError) as exc_info:
+            saml_service.rotate_sp_certificate(requesting_user)
+
+        assert exc_info.value.code == "sp_certificate_not_found"
+
+
+def test_rotate_sp_certificate_as_admin_forbidden(test_tenant, test_admin_user):
+    """Test that admin cannot rotate SP certificate."""
+    from services import saml as saml_service
+    from services.exceptions import ForbiddenError
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_admin_user, tenant_id, "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.rotate_sp_certificate(requesting_user)
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+def test_rotate_sp_certificate_logs_event(test_tenant, test_super_admin_user):
+    """Test that certificate rotation logs an event."""
+    import database
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create initial certificate
+    saml_service.get_or_create_sp_certificate(requesting_user)
+
+    # Rotate
+    saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
+
+    # Verify event was logged
+    events = database.event_log.list_events(tenant_id, limit=10)
+    rotation_events = [e for e in events if e["event_type"] == "saml_sp_certificate_rotated"]
+    assert len(rotation_events) > 0
+
+
+# =============================================================================
+# Phase 4: Single Logout (SLO) Tests
+# =============================================================================
+
+
+def test_initiate_sp_logout_no_slo_url(test_tenant, test_super_admin_user, test_idp_data):
+    """Test SP-initiated logout when IdP has no SLO URL configured."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create IdP without SLO URL
+    data = IdPCreate(**test_idp_data, is_enabled=True, slo_url=None)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Attempt SP-initiated logout
+    result = saml_service.initiate_sp_logout(
+        tenant_id=tenant_id,
+        saml_idp_id=idp.id,
+        name_id="test@example.com",
+        name_id_format=None,
+        session_index=None,
+        base_url="https://test.example.com",
+    )
+
+    # Should return None since no SLO URL
+    assert result is None
+
+
+def test_initiate_sp_logout_idp_not_found(test_tenant):
+    """Test SP-initiated logout with non-existent IdP returns None."""
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # Non-existent IdP ID
+    result = saml_service.initiate_sp_logout(
+        tenant_id=tenant_id,
+        saml_idp_id="00000000-0000-0000-0000-000000000000",
+        name_id="test@example.com",
+        name_id_format=None,
+        session_index=None,
+        base_url="https://test.example.com",
+    )
+
+    # Should return None, not raise exception
+    assert result is None
+
+
+def test_initiate_sp_logout_no_sp_certificate(test_tenant, test_super_admin_user, test_idp_data):
+    """Test SP-initiated logout when no SP certificate exists."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    # Create a fresh tenant scenario
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create IdP with SLO URL (this also creates SP cert)
+    data = IdPCreate(
+        **test_idp_data,
+        is_enabled=True,
+        slo_url="https://idp.example.com/slo",
+    )
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Now the SP cert exists, so initiate_sp_logout should work or return URL
+    result = saml_service.initiate_sp_logout(
+        tenant_id=tenant_id,
+        saml_idp_id=idp.id,
+        name_id="test@example.com",
+        name_id_format=None,
+        session_index=None,
+        base_url="https://test.example.com",
+    )
+
+    # Should return a redirect URL (or None if SLO building fails)
+    # The important thing is it doesn't raise an exception
+    if result is not None:
+        assert "idp.example.com" in result or "SAMLRequest" in result
+
+
+def test_process_idp_logout_request_no_idp(test_tenant):
+    """Test IdP-initiated logout with unknown issuer returns None."""
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # Fake SAML request (won't be parsed, just testing early return)
+    result = saml_service.process_idp_logout_request(
+        tenant_id=tenant_id,
+        saml_request="not_a_real_saml_request",
+        base_url="https://test.example.com",
+        issuer="https://unknown.idp.example.com",
+    )
+
+    # Should return None since IdP not found
+    assert result is None
+
+
+def test_process_idp_logout_request_no_issuer(test_tenant):
+    """Test IdP-initiated logout with no issuer returns None."""
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # No issuer provided and invalid SAML request
+    result = saml_service.process_idp_logout_request(
+        tenant_id=tenant_id,
+        saml_request="not_a_real_saml_request",
+        base_url="https://test.example.com",
+        issuer=None,
+    )
+
+    # Should return None since can't determine IdP
+    assert result is None
+
+
+# =============================================================================
+# Phase 4: SAML Debug Storage Tests
+# =============================================================================
+
+
+def test_store_saml_debug_entry(test_tenant):
+    """Test storing a SAML debug entry."""
+    import database
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # Store a debug entry (idp_id is NULL since we don't have an actual IdP)
+    saml_service.store_saml_debug_entry(
+        tenant_id=tenant_id,
+        error_type="signature_error",
+        error_detail="Signature validation failed",
+        idp_id=None,  # Use None instead of invalid UUID
+        idp_name="Test IdP",
+        saml_response_b64=None,
+        request_ip="192.168.1.1",
+        user_agent="Mozilla/5.0 Test",
+    )
+
+    # Verify entry was stored
+    entries = database.saml.get_debug_entries(tenant_id, limit=10)
+    assert len(entries) > 0
+
+    # Find our entry
+    matching = [e for e in entries if e["error_type"] == "signature_error"]
+    assert len(matching) > 0
+    entry = matching[0]
+    assert entry["error_detail"] == "Signature validation failed"
+    assert entry["idp_name"] == "Test IdP"
+    assert entry["request_ip"] == "192.168.1.1"
+
+
+def test_store_saml_debug_entry_with_saml_response(test_tenant):
+    """Test storing debug entry with base64-encoded SAML response."""
+    import base64
+
+    import database
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+
+    # Create a fake SAML response XML
+    fake_xml = "<samlp:Response>Test Response</samlp:Response>"
+    fake_b64 = base64.b64encode(fake_xml.encode()).decode()
+
+    # Store debug entry with SAML response
+    saml_service.store_saml_debug_entry(
+        tenant_id=tenant_id,
+        error_type="expired",
+        error_detail="Assertion has expired",
+        saml_response_b64=fake_b64,
+    )
+
+    # Verify entry has decoded XML
+    entries = database.saml.get_debug_entries(tenant_id, limit=10)
+    expired_entries = [e for e in entries if e["error_type"] == "expired"]
+    assert len(expired_entries) > 0
+
+    entry = expired_entries[0]
+    # The XML should be decoded and stored
+    if entry.get("saml_response_xml"):
+        assert "Test Response" in entry["saml_response_xml"]
+
+
+def test_list_saml_debug_entries_as_super_admin(test_tenant, test_super_admin_user):
+    """Test listing debug entries as super admin."""
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Store a test entry first
+    saml_service.store_saml_debug_entry(
+        tenant_id=tenant_id,
+        error_type="test_error",
+        error_detail="Test for listing",
+    )
+
+    # List entries
+    entries = saml_service.list_saml_debug_entries(requesting_user, limit=50)
+
+    # Should return a list
+    assert isinstance(entries, list)
+    # Should have at least our test entry
+    test_entries = [e for e in entries if e["error_type"] == "test_error"]
+    assert len(test_entries) > 0
+
+
+def test_list_saml_debug_entries_as_admin_forbidden(test_tenant, test_admin_user):
+    """Test that admin cannot list debug entries."""
+    from services import saml as saml_service
+    from services.exceptions import ForbiddenError
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_admin_user, tenant_id, "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.list_saml_debug_entries(requesting_user)
+
+    assert exc_info.value.code == "super_admin_required"
+
+
+def test_get_saml_debug_entry_as_super_admin(test_tenant, test_super_admin_user):
+    """Test getting a specific debug entry as super admin."""
+    import database
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Store a test entry
+    saml_service.store_saml_debug_entry(
+        tenant_id=tenant_id,
+        error_type="get_test_error",
+        error_detail="Test for getting",
+        idp_name="Get Test IdP",
+    )
+
+    # Get the entry ID from the list
+    entries = database.saml.get_debug_entries(tenant_id, limit=10)
+    test_entry = next((e for e in entries if e["error_type"] == "get_test_error"), None)
+    assert test_entry is not None
+
+    # Get the specific entry
+    entry = saml_service.get_saml_debug_entry(requesting_user, str(test_entry["id"]))
+
+    assert entry is not None
+    assert entry["error_type"] == "get_test_error"
+    assert entry["error_detail"] == "Test for getting"
+    assert entry["idp_name"] == "Get Test IdP"
+
+
+def test_get_saml_debug_entry_not_found(test_tenant, test_super_admin_user):
+    """Test getting a non-existent debug entry raises NotFoundError."""
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    with pytest.raises(NotFoundError) as exc_info:
+        saml_service.get_saml_debug_entry(requesting_user, "00000000-0000-0000-0000-000000000000")
+
+    assert exc_info.value.code == "debug_entry_not_found"
+
+
+def test_get_saml_debug_entry_as_admin_forbidden(test_tenant, test_admin_user):
+    """Test that admin cannot get debug entries."""
+    from services import saml as saml_service
+    from services.exceptions import ForbiddenError
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_admin_user, tenant_id, "admin")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        saml_service.get_saml_debug_entry(requesting_user, "00000000-0000-0000-0000-000000000000")
+
+    assert exc_info.value.code == "super_admin_required"

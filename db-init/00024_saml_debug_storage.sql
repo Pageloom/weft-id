@@ -20,7 +20,7 @@ set local role appowner;
 
 CREATE TABLE IF NOT EXISTS saml_debug_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    tenant_id UUID NOT NULL,
 
     -- IdP reference (may be NULL if we couldn't determine the IdP)
     idp_id UUID REFERENCES saml_identity_providers(id) ON DELETE SET NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS saml_debug_entries (
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    -- Foreign key index
+    -- Foreign key with CASCADE delete (single FK definition)
     CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
@@ -62,4 +62,4 @@ COMMENT ON TABLE saml_debug_entries IS
 -- PERMISSIONS
 -- ============================================================================
 
-GRANT SELECT, INSERT, DELETE ON saml_debug_entries TO app;
+GRANT SELECT, INSERT, DELETE ON saml_debug_entries TO appuser;

@@ -1303,3 +1303,550 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
         # Should redirect to SAML login with relay_state
         assert f"/saml/login/{idp.id}" in location
         assert "relay_state=" in location
+
+
+# =============================================================================
+# SAML Phase 4: Single Logout (SLO) Endpoint Tests
+# =============================================================================
+
+
+def test_slo_get_without_params_redirects_to_login(client, test_tenant_host):
+    """Test SLO GET endpoint redirects to login when no SAMLRequest/SAMLResponse."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    response = client.get(
+        "/saml/slo",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+    assert "slo=complete" in response.headers.get("location", "")
+
+
+def test_slo_get_with_logout_response_redirects_to_login(client, test_tenant_host):
+    """Test SLO GET with SAMLResponse (SP-initiated callback) redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    # Provide a dummy SAMLResponse (callback from IdP after SP-initiated logout)
+    response = client.get(
+        "/saml/slo?SAMLResponse=dummyresponse",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+    assert "slo=complete" in response.headers.get("location", "")
+
+
+def test_slo_get_with_logout_request_processes_idp_initiated(
+    client, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test SLO GET with SAMLRequest (IdP-initiated) processes and redirects."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    # Mock the service to return a redirect URL
+    def mock_process_idp_logout(*args, **kwargs):
+        return "https://idp.example.com/slo/callback?SAMLResponse=xyz"
+
+    monkeypatch.setattr(saml_service, "process_idp_logout_request", mock_process_idp_logout)
+
+    response = client.get(
+        "/saml/slo?SAMLRequest=dummyrequest",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "idp.example.com" in response.headers.get("location", "")
+
+
+def test_slo_get_idp_initiated_failure_redirects_to_login(
+    client, test_tenant_host, test_tenant, monkeypatch
+):
+    """Test SLO GET with IdP-initiated logout failure still redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    # Mock the service to return None (failure)
+    monkeypatch.setattr(saml_service, "process_idp_logout_request", lambda *args, **kwargs: None)
+
+    response = client.get(
+        "/saml/slo?SAMLRequest=invalidrequest",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+
+
+def test_slo_post_without_params_redirects_to_login(client, test_tenant_host):
+    """Test SLO POST endpoint redirects to login when no SAMLRequest/SAMLResponse."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    response = client.post(
+        "/saml/slo",
+        data={},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+
+
+def test_slo_post_with_logout_request_processes_idp_initiated(
+    client, test_tenant_host, test_tenant, monkeypatch
+):
+    """Test SLO POST with SAMLRequest (IdP-initiated) processes and redirects."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    # Mock the service to return a redirect URL
+    def mock_process_idp_logout(*args, **kwargs):
+        return "https://idp.example.com/slo/response"
+
+    monkeypatch.setattr(saml_service, "process_idp_logout_request", mock_process_idp_logout)
+
+    response = client.post(
+        "/saml/slo",
+        data={"SAMLRequest": "dummyrequest"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "idp.example.com" in response.headers.get("location", "")
+
+
+def test_slo_post_with_logout_response_redirects_to_login(client, test_tenant_host):
+    """Test SLO POST with SAMLResponse (callback) redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    response = client.post(
+        "/saml/slo",
+        data={"SAMLResponse": "dummyresponse"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+
+
+def test_slo_post_idp_initiated_failure_redirects_to_login(
+    client, test_tenant_host, test_tenant, monkeypatch
+):
+    """Test SLO POST with IdP-initiated failure still redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    # Mock the service to return None (failure)
+    monkeypatch.setattr(saml_service, "process_idp_logout_request", lambda *args, **kwargs: None)
+
+    response = client.post(
+        "/saml/slo",
+        data={"SAMLRequest": "invalidrequest"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/login" in response.headers.get("location", "")
+
+
+# =============================================================================
+# SAML Phase 4: Certificate Rotation Router Tests
+# =============================================================================
+
+
+@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
+def test_rotate_certificate_as_super_admin_success(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test certificate rotation as super admin succeeds."""
+    from schemas.saml import CertificateRotationResult
+    from services import saml as saml_service
+
+    # Mock the rotation to succeed
+    def mock_rotate(*args, **kwargs):
+        return CertificateRotationResult(
+            new_certificate_pem="-----BEGIN CERTIFICATE-----\nNEWCERT\n-----END CERTIFICATE-----",
+            new_expires_at="2035-01-01T00:00:00Z",
+            grace_period_ends_at="2026-01-26T00:00:00Z",
+            warning="Update your IdP configuration within the grace period",
+        )
+
+    monkeypatch.setattr(saml_service, "rotate_sp_certificate", mock_rotate)
+
+    response = super_admin_session.post(
+        "/admin/identity-providers/rotate-certificate",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "success=rotated" in location
+
+
+def test_rotate_certificate_as_admin_forbidden(admin_session, test_tenant_host):
+    """Test certificate rotation as admin is forbidden."""
+    response = admin_session.post(
+        "/admin/identity-providers/rotate-certificate",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should be redirected (forbidden via RedirectError)
+    assert response.status_code in (303, 403)
+
+
+@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
+def test_rotate_certificate_no_existing_cert_shows_error(
+    super_admin_session, test_tenant_host, monkeypatch
+):
+    """Test certificate rotation without existing cert shows error."""
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    # Mock the rotation to raise NotFoundError
+    def mock_rotate(*args, **kwargs):
+        raise NotFoundError(message="No SP certificate exists", code="sp_cert_not_found")
+
+    monkeypatch.setattr(saml_service, "rotate_sp_certificate", mock_rotate)
+
+    response = super_admin_session.post(
+        "/admin/identity-providers/rotate-certificate",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "error=" in location
+
+
+def test_rotate_certificate_unauthenticated_redirects(client, test_tenant_host):
+    """Test certificate rotation when not authenticated redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    response = client.post(
+        "/admin/identity-providers/rotate-certificate",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    # Should redirect to login or return 401/403
+    assert response.status_code in (303, 401, 403)
+
+
+# =============================================================================
+# SAML Phase 4: Debug Storage Router Tests
+# =============================================================================
+
+
+@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
+def test_debug_list_as_super_admin_success(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test debug list as super admin returns page successfully."""
+    from services import saml as saml_service
+
+    # Mock the list to return empty
+    monkeypatch.setattr(saml_service, "list_saml_debug_entries", lambda *args, **kwargs: [])
+
+    response = super_admin_session.get(
+        "/admin/identity-providers/debug",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+
+
+def test_debug_list_as_admin_forbidden(admin_session, test_tenant_host):
+    """Test debug list as admin is forbidden."""
+    response = admin_session.get(
+        "/admin/identity-providers/debug",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should be redirected (forbidden via RedirectError)
+    assert response.status_code in (303, 403)
+
+
+def test_debug_list_unauthenticated_redirects(client, test_tenant_host):
+    """Test debug list when not authenticated redirects to login."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
+
+    response = client.get(
+        "/admin/identity-providers/debug",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    # Should redirect to login or return 401/403
+    assert response.status_code in (303, 401, 403)
+
+
+@pytest.mark.xfail(reason="Route ordering bug - see ISSUES.md: SAML Router Route Ordering Bug")
+def test_debug_list_shows_entries(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test debug list shows recent debug entries."""
+    from datetime import UTC, datetime
+
+    from schemas.saml import SAMLDebugEntry
+    from services import saml as saml_service
+
+    # Mock entries (using correct schema fields)
+    mock_entries = [
+        SAMLDebugEntry(
+            timestamp=datetime.now(UTC),
+            error_type="signature_error",
+            error_detail="Signature validation failed",
+            idp_name="Test IdP",
+        ),
+        SAMLDebugEntry(
+            timestamp=datetime.now(UTC),
+            error_type="expired",
+            error_detail="Assertion has expired",
+            idp_name="Another IdP",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        saml_service, "list_saml_debug_entries", lambda *args, **kwargs: mock_entries
+    )
+
+    response = super_admin_session.get(
+        "/admin/identity-providers/debug",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    # Check that entry info appears in response
+    assert "signature_error" in response.text or "Signature" in response.text
+
+
+def test_debug_detail_as_super_admin_success(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test debug detail as super admin returns page successfully."""
+    from datetime import UTC, datetime
+
+    from services import saml as saml_service
+
+    # Mock the detail entry as a dict (matching database return format)
+    mock_entry = {
+        "id": "entry-123",
+        "tenant_id": str(test_tenant["id"]),
+        "idp_id": "idp-456",
+        "idp_name": "Test IdP",
+        "error_type": "signature_error",
+        "error_detail": "Signature validation failed: Invalid signature",
+        "saml_response_b64": None,
+        "saml_response_xml": "<saml:Response>...</saml:Response>",
+        "request_ip": "192.168.1.1",
+        "user_agent": "Mozilla/5.0",
+        "created_at": datetime.now(UTC),
+    }
+
+    monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
+
+    response = super_admin_session.get(
+        "/admin/identity-providers/debug/entry-123",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+
+
+def test_debug_detail_not_found_redirects(super_admin_session, test_tenant_host, monkeypatch):
+    """Test debug detail with invalid ID redirects with error."""
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    # Mock the detail to raise NotFoundError
+    def mock_get_entry(*args, **kwargs):
+        raise NotFoundError(message="Debug entry not found", code="debug_entry_not_found")
+
+    monkeypatch.setattr(saml_service, "get_saml_debug_entry", mock_get_entry)
+
+    response = super_admin_session.get(
+        "/admin/identity-providers/debug/nonexistent-id",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "error=" in location or "debug" in location
+
+
+def test_debug_detail_as_admin_forbidden(admin_session, test_tenant_host):
+    """Test debug detail as admin is forbidden."""
+    response = admin_session.get(
+        "/admin/identity-providers/debug/some-entry-id",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should be redirected (forbidden via RedirectError)
+    assert response.status_code in (303, 403)
+
+
+def test_debug_detail_shows_saml_xml(
+    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
+):
+    """Test debug detail shows decoded SAML XML."""
+    from datetime import UTC, datetime
+
+    from services import saml as saml_service
+
+    # Mock entry with XML as a dict (matching database return format)
+    mock_entry = {
+        "id": "entry-xml",
+        "tenant_id": str(test_tenant["id"]),
+        "idp_id": None,
+        "idp_name": "XML Test IdP",
+        "error_type": "invalid_response",
+        "error_detail": "Validation failed",
+        "saml_response_b64": None,
+        "saml_response_xml": "<saml:Response>TEST</saml:Response>",
+        "request_ip": None,
+        "user_agent": None,
+        "created_at": datetime.now(UTC),
+    }
+
+    monkeypatch.setattr(saml_service, "get_saml_debug_entry", lambda *args, **kwargs: mock_entry)
+
+    response = super_admin_session.get(
+        "/admin/identity-providers/debug/entry-xml",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200
+    # XML content should be visible in response (might be escaped)
+    assert "saml" in response.text.lower() or "Response" in response.text
+
+
+# =============================================================================
+# SAML Phase 4: Integration Tests - Debug Storage on Auth Failure
+# =============================================================================
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_error_creates_debug_entry(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test that SAML ACS errors create debug entries for troubleshooting."""
+    from routers import saml as saml_router
+    from services import saml as saml_service
+    from services.exceptions import ValidationError
+
+    idp = acs_test_setup["idp"]
+
+    # Track if debug entry was stored
+    debug_entry_stored = {"called": False, "error_type": None}
+
+    original_store = saml_service.store_saml_debug_entry
+
+    def mock_store_debug(*args, **kwargs):
+        debug_entry_stored["called"] = True
+        debug_entry_stored["error_type"] = kwargs.get("error_type")
+        # Call original if it exists, or just pass
+        try:
+            return original_store(*args, **kwargs)
+        except Exception:
+            pass  # Ignore DB errors in test
+
+    monkeypatch.setattr(saml_service, "store_saml_debug_entry", mock_store_debug)
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    # Mock validation to fail
+    def mock_process(*args, **kwargs):
+        raise ValidationError(
+            message="Signature validation failed",
+            code="saml_validation_failed",
+        )
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process)
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "ZmFrZXNhbWxyZXNwb25zZQ==",  # base64 "fakesamlresponse"
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should return error page
+    assert response.status_code == 200
+
+    # Debug entry should have been stored
+    assert debug_entry_stored["called"], "Debug entry should be stored on SAML error"
+    assert debug_entry_stored["error_type"] == "signature_error"

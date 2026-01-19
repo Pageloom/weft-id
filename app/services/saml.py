@@ -2127,6 +2127,7 @@ def assign_user_idp(
     if had_idp and not will_have_idp:
         database.users.unverify_user_emails(tenant_id, user_id)
         database.users.inactivate_user(tenant_id, user_id)
+        database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
         user_inactivated = True
         logger.info(f"User {user_id} inactivated after being removed from IdP")
 

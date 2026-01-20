@@ -1,4 +1,6 @@
-# Loom - Multi-tenant FastAPI Application
+# Weft-ID - Identity Federation Layer
+
+Weft-ID is a federation layer that aggregates multiple identity providers into a single, unified interface. It acts as a middleware between your applications and identity systems like Okta, Microsoft Entra ID, Google Workspace, and other SAML/OIDC-compliant providers.
 
 ## Setting up a dev-environment
 

@@ -1872,9 +1872,7 @@ def test_update_user_idp_user_not_found(test_super_admin_user):
     override_auth(app, test_super_admin_user)
 
     with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        mock_assign.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_assign.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -1896,9 +1894,7 @@ def test_update_user_idp_idp_not_found(test_super_admin_user):
     override_auth(app, test_super_admin_user)
 
     with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        mock_assign.side_effect = NotFoundError(
-            message="IdP not found", code="idp_not_found"
-        )
+        mock_assign.side_effect = NotFoundError(message="IdP not found", code="idp_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -1948,9 +1944,7 @@ def test_update_user_idp_service_error(test_super_admin_user):
             from fastapi.responses import HTMLResponse
 
             mock_assign.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(
-                content="Error", status_code=500
-            )
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
             client = TestClient(app)
             response = client.post(
@@ -2013,9 +2007,7 @@ def test_inactivate_user_not_found(test_admin_user):
     override_auth(app, test_admin_user)
 
     with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        mock_inactivate.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_inactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -2063,9 +2055,7 @@ def test_inactivate_user_service_error(test_admin_user):
             from fastapi.responses import HTMLResponse
 
             mock_inactivate.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(
-                content="Error", status_code=500
-            )
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
             client = TestClient(app)
             response = client.post(
@@ -2127,9 +2117,7 @@ def test_reactivate_user_not_found(test_admin_user):
     override_auth(app, test_admin_user)
 
     with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        mock_reactivate.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_reactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -2177,9 +2165,7 @@ def test_reactivate_user_service_error(test_admin_user):
             from fastapi.responses import HTMLResponse
 
             mock_reactivate.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(
-                content="Error", status_code=500
-            )
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
             client = TestClient(app)
             response = client.post(
@@ -2259,9 +2245,7 @@ def test_anonymize_user_not_found(test_super_admin_user):
     override_auth(app, test_super_admin_user)
 
     with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        mock_anonymize.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_anonymize.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -2309,9 +2293,7 @@ def test_anonymize_user_service_error(test_super_admin_user):
             from fastapi.responses import HTMLResponse
 
             mock_anonymize.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(
-                content="Error", status_code=500
-            )
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
             client = TestClient(app)
             response = client.post(
@@ -2372,9 +2354,7 @@ def test_update_user_name_not_found(test_admin_user):
     override_auth(app, test_admin_user)
 
     with patch("services.users.update_user") as mock_update:
-        mock_update.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -2446,9 +2426,7 @@ def test_update_user_role_not_found(test_super_admin_user):
     override_auth(app, test_super_admin_user)
 
     with patch("services.users.update_user") as mock_update:
-        mock_update.side_effect = NotFoundError(
-            message="User not found", code="user_not_found"
-        )
+        mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
         client = TestClient(app)
         response = client.post(
@@ -2573,9 +2551,7 @@ def test_add_user_email_not_found(test_admin_user):
 
     with patch("services.settings.is_privileged_domain", return_value=True):
         with patch("services.emails.add_user_email") as mock_add:
-            mock_add.side_effect = NotFoundError(
-                message="User not found", code="user_not_found"
-            )
+            mock_add.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
             client = TestClient(app)
             response = client.post(
@@ -2729,9 +2705,7 @@ def test_promote_user_email_validation_error(test_admin_user):
                     mock_promote.side_effect = ValidationError(
                         message="Other error", code="other_error"
                     )
-                    mock_error_page.return_value = HTMLResponse(
-                        content="Error", status_code=400
-                    )
+                    mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
 
                     client = TestClient(app)
                     response = client.post(
@@ -2758,9 +2732,7 @@ def test_promote_user_email_service_error(test_admin_user):
                     from fastapi.responses import HTMLResponse
 
                     mock_promote.side_effect = ServiceError(message="Database error")
-                    mock_error_page.return_value = HTMLResponse(
-                        content="Error", status_code=500
-                    )
+                    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
                     client = TestClient(app)
                     response = client.post(

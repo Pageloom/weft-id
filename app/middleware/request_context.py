@@ -11,7 +11,6 @@ from collections.abc import Awaitable, Callable
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-
 from utils.request_context import clear_request_context, set_request_context
 from utils.request_metadata import extract_request_metadata
 

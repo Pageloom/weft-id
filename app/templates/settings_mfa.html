@@ -43,22 +43,17 @@
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Backup Codes</h2>
             {% if backup_codes %}
+            {% set available_count = backup_codes|selectattr('used_at', 'none')|list|length %}
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You have {{ backup_codes|length }} backup codes. Each can be used once to sign in if you lose access to
-                your primary MFA method.
+                Backup codes can be used once each to sign in if you lose access to your primary MFA method.
             </p>
-            <div class="space-y-2">
-                {% for code in backup_codes %}
-                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-4 py-2">
-                    <code class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ code.code }}</code>
-                    {% if code.used_at %}
-                    <span class="text-xs text-gray-500 dark:text-gray-400">Used on {{ fmt_datetime(code.used_at) }}</span>
-                    {% else %}
-                    <span class="text-xs text-green-600 dark:text-green-400">Available</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-2xl font-semibold {% if available_count <= 2 %}text-red-600 dark:text-red-400{% elif available_count <= 5 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">{{ available_count }}</span>
+                <span class="text-gray-600 dark:text-gray-400">remaining</span>
             </div>
+            {% if available_count <= 2 %}
+            <p class="text-sm text-red-600 dark:text-red-400 mb-2">Consider regenerating your backup codes soon.</p>
+            {% endif %}
             <form method="post" action="/account/mfa/regenerate-backup-codes" class="mt-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"

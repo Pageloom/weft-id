@@ -3,16 +3,16 @@
 {% block title %}SSO Error - Loom{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-md w-full">
-        <div class="bg-white shadow-sm rounded-lg p-8 text-center">
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-8 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+                <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </div>
 
-            <h1 class="text-xl font-semibold text-gray-900 mb-2">
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 {% if error_type == 'invalid_response' %}
                     Invalid SSO Response
                 {% elif error_type == 'user_not_found' %}
@@ -32,7 +32,7 @@
                 {% endif %}
             </h1>
 
-            <p class="text-sm text-gray-600 mb-6">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 {% if error_type == 'invalid_response' %}
                     The SSO response from your identity provider was invalid or could not be processed.
                 {% elif error_type == 'user_not_found' %}
@@ -54,15 +54,15 @@
             </p>
 
             {% if error_detail %}
-            <div class="mb-6 p-3 bg-gray-50 rounded-md text-left">
-                <p class="text-xs font-medium text-gray-500 uppercase mb-1">Error Details</p>
-                <p class="text-sm text-gray-700 font-mono break-all">{{ error_detail }}</p>
+            <div class="mb-6 p-3 bg-gray-50 dark:bg-gray-700 rounded-md text-left">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Error Details</p>
+                <p class="text-sm text-gray-700 dark:text-gray-300 font-mono break-all">{{ error_detail }}</p>
             </div>
             {% endif %}
 
             {% if is_dev and raw_saml_xml %}
             <details class="mb-6 text-left">
-                <summary class="text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+                <summary class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer">
                     Debug: View SAML Response
                 </summary>
                 <div class="mt-3 bg-gray-900 text-green-400 rounded p-4 overflow-x-auto max-h-96 overflow-y-auto">
@@ -78,9 +78,9 @@
                 </a>
 
                 {% if error_type == 'user_not_found' %}
-                <p class="text-xs text-gray-500">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
                     If you believe you should have access, please contact your organization administrator
-                    or <a href="mailto:support@pageloom.com" class="text-blue-600 hover:text-blue-800">support</a>.
+                    or <a href="mailto:support@pageloom.com" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">support</a>.
                 </p>
                 {% endif %}
             </div>

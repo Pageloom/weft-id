@@ -3,31 +3,31 @@
 {% block title %}Reactivate Your Account - Loom{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-50">
+<div class="min-h-screen flex items-center justify-center">
     <div class="max-w-md w-full space-y-8 p-8">
-        <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
             <div class="text-center mb-6">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
+                    <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
-                <h2 class="text-2xl font-semibold text-gray-900">
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
                     Reactivate Your Account
                 </h2>
             </div>
 
-            <div class="text-gray-600 mb-6">
+            <div class="text-gray-600 dark:text-gray-400 mb-6">
                 <p class="mb-4">
                     Your super admin account has been inactivated. As a super admin,
                     you can reactivate your account after verifying your email address.
                 </p>
-                <div class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
-                    <p class="text-sm text-blue-800">
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3 mb-4">
+                    <p class="text-sm text-blue-800 dark:text-blue-300">
                         <strong>Email verified:</strong> {{ prefill_email }}
                     </p>
                 </div>
-                <p class="text-sm text-gray-500">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
                     Click the button below to reactivate your account.
                     {% if user.has_password %}
                     You'll be able to log in immediately with your existing password.
@@ -41,13 +41,13 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="user_id" value="{{ user.id }}">
                 <button type="submit"
-                        class="w-full bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                        class="w-full bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 font-medium py-2 px-4 rounded-md transition duration-150">
                     Reactivate My Account
                 </button>
             </form>
 
             <div class="mt-6 text-center">
-                <a href="/login" class="text-sm text-gray-500 hover:text-gray-700">
+                <a href="/login" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
                     Back to Login
                 </a>
             </div>

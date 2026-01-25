@@ -4,24 +4,24 @@
 
 {% block content %}
 <div class="max-w-4xl">
-    <div class="bg-white rounded-lg shadow-sm p-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <h1 class="text-2xl font-semibold mb-6">Security Settings</h1>
 
-        <p class="text-sm text-gray-600 mb-6">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
             Configure security settings for your tenant. These settings apply to all users in your organization.
         </p>
 
         {% if success %}
-        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
-            <p class="text-sm text-green-800">
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
                 Security settings have been updated successfully.
             </p>
         </div>
         {% endif %}
 
         {% if error %}
-        <div class="mb-6 p-4 border border-red-300 bg-red-50 rounded-md">
-            <p class="text-sm text-red-800">
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
                 An error occurred while updating settings. Please try again.
             </p>
         </div>
@@ -29,13 +29,13 @@
 
         <form method="post" action="/admin/security/update">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="border-t border-gray-200 pt-6">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h2 class="text-lg font-medium mb-4">Session Configuration</h2>
                 <div class="mb-6">
-                    <label for="session_timeout" class="block text-sm font-medium text-gray-700 mb-2">
+                    <label for="session_timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Maximum Session Length
                     </label>
-                    <p class="text-sm text-gray-500 mb-3">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                         How long users can remain signed in before they must re-authenticate.
                         Setting this to "Indefinitely" means sessions have no time limit.
                     </p>
@@ -43,7 +43,7 @@
                     <select
                         name="session_timeout"
                         id="session_timeout"
-                        class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                         <option value="" {% if current_timeout is none %}selected{% endif %}>Indefinitely (no time limit)</option>
                         <option value="28800" {% if current_timeout == 28800 %}selected{% endif %}>8 hours</option>
@@ -65,13 +65,13 @@
                             name="persistent_sessions"
                             value="true"
                             {% if persistent_sessions %}checked{% endif %}
-                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
                         >
                         <span class="ml-2">
-                            <span class="block text-sm font-medium text-gray-700">
+                            <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Keep users signed in after browser is closed
                             </span>
-                            <span class="block text-sm text-gray-500 mt-1">
+                            <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 When enabled, sessions persist even after the browser is closed.
                                 When disabled, users must sign in again each time they open their browser.
                             </span>
@@ -80,13 +80,13 @@
                 </div>
             </div>
 
-            <div class="border-t border-gray-200 pt-6 mt-6">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
                 <h2 class="text-lg font-medium mb-4">Automatic Inactivation</h2>
                 <div class="mb-6">
-                    <label for="inactivity_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+                    <label for="inactivity_threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Inactivate users after period of inactivity
                     </label>
-                    <p class="text-sm text-gray-500 mb-3">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                         Users who haven't been active for this period will be automatically inactivated.
                         Inactivated users cannot sign in until an admin reactivates them.
                     </p>
@@ -94,7 +94,7 @@
                     <select
                         name="inactivity_threshold"
                         id="inactivity_threshold"
-                        class="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                         <option value="" {% if inactivity_threshold_days is none %}selected{% endif %}>Indefinitely (never auto-inactivate)</option>
                         <option value="14" {% if inactivity_threshold_days == 14 %}selected{% endif %}>14 days</option>
@@ -105,9 +105,9 @@
                 </div>
             </div>
 
-            <div class="border-t border-gray-200 pt-6 mt-6">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
                 <h2 class="text-lg font-medium mb-4">User Permissions</h2>
-                <p class="text-sm text-gray-500 mb-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.
                 </p>
 
@@ -118,13 +118,13 @@
                             name="allow_users_edit_profile"
                             value="true"
                             {% if allow_users_edit_profile %}checked{% endif %}
-                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
                         >
                         <span class="ml-2">
-                            <span class="block text-sm font-medium text-gray-700">
+                            <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Allow users to edit their own profile details
                             </span>
-                            <span class="block text-sm text-gray-500 mt-1">
+                            <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 When enabled, users can change their name on the profile page.
                                 When disabled, only super admins can edit their own profile.
                             </span>
@@ -139,13 +139,13 @@
                             name="allow_users_add_emails"
                             value="true"
                             {% if allow_users_add_emails %}checked{% endif %}
-                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                            class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
                         >
                         <span class="ml-2">
-                            <span class="block text-sm font-medium text-gray-700">
+                            <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Allow users to add alternative email addresses
                             </span>
-                            <span class="block text-sm text-gray-500 mt-1">
+                            <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 When enabled, users can add and verify additional email addresses to their account.
                                 When disabled, only super admins can add emails to their account.
                             </span>
@@ -154,7 +154,7 @@
                 </div>
             </div>
 
-            <div class="border-t border-gray-200 pt-6 mt-6">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
                 <div class="flex gap-3">
                     <button type="submit"
                             class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
@@ -164,8 +164,8 @@
             </div>
         </form>
 
-        <div class="mt-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
-            <p class="text-sm text-blue-800">
+        <div class="mt-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+            <p class="text-sm text-blue-800 dark:text-blue-300">
                 <strong>Note:</strong> Changes to session timeout apply immediately to all active sessions.
                 Users with sessions exceeding the new timeout will be signed out on their next request.
             </p>

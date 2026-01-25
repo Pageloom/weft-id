@@ -317,6 +317,7 @@ def _user_row_to_profile(user: dict) -> UserProfile:
         role=user["role"],
         timezone=user.get("tz"),
         locale=user.get("locale"),
+        theme=user.get("theme", "system"),
         mfa_enabled=user.get("mfa_enabled", False),
         mfa_method=user.get("mfa_method"),
         created_at=user["created_at"],
@@ -1147,7 +1148,7 @@ def update_current_user_profile(
     Args:
         requesting_user: The authenticated user making the request
         user_data: The full user dict from authentication
-        profile_update: Fields to update (first_name, last_name, timezone, locale)
+        profile_update: Fields to update (first_name, last_name, timezone, locale, theme)
 
     Returns:
         Updated UserProfile
@@ -1205,6 +1206,16 @@ def update_current_user_profile(
             tenant_id=tenant_id,
             user_id=user_id,
             locale=profile_update.locale,
+        )
+
+    if profile_update.theme:
+        old_theme = user_data.get("theme", "system")
+        if profile_update.theme != old_theme:
+            changes["theme"] = {"old": old_theme, "new": profile_update.theme}
+        database.users.update_user_theme(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            theme=profile_update.theme,
         )
 
     # Fetch updated user

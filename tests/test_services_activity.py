@@ -121,7 +121,7 @@ def test_log_event_triggers_activity_tracking(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="user",
         artifact_id=str(test_user["id"]),
-        event_type="test_event",
+        event_type="user_updated",
     )
 
     # Verify activity was recorded (because log_event calls track_activity)
@@ -140,7 +140,7 @@ def test_log_event_skips_activity_for_system_actor(test_tenant, test_user):
         actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="user",
         artifact_id=str(test_user["id"]),
-        event_type="system_event",
+        event_type="user_auto_inactivated",
     )
 
     # Verify no activity was recorded for system actor
@@ -159,14 +159,14 @@ def test_log_event_creates_event_log_entry(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="user",
         artifact_id=str(test_user["id"]),
-        event_type="test_event_created",
+        event_type="user_created",
         metadata={"test_key": "test_value"},
     )
 
     # Query event_logs table to verify the entry was created
     events = database.event_log.list_events(
         test_tenant["id"],
-        event_type="test_event_created",
+        event_type="user_created",
         actor_user_id=str(test_user["id"]),
     )
 
@@ -174,7 +174,7 @@ def test_log_event_creates_event_log_entry(test_tenant, test_user):
     event = events[0]
     assert event["artifact_type"] == "user"
     assert str(event["artifact_id"]) == str(test_user["id"])
-    assert event["event_type"] == "test_event_created"
+    assert event["event_type"] == "user_created"
     assert event["metadata"]["test_key"] == "test_value"
 
 

@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import database
 import settings
+from constants.event_types import EVENT_TYPE_DESCRIPTIONS
 from jobs.registry import register_handler
 from utils import storage
 from utils.email import send_email
@@ -67,6 +68,7 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     # Convert to JSON
     export_data = {
         "events": all_events,
+        "event_type_descriptions": EVENT_TYPE_DESCRIPTIONS,
         "exported_at": datetime.now(UTC).isoformat(),
         "count": len(all_events),
         "tenant_id": tenant_id,

@@ -28,6 +28,7 @@ import logging
 from typing import Any
 
 import database
+from constants.event_types import EVENT_TYPE_DESCRIPTIONS, get_event_description
 from schemas.event_log import EventLogItem, EventLogListResponse
 from services.activity import track_activity
 from services.exceptions import ForbiddenError, NotFoundError
@@ -73,6 +74,8 @@ def log_event(
             (IP, user agent, device, session). If not provided, reads from contextvar.
 
     Raises:
+        ValueError: If event_type is not defined in EVENT_TYPE_DESCRIPTIONS.
+            All event types must have a description before they can be logged.
         RuntimeError: If request context is missing and not in system context.
             This indicates a web request handler is missing context middleware,
             or background code forgot to use system_context().
@@ -81,6 +84,13 @@ def log_event(
         This function is synchronous - the log entry is written before returning.
         It does not raise on failure to avoid disrupting the main business operation.
     """
+    # Validate event type has a description (enforces documentation)
+    if event_type not in EVENT_TYPE_DESCRIPTIONS:
+        raise ValueError(
+            f"Unknown event type '{event_type}'. "
+            "Add it to app/constants/event_types.py before use."
+        )
+
     # Auto-populate from contextvar if not explicitly provided
     if request_metadata is None:
         request_metadata = get_request_context()
@@ -228,6 +238,7 @@ def list_events(
                 artifact_name=artifact_name,
                 artifact_email=e.get("artifact_email"),
                 event_type=e["event_type"],
+                event_description=get_event_description(e["event_type"]),
                 metadata=metadata_dict,
                 created_at=e["created_at"],
                 remote_address=remote_address,
@@ -301,6 +312,7 @@ def get_event(
         artifact_name=artifact_name,
         artifact_email=event.get("artifact_email"),
         event_type=event["event_type"],
+        event_description=get_event_description(event["event_type"]),
         metadata=metadata_dict,
         created_at=event["created_at"],
         remote_address=remote_address,

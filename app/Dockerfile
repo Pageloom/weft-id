@@ -29,9 +29,16 @@ RUN cd /tmp && poetry install --no-root && rm -rf /tmp/pyproject.toml /tmp/poetr
 COPY app/ /app/
 
 # Install Tailwind CLI and build CSS
-RUN curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 \
- && chmod +x tailwindcss-linux-x64 \
- && mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+# Use TARGETARCH to download the correct binary for the build platform
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      TAILWIND_ARCH="arm64"; \
+    else \
+      TAILWIND_ARCH="x64"; \
+    fi \
+ && curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-${TAILWIND_ARCH} \
+ && chmod +x tailwindcss-linux-${TAILWIND_ARCH} \
+ && mv tailwindcss-linux-${TAILWIND_ARCH} /usr/local/bin/tailwindcss
 
 # Copy Tailwind config and CSS source from root
 COPY tailwind.config.js /app/

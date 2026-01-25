@@ -198,7 +198,7 @@ def add_privileged_domain(
                 artifact_id=str(row["id"]),
                 event_type="privileged_domain_added",
                 metadata={"domain": domain_clean},
-                    )
+            )
             return _domain_row_to_model(row)
 
     # Should not happen, but handle gracefully

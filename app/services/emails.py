@@ -225,7 +225,7 @@ def add_user_email(
                     "is_admin_action": is_admin_action,
                     "auto_verified": is_admin_action,
                 },
-                    )
+            )
             return _email_row_to_info(e)
 
     # Fallback if fetch fails (shouldn't happen)

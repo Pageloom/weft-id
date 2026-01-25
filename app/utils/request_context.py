@@ -13,9 +13,7 @@ from contextvars import ContextVar
 from typing import Any
 
 # The contextvar holding request metadata (IP, user agent, device, session hash)
-_request_context: ContextVar[dict[str, Any] | None] = ContextVar(
-    "request_context", default=None
-)
+_request_context: ContextVar[dict[str, Any] | None] = ContextVar("request_context", default=None)
 
 # Marker for system/background context (legitimate no-metadata scenario)
 _system_context: ContextVar[bool] = ContextVar("system_context", default=False)

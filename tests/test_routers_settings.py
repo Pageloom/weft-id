@@ -726,7 +726,6 @@ def test_settings_index_fallback_to_dashboard():
 
 def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user):
     """Test super_admin user fetches IdPs for domain binding dropdown."""
-    from datetime import UTC, datetime
 
     from dependencies import (
         get_current_user,

@@ -644,7 +644,7 @@ def update_user(
                     "current_role": current_role,
                     "attempted_role": new_role,
                 },
-                    )
+            )
             raise ForbiddenError(
                 message="Only super_admin can change admin or super_admin roles",
                 code="super_admin_role_change_denied",
@@ -711,7 +711,7 @@ def update_user(
             artifact_id=user_id,
             event_type="user_updated",
             metadata={"changes": changes},
-            )
+        )
 
     return _user_row_to_detail(updated_user, emails, is_service)
 
@@ -1229,7 +1229,7 @@ def update_current_user_profile(
             artifact_id=user_id,
             event_type="user_profile_updated",
             metadata={"changes": changes},
-            )
+        )
 
     return _user_row_to_profile(updated_user)
 

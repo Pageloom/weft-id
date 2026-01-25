@@ -1818,7 +1818,7 @@ def bind_domain_to_idp(
                 "domain": domain["domain"],
                 "password_wiped": False,
             },
-            )
+        )
 
     return DomainBinding(
         id=str(row["id"]),
@@ -2005,7 +2005,7 @@ def rebind_domain_to_idp(
                 "domain": domain["domain"],
                 "previous_idp_id": previous_idp_id,
             },
-            )
+        )
 
     return DomainBinding(
         id=str(row["id"]),

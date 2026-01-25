@@ -4,7 +4,6 @@ import random
 
 import argh
 import database
-import settings
 import utils.password
 import utils.validate
 

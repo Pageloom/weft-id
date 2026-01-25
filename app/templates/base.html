@@ -3,6 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Theme detection - MUST be before stylesheet to prevent flash of unstyled content -->
+    <script>
+    (function() {
+        var stored = localStorage.getItem('theme') || 'system';
+        var dark = stored === 'dark' ||
+            (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+            document.documentElement.classList.add('dark');
+        }
+    })();
+    </script>
     <title>{% block title %}Loom{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/output.css">
     <style>
@@ -13,29 +24,29 @@
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-gray-900">
     <!-- Cookie notice banner -->
-    <div id="cookie-notice" class="hidden fixed bottom-4 right-4 max-w-xs bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50">
-        <p class="text-sm text-gray-600 mb-3">
+    <div id="cookie-notice" class="hidden fixed bottom-4 right-4 max-w-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 z-50">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
             This site uses cookies for authentication.
-            <a href="https://www.pageloom.com/privacy/" class="underline hover:text-gray-800" target="_blank" rel="noopener">Learn more</a>
+            <a href="https://www.pageloom.com/privacy/" class="underline hover:text-gray-800 dark:hover:text-gray-200" target="_blank" rel="noopener">Learn more</a>
         </p>
-        <button id="cookie-accept" class="text-sm bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700">
+        <button id="cookie-accept" class="text-sm bg-gray-800 dark:bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 dark:hover:bg-gray-500">
             Got it
         </button>
     </div>
 
     {% if user %}
     <!-- Top-level navigation -->
-    <nav class="bg-white border-b border-gray-200">
+    <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div class="container mx-auto px-4 max-w-7xl">
             <div class="flex justify-between items-center h-16">
                 <!-- Main navigation items -->
                 <div class="flex items-center space-x-8">
-                    <span class="text-xl font-bold text-gray-900">Loom</span>
+                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100">Loom</span>
                     {% for page in nav.top_level_items %}
                         <a href="{{ page.path }}"
-                           class="px-3 py-2 rounded-md text-sm font-medium {% if nav.active_top_level and nav.active_top_level.path == page.path %}bg-gray-100 text-gray-900{% else %}text-gray-700 hover:text-gray-900{% endif %}">
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if nav.active_top_level and nav.active_top_level.path == page.path %}bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100{% else %}text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100{% endif %}">
                             {{ page.title }}
                         </a>
                     {% endfor %}
@@ -43,7 +54,7 @@
 
                 <!-- User dropdown menu -->
                 <div class="relative">
-                    <button id="user-menu-button" type="button" class="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                    <button id="user-menu-button" type="button" class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-gray-800">
                         <span>{{ user.first_name }} {{ user.last_name }}</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -51,17 +62,17 @@
                     </button>
 
                     <!-- Dropdown menu -->
-                    <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                    <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 dark:ring-gray-700">
                         <div class="py-1" role="menu">
-                            <a href="/account" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                            <a href="/account" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" role="menuitem">
                                 User Settings
                             </a>
-                            <a href="/account/background-jobs" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                            <a href="/account/background-jobs" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" role="menuitem">
                                 Background Jobs
                             </a>
                             <form method="post" action="/logout" class="block">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" role="menuitem">
                                     Sign Out
                                 </button>
                             </form>
@@ -74,12 +85,12 @@
 
     <!-- Sub-navigation (second level) -->
     {% if nav.sub_nav_items %}
-    <nav class="bg-gray-50 border-b border-gray-200">
+    <nav class="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div class="container mx-auto px-4 max-w-7xl">
             <div class="flex items-center space-x-1 h-12">
                 {% for page in nav.sub_nav_items %}
                     <a href="{{ page.path }}"
-                       class="px-4 py-2 rounded-md text-sm {% if nav.active_sub_level and nav.active_sub_level.path == page.path %}bg-white text-gray-900 font-semibold{% else %}text-gray-600 hover:text-gray-900 font-semibold{% endif %}">
+                       class="px-4 py-2 rounded-md text-sm {% if nav.active_sub_level and nav.active_sub_level.path == page.path %}bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold{% else %}text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 font-semibold{% endif %}">
                         {{ page.title }}
                     </a>
                 {% endfor %}
@@ -90,12 +101,12 @@
 
     <!-- Sub-sub-navigation (third level) -->
     {% if nav.sub_sub_nav_items %}
-    <nav class="bg-gray-100 border-b border-gray-200">
+    <nav class="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div class="container mx-auto px-4 max-w-7xl">
             <div class="flex items-center space-x-1 h-10">
                 {% for page in nav.sub_sub_nav_items %}
                     <a href="{{ page.path }}"
-                       class="px-3 py-1 rounded-md text-xs font-medium {% if nav.current_page and nav.current_page.path == page.path %}bg-white text-gray-900{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                       class="px-3 py-1 rounded-md text-xs font-medium {% if nav.current_page and nav.current_page.path == page.path %}bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100{% else %}text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100{% endif %}">
                         {{ page.title }}
                     </a>
                 {% endfor %}
@@ -133,6 +144,24 @@
                 e.stopPropagation();
             });
         }
+
+        // Sync theme from server (handles cross-device sync)
+        (function() {
+            var serverTheme = '{{ user.theme or "system" }}';
+            var localTheme = localStorage.getItem('theme');
+            if (serverTheme !== localTheme) {
+                localStorage.setItem('theme', serverTheme);
+                // Re-apply theme if needed
+                var html = document.documentElement;
+                var dark = serverTheme === 'dark' ||
+                    (serverTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (dark && !html.classList.contains('dark')) {
+                    html.classList.add('dark');
+                } else if (!dark && html.classList.contains('dark')) {
+                    html.classList.remove('dark');
+                }
+            }
+        })();
     </script>
     {% endif %}
 

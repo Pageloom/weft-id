@@ -4,57 +4,57 @@
 
 {% block content %}
 <div class="max-w-4xl">
-    <div class="bg-white rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6">Multi-Factor Authentication</h1>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Multi-Factor Authentication</h1>
 
         <div class="mb-8">
             <div class="space-y-3">
                 {% if mfa_method == 'totp' %}
-                <div class="block border border-gray-300 rounded-md p-4 cursor-not-allowed">
-                    <h3 class="font-medium text-gray-900">Authenticator App / Password Manager (TOTP) <span class="text-green-600 text-xs">(Currently Active)</span>
+                <div class="block border border-gray-300 dark:border-gray-600 rounded-md p-4 cursor-not-allowed">
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App / Password Manager (TOTP) <span class="text-green-600 dark:text-green-400 text-xs">(Currently Active)</span>
                     </h3>
-                    <p class="text-sm text-gray-500 mt-1">Use Google Authenticator, Authy, password managers, or similar
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, password managers, or similar
                         to generate time-based codes</p>
                 </div>
                 <form method="post" action="/account/mfa/setup/email">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                            class="w-full text-left border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
-                        <h3 class="font-medium text-gray-900">Email</h3>
-                        <p class="text-sm text-gray-500 mt-1">Receive one-time codes via email</p>
+                            class="w-full text-left border border-gray-300 dark:border-gray-600 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <h3 class="font-medium text-gray-900 dark:text-gray-100">Email</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Receive one-time codes via email</p>
                     </button>
                 </form>
                 {% else %}
-                <div class="block border border-gray-300 rounded-md p-4 cursor-not-allowed">
-                    <h3 class="font-medium text-gray-900">Email <span class="text-green-600 text-xs">(Currently Active)</span>
+                <div class="block border border-gray-300 dark:border-gray-600 rounded-md p-4 cursor-not-allowed">
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Email <span class="text-green-600 dark:text-green-400 text-xs">(Currently Active)</span>
                     </h3>
-                    <p class="text-sm text-gray-500 mt-1">Receive one-time codes via email</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Receive one-time codes via email</p>
                 </div>
                 <a href="/account/mfa/setup/totp"
-                   class="block border border-gray-300 rounded-md p-4 hover:bg-gray-50 transition">
-                    <h3 class="font-medium text-gray-900">Authenticator App / Password Manager (TOTP)</h3>
-                    <p class="text-sm text-gray-500 mt-1">Use Google Authenticator, Authy, password managers, or similar
+                   class="block border border-gray-300 dark:border-gray-600 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App / Password Manager (TOTP)</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, password managers, or similar
                         to generate time-based codes</p>
                 </a>
                 {% endif %}
             </div>
         </div>
 
-        <div class="border-t border-gray-200 pt-6">
-            <h2 class="text-lg font-medium mb-4">Backup Codes</h2>
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Backup Codes</h2>
             {% if backup_codes %}
-            <p class="text-sm text-gray-600 mb-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 You have {{ backup_codes|length }} backup codes. Each can be used once to sign in if you lose access to
                 your primary MFA method.
             </p>
             <div class="space-y-2">
                 {% for code in backup_codes %}
-                <div class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-4 py-2">
-                    <code class="text-sm font-mono">{{ code.code }}</code>
+                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-4 py-2">
+                    <code class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ code.code }}</code>
                     {% if code.used_at %}
-                    <span class="text-xs text-gray-500">Used on {{ fmt_datetime(code.used_at) }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Used on {{ fmt_datetime(code.used_at) }}</span>
                     {% else %}
-                    <span class="text-xs text-green-600">Available</span>
+                    <span class="text-xs text-green-600 dark:text-green-400">Available</span>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -62,16 +62,16 @@
             <form method="post" action="/account/mfa/regenerate-backup-codes" class="mt-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
-                        class="border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-md transition duration-150">
+                        class="border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium py-2 px-4 rounded-md transition duration-150">
                     Regenerate Backup Codes
                 </button>
             </form>
             {% else %}
-            <p class="text-sm text-gray-600 mb-4">You don't have any backup codes yet.</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">You don't have any backup codes yet.</p>
             <form method="post" action="/account/mfa/generate-backup-codes">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
-                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                        class="bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 font-medium py-2 px-4 rounded-md transition duration-150">
                     Generate Backup Codes
                 </button>
             </form>

@@ -279,6 +279,107 @@ def test_update_regional_swedish_locale(test_user):
         assert profile_update.locale == "sv_SE"
 
 
+def test_update_theme_dark(test_user):
+    """Test updating theme to dark."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-theme",
+            data={"theme": "dark"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.theme == "dark"
+
+
+def test_update_theme_light(test_user):
+    """Test updating theme to light."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-theme",
+            data={"theme": "light"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.theme == "light"
+
+
+def test_update_theme_system(test_user):
+    """Test updating theme to system (follow OS preference)."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-theme",
+            data={"theme": "system"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        profile_update = call_args[0][2]
+        assert profile_update.theme == "system"
+
+
+def test_update_theme_invalid_value(test_user):
+    """Test updating theme with invalid value is rejected."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
+    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[require_current_user] = lambda: test_user
+
+    with patch("services.users.update_current_user_profile") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/account/profile/update-theme",
+            data={"theme": "invalid"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/profile"
+        mock_update.assert_not_called()
+
+
 def test_email_settings_page(test_user):
     """Test email settings page renders."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_current_user

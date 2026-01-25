@@ -3,21 +3,21 @@
 {% block title %}Account Inactivated - Loom{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gray-50">
+<div class="min-h-screen flex items-center justify-center">
     <div class="max-w-md w-full space-y-8 p-8">
-        <div class="bg-white rounded-lg shadow-sm p-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
             <div class="text-center mb-6">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
-                    <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 mb-4">
+                    <svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                 </div>
-                <h2 class="text-2xl font-semibold text-gray-900">
+                <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
                     Account Inactivated
                 </h2>
             </div>
 
-            <div class="text-gray-600 text-center mb-6">
+            <div class="text-gray-600 dark:text-gray-400 text-center mb-6">
                 {% if status == 'inactivated' %}
                 <p class="mb-4">
                     Your account has been inactivated due to inactivity. If you'd like to regain access,
@@ -37,8 +37,8 @@
             </div>
 
             {% if can_request %}
-            <div class="border-t border-gray-200 pt-6">
-                <p class="text-sm text-gray-500 mb-4">
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     To request reactivation, we'll send a verification code to your email address.
                     After verification, your request will be sent to an administrator for approval.
                 </p>
@@ -46,7 +46,7 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="user_id" value="{{ inactivated_user.id }}">
                     <button type="submit"
-                            class="w-full bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                            class="w-full bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 font-medium py-2 px-4 rounded-md transition duration-150">
                         Request Reactivation
                     </button>
                 </form>
@@ -54,7 +54,7 @@
             {% endif %}
 
             <div class="mt-6 text-center">
-                <a href="/login" class="text-sm text-gray-500 hover:text-gray-700">
+                <a href="/login" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
                     Back to Login
                 </a>
             </div>

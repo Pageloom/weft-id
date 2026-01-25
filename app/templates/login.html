@@ -5,11 +5,11 @@
 {% block content %}
 <div class="flex justify-center">
     <div class="w-full max-w-md">
-        <div class="bg-white rounded-lg shadow-sm p-8">
-            <h1 class="text-2xl font-semibold text-center mb-6">Sign In</h1>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+            <h1 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-gray-100">Sign In</h1>
 
             {% if success %}
-            <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6" role="alert">
+            <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if success == 'email_verified' %}
                 Email verified successfully! You can now log in.
                 {% elif success == 'password_set' %}
@@ -27,7 +27,7 @@
             {% endif %}
 
             {% if error %}
-            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6" role="alert">
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if error == 'verification_failed' %}
                 Email verification failed. Please contact your administrator.
                 {% elif error == 'invalid_verification_link' %}
@@ -64,9 +64,9 @@
                 <input type="hidden" id="locale" name="locale" value="">
 
                 <div class="mb-4">
-                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                     <input type="email"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                            id="email"
                            name="email"
                            value="{{ prefill_email }}"
@@ -74,21 +74,21 @@
                 </div>
 
                 <div class="mb-6">
-                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
                     <input type="password"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                            id="password"
                            name="password"
                            required
                            autofocus>
                 </div>
 
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition duration-150">
                     Sign In
                 </button>
 
                 <div class="mt-4 text-center">
-                    <a href="/login" class="text-sm text-blue-600 hover:text-blue-800">
+                    <a href="/login" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                         Use a different email
                     </a>
                 </div>
@@ -98,9 +98,9 @@
             <form method="post" action="/login/send-code" id="emailForm">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-6">
-                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                     <input type="email"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                            id="email"
                            name="email"
                            value="{{ prefill_email }}"
@@ -109,7 +109,7 @@
                            autofocus>
                 </div>
 
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-150">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition duration-150">
                     Continue
                 </button>
             </form>

@@ -150,6 +150,25 @@ def update_regional(
     return RedirectResponse(url="/account/profile", status_code=303)
 
 
+@router.post("/profile/update-theme")
+def update_theme(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    theme: Annotated[str, Form()],
+):
+    """Update user's theme preference."""
+    # Validate theme
+    if theme not in ("system", "light", "dark"):
+        return RedirectResponse(url="/account/profile", status_code=303)
+
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
+    profile_update = UserProfileUpdate(theme=theme)
+    users_service.update_current_user_profile(requesting_user, user, profile_update)
+
+    return RedirectResponse(url="/account/profile", status_code=303)
+
+
 @router.get("/emails", response_class=HTMLResponse)
 def email_settings(
     request: Request,

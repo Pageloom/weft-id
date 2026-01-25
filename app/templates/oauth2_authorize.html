@@ -5,18 +5,18 @@
 {% block content %}
 <div class="flex justify-center">
     <div class="w-full max-w-md">
-        <div class="bg-white rounded-lg shadow-sm p-8">
-            <h1 class="text-2xl font-semibold text-center mb-6">Authorize Application</h1>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+            <h1 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-gray-100">Authorize Application</h1>
 
-            <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded mb-6">
+            <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-gray-700 text-blue-800 dark:text-blue-300 px-4 py-3 rounded mb-6">
                 <p class="font-semibold mb-2">{{ client.name }}</p>
                 <p class="text-sm">This application is requesting access to your account.</p>
             </div>
 
             <div class="mb-6">
-                <p class="text-sm text-gray-600 mb-2">Signed in as:</p>
-                <p class="font-semibold">{{ user.first_name }} {{ user.last_name }}</p>
-                <p class="text-sm text-gray-600">{{ user.email }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Signed in as:</p>
+                <p class="font-semibold text-gray-900 dark:text-gray-100">{{ user.first_name }} {{ user.last_name }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ user.email }}</p>
             </div>
 
             <form method="post" action="/oauth2/authorize">
@@ -36,7 +36,7 @@
                         type="submit"
                         name="action"
                         value="deny"
-                        class="flex-1 bg-gray-200 text-gray-700 py-3 px-4 rounded hover:bg-gray-300 font-semibold"
+                        class="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 px-4 rounded hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold"
                     >
                         Deny
                     </button>

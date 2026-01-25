@@ -2,6 +2,7 @@
 
 Quick reminders to later build out into full backlog items.
 
+- Darkmode + auto switch depending on device mode
 - Add backstop test that checks that all frontend endpoints that are not GET are csrf-protected
 - With email based sign-in - verify email address on initial sign-in step.
 - IP allow list

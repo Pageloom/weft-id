@@ -538,3 +538,403 @@ def test_tenant_security_form_action_url_is_correct():
         "app/routers/settings.py:143 (router prefix='/admin', route='/security/update'). "
         "Found form action does not match the actual route endpoint."
     )
+
+
+# =============================================================================
+# Domain-to-IdP Binding Route Tests
+# =============================================================================
+
+
+def test_bind_domain_to_idp_success(test_super_admin_user):
+    """Test binding a domain to an IdP redirects with success."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
+        client = TestClient(app)
+        response = client.post(
+            "/admin/privileged-domains/domain-123/bind",
+            data={"idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/admin/privileged-domains?success=domain_bound" in response.headers["location"]
+        mock_bind.assert_called_once()
+        call_kwargs = mock_bind.call_args[1]
+        assert call_kwargs["domain_id"] == "domain-123"
+        assert call_kwargs["idp_id"] == "idp-456"
+
+
+def test_bind_domain_to_idp_service_error(test_super_admin_user):
+    """Test binding domain with service error renders error page."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
+        with patch("routers.settings.render_error_page") as mock_error:
+            mock_bind.side_effect = ServiceError(message="IdP not found")
+            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/admin/privileged-domains/domain-123/bind",
+                data={"idp_id": "idp-456"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error.assert_called_once()
+
+
+def test_unbind_domain_from_idp_success(test_super_admin_user):
+    """Test unbinding a domain from IdP redirects with success."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
+        client = TestClient(app)
+        response = client.post(
+            "/admin/privileged-domains/domain-123/unbind",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/admin/privileged-domains?success=domain_unbound" in response.headers["location"]
+        mock_unbind.assert_called_once()
+        call_kwargs = mock_unbind.call_args[1]
+        assert call_kwargs["domain_id"] == "domain-123"
+
+
+def test_unbind_domain_from_idp_service_error(test_super_admin_user):
+    """Test unbinding domain with service error renders error page."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
+        with patch("routers.settings.render_error_page") as mock_error:
+            mock_unbind.side_effect = ServiceError(message="Domain not bound")
+            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/admin/privileged-domains/domain-123/unbind",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error.assert_called_once()
+
+
+# =============================================================================
+# Settings Index Fallback Test
+# =============================================================================
+
+
+def test_settings_index_fallback_to_dashboard():
+    """Test settings index falls back to dashboard when no children are accessible.
+
+    This tests the fallback path (line 47) when get_first_accessible_child returns None.
+    We need a user with a role that has NO accessible admin children.
+    """
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    # Create a mock user with a role that has no accessible admin pages
+    mock_user = {
+        "id": "test-id",
+        "tenant_id": "test-tenant",
+        "role": "nonexistent_role",  # Role with no access
+        "first_name": "Test",
+        "last_name": "User",
+    }
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: mock_user["tenant_id"]
+    app.dependency_overrides[require_admin] = lambda: mock_user
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    # Mock the function where it's imported into the module
+    with patch("routers.settings.get_first_accessible_child", return_value=None):
+        client = TestClient(app)
+        response = client.get("/admin/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+
+
+# =============================================================================
+# Privileged Domains with Super Admin IdP Fetching Test
+# =============================================================================
+
+
+def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user):
+    """Test super_admin user fetches IdPs for domain binding dropdown."""
+    from datetime import UTC, datetime
+
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+    )
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("database.settings.list_privileged_domains") as mock_domains:
+        with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
+            with patch("routers.settings.templates.TemplateResponse") as mock_template:
+                mock_domains.return_value = []
+                mock_idps.return_value = Mock(items=[{"id": "idp-1", "name": "Test IdP"}])
+                mock_template.return_value = HTMLResponse(content="<html>domains</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/privileged-domains")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Verify IdPs were fetched for super_admin
+                mock_idps.assert_called_once()
+
+
+def test_privileged_domains_regular_admin_no_idps(test_admin_user):
+    """Test regular admin user does not fetch IdPs (not super_admin)."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+    )
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("database.settings.list_privileged_domains") as mock_domains:
+        with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
+            with patch("routers.settings.templates.TemplateResponse") as mock_template:
+                mock_domains.return_value = []
+                mock_template.return_value = HTMLResponse(content="<html>domains</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/privileged-domains")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                # Verify IdPs were NOT fetched for regular admin
+                mock_idps.assert_not_called()
+
+
+# =============================================================================
+# Security Settings Error Handling Tests
+# =============================================================================
+
+
+def test_admin_security_service_error(test_super_admin_user):
+    """Test security settings page shows error when service fails."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.settings_service.get_security_settings") as mock_get:
+        with patch("routers.settings.render_error_page") as mock_error:
+            mock_get.side_effect = ServiceError(message="Database error")
+            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.get("/admin/security")
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error.assert_called_once()
+
+
+def test_update_security_non_numeric_timeout_error(test_super_admin_user):
+    """Test updating security with non-numeric timeout shows error."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
+        mock_template.return_value = HTMLResponse(content="Error", status_code=400)
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/security/update",
+            data={
+                "session_timeout": "not-a-number",  # Non-numeric
+                "persistent_sessions": "true",
+                "allow_users_edit_profile": "true",
+                "allow_users_add_emails": "true",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 400
+
+
+def test_update_security_non_numeric_inactivity_error(test_super_admin_user):
+    """Test updating security with non-numeric inactivity threshold shows error."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
+        mock_template.return_value = HTMLResponse(content="Error", status_code=400)
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/security/update",
+            data={
+                "session_timeout": "3600",
+                "persistent_sessions": "true",
+                "allow_users_edit_profile": "true",
+                "allow_users_add_emails": "true",
+                "inactivity_threshold": "not-a-number",  # Correct field name
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 400
+
+
+def test_update_security_service_error(test_super_admin_user):
+    """Test updating security with service error shows error page."""
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_super_admin,
+    )
+    from fastapi.responses import HTMLResponse
+    from services.exceptions import ServiceError
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
+        "tenant_id"
+    ]
+    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+
+    with patch("routers.settings.settings_service.update_security_settings") as mock_update:
+        with patch("routers.settings.render_error_page") as mock_error:
+            mock_update.side_effect = ServiceError(message="Database error")
+            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/admin/security/update",
+                data={
+                    "session_timeout": "3600",
+                    "persistent_sessions": "true",
+                    "allow_users_edit_profile": "true",
+                    "allow_users_add_emails": "true",
+                },
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error.assert_called_once()

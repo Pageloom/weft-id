@@ -55,8 +55,7 @@ def create_export_task(requesting_user: RequestingUser) -> dict | None:
             artifact_id=str(result["id"]),
             event_type="export_task_created",
             metadata={"job_type": "export_events"},
-            request_metadata=requesting_user.get("request_metadata"),
-        )
+            )
 
     return result
 
@@ -173,7 +172,6 @@ def delete_jobs(requesting_user: RequestingUser, job_ids: list[str]) -> int:
             artifact_id=job_ids[0],
             event_type="jobs_deleted",
             metadata={"count": count, "job_ids": job_ids},
-            request_metadata=requesting_user.get("request_metadata"),
-        )
+            )
 
     return count

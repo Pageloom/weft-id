@@ -63,7 +63,6 @@ def _require_admin(user: RequestingUser) -> None:
                 "actual_role": user["role"],
                 "service": "mfa",
             },
-            request_metadata=user.get("request_metadata"),
         )
         raise ForbiddenError(
             message="Admin access required",

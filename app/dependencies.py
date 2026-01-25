@@ -6,7 +6,7 @@ import database
 import settings
 from fastapi import Depends, HTTPException, Request
 from services.types import RequestingUser
-from utils import auth, request_metadata
+from utils import auth
 
 
 class RedirectError(Exception):
@@ -160,9 +160,5 @@ def build_requesting_user(
         "tenant_id": tenant_id,
         "role": user.get("role", "member"),
     }
-
-    # Extract request metadata if request is provided
-    if request is not None:
-        requesting_user["request_metadata"] = request_metadata.extract_request_metadata(request)
 
     return requesting_user

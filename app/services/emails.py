@@ -225,8 +225,7 @@ def add_user_email(
                     "is_admin_action": is_admin_action,
                     "auto_verified": is_admin_action,
                 },
-                request_metadata=requesting_user.get("request_metadata"),
-            )
+                    )
             return _email_row_to_info(e)
 
     # Fallback if fetch fails (shouldn't happen)
@@ -308,7 +307,6 @@ def delete_user_email(
             "email_id": email_id,
             "email": email_address,
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
 
@@ -385,7 +383,6 @@ def set_primary_email(
             "email_id": email_id,
             "email": new_primary_email,
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Fetch updated email

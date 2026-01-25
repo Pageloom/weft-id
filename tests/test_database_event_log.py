@@ -484,8 +484,9 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     from unittest.mock import Mock
 
     import database
-    from dependencies import build_requesting_user
     from services.event_log import log_event
+    from utils.request_context import set_request_context
+    from utils.request_metadata import extract_request_metadata
 
     # Create a mock request with metadata
     mock_request = Mock()
@@ -493,8 +494,9 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
     mock_request.headers = {"user-agent": "Test Browser"}
     mock_request.cookies = {"session": "test-session"}
 
-    # Build requesting user with request metadata
-    requesting_user = build_requesting_user(test_user, str(test_tenant["id"]), mock_request)
+    # Extract and set request metadata in context (simulating middleware)
+    request_metadata = extract_request_metadata(mock_request)
+    set_request_context(request_metadata)
 
     # Get initial counts
     initial_metadata_count = database.fetchone(
@@ -512,7 +514,6 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
         artifact_id=event_id,
         event_type="test_event_with_metadata",
         metadata={"test_key": "test_value"},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Verify metadata was created (may be deduplicated, so count >= initial)

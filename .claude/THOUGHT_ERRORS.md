@@ -4,10 +4,10 @@ This file documents common mistakes Claude makes in this project. Review this be
 
 ## Running Tests
 
-**Wrong:** `python -m pytest` or `docker compose exec web pytest`
-**Right:** `poetry run pytest`
+**Wrong:** `pytest` or `poetry run pytest` (script not found)
+**Right:** `poetry run python -m pytest` or use `./test` shorthand script
 
-Tests must be run via poetry to use the correct virtual environment.
+Tests must be run via poetry to use the correct virtual environment. The pytest executable is not created by Poetry, so we must invoke it as a Python module.
 
 ## Running Linting
 

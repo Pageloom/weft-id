@@ -109,18 +109,19 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
 ### Step 4: Verification
 1. Run the full test suite:
    ```bash
-   poetry run pytest
+   ./test
    ```
+   Or the full command: `poetry run python -m pytest`
    All tests must pass.
 
 2. Check coverage of new tests:
    ```bash
-   poetry run pytest --cov=app --cov-report=term-missing
+   poetry run python -m pytest --cov=app --cov-report=term-missing
    ```
 
 3. For parallel execution (faster on multi-core):
    ```bash
-   poetry run pytest -n auto
+   poetry run python -m pytest -n auto
    ```
 
 4. Suggest manual tests verbally if Playwright can't cover something

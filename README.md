@@ -64,10 +64,11 @@ make sh-app          # Shell into app container
 
 ### Testing & Code Quality
 ```bash
-poetry run pytest                      # Run tests
-poetry run ruff check --fix app/ tests/ # Lint and auto-fix
-poetry run black app/ tests/           # Format code
-poetry run mypy app/                   # Type checking
+./test                                      # Run tests (shorthand)
+poetry run python -m pytest                 # Run tests (full command)
+poetry run ruff check --fix app/ tests/     # Lint and auto-fix
+poetry run black app/ tests/                # Format code
+poetry run mypy app/                        # Type checking
 ```
 
 ### Frontend/CSS Development

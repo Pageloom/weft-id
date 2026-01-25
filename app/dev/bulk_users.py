@@ -144,15 +144,15 @@ LAST_NAMES = [
 ]
 
 
-def create_bulk_users(subdomain: str, count: int, password: str, email_domain: str = ""):
+def create_bulk_users(subdomain: str, count: int, password: str):
     """Create multiple test users with random names for a tenant.
 
     Args:
         subdomain: Tenant subdomain
         count: Number of users to create (max 1000)
         password: Password for all users
-        email_domain: Optional custom email domain (e.g., "pageloom.com"). If not specified,
-                      uses {subdomain}.{BASE_DOMAIN}
+
+    Email addresses are randomly distributed between @acme.com and @example.com domains.
     """
     utils.validate.subdomain(subdomain)
 
@@ -172,13 +172,6 @@ def create_bulk_users(subdomain: str, count: int, password: str, email_domain: s
         raise ValueError(f"Tenant with subdomain {subdomain} not found")
 
     tenant_id = tenant["id"]
-
-    # Get email domain for email generation
-    if email_domain:
-        domain = email_domain
-    else:
-        base_domain = settings.BASE_DOMAIN or "pageloom.localhost"
-        domain = f"{subdomain}.{base_domain}"
 
     password_hash = utils.password.hash_password(password)
 
@@ -210,6 +203,9 @@ def create_bulk_users(subdomain: str, count: int, password: str, email_domain: s
         # Generate random name
         first_name = random.choice(FIRST_NAMES)
         last_name = random.choice(LAST_NAMES)
+
+        # Randomly select email domain
+        domain = random.choice(["acme.com", "example.com"])
 
         # Generate email address (handle duplicates)
         attempt = 0

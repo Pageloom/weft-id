@@ -20,7 +20,7 @@ from starlette.types import ASGIApp
 # and existing inline scripts. Future improvement: migrate to CSP nonces.
 DEFAULT_CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline' https://api.qrserver.com; "
+    "script-src 'self' 'unsafe-inline' https://api.qrserver.com https://cdn.tailwindcss.com; "
     "img-src 'self' https://api.qrserver.com data:; "
     "style-src 'self' 'unsafe-inline'; "
     "frame-ancestors 'none'; "

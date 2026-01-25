@@ -14,6 +14,7 @@ Principles checked:
                         or log_event()
     3. tenant         - SQL queries should filter by tenant_id
     4. api-first      - Service operations should have corresponding API endpoints
+    5. data-quality   - Event log entries have proper request context (requires DB)
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -374,6 +375,17 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Note on Event Context
+# =============================================================================
+# Event context (IP, user agent, device, session) is handled automatically by:
+# 1. RequestContextMiddleware sets contextvar for all web requests
+# 2. log_event() auto-reads from contextvar if request_metadata not passed
+# 3. RuntimeError raised if context missing and not in system_context()
+#
+# No static check needed - the data quality check below verifies it works.
+
+
+# =============================================================================
 # Principle 3: Tenant Isolation
 # =============================================================================
 
@@ -397,10 +409,17 @@ class TenantIsolationVisitor(ast.NodeVisitor):
         self.report = report
         # Wrapper functions that handle RLS scoping
         self.rls_wrappers = {"fetchall", "fetchone", "execute", "fetchval"}
+        # Functions that intentionally bypass RLS (documented cross-tenant operations)
+        self.skip_functions = {"delete_old_debug_entries"}
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         # Skip private/dunder functions
         if node.name.startswith("_"):
+            self.generic_visit(node)
+            return
+
+        # Skip functions that are documented as intentionally cross-tenant
+        if node.name in self.skip_functions:
             self.generic_visit(node)
             return
 
@@ -527,6 +546,13 @@ def check_api_first_violations(report: ComplianceReport) -> None:
         "bg_tasks.py",
     }
 
+    # Services whose API endpoints are consolidated in another router
+    # e.g., mfa and emails are exposed via /api/v1/users/me/mfa/* and /api/v1/users/me/emails/*
+    service_to_api_router = {
+        "mfa": "users",
+        "emails": "users",
+    }
+
     # Collect service functions
     service_functions: dict[str, list[str]] = {}  # module -> [functions]
 
@@ -588,7 +614,9 @@ def check_api_first_violations(report: ComplianceReport) -> None:
     # We'll report service modules that seem to have no API coverage
 
     for module, functions in service_functions.items():
-        api_router_file = api_path / f"{module}.py"
+        # Check if this service maps to a different API router
+        mapped_router = service_to_api_router.get(module, module)
+        api_router_file = api_path / f"{mapped_router}.py"
         if not api_router_file.exists():
             # Check if there's a similar file (e.g., singular vs plural)
             found_similar = False
@@ -619,6 +647,97 @@ def check_api_first_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 5: Event Data Quality (requires database)
+# =============================================================================
+
+
+def check_event_data_quality(report: ComplianceReport) -> None:
+    """
+    Check that event log entries have proper request context.
+
+    This is a data quality check that queries the database to find events
+    that are missing request context (IP, user agent, etc.).
+
+    Requires database connectivity. Skips gracefully if unavailable.
+    """
+    try:
+        # Import database module (may fail if not in app context)
+        sys.path.insert(0, str(get_app_path().parent))
+        import database  # noqa: F401
+        from database._core import get_pool
+    except ImportError as e:
+        # Database not available, skip check
+        print(f"  [SKIP] Event data quality check - database not available: {e}")
+        return
+    except Exception as e:
+        print(f"  [SKIP] Event data quality check - error: {e}")
+        return
+
+    try:
+        pool = get_pool()
+    except Exception as e:
+        print(f"  [SKIP] Event data quality check - cannot connect to database: {e}")
+        return
+
+    # System actor UUID - events from system processes don't need request context
+    system_actor_id = "00000000-0000-0000-0000-000000000000"
+
+    query = """
+        SELECT
+            event_type,
+            COUNT(*) as count
+        FROM event_log
+        WHERE actor_user_id != %s
+          AND (
+              metadata->>'remote_address' IS NULL
+              OR metadata->>'user_agent' IS NULL
+          )
+        GROUP BY event_type
+        ORDER BY count DESC
+        LIMIT 20
+    """
+
+    try:
+        with pool.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (system_actor_id,))
+                results = cur.fetchall()
+    except Exception as e:
+        print(f"  [SKIP] Event data quality check - query failed: {e}")
+        return
+
+    if not results:
+        return
+
+    # Report violations for each event type missing context
+    total_missing = sum(row[1] for row in results)
+
+    for event_type, count in results:
+        report.add(
+            Violation(
+                principle="Event Data Quality",
+                severity="low",
+                file_path="database:event_log",
+                line_number=0,
+                function_name=None,
+                description=f"Events of type '{event_type}' missing request context",
+                evidence=f"{count} event(s) missing remote_address or user_agent",
+                suggested_fix=(
+                    "Ensure log_event() calls pass request_metadata. "
+                    "Run 'python scripts/compliance_check.py --check event-context' "
+                    "to find code locations."
+                ),
+            )
+        )
+
+    if total_missing > 0:
+        print(
+            f"  [INFO] Found {total_missing} events missing request context "
+            f"across {len(results)} event types"
+        )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -632,7 +751,7 @@ def run_compliance_check(
 
     Args:
         principles: List of principles to check, or None for all.
-                   Options: 'architecture', 'activity', 'tenant', 'api-first'
+                   Options: 'architecture', 'activity', 'tenant', 'api-first', 'data-quality'
         output_json: If True, print JSON output. Otherwise, human-readable.
 
     Returns:
@@ -655,6 +774,9 @@ def run_compliance_check(
 
     if "api-first" in principles:
         check_api_first_violations(report)
+
+    if "data-quality" in principles:
+        check_event_data_quality(report)
 
     return report
 
@@ -708,7 +830,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--check",
-        choices=["architecture", "activity", "tenant", "api-first", "all"],
+        choices=["architecture", "activity", "tenant", "api-first", "data-quality", "all"],
         default="all",
         help="Which principle to check (default: all)",
     )

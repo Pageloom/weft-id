@@ -142,7 +142,7 @@ def create_b2b_client(
 
 def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None:
     """
-    Get OAuth2 client by client_id.
+    Get OAuth2 client by client_id (the TEXT identifier, e.g., "loom_client_abc123").
 
     Returns:
         Client record with id, tenant_id, client_id, client_secret_hash, client_type,
@@ -157,6 +157,29 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
         where client_id = :client_id
         """,
         {"client_id": client_id},
+    )
+
+
+def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
+    """
+    Get OAuth2 client by internal UUID (the primary key).
+
+    This is used when looking up client details from token validation,
+    which returns the client's internal ID (FK to oauth2_clients.id).
+
+    Returns:
+        Client record with id, tenant_id, client_id, client_type, name,
+        redirect_uris, service_user_id, created_at
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, tenant_id, client_id, client_type, name,
+               redirect_uris, service_user_id, created_at
+        from oauth2_clients
+        where id = :id
+        """,
+        {"id": id},
     )
 
 

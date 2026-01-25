@@ -16,12 +16,12 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 # Content Security Policy
-# Note: unsafe-inline is allowed for style-src and script-src due to Tailwind CSS
-# and existing inline scripts. Future improvement: migrate to CSP nonces.
+# Note: unsafe-inline is allowed for style-src and script-src due to existing inline scripts.
+# Future improvement: migrate to CSP nonces to remove unsafe-inline.
 DEFAULT_CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline' https://api.qrserver.com https://cdn.tailwindcss.com; "
-    "img-src 'self' https://api.qrserver.com data:; "
+    "script-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
     "style-src 'self' 'unsafe-inline'; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "

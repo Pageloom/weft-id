@@ -60,6 +60,12 @@ python scripts/compliance_check.py          # Check all principles
 python scripts/compliance_check.py --check activity  # Specific check
 ```
 
+**Frontend/CSS build:**
+```bash
+make build-css   # Build Tailwind CSS for production
+make watch-css   # Watch and rebuild CSS on changes (dev mode)
+```
+
 ### Docker Infrastructure (Use Make)
 
 **Service management:**
@@ -90,8 +96,9 @@ Before committing code:
 2. Run linting: `poetry run ruff check --fix app/ tests/`
 3. Run type checking: `poetry run mypy app/`
 4. Run tests: `poetry run pytest`
+5. If you modified templates or added Tailwind classes: `make build-css`
 
-All four must pass before committing.
+All checks must pass before committing.
 
 ## Best Practices
 

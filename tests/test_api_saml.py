@@ -825,3 +825,438 @@ def test_rotate_sp_certificate_unauthenticated(client, test_tenant_host):
     )
 
     assert response.status_code == 401
+
+
+# =============================================================================
+# Domain Binding API Tests (Phase 3)
+# =============================================================================
+
+
+@pytest.fixture
+def privileged_domain(test_tenant, test_super_admin_user):
+    """Create a privileged domain for domain binding tests."""
+    import database
+
+    domain_id = str(uuid.uuid4())
+    database.execute(
+        test_tenant["id"],
+        """INSERT INTO tenant_privileged_domains (id, tenant_id, domain, created_by)
+        VALUES (:id, :tenant_id, :domain, :created_by)""",
+        {
+            "id": domain_id,
+            "tenant_id": test_tenant["id"],
+            "domain": "test-binding.example.com",
+            "created_by": test_super_admin_user["id"],
+        },
+    )
+    return {"id": domain_id, "domain": "test-binding.example.com"}
+
+
+def test_list_idp_domain_bindings_empty(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp
+):
+    """List domain bindings for IdP with no bindings."""
+    response = client.get(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert data["items"] == []
+
+
+def test_list_idp_domain_bindings_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_idp
+):
+    """Regular admin cannot list domain bindings."""
+    response = client.get(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_list_idp_domain_bindings_unauthenticated(client, test_tenant_host, created_idp):
+    """Unauthenticated request returns 401."""
+    response = client.get(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401
+
+
+def test_bind_domain_to_idp_success(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """Super admin can bind a domain to an IdP."""
+    response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["domain_id"] == privileged_domain["id"]
+    assert data["domain"] == privileged_domain["domain"]
+    assert data["idp_id"] == created_idp["id"]
+
+
+def test_bind_domain_to_idp_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_idp, privileged_domain
+):
+    """Regular admin cannot bind domains."""
+    response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+
+    assert response.status_code == 403
+
+
+def test_bind_domain_to_idp_invalid_domain(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp
+):
+    """Binding non-existent domain returns 404."""
+    response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": str(uuid.uuid4())},
+    )
+
+    assert response.status_code == 404
+
+
+def test_bind_domain_to_idp_invalid_idp(
+    client, test_tenant_host, oauth2_super_admin_header, privileged_domain
+):
+    """Binding to non-existent IdP returns 404."""
+    response = client.post(
+        f"/api/v1/saml/idps/{str(uuid.uuid4())}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+
+    assert response.status_code == 404
+
+
+def test_list_idp_domain_bindings_with_binding(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """List domain bindings after binding a domain."""
+    # First bind the domain
+    bind_response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+    assert bind_response.status_code == 201
+
+    # Then list bindings
+    response = client.get(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["domain"] == privileged_domain["domain"]
+
+
+def test_unbind_domain_from_idp_success(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """Super admin can unbind a domain from an IdP."""
+    # First bind the domain
+    bind_response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+    assert bind_response.status_code == 201
+
+    # Then unbind
+    response = client.delete(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 204
+
+
+def test_unbind_domain_from_idp_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_idp, privileged_domain
+):
+    """Regular admin cannot unbind domains."""
+    response = client.delete(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_unbind_domain_not_bound(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """Unbinding a domain that's not bound returns 404."""
+    response = client.delete(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 404
+
+
+def test_rebind_domain_to_different_idp(
+    client,
+    test_tenant_host,
+    oauth2_super_admin_header,
+    created_idp,
+    privileged_domain,
+    sample_idp_data,
+    fast_sp_certificate,
+):
+    """Super admin can rebind a domain to a different IdP."""
+    # First bind the domain to created_idp
+    bind_response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+    assert bind_response.status_code == 201
+
+    # Create a second IdP with unique entity_id
+    second_idp_data = {
+        **sample_idp_data,
+        "name": "Second IdP",
+        "entity_id": f"https://second-idp.example.com/metadata/{uuid.uuid4()}",
+    }
+    create_response = client.post(
+        "/api/v1/saml/idps",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json=second_idp_data,
+    )
+    assert create_response.status_code == 201
+    second_idp = create_response.json()
+
+    # Rebind to second IdP
+    response = client.put(
+        f"/api/v1/saml/idps/{second_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["idp_id"] == second_idp["id"]
+    assert data["domain_id"] == privileged_domain["id"]
+
+
+def test_rebind_domain_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header, created_idp, privileged_domain
+):
+    """Regular admin cannot rebind domains."""
+    response = client.put(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_rebind_domain_not_bound(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """Rebinding a domain that's not bound returns 404."""
+    response = client.put(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains/{privileged_domain['id']}",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 404
+
+
+def test_get_unbound_domains(
+    client, test_tenant_host, oauth2_super_admin_header, privileged_domain
+):
+    """Super admin can list unbound domains."""
+    response = client.get(
+        "/api/v1/saml/domains/unbound",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    # The privileged_domain should be in the unbound list
+    domain_ids = [d["id"] for d in data]
+    assert privileged_domain["id"] in domain_ids
+
+
+def test_get_unbound_domains_as_admin_forbidden(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Regular admin cannot list unbound domains."""
+    response = client.get(
+        "/api/v1/saml/domains/unbound",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_get_unbound_domains_unauthenticated(client, test_tenant_host):
+    """Unauthenticated request returns 401."""
+    response = client.get(
+        "/api/v1/saml/domains/unbound",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401
+
+
+def test_get_unbound_domains_excludes_bound(
+    client, test_tenant_host, oauth2_super_admin_header, created_idp, privileged_domain
+):
+    """Bound domains are excluded from unbound list."""
+    # First bind the domain
+    bind_response = client.post(
+        f"/api/v1/saml/idps/{created_idp['id']}/domains",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"domain_id": privileged_domain["id"]},
+    )
+    assert bind_response.status_code == 201
+
+    # Then check unbound list
+    response = client.get(
+        "/api/v1/saml/domains/unbound",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    domain_ids = [d["id"] for d in data]
+    assert privileged_domain["id"] not in domain_ids
+
+
+# =============================================================================
+# Email Auth Routing API Tests (Phase 3)
+# =============================================================================
+
+
+def test_check_email_auth_route_user_not_found(client, test_tenant_host):
+    """Check auth route for non-existent user."""
+    response = client.post(
+        "/api/v1/saml/auth/check-email",
+        headers={"Host": test_tenant_host},
+        json={"email": "nonexistent@example.com"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["route_type"] == "not_found"
+    assert data["idp_id"] is None
+
+
+def test_check_email_auth_route_password_user(client, test_tenant_host, test_user):
+    """Check auth route for user with password."""
+    import database.user_emails
+
+    # Get the user's email
+    emails = database.user_emails.list_user_emails(
+        test_user["tenant_id"], str(test_user["id"])
+    )
+    user_email = emails[0]["email"]
+
+    response = client.post(
+        "/api/v1/saml/auth/check-email",
+        headers={"Host": test_tenant_host},
+        json={"email": user_email},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["route_type"] == "password"
+    assert data["idp_id"] is None
+
+
+def test_check_email_auth_route_idp_user(
+    client, test_tenant_host, test_user, created_idp, oauth2_super_admin_header
+):
+    """Check auth route for user assigned to IdP."""
+    import database
+    import database.user_emails
+
+    # Assign user to IdP
+    database.execute(
+        test_user["tenant_id"],
+        "UPDATE users SET saml_idp_id = :idp_id WHERE id = :user_id",
+        {"idp_id": created_idp["id"], "user_id": test_user["id"]},
+    )
+
+    # Get the user's email
+    emails = database.user_emails.list_user_emails(
+        test_user["tenant_id"], str(test_user["id"])
+    )
+    user_email = emails[0]["email"]
+
+    response = client.post(
+        "/api/v1/saml/auth/check-email",
+        headers={"Host": test_tenant_host},
+        json={"email": user_email},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["route_type"] == "idp"
+    assert data["idp_id"] == created_idp["id"]
+    assert data["idp_name"] == created_idp["name"]
+
+    # Clean up
+    database.execute(
+        test_user["tenant_id"],
+        "UPDATE users SET saml_idp_id = NULL WHERE id = :user_id",
+        {"user_id": test_user["id"]},
+    )
+
+
+def test_check_email_auth_route_inactivated_user(client, test_tenant_host, test_user):
+    """Check auth route for inactivated user."""
+    import database
+    import database.user_emails
+
+    # Inactivate user
+    database.execute(
+        test_user["tenant_id"],
+        "UPDATE users SET is_inactivated = true WHERE id = :user_id",
+        {"user_id": test_user["id"]},
+    )
+
+    # Get the user's email
+    emails = database.user_emails.list_user_emails(
+        test_user["tenant_id"], str(test_user["id"])
+    )
+    user_email = emails[0]["email"]
+
+    response = client.post(
+        "/api/v1/saml/auth/check-email",
+        headers={"Host": test_tenant_host},
+        json={"email": user_email},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["route_type"] == "inactivated"
+
+    # Clean up
+    database.execute(
+        test_user["tenant_id"],
+        "UPDATE users SET is_inactivated = false WHERE id = :user_id",
+        {"user_id": test_user["id"]},
+    )

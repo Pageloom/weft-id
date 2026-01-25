@@ -237,7 +237,22 @@ Migrate to CSP nonces when inline scripts are refactored:
 
 # Technical Debt
 
-No technical debt issues currently tracked.
+## [TECH-DEBT] Add CSRF Protection Backstop Test
+
+**Severity:** Low
+**Category:** Quality / Security Assurance
+
+**Description:**
+Add a static analysis test that verifies all non-GET frontend routes have CSRF protection. This serves as a guardrail to prevent future regressions where a developer adds a POST/PUT/DELETE route without CSRF protection.
+
+**Implementation:**
+- Test parses frontend router files (not API routers)
+- Identifies all non-GET route handlers
+- Verifies each has the CSRF dependency/decorator
+- Fails if any unprotected routes are found
+
+**Benefit:**
+One-time quality gate that permanently prevents CSRF protection gaps in frontend routes.
 
 ---
 
@@ -248,7 +263,7 @@ No technical debt issues currently tracked.
 | Critical | 0 | - |
 | High | 0 | - |
 | Medium | 1 | Security (OpenAPI endpoints exposed) |
-| Low | 2 | Security (CSP unsafe-inline), Deps (user-agents unmaintained) |
+| Low | 3 | Security (CSP unsafe-inline), Deps (user-agents unmaintained), Tech Debt (CSRF backstop test) |
 
 ## Dependency Audit Summary (2026-01-17)
 

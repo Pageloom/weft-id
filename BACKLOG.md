@@ -6,6 +6,153 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Verbose Descriptions for Event Types
+
+**User Story:**
+As an admin reviewing event logs
+I want human-readable descriptions for each event type
+So that I can quickly understand what each event means without consulting documentation
+
+**Acceptance Criteria:**
+
+**Description Display:**
+- [ ] Mouseover tooltip on event type in event list view
+- [ ] Description shown on event detail pane
+- [ ] Event log export includes machine-readable mapping of all event types to descriptions
+
+**Description Content:**
+- [ ] One-liner description for each event type (e.g., "user.login" → "User successfully authenticated")
+- [ ] All existing event types have descriptions
+
+**Implementation:**
+- [ ] Hardcoded map in `app/constants/event_types.py`: event_type → description
+- [ ] Lockfile `app/constants/event_types.lock` containing all event type keys
+- [ ] Test that verifies lockfile is a subset of current map keys (no deletions allowed)
+- [ ] Adding new event types requires manually updating the lockfile (explicit acknowledgment)
+
+**Backwards Compatibility Guarantee:**
+- [ ] Event types must never be deleted or renamed
+- [ ] Unwanted event types can be deprecated but must remain in the map
+- [ ] Test enforces this by failing if any lockfile entry is missing from the map
+
+**Effort:** S
+**Value:** Medium
+
+---
+
+## Event Detail Pane Cleanup
+
+**User Story:**
+As an admin viewing event details
+I want a clear distinction between context and additional details
+So that I can quickly see the standard info and drill into extras only when relevant
+
+**Acceptance Criteria:**
+
+**Section 1: Context**
+- [ ] Always visible
+- [ ] Shows fields conditionally based on event source:
+  - IP Address (always)
+  - User Agent (always)
+  - Device Type (web only, hidden for API)
+  - Session ID (web only, hidden for API)
+  - API Client (API only, shows client name + client_id)
+- [ ] No "N/A" for inapplicable fields; simply hide them
+
+**Section 2: Details**
+- [ ] Only appears if event has additional event-specific fields
+- [ ] Shows only fields not in the Context section
+- [ ] Hidden entirely if no additional fields exist
+
+**Section 3: Raw Event**
+- [ ] Section at the bottom
+- [ ] Full event as JSON (type, timestamp, user, context, details, everything)
+- [ ] Useful for debugging and support
+
+**Backend: API Client Context Population:**
+- [ ] API client info (client_id, client_name) auto-populated in contextvar when API endpoints are called
+- [ ] Event logging automatically captures API client context (same pattern as web session context)
+
+**Effort:** S
+**Value:** Low
+
+---
+
+## Dark Mode with System Preference Detection
+
+**User Story:**
+As a user
+I want the application to support dark mode that follows my system preference
+So that I can use the platform comfortably in low-light environments
+
+**Acceptance Criteria:**
+
+**User Preference Model:**
+- [ ] New user setting: "Theme" with options: "System" (default), "Light", "Dark"
+- [ ] Setting stored in database, persists across devices
+- [ ] Accessible from user settings page
+
+**Theme Detection & Application:**
+- [ ] When set to "System": detect `prefers-color-scheme` on page load
+- [ ] Theme applied on page load (no mid-session transitions)
+- [ ] Anonymous pages (login, error pages) follow system preference only
+
+**Implementation:**
+- [ ] Tailwind dark mode classes added to all templates using Tailwind's default dark palette
+- [ ] Use Tailwind's `dark:` variant for all color scheme styling
+- [ ] JavaScript snippet in base template for system detection
+- [ ] All pages updated (dashboard, settings, admin pages, auth pages)
+
+**Out of Scope:**
+- Email template dark mode (email clients handle this)
+- Per-tenant default theme setting
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## Admin MFA Reset for Users
+
+**User Story:**
+As an admin or super admin
+I want to disable MFA for a user who has lost access to their authenticator
+So that I can help them regain account access after out-of-band identity verification
+
+**Acceptance Criteria:**
+
+**Access & Permissions:**
+- [ ] Available to admins and super admins
+- [ ] Action appears on user detail page (admin view)
+
+**Behavior:**
+- [ ] "Reset MFA" button disables TOTP MFA for the target user
+- [ ] User's next login follows standard email/password + email OTP flow
+- [ ] User can then re-enroll in TOTP MFA from their settings
+
+**Notification:**
+- [ ] User receives email notification that their MFA was reset
+- [ ] Email includes: timestamp, which admin performed the action
+- [ ] Email does not include any action links (no "click here to re-enable")
+
+**Event Logging:**
+- [ ] Action logged with: admin who performed it, target user, timestamp
+
+**Security Considerations:**
+- [ ] No self-service "I lost my authenticator" flow
+- [ ] No in-app way for users to request MFA reset
+- [ ] Admins expected to verify user identity out-of-band before using this
+
+**Out of Scope:**
+- Self-service MFA recovery
+- Admin notification workflow
+- Rate limiting on resets (trust admins)
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Integration Management Frontend (Apps & B2B)
 
 **User Story:**
@@ -29,7 +176,7 @@ So that I can configure integrations without using API calls directly
 - [ ] On successful creation: show credentials once with checkbox "I have copied the information and stored it securely" to enable proceed button
 - [ ] Edit existing app: Name, Description, Redirect URIs
 - [ ] Regenerate secret with confirmation, same "copied securely" checkbox flow
-- [ ] Delete app with confirmation dialog
+- [ ] Deactivate app (soft-delete: disabled apps remain for event log cross-reference)
 
 **B2B Tab (Service Accounts):**
 
@@ -40,7 +187,7 @@ So that I can configure integrations without using API calls directly
 - [ ] Edit existing B2B client: Name, Description
 - [ ] Change service user role (any super admin can do this)
 - [ ] Regenerate secret with confirmation, same flow
-- [ ] Delete B2B client with confirmation dialog
+- [ ] Deactivate B2B client (soft-delete: disabled clients remain for event log cross-reference)
 
 **Credentials Display (both tabs):**
 

@@ -60,12 +60,6 @@ python scripts/compliance_check.py          # Check all principles
 python scripts/compliance_check.py --check activity  # Specific check
 ```
 
-**Frontend/CSS build:**
-```bash
-make build-css   # Build Tailwind CSS for production
-make watch-css   # Watch and rebuild CSS on changes (dev mode)
-```
-
 ### Docker Infrastructure (Use Make)
 
 **Service management:**
@@ -84,19 +78,54 @@ make logs-app    # Tail specific service logs
 make sh-app      # Open shell in service container
 ```
 
+**Frontend/CSS build:**
+```bash
+make build-css   # Build Tailwind CSS (run after modifying templates)
+make watch-css   # Watch templates and auto-rebuild CSS (recommended for active development)
+```
+
 **Quick reference:**
 ```bash
 make help        # Show all available targets
 ```
 
+### Frontend Development Workflow
+
+**Tailwind CSS is built locally** from `static/css/input.css` → `static/css/output.css`
+
+The build process scans all templates (`app/templates/**/*.html`) and generates CSS containing only the Tailwind utility classes actually used in your templates.
+
+**When adding new Tailwind classes to templates:**
+
+**Option 1: Manual rebuild** (when needed)
+```bash
+make build-css
+```
+Run this after you've added new Tailwind classes to any template file. The generated CSS will be updated with the new classes.
+
+**Option 2: Watch mode** (recommended for active development)
+```bash
+make watch-css
+```
+Leave this running in a separate terminal while working on templates. It automatically detects changes to HTML files and rebuilds the CSS. Press Ctrl+C to stop watching.
+
+**In Docker:**
+The CSS is built during the Docker image build process, so running `make up` will always rebuild the CSS from scratch.
+
 ### Development Workflow
 
-Before committing code:
+**Starting a development session:**
+1. Start Docker services: `make up`
+2. (Optional) Start CSS watch mode: `make watch-css` (in separate terminal)
+3. Work on code/templates normally
+4. CSS rebuilds automatically if watch mode is running
+
+**Before committing code:**
 1. Run formatting: `poetry run black app/ tests/`
 2. Run linting: `poetry run ruff check --fix app/ tests/`
 3. Run type checking: `poetry run mypy app/`
 4. Run tests: `poetry run pytest`
-5. If you modified templates or added Tailwind classes: `make build-css`
+5. If you modified templates and didn't use watch mode: `make build-css`
 
 All checks must pass before committing.
 

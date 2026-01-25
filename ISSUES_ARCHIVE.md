@@ -4,6 +4,54 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [CLEANUP] RequestingUser.request_metadata field is superfluous
+
+**Status:** Resolved (2026-01-25)
+
+**Found in:** `app/services/types.py`, `app/dependencies.py`, multiple service files
+
+**Original Severity:** Low (Technical Debt)
+
+**Original Description:** The `request_metadata` field in `RequestingUser` (defined in `app/services/types.py`) and the explicit passing pattern `request_metadata=requesting_user.get("request_metadata")` in `log_event()` calls were superfluous. Event request context (IP address, user agent, device, session) is handled automatically by `RequestContextMiddleware` which sets a contextvar for ALL web requests, and `log_event()` auto-reads from the contextvar if `request_metadata` not explicitly passed.
+
+**Resolution:**
+- Removed `request_metadata: NotRequired[dict[str, Any] | None]` field from `RequestingUser` TypedDict in `app/services/types.py`
+- Removed unused `Any` and `NotRequired` imports from `app/services/types.py`
+- Removed the if-block that populated `request_metadata` in `build_requesting_user()` in `app/dependencies.py`
+- Removed unused `request_metadata` import from `app/dependencies.py`
+- Removed all 37 occurrences of `request_metadata=requesting_user.get("request_metadata")` and `request_metadata=user.get("request_metadata")` from service files:
+  - `app/services/users.py` (10 occurrences)
+  - `app/services/saml.py` (15 occurrences)
+  - `app/services/settings.py` (3 occurrences)
+  - `app/services/emails.py` (3 occurrences)
+  - `app/services/bg_tasks.py` (2 occurrences)
+  - `app/services/reactivation.py` (3 occurrences)
+  - `app/services/mfa.py` (1 occurrence)
+- Updated `test_event_logging_creates_metadata_and_event` in `tests/test_database_event_log.py` to use `set_request_context()` to simulate middleware behavior
+- Removed unused `build_requesting_user` import from test file
+
+**Impact:**
+- Removed ~40 lines of boilerplate code
+- No functional changes - event logging behavior remains identical
+- Request metadata continues to be auto-populated via `RequestContextMiddleware` contextvar mechanism
+- Background jobs continue to use `system_context()` context manager
+
+**Files Modified:**
+- `app/services/types.py`
+- `app/dependencies.py`
+- `app/services/users.py`
+- `app/services/saml.py`
+- `app/services/settings.py`
+- `app/services/emails.py`
+- `app/services/bg_tasks.py`
+- `app/services/reactivation.py`
+- `app/services/mfa.py`
+- `tests/test_database_event_log.py`
+
+**Verification:** All 1829 tests pass. Type checking and linting pass.
+
+---
+
 ## [BUG] SAML Router Route Ordering Bug - Phase 4 Endpoints Partially Unreachable
 
 **Status:** Resolved (2026-01-19)

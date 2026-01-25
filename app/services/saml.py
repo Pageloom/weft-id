@@ -86,7 +86,6 @@ def _require_super_admin(user: RequestingUser) -> None:
                 "actual_role": user["role"],
                 "service": "saml",
             },
-            request_metadata=user.get("request_metadata"),
         )
         raise ForbiddenError(
             message="Super admin access required",
@@ -187,7 +186,6 @@ def get_or_create_sp_certificate(
         artifact_id=str(cert["id"]),
         event_type="saml_sp_certificate_created",
         metadata={"expires_at": str(expires_at)},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return SPCertificate(
@@ -305,7 +303,6 @@ def rotate_sp_certificate(
             "grace_period_ends_at": str(grace_period_ends),
             "new_expires_at": str(new_expires_at),
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return CertificateRotationResult(
@@ -504,7 +501,6 @@ def create_identity_provider(
             "entity_id": data.entity_id,
             "is_enabled": data.is_enabled,
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _idp_row_to_config(row)
@@ -568,7 +564,6 @@ def update_identity_provider(
         artifact_id=idp_id,
         event_type="saml_idp_updated",
         metadata={"updated_fields": list(update_kwargs.keys())},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _idp_row_to_config(row)
@@ -629,7 +624,6 @@ def delete_identity_provider(
         artifact_id=idp_id,
         event_type="saml_idp_deleted",
         metadata={"name": existing["name"]},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
 
@@ -673,7 +667,6 @@ def set_idp_enabled(
         artifact_id=idp_id,
         event_type=event_type,
         metadata={"name": existing["name"]},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _idp_row_to_config(row)
@@ -717,7 +710,6 @@ def set_idp_default(
         artifact_id=idp_id,
         event_type="saml_idp_set_default",
         metadata={"name": existing["name"]},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _idp_row_to_config(row)
@@ -932,7 +924,6 @@ def refresh_idp_from_metadata(
         artifact_id=idp_id,
         event_type="saml_idp_metadata_refreshed",
         metadata={"name": existing["name"], "manual": True},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return _idp_row_to_config(row)
@@ -1810,7 +1801,6 @@ def bind_domain_to_idp(
             "idp_name": idp["name"],
             "users_assigned": len(user_ids_to_assign),
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Log individual user assignments
@@ -1828,8 +1818,7 @@ def bind_domain_to_idp(
                 "domain": domain["domain"],
                 "password_wiped": False,
             },
-            request_metadata=requesting_user.get("request_metadata"),
-        )
+            )
 
     return DomainBinding(
         id=str(row["id"]),
@@ -1894,7 +1883,6 @@ def unbind_domain_from_idp(
             "domain_id": domain_id,
             "previous_idp_id": str(binding["idp_id"]),
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
 
@@ -2000,7 +1988,6 @@ def rebind_domain_to_idp(
             "new_idp_name": new_idp["name"],
             "users_moved": len(user_ids_to_move),
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Log individual user moves
@@ -2018,8 +2005,7 @@ def rebind_domain_to_idp(
                 "domain": domain["domain"],
                 "previous_idp_id": previous_idp_id,
             },
-            request_metadata=requesting_user.get("request_metadata"),
-        )
+            )
 
     return DomainBinding(
         id=str(row["id"]),
@@ -2149,7 +2135,6 @@ def assign_user_idp(
             "password_wiped": False,
             "user_inactivated": user_inactivated,
         },
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
 

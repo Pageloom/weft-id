@@ -347,7 +347,6 @@ def approve_request(
         artifact_id=request_id,
         event_type="reactivation_approved",
         metadata={"user_id": user_id},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     # Also log user reactivation event
@@ -358,7 +357,6 @@ def approve_request(
         artifact_id=user_id,
         event_type="user_reactivated",
         metadata={"via": "reactivation_request"},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return ReactivationRequest(
@@ -430,7 +428,6 @@ def deny_request(
         artifact_id=request_id,
         event_type="reactivation_denied",
         metadata={"user_id": user_id},
-        request_metadata=requesting_user.get("request_metadata"),
     )
 
     return ReactivationRequest(

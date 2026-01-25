@@ -112,19 +112,15 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
    ./test
    ```
    Or the full command: `poetry run python -m pytest`
-   All tests must pass.
+
+   Tests run in parallel by default (`-n auto` in `pytest.ini`). All tests must pass.
 
 2. Check coverage of new tests:
    ```bash
-   poetry run python -m pytest --cov=app --cov-report=term-missing
+   ./test --cov=app --cov-report=term-missing
    ```
 
-3. For parallel execution (faster on multi-core):
-   ```bash
-   poetry run python -m pytest -n auto
-   ```
-
-4. Suggest manual tests verbally if Playwright can't cover something
+3. Suggest manual tests verbally if Playwright can't cover something
 
 ## Testing Stack
 

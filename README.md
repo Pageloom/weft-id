@@ -64,8 +64,8 @@ make sh-app          # Shell into app container
 
 ### Testing & Code Quality
 ```bash
-./test                                      # Run tests (shorthand)
-poetry run python -m pytest                 # Run tests (full command)
+./test                                      # Run tests (parallelized by default)
+./test --cov=app --cov-report=term-missing  # Run tests with coverage
 poetry run ruff check --fix app/ tests/     # Lint and auto-fix
 poetry run black app/ tests/                # Format code
 poetry run mypy app/                        # Type checking

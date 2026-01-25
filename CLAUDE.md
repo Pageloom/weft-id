@@ -26,11 +26,12 @@ Request → Router → Service → Database → PostgreSQL
 
 **Run tests:**
 ```bash
-poetry run python -m pytest                                    # Run all tests
-poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage
-poetry run python -m pytest -n auto                             # Parallel execution
-./test                                                         # Shorthand (runs all tests)
+./test                                                         # Run all tests (parallelized by default)
+poetry run python -m pytest                                    # Full command
+poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage report
 ```
+
+Note: Tests run in parallel by default (`-n auto` configured in `pytest.ini`).
 
 **Linting:**
 ```bash

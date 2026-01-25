@@ -28,5 +28,18 @@ RUN cd /tmp && poetry install --no-root && rm -rf /tmp/pyproject.toml /tmp/poetr
 # Copy app code
 COPY app/ /app/
 
+# Install Tailwind CLI and build CSS
+RUN curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 \
+ && chmod +x tailwindcss-linux-x64 \
+ && mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+
+# Copy Tailwind config and CSS source from root
+COPY tailwind.config.js /app/
+COPY static/css/input.css /app/static/css/
+
+# Build CSS
+RUN mkdir -p /app/static/css \
+ && tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify
+
 EXPOSE 8000
 ENTRYPOINT ["./dev-docker-entrypoint.sh"]

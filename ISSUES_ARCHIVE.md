@@ -4,6 +4,46 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [SECURITY] OpenAPI/Swagger Debug Endpoints Exposed in Production
+
+**Status:** Resolved (2026-01-25)
+
+**Found in:** `app/main.py:47-48`
+
+**Original Severity:** Medium (downgraded from original assessment due to open source context)
+
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:** The `/docs` (Swagger UI), `/redoc` (ReDoc UI), and `/openapi.json` endpoints were accessible without authentication in production. This exposed the complete API structure, endpoint paths, and parameter schemas to unauthenticated users.
+
+**Risk:** Information disclosure that aids attackers in mapping the API surface. However, since the codebase is open source (MIT licensed), the API structure is already publicly visible in the code. The main risk is exposing instance-specific details like server URLs, enabled/disabled features, and version information.
+
+**Resolution:**
+- Added `ENABLE_OPENAPI_DOCS` environment variable to `app/settings.py` (defaults to `False`)
+- Modified FastAPI app initialization in `app/main.py` to conditionally set `openapi_url`, `docs_url`, and `redoc_url` to `None` when disabled
+- When set to `None`, FastAPI completely disables these endpoints (404 response)
+- Updated `.env`, `.env.dev.example` to set `ENABLE_OPENAPI_DOCS=true` for development convenience
+- Updated `.env.onprem.example` to set `ENABLE_OPENAPI_DOCS=false` with production guidance
+- Added `tests/test_openapi_endpoints.py` with comprehensive test coverage
+- Updated test configuration in `tests/conftest.py` to enable OpenAPI docs for tests
+
+**Implementation Approach:** Environment variable toggle (simple, no database changes, follows existing patterns like `BYPASS_OTP`)
+
+**Why This Approach:** Given the open source context, a simple environment variable provides sufficient control without over-engineering. Production operators can enable docs if needed for debugging, while keeping them disabled by default for professional appearance and defense in depth.
+
+**Files Modified:**
+- `app/settings.py` - Added `ENABLE_OPENAPI_DOCS` variable
+- `app/main.py` - Conditional OpenAPI URL configuration
+- `.env` - Added `ENABLE_OPENAPI_DOCS=true`
+- `.env.dev.example` - Added `ENABLE_OPENAPI_DOCS=true`
+- `.env.onprem.example` - Added `ENABLE_OPENAPI_DOCS=false` with documentation
+- `tests/conftest.py` - Added `ENABLE_OPENAPI_DOCS=true` to test environment
+- `tests/test_openapi_endpoints.py` - New test file
+
+**Verification:** All 1832 tests pass. Type checking passes. Code formatted and linted.
+
+---
+
 ## [CLEANUP] RequestingUser.request_metadata field is superfluous
 
 **Status:** Resolved (2026-01-25)

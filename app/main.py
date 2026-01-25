@@ -15,6 +15,7 @@ from fastapi.openapi.utils import get_openapi  # noqa: E402
 from fastapi.responses import RedirectResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from middleware.csrf import CSRFMiddleware  # noqa: E402
+from middleware.request_context import RequestContextMiddleware  # noqa: E402
 from middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
 from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
@@ -57,6 +58,10 @@ app.add_middleware(CSRFMiddleware)
 # Add security headers middleware
 # Adds HTTP security headers to all responses
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Add request context middleware (populates context for event logging)
+# Extracts IP, user agent, device, session hash into contextvar
+app.add_middleware(RequestContextMiddleware)
 
 
 @app.exception_handler(RedirectError)

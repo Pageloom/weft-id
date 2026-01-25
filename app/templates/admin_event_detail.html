@@ -54,33 +54,121 @@
             {% endif %}
         </div>
 
+        {# Section 1: Context - Always visible, conditional fields based on request source #}
         <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-500 mb-2">Request Context</label>
+            <label class="block text-sm font-medium text-gray-500 mb-2">Context</label>
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {# IP Address - always shown if present #}
+                    {% if event.remote_address %}
                     <div>
                         <dt class="text-xs font-medium text-gray-500 uppercase">IP Address</dt>
-                        <dd class="mt-1 text-sm text-gray-900 font-mono">{{ event.remote_address or 'N/A' }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900 font-mono">{{ event.remote_address }}</dd>
                     </div>
-                    <div>
-                        <dt class="text-xs font-medium text-gray-500 uppercase">Device</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ event.device or 'N/A' }}</dd>
-                    </div>
+                    {% endif %}
+
+                    {# User Agent - always shown if present #}
+                    {% if event.user_agent %}
                     <div class="md:col-span-2">
                         <dt class="text-xs font-medium text-gray-500 uppercase">User Agent</dt>
-                        <dd class="mt-1 text-sm text-gray-900 break-all">{{ event.user_agent or 'N/A' }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900 break-all">{{ event.user_agent }}</dd>
                     </div>
+                    {% endif %}
+
+                    {# API Client - shown for API requests only #}
+                    {% if event.api_client_id %}
                     <div class="md:col-span-2">
-                        <dt class="text-xs font-medium text-gray-500 uppercase">Session ID Hash</dt>
-                        <dd class="mt-1 text-sm text-gray-900 font-mono break-all">{{ event.session_id_hash or 'N/A' }}</dd>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">API Client</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            <span class="font-medium">{{ event.api_client_name }}</span>
+                            <span class="text-gray-500 ml-2">({{ event.api_client_type }})</span>
+                            <p class="text-xs text-gray-500 font-mono mt-1">{{ event.api_client_id }}</p>
+                        </dd>
                     </div>
+                    {% endif %}
+
+                    {# Device Type - shown for web requests only (when no API client) #}
+                    {% if not event.api_client_id and event.device %}
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">Device</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ event.device }}</dd>
+                    </div>
+                    {% endif %}
+
+                    {# Session ID - shown for web requests only (when no API client) #}
+                    {% if not event.api_client_id and event.session_id_hash %}
+                    <div class="md:col-span-2">
+                        <dt class="text-xs font-medium text-gray-500 uppercase">Session ID</dt>
+                        <dd class="mt-1 text-sm text-gray-900 font-mono break-all">{{ event.session_id_hash }}</dd>
+                    </div>
+                    {% endif %}
+
+                    {# Show message if no context data available #}
+                    {% if not event.remote_address and not event.user_agent and not event.api_client_id and not event.device and not event.session_id_hash %}
+                    <div class="md:col-span-2 text-sm text-gray-500 italic">
+                        No request context available (system event)
+                    </div>
+                    {% endif %}
                 </dl>
             </div>
         </div>
 
+        {# Section 2: Details - Only shown if there are custom metadata fields #}
+        {# Define context fields that should NOT appear in details section #}
+        {% set context_fields = ['device', 'remote_address', 'session_id_hash', 'user_agent', 'api_client_id', 'api_client_name', 'api_client_type'] %}
+        {% set custom_fields = {} %}
+        {% if event.metadata %}
+            {% for key, value in event.metadata.items() %}
+                {% if key not in context_fields and value is not none %}
+                    {% set _ = custom_fields.update({key: value}) %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        {% if custom_fields %}
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-500 mb-2">Details</label>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {% for key, value in custom_fields.items() %}
+                    <div>
+                        <dt class="text-xs font-medium text-gray-500 uppercase">{{ key }}</dt>
+                        <dd class="mt-1 text-sm text-gray-900 break-all">
+                            {% if value is mapping %}
+                            <pre class="text-xs font-mono">{{ value | tojson(indent=2) }}</pre>
+                            {% elif value is iterable and value is not string %}
+                            <pre class="text-xs font-mono">{{ value | tojson(indent=2) }}</pre>
+                            {% else %}
+                            {{ value }}
+                            {% endif %}
+                        </dd>
+                    </div>
+                    {% endfor %}
+                </dl>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Section 3: Raw Event - Full JSON dump for debugging #}
         <div>
-            <label class="block text-sm font-medium text-gray-500 mb-2">Event Metadata</label>
-            <pre class="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono text-gray-800">{{ event.metadata | tojson(indent=2) if event.metadata else '{}' }}</pre>
+            <label class="block text-sm font-medium text-gray-500 mb-2">Raw Event</label>
+            <pre class="bg-gray-50 border border-gray-200 rounded-lg p-4 overflow-x-auto text-sm font-mono text-gray-800">{{ {
+    'id': event.id,
+    'event_type': event.event_type,
+    'event_description': event.event_description,
+    'created_at': event.created_at.isoformat(),
+    'actor': {
+        'user_id': event.actor_user_id,
+        'name': event.actor_name
+    },
+    'artifact': {
+        'type': event.artifact_type,
+        'id': event.artifact_id,
+        'name': event.artifact_name,
+        'email': event.artifact_email
+    },
+    'metadata': event.metadata
+} | tojson(indent=2) }}</pre>
         </div>
     </div>
 </div>

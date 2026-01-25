@@ -35,6 +35,15 @@ class EventLogItem(BaseModel):
     user_agent: str | None = Field(None, description="User agent from request metadata")
     device: str | None = Field(None, description="Device from request metadata")
     session_id_hash: str | None = Field(None, description="Hashed session ID from request metadata")
+    # API client fields (only present for OAuth2 token-authenticated requests)
+    api_client_id: str | None = Field(None, description="OAuth2 client ID (for API requests)")
+    api_client_name: str | None = Field(None, description="OAuth2 client name (for API requests)")
+    api_client_type: str | None = Field(None, description="OAuth2 client type: normal or b2b")
+
+    @property
+    def is_api_request(self) -> bool:
+        """True if this event was triggered by an API request (OAuth2 token)."""
+        return self.api_client_id is not None
 
 
 class EventLogListResponse(BaseModel):

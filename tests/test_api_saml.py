@@ -1169,9 +1169,7 @@ def test_check_email_auth_route_password_user(client, test_tenant_host, test_use
     import database.user_emails
 
     # Get the user's email
-    emails = database.user_emails.list_user_emails(
-        test_user["tenant_id"], str(test_user["id"])
-    )
+    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
     user_email = emails[0]["email"]
 
     response = client.post(
@@ -1201,9 +1199,7 @@ def test_check_email_auth_route_idp_user(
     )
 
     # Get the user's email
-    emails = database.user_emails.list_user_emails(
-        test_user["tenant_id"], str(test_user["id"])
-    )
+    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
     user_email = emails[0]["email"]
 
     response = client.post(
@@ -1239,9 +1235,7 @@ def test_check_email_auth_route_inactivated_user(client, test_tenant_host, test_
     )
 
     # Get the user's email
-    emails = database.user_emails.list_user_emails(
-        test_user["tenant_id"], str(test_user["id"])
-    )
+    emails = database.user_emails.list_user_emails(test_user["tenant_id"], str(test_user["id"]))
     user_email = emails[0]["email"]
 
     response = client.post(

@@ -959,7 +959,6 @@ def test_build_logout_response_slo_url_with_query_string(sample_certificate):
 def test_get_encryption_key_with_valid_32_byte_key():
     """Test encryption key generation when key is exactly 32 bytes."""
     import base64
-    import hashlib
 
     # Create a valid 32-byte key (base64 encoded)
     valid_key = base64.urlsafe_b64encode(b"a" * 32).decode()
@@ -1042,9 +1041,7 @@ def test_parse_idp_metadata_with_certificate_as_list():
 
         # Should take the first certificate
         assert "-----BEGIN CERTIFICATE-----" in result["certificate_pem"]
-        assert "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADA" in result[
-            "certificate_pem"
-        ]
+        assert "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADA" in result["certificate_pem"]
 
 
 def test_parse_idp_metadata_with_empty_certificate_list():

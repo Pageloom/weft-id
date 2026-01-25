@@ -30,13 +30,14 @@ COPY app/ /app/
 
 # Install Tailwind CLI and build CSS
 # Use TARGETARCH to download the correct binary for the build platform
+# Using v3.4.17 (stable) instead of v4 which is still in beta
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
       TAILWIND_ARCH="arm64"; \
     else \
       TAILWIND_ARCH="x64"; \
     fi \
- && curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-${TAILWIND_ARCH} \
+ && curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-${TAILWIND_ARCH} \
  && chmod +x tailwindcss-linux-${TAILWIND_ARCH} \
  && mv tailwindcss-linux-${TAILWIND_ARCH} /usr/local/bin/tailwindcss
 

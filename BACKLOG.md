@@ -608,3 +608,72 @@ Post-install: `playwright install chromium`
 - Could start with just SAML flow and expand to other auth flows later
 
 ---
+
+## Complete Event Request Context (IP, User Agent, Device, Session)
+
+**User Story:**
+As an administrator reviewing security events and audit logs
+I want all events to include complete request context (IP address, user agent, device type, session ID)
+So that I can trace security incidents, detect anomalous behavior, and maintain comprehensive audit trails
+
+**Acceptance Criteria:**
+
+**Service Layer Changes:**
+
+- [ ] All service functions that log events must receive request metadata from the router layer
+- [ ] Update `RequestingUser` TypedDict to always include `request_metadata` (remove `NotRequired`)
+- [ ] Add `request_metadata` parameter to service functions currently logging with `request_metadata=None`:
+  - `app/services/saml.py`: SAML JIT provisioning (`create_or_update_user_via_jit`)
+  - `app/services/oauth2.py`: OAuth2 client operations (create, update, regenerate secret, delete)
+  - `app/services/emails.py`: Email verification (`verify_email_with_token`)
+  - Any other service functions with `request_metadata=None` in `log_event()` calls
+- [ ] Extract `request_metadata` from `RequestingUser` and pass to all `log_event()` calls
+- [ ] For service functions without `RequestingUser`, add explicit `request_metadata: dict[str, Any]` parameter
+
+**Router Layer Changes:**
+
+- [ ] Update all router functions to extract request metadata via `extract_request_metadata(request)`
+- [ ] Include `request_metadata` when constructing `RequestingUser` objects
+- [ ] Pass `request_metadata` to service functions that don't use `RequestingUser`
+
+**System Actor Events:**
+
+- [ ] For system-initiated events (background jobs, scheduled tasks), use special system actor metadata:
+  - `remote_address`: "system" or "127.0.0.1"
+  - `user_agent`: "System/Internal"
+  - `device`: "Server"
+  - `session_id_hash`: null or special system session hash
+- [ ] Document when to use system actor vs. real request context
+
+**Validation:**
+
+- [ ] Review all `grep -r "log_event"` results to ensure no events lack request context
+- [ ] Update tests to provide mock request metadata in service function calls
+- [ ] Verify event detail pages show complete metadata (IP, user agent, device, session)
+
+**Database Schema:**
+
+- [ ] No schema changes needed (fields already exist and handle null values)
+- [ ] Existing events with null context remain unchanged (historical data)
+
+**Technical Notes:**
+
+Current issues found:
+- `app/services/saml.py:1556` - JIT user creation (no request context)
+- `app/services/oauth2.py:236, 287, 328, 359` - OAuth2 client operations
+- `app/services/emails.py:485, 644` - Email verification via token
+
+Request metadata structure (from `app/utils/request_metadata.py`):
+```python
+{
+    "remote_address": str,  # IP from X-Forwarded-For or X-Real-IP or client.host
+    "user_agent": str,      # Full user agent string
+    "device": str,          # Parsed: Mobile, Desktop, Tablet, Bot, or Unknown
+    "session_id_hash": str  # SHA-256 hash of session ID (or null if no session)
+}
+```
+
+**Effort:** M
+**Value:** High (Security, Compliance, Audit Trail)
+
+---

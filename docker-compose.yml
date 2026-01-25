@@ -28,6 +28,7 @@ services:
     volumes:
       - ./app:/app:cached
       - ./storage:/app/storage
+      - ./static:/app/static:cached
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
     networks:
       - devnet

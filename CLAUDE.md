@@ -26,9 +26,10 @@ Request → Router → Service → Database → PostgreSQL
 
 **Run tests:**
 ```bash
-poetry run pytest                                    # Run all tests
-poetry run pytest --cov=app --cov-report=term-missing  # With coverage
-poetry run pytest -n auto                             # Parallel execution
+poetry run python -m pytest                                    # Run all tests
+poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage
+poetry run python -m pytest -n auto                             # Parallel execution
+./test                                                         # Shorthand (runs all tests)
 ```
 
 **Linting:**
@@ -124,7 +125,7 @@ The CSS is built during the Docker image build process, so running `make up` wil
 1. Run formatting: `poetry run black app/ tests/`
 2. Run linting: `poetry run ruff check --fix app/ tests/`
 3. Run type checking: `poetry run mypy app/`
-4. Run tests: `poetry run pytest`
+4. Run tests: `./test` (or `poetry run python -m pytest`)
 5. If you modified templates and didn't use watch mode: `make build-css`
 
 All checks must pass before committing.

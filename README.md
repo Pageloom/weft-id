@@ -64,14 +64,17 @@ make sh-app          # Shell into app container
 
 ### Testing & Code Quality
 ```bash
-make test            # Run tests
-make lint            # Check code quality
-make format          # Auto-format code
-make typecheck       # Type checking
+poetry run pytest                      # Run tests
+poetry run ruff check --fix app/ tests/ # Lint and auto-fix
+poetry run black app/ tests/           # Format code
+poetry run mypy app/                   # Type checking
 ```
 
-### Database
+### Frontend/CSS Development
 ```bash
-make sql-migrations  # Run pending migrations
+make build-css       # Build Tailwind CSS after template changes
+make watch-css       # Auto-rebuild CSS when templates change (recommended)
 ```
+
+**Tip**: When actively working on templates/UI, run `make watch-css` in a separate terminal. It will automatically rebuild the CSS whenever you modify any template file.
 

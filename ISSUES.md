@@ -165,6 +165,76 @@ No CVEs found in vulnerability databases for these packages at their installed v
 
 ---
 
+# Security Findings
+
+Security assessment performed: 2026-01-25
+
+---
+
+## [SECURITY] OpenAPI/Swagger Debug Endpoints Exposed in Production
+
+**Found in:** `app/main.py:47-48`
+**Severity:** Medium
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Description:**
+The `/docs` (Swagger UI) and `/openapi.json` endpoints are available without authentication in production. This exposes the complete API structure, endpoint paths, and parameter schemas to unauthenticated users.
+
+**Risk:**
+Information disclosure that aids attackers in mapping the API surface. While not directly exploitable, it reduces the effort required to find and probe endpoints.
+
+**Current Code:**
+```python
+app = FastAPI(
+    ...
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+)
+```
+
+**Remediation:**
+Conditionally disable these endpoints in production:
+```python
+app = FastAPI(
+    ...
+    openapi_url="/openapi.json" if settings.IS_DEV else None,
+    docs_url="/docs" if settings.IS_DEV else None,
+)
+```
+
+---
+
+## [SECURITY] CSP unsafe-inline Weakens XSS Protection
+
+**Found in:** `app/middleware/security_headers.py:19`
+**Severity:** Low
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Description:**
+The Content Security Policy includes `'unsafe-inline'` for both `script-src` and `style-src` directives. This weakens XSS protection by allowing inline scripts and styles to execute.
+
+**Risk:**
+If an XSS vulnerability is introduced elsewhere in the application, the CSP will not block inline script execution. This is a defense-in-depth concern rather than a direct vulnerability.
+
+**Current Code:**
+```python
+DEFAULT_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "  # unsafe-inline reduces protection
+    ...
+)
+```
+
+**Note:** Already documented in code comments as a known limitation due to existing inline scripts.
+
+**Remediation:**
+Migrate to CSP nonces when inline scripts are refactored:
+1. Generate cryptographic nonces per-request
+2. Add nonce attribute to all inline `<script>` tags
+3. Update CSP to use `'nonce-{value}'` instead of `'unsafe-inline'`
+
+---
+
 # Technical Debt
 
 No technical debt issues currently tracked.
@@ -177,8 +247,8 @@ No technical debt issues currently tracked.
 |----------|-------|------------|
 | Critical | 0 | - |
 | High | 0 | - |
-| Medium | 0 | - |
-| Low | 1 | Technical Debt (RequestingUser.request_metadata cleanup) |
+| Medium | 1 | Security (OpenAPI endpoints exposed) |
+| Low | 2 | Security (CSP unsafe-inline), Deps (user-agents unmaintained) |
 
 ## Dependency Audit Summary (2026-01-17)
 
@@ -205,5 +275,6 @@ All production dependencies are at versions that include fixes for known CVEs. R
 6. ~~Default secret keys (High - production misconfiguration)~~ **RESOLVED**
 7. ~~BYPASS_OTP risk (Medium - MFA bypass in production)~~ **RESOLVED**
 8. ~~Logging gaps (High - compliance/detection)~~ **RESOLVED**
-9. Security headers (Medium - defense in depth)
-10. Other Medium items
+9. ~~Security headers (Medium - defense in depth)~~ **RESOLVED**
+10. OpenAPI debug endpoints exposed (Medium - information disclosure)
+11. CSP unsafe-inline (Low - defense in depth)

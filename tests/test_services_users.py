@@ -1017,6 +1017,114 @@ def test_update_current_user_profile_timezone_and_locale(
         assert result.locale == "sv"
 
 
+def test_update_current_user_profile_theme(make_requesting_user, make_user_dict, make_email_dict):
+    """Test that a user can update their theme preference."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="system")
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="dark")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(theme="dark")
+
+    with patch("services.users.database") as mock_db, patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.theme == "dark"
+        mock_db.users.update_user_theme.assert_called_once_with(
+            tenant_id=tenant_id, user_id=user_id, theme="dark"
+        )
+
+
+def test_update_current_user_profile_theme_light(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """Test that a user can update their theme to light."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="system")
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="light")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(theme="light")
+
+    with patch("services.users.database") as mock_db, patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.theme == "light"
+
+
+def test_update_current_user_profile_theme_system(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """Test that a user can switch their theme back to system."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_data = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="dark")
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="system")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(theme="system")
+
+    with patch("services.users.database") as mock_db, patch("services.users.log_event"):
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        result = users_service.update_current_user_profile(
+            requesting_user, user_data, profile_update
+        )
+
+        assert result.theme == "system"
+
+
+def test_update_current_user_profile_theme_tracks_changes(
+    make_requesting_user, make_user_dict, make_email_dict
+):
+    """Test that theme change is tracked in event metadata."""
+    from services import users as users_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    original_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="light")
+    updated_user = make_user_dict(user_id=user_id, tenant_id=tenant_id, theme="dark")
+    email = make_email_dict(user_id=user_id)
+
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+    profile_update = UserProfileUpdate(theme="dark")
+
+    with patch("services.users.database") as mock_db, patch("services.users.log_event") as mock_log:
+        mock_db.users.get_user_by_id.return_value = updated_user
+        mock_db.user_emails.get_primary_email.return_value = email
+
+        users_service.update_current_user_profile(requesting_user, original_user, profile_update)
+
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args.kwargs
+        assert "changes" in call_kwargs["metadata"]
+        assert "theme" in call_kwargs["metadata"]["changes"]
+        assert call_kwargs["metadata"]["changes"]["theme"]["old"] == "light"
+        assert call_kwargs["metadata"]["changes"]["theme"]["new"] == "dark"
+
+
 def test_update_current_user_profile_full_posix_locale(
     make_requesting_user, make_user_dict, make_email_dict
 ):

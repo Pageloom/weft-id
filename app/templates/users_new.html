@@ -4,22 +4,22 @@
 
 {% block content %}
 <div class="max-w-2xl">
-    <div class="bg-white rounded-lg shadow-sm p-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <!-- Header with back link -->
         <div class="mb-6">
-            <a href="/users/list" class="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">
+            <a href="/users/list" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mb-2 inline-block">
                 ← Back to Users List
             </a>
-            <h1 class="text-2xl font-semibold">Add New User</h1>
-            <p class="text-sm text-gray-600 mt-2">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Add New User</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
                 Create a new user account. The user will receive an email to set their password and activate their account.
             </p>
         </div>
 
         <!-- Success message -->
         {% if success %}
-        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
-            <p class="text-sm text-green-800">
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
                 {% if success == 'user_created' %}
                 User created successfully. An invitation email has been sent.
                 {% else %}
@@ -31,8 +31,8 @@
 
         <!-- Error message -->
         {% if error %}
-        <div class="mb-6 p-4 border border-red-300 bg-red-50 rounded-md">
-            <p class="text-sm text-red-800">
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
                 {% if error == 'invalid_email' %}
                 Please enter a valid email address.
                 {% elif error == 'name_required' %}
@@ -54,19 +54,19 @@
 
         <!-- Privileged Domains Info -->
         {% if privileged_domains %}
-        <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-            <h3 class="text-sm font-medium text-blue-900 mb-2">Privileged Email Domains</h3>
-            <p class="text-xs text-blue-800 mb-2">
+        <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+            <h3 class="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">Privileged Email Domains</h3>
+            <p class="text-xs text-blue-800 dark:text-blue-300 mb-2">
                 Users with email addresses from these domains will have their email automatically verified:
             </p>
             <div class="flex flex-wrap gap-2">
                 {% for domain in privileged_domains %}
-                <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono">
+                <span class="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded text-xs font-mono">
                     @{{ domain }}
                 </span>
                 {% endfor %}
             </div>
-            <p class="text-xs text-blue-700 mt-2">
+            <p class="text-xs text-blue-700 dark:text-blue-400 mt-2">
                 Users with other email domains will need to verify their email before they can set a password.
             </p>
         </div>
@@ -77,7 +77,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Email -->
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Email Address <span class="text-red-500">*</span>
                 </label>
                 <input
@@ -85,17 +85,17 @@
                     id="email"
                     name="email"
                     required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     placeholder="user@example.com"
                 >
-                <p class="text-xs text-gray-500 mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     This will be the user's primary email address and login credential.
                 </p>
             </div>
 
             <!-- First Name -->
             <div>
-                <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">
+                <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     First Name <span class="text-red-500">*</span>
                 </label>
                 <input
@@ -103,14 +103,14 @@
                     id="first_name"
                     name="first_name"
                     required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     placeholder="John"
                 >
             </div>
 
             <!-- Last Name -->
             <div>
-                <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">
+                <label for="last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Last Name <span class="text-red-500">*</span>
                 </label>
                 <input
@@ -118,21 +118,21 @@
                     id="last_name"
                     name="last_name"
                     required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     placeholder="Doe"
                 >
             </div>
 
             <!-- Role -->
             <div>
-                <label for="role" class="block text-sm font-medium text-gray-700 mb-1">
+                <label for="role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Role <span class="text-red-500">*</span>
                 </label>
                 <select
                     id="role"
                     name="role"
                     required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
                     <option value="member">Member</option>
                     {% if user.role == 'super_admin' %}
@@ -140,7 +140,7 @@
                     <option value="super_admin">Super Admin</option>
                     {% endif %}
                 </select>
-                <p class="text-xs text-gray-500 mt-1">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {% if user.role == 'super_admin' %}
                     Select the appropriate role for this user. Only Super Admins can create Admin or Super Admin users.
                     {% else %}
@@ -150,7 +150,7 @@
             </div>
 
             <!-- Submit Buttons -->
-            <div class="flex gap-4 pt-4 border-t border-gray-200">
+            <div class="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                     type="submit"
                     class="flex-1 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -159,7 +159,7 @@
                 </button>
                 <a
                     href="/users/list"
-                    class="flex-1 px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 text-center"
+                    class="flex-1 px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 text-center"
                 >
                     Cancel
                 </a>
@@ -167,9 +167,9 @@
         </form>
 
         <!-- Information Box -->
-        <div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-md">
-            <h3 class="text-sm font-medium text-gray-900 mb-2">What happens next?</h3>
-            <ul class="text-xs text-gray-700 space-y-1 list-disc list-inside">
+        <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-md">
+            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">What happens next?</h3>
+            <ul class="text-xs text-gray-700 dark:text-gray-300 space-y-1 list-disc list-inside">
                 <li>The user account will be created without a password</li>
                 <li>If the email domain is privileged, the user will receive a welcome email with a link to set their password</li>
                 <li>If the email domain is not privileged, the user will receive an invitation email to verify their email address first</li>

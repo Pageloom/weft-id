@@ -33,6 +33,7 @@ class UserProfile(BaseModel):
     role: str
     timezone: str | None = Field(None, description="IANA timezone (e.g., 'America/New_York')")
     locale: str | None = Field(None, description="Two-letter locale code")
+    theme: str | None = Field(None, description="Theme preference: system, light, or dark")
     mfa_enabled: bool
     mfa_method: str | None = None
     created_at: datetime
@@ -49,6 +50,11 @@ class UserProfileUpdate(BaseModel):
         None,
         pattern="^[a-z]{2}(_[A-Z]{2})?$",
         description="Locale code (e.g., 'en' or 'en_US')",
+    )
+    theme: str | None = Field(
+        None,
+        pattern="^(system|light|dark)$",
+        description="Theme preference: system, light, or dark",
     )
 
 

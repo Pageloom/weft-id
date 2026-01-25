@@ -9,10 +9,10 @@
 <!-- Pagination Controls Macro -->
 {% macro pagination_controls(border_class="border-t") %}
 {% if pagination.total_count > 0 %}
-<div class="flex items-center justify-between {{ border_class }} border-gray-200 py-4">
+<div class="flex items-center justify-between {{ border_class }} border-gray-200 dark:border-gray-700 py-4">
     <!-- Results info -->
     <div class="flex items-center gap-4">
-        <div class="text-sm text-gray-700">
+        <div class="text-sm text-gray-700 dark:text-gray-300">
             Showing <span class="font-medium">{{ pagination.start_index }}</span> to
             <span class="font-medium">{{ pagination.end_index }}</span> of
             <span class="font-medium">{{ pagination.total_count }}</span> result{{ 's' if pagination.total_count != 1 else '' }}
@@ -20,11 +20,11 @@
 
         <!-- Page size selector -->
         <div class="flex items-center gap-2">
-            <label for="page-size" class="text-sm text-gray-700">Per page:</label>
+            <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
             <select
                 id="page-size"
                 onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}'"
-                class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
                 <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
@@ -38,19 +38,19 @@
     <div class="flex items-center gap-2">
         <a
             href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
-            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_previous %}onclick="return false;"{% endif %}
         >
             Previous
         </a>
 
-        <span class="text-sm text-gray-700">
+        <span class="text-sm text-gray-700 dark:text-gray-300">
             Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
         </span>
 
         <a
             href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
-            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 bg-white hover:bg-gray-50{% else %}text-gray-400 bg-gray-100 cursor-not-allowed{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
             {% if not pagination.has_next %}onclick="return false;"{% endif %}
         >
             Next
@@ -61,8 +61,8 @@
 {% endmacro %}
 
 <div class="w-full">
-    <div class="bg-white rounded-lg shadow-sm p-8">
-        <h1 class="text-2xl font-semibold mb-6">Users</h1>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Users</h1>
 
         <!-- Search Form -->
         <div class="mb-6">
@@ -78,7 +78,7 @@
                     name="search"
                     value="{{ search }}"
                     placeholder="Search by name or email..."
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 >
                 <button
                     type="submit"
@@ -89,7 +89,7 @@
                 {% if search %}
                 <a
                     href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
-                    class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 >
                     Clear
                 </a>
@@ -98,54 +98,54 @@
         </div>
 
         <!-- Filter Controls -->
-        <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
             <div class="flex flex-wrap gap-6 items-end">
                 <!-- Role Filter -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
                     <div class="flex gap-3">
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-member" value="member"
                                    {% if 'member' in roles %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Member</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-admin" value="admin"
                                    {% if 'admin' in roles %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Admin</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-super_admin" value="super_admin"
                                    {% if 'super_admin' in roles %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Super Admin</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Status Filter -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
                     <div class="flex gap-3">
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-active" value="active"
                                    {% if 'active' in statuses %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Active</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-inactivated" value="inactivated"
                                    {% if 'inactivated' in statuses %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Inactivated</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
                         </label>
                         <label class="inline-flex items-center">
                             <input type="checkbox" id="filter-anonymized" value="anonymized"
                                    {% if 'anonymized' in statuses %}checked{% endif %}
-                                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span class="ml-2 text-sm text-gray-700">Anonymized</span>
+                                   class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
                         </label>
                     </div>
                 </div>
@@ -162,7 +162,7 @@
                     {% if roles or statuses %}
                     <a
                         href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                     >
                         Clear Filters
                     </a>
@@ -196,20 +196,20 @@
         <!-- Active Filters Indicator -->
         {% if roles or statuses %}
         <div class="mb-4 flex flex-wrap gap-2 items-center">
-            <span class="text-sm text-gray-600">Active filters:</span>
+            <span class="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
             {% for role in roles %}
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {% if role == 'super_admin' %}bg-red-100 text-red-800
-                {% elif role == 'admin' %}bg-purple-100 text-purple-800
-                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                {% elif role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                 {{ role }}
             </span>
             {% endfor %}
             {% for status in statuses %}
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {% if status == 'active' %}bg-green-100 text-green-800
-                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800
-                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300
+                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                 {{ status }}
             </span>
             {% endfor %}
@@ -218,7 +218,7 @@
 
         <!-- Results count -->
         {% if search %}
-        <div class="mb-4 text-sm text-gray-600">
+        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
             Found {{ pagination.total_count }} result{{ 's' if pagination.total_count != 1 else '' }} for "{{ search }}"
         </div>
         {% endif %}
@@ -227,13 +227,13 @@
         {{ pagination_controls(border_class="border-b") }}
 
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
                         {% macro sort_header(field, label) %}
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
-                               class="group inline-flex items-center space-x-1 hover:text-gray-700">
+                               class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}
                                     {% if sort_order == 'asc' %}
@@ -260,79 +260,79 @@
                         {{ sort_header('status', 'Status') }}
                         {{ sort_header('last_activity_at', 'Last Activity') }}
                         {{ sort_header('created_at', 'Created') }}
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Auth Method
                         </th>
                         {% if user.role in ['admin', 'super_admin'] %}
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Actions
                         </th>
                         {% endif %}
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% if users %}
                         {% for u in users %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">
+                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {% if u.is_anonymized %}
-                                    <span class="text-gray-500 italic">[Anonymized User]</span>
+                                    <span class="text-gray-500 dark:text-gray-400 italic">[Anonymized User]</span>
                                     {% else %}
                                     {{ u.last_name }}, {{ u.first_name }}
                                     {% endif %}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ u.email }}</div>
+                                <div class="text-sm text-gray-900 dark:text-gray-100">{{ u.email }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    {% if u.role == 'super_admin' %}bg-red-100 text-red-800
-                                    {% elif u.role == 'admin' %}bg-purple-100 text-purple-800
-                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {% if u.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                                    {% elif u.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
                                     {{ u.role }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% if u.is_anonymized %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
                                     Anonymized
                                 </span>
                                 {% elif u.is_inactivated %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
                                     Inactivated
                                 </span>
                                 {% else %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
                                     Active
                                 </span>
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                 {{ fmt_datetime(u.last_activity_at) if u.last_activity_at else 'Never' }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                 {{ fmt_datetime(u.created_at) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% if u.saml_idp_id %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
                                     IdP{% if u.has_password %}*{% endif %}
                                 </span>
                                 {% elif u.has_password %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
                                     Password
                                 </span>
                                 {% else %}
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
                                     None
                                 </span>
                                 {% endif %}
                             </td>
                             {% if user.role in ['admin', 'super_admin'] %}
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                <a href="/users/{{ u.id }}" class="text-blue-600 hover:text-blue-900" title="Edit user">
+                                <a href="/users/{{ u.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="Edit user">
                                     <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                     </svg>
@@ -343,7 +343,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}8{% else %}7{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500">
+                            <td colspan="{% if user.role in ['admin', 'super_admin'] %}8{% else %}7{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                 {% if search %}
                                     No users found matching "{{ search }}"
                                 {% else %}
@@ -356,7 +356,7 @@
             </table>
 
             <!-- Auth Method Legend -->
-            <div class="mt-2 px-2 text-xs text-gray-500">
+            <div class="mt-2 px-2 text-xs text-gray-500 dark:text-gray-400">
                 <strong>Auth Method:</strong> IdP* = Password preserved, IdP required
             </div>
         </div>

@@ -11,15 +11,15 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
 
     Returns:
         User record with id, tenant_id, first_name, last_name, role, created_at,
-        last_login, mfa_enabled, mfa_method, tz, locale, is_inactivated, is_anonymized,
-        inactivated_at, anonymized_at, reactivation_denied_at, saml_idp_id, saml_idp_name,
-        has_password
+        last_login, mfa_enabled, mfa_method, tz, locale, theme, is_inactivated,
+        is_anonymized, inactivated_at, anonymized_at, reactivation_denied_at,
+        saml_idp_id, saml_idp_name, has_password
     """
     return fetchone(
         tenant_id,
         """
         select u.id, u.tenant_id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
-               u.mfa_enabled, u.mfa_method, u.tz, u.locale,
+               u.mfa_enabled, u.mfa_method, u.tz, u.locale, u.theme,
                u.is_inactivated, u.is_anonymized, u.inactivated_at, u.anonymized_at,
                u.reactivation_denied_at,
                u.saml_idp_id, idp.name as saml_idp_name,
@@ -100,6 +100,15 @@ def update_user_locale(tenant_id: TenantArg, user_id: str, locale: str) -> int:
         tenant_id,
         "update users set locale = :locale where id = :user_id",
         {"locale": locale, "user_id": user_id},
+    )
+
+
+def update_user_theme(tenant_id: TenantArg, user_id: str, theme: str) -> int:
+    """Update user's theme preference."""
+    return execute(
+        tenant_id,
+        "update users set theme = :theme where id = :user_id",
+        {"theme": theme, "user_id": user_id},
     )
 
 
@@ -618,7 +627,7 @@ def anonymize_user(tenant_id: TenantArg, user_id: str) -> int:
     - password_hash → NULL
     - mfa_enabled → false
     - mfa_method → NULL
-    - tz, locale → NULL
+    - tz, locale, theme → NULL
 
     The user is also inactivated. Related data (emails, MFA secrets) must be
     handled separately by the service layer.
@@ -644,7 +653,8 @@ def anonymize_user(tenant_id: TenantArg, user_id: str) -> int:
             mfa_enabled = false,
             mfa_method = null,
             tz = null,
-            locale = null
+            locale = null,
+            theme = null
         where id = :user_id and is_anonymized = false
         """,
         {"user_id": user_id},
@@ -862,7 +872,7 @@ def get_user_with_saml_info(tenant_id: TenantArg, user_id: str) -> dict | None:
         """
         select u.id, u.tenant_id, u.first_name, u.last_name, u.role,
                u.created_at, u.last_login, u.mfa_enabled, u.mfa_method,
-               u.tz, u.locale, u.is_inactivated, u.is_anonymized,
+               u.tz, u.locale, u.theme, u.is_inactivated, u.is_anonymized,
                u.inactivated_at, u.anonymized_at, u.reactivation_denied_at,
                u.saml_idp_id, u.password_hash is not null as has_password,
                idp.name as saml_idp_name

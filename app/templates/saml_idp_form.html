@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="max-w-4xl">
-    <div class="bg-white rounded-lg shadow-sm p-8">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="mb-6">
-            <a href="/admin/identity-providers" class="text-sm text-blue-600 hover:text-blue-800">
+            <a href="/admin/identity-providers" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                 ← Back to Identity Providers
             </a>
         </div>
@@ -14,7 +14,7 @@
         <h1 class="text-2xl font-semibold mb-2">
             {% if idp %}Edit Identity Provider{% else %}Add Identity Provider{% endif %}
         </h1>
-        <p class="text-sm text-gray-600 mb-6">
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
             {% if idp %}
                 Update the SAML configuration for this identity provider.
             {% else %}
@@ -23,22 +23,22 @@
         </p>
 
         {% if error %}
-        <div class="mb-6 p-4 border border-red-300 bg-red-50 rounded-md">
-            <p class="text-sm text-red-800">{{ error }}</p>
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">{{ error }}</p>
         </div>
         {% endif %}
 
         {% if success == "updated" %}
-        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
-            <p class="text-sm text-green-800">Identity provider settings saved successfully.</p>
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Identity provider settings saved successfully.</p>
         </div>
         {% elif success == "domain_bound" %}
-        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
-            <p class="text-sm text-green-800">Domain bound to this identity provider successfully.</p>
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Domain bound to this identity provider successfully.</p>
         </div>
         {% elif success == "domain_unbound" %}
-        <div class="mb-6 p-4 border border-green-300 bg-green-50 rounded-md">
-            <p class="text-sm text-green-800">Domain unbound from this identity provider successfully.</p>
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">Domain unbound from this identity provider successfully.</p>
         </div>
         {% endif %}
 
@@ -46,14 +46,14 @@
         <!-- New IdP: Tabbed Import Interface -->
         <div class="mb-8">
             <!-- Tab Navigation -->
-            <div class="border-b border-gray-200 mb-6">
+            <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
                 <nav class="-mb-px flex space-x-8" aria-label="Import method">
                     <button type="button" id="tab-url" onclick="switchTab('url')"
-                            class="tab-button border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600">
+                            class="tab-button border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600 dark:text-blue-400">
                         Import from URL
                     </button>
                     <button type="button" id="tab-xml" onclick="switchTab('xml')"
-                            class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600">
                         Paste Metadata XML
                     </button>
                 </nav>
@@ -61,28 +61,28 @@
 
             <!-- Tab Content: Import from URL -->
             <div id="content-url" class="tab-content">
-                <div class="p-4 border border-blue-200 bg-blue-50 rounded-md">
-                    <h3 class="font-medium text-blue-900 mb-2">Import from Metadata URL</h3>
-                    <p class="text-sm text-blue-800 mb-4">
+                <div class="p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                    <h3 class="font-medium text-blue-900 dark:text-blue-300 mb-2">Import from Metadata URL</h3>
+                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-4">
                         Enter your IdP's metadata URL to automatically extract the entity ID, SSO URL, and certificate.
                     </p>
                     <form method="post" action="/admin/identity-providers/import-metadata" class="space-y-4">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="url-name" class="block text-sm font-medium text-gray-700 mb-1">
+                                <label for="url-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Display Name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" id="url-name" name="name" required
                                        placeholder="e.g., Corporate Okta"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label for="url-provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                                <label for="url-provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Provider Type <span class="text-red-500">*</span>
                                 </label>
                                 <select id="url-provider_type" name="provider_type" required
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="okta">Okta</option>
                                     <option value="azure_ad">Azure AD</option>
                                     <option value="google">Google Workspace</option>
@@ -91,13 +91,13 @@
                             </div>
                         </div>
                         <div>
-                            <label for="metadata_url" class="block text-sm font-medium text-gray-700 mb-1">
+                            <label for="metadata_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Metadata URL <span class="text-red-500">*</span>
                             </label>
                             <input type="url" id="metadata_url" name="metadata_url" required
                                    placeholder="https://your-idp.com/metadata"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500">The URL where your IdP publishes its SAML metadata</p>
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The URL where your IdP publishes its SAML metadata</p>
                         </div>
                         <div class="flex justify-end">
                             <button type="submit"
@@ -111,28 +111,28 @@
 
             <!-- Tab Content: Paste XML -->
             <div id="content-xml" class="tab-content hidden">
-                <div class="p-4 border border-green-200 bg-green-50 rounded-md">
-                    <h3 class="font-medium text-green-900 mb-2">Paste Metadata XML</h3>
-                    <p class="text-sm text-green-800 mb-4">
+                <div class="p-4 border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+                    <h3 class="font-medium text-green-900 dark:text-green-300 mb-2">Paste Metadata XML</h3>
+                    <p class="text-sm text-green-800 dark:text-green-300 mb-4">
                         Paste the raw SAML metadata XML content to automatically extract the configuration.
                     </p>
                     <form method="post" action="/admin/identity-providers/import-metadata-xml" class="space-y-4">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="xml-name" class="block text-sm font-medium text-gray-700 mb-1">
+                                <label for="xml-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Display Name <span class="text-red-500">*</span>
                                 </label>
                                 <input type="text" id="xml-name" name="name" required
                                        placeholder="e.g., Corporate Okta"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label for="xml-provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                                <label for="xml-provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Provider Type <span class="text-red-500">*</span>
                                 </label>
                                 <select id="xml-provider_type" name="provider_type" required
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="okta">Okta</option>
                                     <option value="azure_ad">Azure AD</option>
                                     <option value="google">Google Workspace</option>
@@ -141,13 +141,13 @@
                             </div>
                         </div>
                         <div>
-                            <label for="metadata_xml" class="block text-sm font-medium text-gray-700 mb-1">
+                            <label for="metadata_xml" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Metadata XML <span class="text-red-500">*</span>
                             </label>
                             <textarea id="metadata_xml" name="metadata_xml" required rows="12"
                                       placeholder="<?xml version=&quot;1.0&quot;?>&#10;<EntityDescriptor ...>&#10;  ...&#10;</EntityDescriptor>"
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-                            <p class="mt-1 text-xs text-gray-500">Paste the full SAML metadata XML from your IdP</p>
+                                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Paste the full SAML metadata XML from your IdP</p>
                         </div>
                         <div class="flex justify-end">
                             <button type="submit"
@@ -184,24 +184,24 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <!-- Basic Info Section -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Basic Information
                 </h2>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Display Name <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="name" name="name" required
                                value="{{ idp.name }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label for="provider_type" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Provider Type <span class="text-red-500">*</span>
                         </label>
                         <select id="provider_type" name="provider_type" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="okta" {% if idp.provider_type == 'okta' %}selected{% endif %}>Okta</option>
                             <option value="azure_ad" {% if idp.provider_type == 'azure_ad' %}selected{% endif %}>Azure AD</option>
                             <option value="google" {% if idp.provider_type == 'google' %}selected{% endif %}>Google Workspace</option>
@@ -213,30 +213,30 @@
 
             <!-- IdP Configuration Section -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Identity Provider Configuration
                 </h2>
 
                 {% if idp.metadata_url %}
-                <div class="mb-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm text-gray-600">
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
                                 <span class="font-medium">Metadata URL:</span>
-                                <code class="ml-1 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{{ idp.metadata_url }}</code>
+                                <code class="ml-1 text-xs bg-gray-100 dark:bg-gray-600 px-1.5 py-0.5 rounded">{{ idp.metadata_url }}</code>
                             </p>
                             {% if idp.metadata_last_fetched_at %}
-                            <p class="text-xs text-green-600 mt-1">
+                            <p class="text-xs text-green-600 dark:text-green-400 mt-1">
                                 Last synced: {{ fmt_datetime(idp.metadata_last_fetched_at) }}
                             </p>
                             {% elif idp.metadata_fetch_error %}
-                            <p class="text-xs text-red-600 mt-1">
+                            <p class="text-xs text-red-600 dark:text-red-400 mt-1">
                                 Sync error: {{ idp.metadata_fetch_error }}
                             </p>
                             {% endif %}
                         </div>
                         <button type="button" onclick="document.getElementById('refresh-form').submit()"
-                                class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-100">
+                                class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
                             Refresh Now
                         </button>
                     </div>
@@ -245,69 +245,69 @@
 
                 <div class="space-y-4">
                     <div>
-                        <label for="entity_id" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="entity_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Entity ID <span class="text-red-500">*</span>
                         </label>
                         <input type="text" id="entity_id" name="entity_id" required
                                value="{{ idp.entity_id }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-gray-500">The unique identifier for this identity provider</p>
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The unique identifier for this identity provider</p>
                     </div>
 
                     <div>
-                        <label for="sso_url" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="sso_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             SSO URL <span class="text-red-500">*</span>
                         </label>
                         <input type="url" id="sso_url" name="sso_url" required
                                value="{{ idp.sso_url }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-gray-500">The IdP's Single Sign-On endpoint (HTTP-Redirect binding)</p>
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The IdP's Single Sign-On endpoint (HTTP-Redirect binding)</p>
                     </div>
 
                     <div>
-                        <label for="slo_url" class="block text-sm font-medium text-gray-700 mb-1">
-                            SLO URL <span class="text-gray-400">(optional)</span>
+                        <label for="slo_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            SLO URL <span class="text-gray-400 dark:text-gray-500">(optional)</span>
                         </label>
                         <input type="url" id="slo_url" name="slo_url"
                                value="{{ idp.slo_url or '' }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-gray-500">Single Logout endpoint. If provided, users will be logged out of the IdP when they sign out.</p>
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Single Logout endpoint. If provided, users will be logged out of the IdP when they sign out.</p>
                     </div>
 
                     <div>
-                        <label for="certificate_pem" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="certificate_pem" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             IdP Certificate <span class="text-red-500">*</span>
                         </label>
                         <textarea id="certificate_pem" name="certificate_pem" required rows="6"
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ idp.certificate_pem }}</textarea>
-                        <p class="mt-1 text-xs text-gray-500">The IdP's X.509 signing certificate in PEM format</p>
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{{ idp.certificate_pem }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The IdP's X.509 signing certificate in PEM format</p>
                     </div>
 
                     <div>
-                        <label for="metadata_url" class="block text-sm font-medium text-gray-700 mb-1">
-                            Metadata URL <span class="text-gray-400">(optional)</span>
+                        <label for="metadata_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Metadata URL <span class="text-gray-400 dark:text-gray-500">(optional)</span>
                         </label>
                         <input type="url" id="metadata_url" name="metadata_url"
                                value="{{ idp.metadata_url or '' }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p class="mt-1 text-xs text-gray-500">If provided, settings will be automatically refreshed from this URL daily</p>
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">If provided, settings will be automatically refreshed from this URL daily</p>
                     </div>
                 </div>
             </div>
 
             <!-- Attribute Mapping Section -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Attribute Mapping
                 </h2>
-                <p class="text-sm text-gray-600 mb-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Map SAML assertion attributes to user profile fields. Enter the attribute name as it appears in the SAML response.
                 </p>
                 <!-- Setup Guide Link -->
-                <div id="setup-guide-container" class="mb-4 p-3 bg-blue-50 rounded-md border border-blue-200 hidden">
+                <div id="setup-guide-container" class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-700 hidden">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="text-sm text-blue-800">
+                            <span class="text-sm text-blue-800 dark:text-blue-300">
                                 <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
@@ -315,7 +315,7 @@
                             </span>
                         </div>
                         <a id="setup-guide-link" href="#" target="_blank"
-                           class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                           class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                             View Setup Guide →
                         </a>
                     </div>
@@ -323,45 +323,45 @@
                 <!-- Load Presets Button -->
                 <div class="mb-4">
                     <button type="button" id="load-presets-btn" onclick="loadProviderPresets()"
-                            class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                         </svg>
                         Load Attribute Presets for Provider
                     </button>
-                    <span class="ml-2 text-xs text-gray-500">Fills in recommended attribute names for the selected provider type</span>
+                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Fills in recommended attribute names for the selected provider type</span>
                 </div>
                 <div class="grid grid-cols-3 gap-4">
                     <div>
-                        <label for="attr_email" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="attr_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Email Attribute
                         </label>
                         <input type="text" id="attr_email" name="attr_email"
                                value="{{ idp.attribute_mapping.email if idp.attribute_mapping else 'email' }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label for="attr_first_name" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="attr_first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             First Name Attribute
                         </label>
                         <input type="text" id="attr_first_name" name="attr_first_name"
                                value="{{ idp.attribute_mapping.first_name if idp.attribute_mapping else 'firstName' }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label for="attr_last_name" class="block text-sm font-medium text-gray-700 mb-1">
+                        <label for="attr_last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Last Name Attribute
                         </label>
                         <input type="text" id="attr_last_name" name="attr_last_name"
                                value="{{ idp.attribute_mapping.last_name if idp.attribute_mapping else 'lastName' }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
             </div>
 
             <!-- Settings Section -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Settings
                 </h2>
                 <div class="space-y-4">
@@ -369,11 +369,11 @@
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="is_enabled" name="is_enabled"
                                    {% if idp.is_enabled %}checked{% endif %}
-                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                   class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
-                            <label for="is_enabled" class="text-sm font-medium text-gray-700">Enabled</label>
-                            <p class="text-xs text-gray-500">Users can authenticate using this identity provider</p>
+                            <label for="is_enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enabled</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Users can authenticate using this identity provider</p>
                         </div>
                     </div>
 
@@ -381,11 +381,11 @@
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="is_default" name="is_default"
                                    {% if idp.is_default %}checked{% endif %}
-                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                   class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
-                            <label for="is_default" class="text-sm font-medium text-gray-700">Default IdP</label>
-                            <p class="text-xs text-gray-500">Use this IdP when users click "Sign in with SSO" (only one can be default)</p>
+                            <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default IdP</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Use this IdP when users click "Sign in with SSO" (only one can be default)</p>
                         </div>
                     </div>
 
@@ -393,11 +393,11 @@
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
                                    {% if idp.require_platform_mfa %}checked{% endif %}
-                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                   class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
-                            <label for="require_platform_mfa" class="text-sm font-medium text-gray-700">Require Platform MFA</label>
-                            <p class="text-xs text-gray-500">Users must complete additional MFA after SAML authentication</p>
+                            <label for="require_platform_mfa" class="text-sm font-medium text-gray-700 dark:text-gray-300">Require Platform MFA</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Users must complete additional MFA after SAML authentication</p>
                         </div>
                     </div>
 
@@ -405,12 +405,12 @@
                         <div class="flex items-center h-5">
                             <input type="checkbox" id="jit_provisioning" name="jit_provisioning"
                                    {% if idp.jit_provisioning %}checked{% endif %}
-                                   class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                   class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
                         </div>
                         <div class="ml-3">
-                            <label for="jit_provisioning" class="text-sm font-medium text-gray-700">Just-in-Time Provisioning</label>
-                            <p class="text-xs text-gray-500">Automatically create user accounts on first SAML login</p>
-                            <p class="text-xs text-amber-600 mt-1">
+                            <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Automatically create user accounts on first SAML login</p>
+                            <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                                 <svg class="w-3 h-3 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                 </svg>
@@ -423,26 +423,26 @@
 
             <!-- SP Configuration (read-only) -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Service Provider Configuration
                 </h2>
-                <p class="text-sm text-gray-600 mb-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     These values are auto-generated. Provide them to your identity provider administrator.
                 </p>
-                <div class="space-y-3 bg-gray-50 p-4 rounded-md">
+                <div class="space-y-3 bg-gray-50 dark:bg-gray-700 p-4 rounded-md">
                     <div>
-                        <span class="text-sm font-medium text-gray-700">SP Entity ID:</span>
-                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ idp.sp_entity_id }}</code>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Entity ID:</span>
+                        <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_entity_id }}</code>
                     </div>
                     <div>
-                        <span class="text-sm font-medium text-gray-700">ACS URL:</span>
-                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ idp.sp_acs_url }}</code>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">ACS URL:</span>
+                        <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_acs_url }}</code>
                     </div>
                     {% if sp_metadata %}
                     <div>
-                        <span class="text-sm font-medium text-gray-700">SP Metadata URL:</span>
-                        <code class="ml-2 text-sm bg-gray-100 px-2 py-1 rounded font-mono">{{ sp_metadata.metadata_url }}</code>
-                        <a href="/saml/metadata" target="_blank" class="ml-2 text-sm text-blue-600 hover:text-blue-800">View XML</a>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Metadata URL:</span>
+                        <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ sp_metadata.metadata_url }}</code>
+                        <a href="/saml/metadata" target="_blank" class="ml-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">View XML</a>
                     </div>
                     {% endif %}
                 </div>
@@ -450,29 +450,29 @@
 
             <!-- Connection Testing -->
             <div class="mb-8">
-                <h2 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     Connection Testing
                 </h2>
-                <p class="text-sm text-gray-600 mb-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                     Test your SAML configuration by performing a real authentication flow without creating a session.
                 </p>
                 <button type="button"
                         onclick="window.open('/admin/identity-providers/{{ idp.id }}/test', 'saml_test', 'width=600,height=700')"
-                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <svg class="w-4 h-4 inline-block mr-2 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     Test Connection
                 </button>
-                <p class="mt-2 text-xs text-gray-500">
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                     Opens in a new window. You'll authenticate with the IdP and see the parsed assertion details.
                 </p>
             </div>
 
             <!-- Actions -->
-            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <a href="/admin/identity-providers"
-                   class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                   class="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                     Cancel
                 </a>
                 <button type="submit"

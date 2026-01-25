@@ -1567,7 +1567,6 @@ def _jit_provision_user(
             "last_name": last_name,
             "name_id": attrs.name_id,
         },
-        request_metadata=None,
     )
 
     # Fetch and return the created user for session creation
@@ -1668,7 +1667,6 @@ def authenticate_via_saml(
             "email": email,
             "password_preserved": bool(user.get("password_hash")),
         },
-        request_metadata=None,  # Will be added by router
     )
 
     return user

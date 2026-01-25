@@ -33,6 +33,7 @@ from services.activity import track_activity
 from services.exceptions import ForbiddenError, NotFoundError
 from services.types import RequestingUser
 from utils import request_metadata as req_meta
+from utils.request_context import get_request_context, is_system_context
 
 # System actor UUID for automated/background processes.
 # This is a well-known constant, not a real user record.
@@ -57,6 +58,10 @@ def log_event(
     This is the primary interface for event logging. Call this after every
     successful database write in a service function.
 
+    Request metadata is automatically populated from the request context
+    (set by middleware) for web requests. For background jobs or CLI commands,
+    use `with system_context():` to bypass the context requirement.
+
     Args:
         tenant_id: Tenant ID
         actor_user_id: User who performed the action (use SYSTEM_ACTOR_ID for system actions)
@@ -64,13 +69,29 @@ def log_event(
         artifact_id: UUID of the affected entity
         event_type: Descriptive event (e.g., "user_created", "password_changed")
         metadata: Optional context-specific details as dict (custom event data)
-        request_metadata: Optional request metadata from RequestingUser
-            (IP, user agent, device, session)
+        request_metadata: Optional explicit request metadata override
+            (IP, user agent, device, session). If not provided, reads from contextvar.
+
+    Raises:
+        RuntimeError: If request context is missing and not in system context.
+            This indicates a web request handler is missing context middleware,
+            or background code forgot to use system_context().
 
     Note:
         This function is synchronous - the log entry is written before returning.
         It does not raise on failure to avoid disrupting the main business operation.
     """
+    # Auto-populate from contextvar if not explicitly provided
+    if request_metadata is None:
+        request_metadata = get_request_context()
+
+    # Fail-safe: error if context missing and not in system context
+    if request_metadata is None and not is_system_context():
+        raise RuntimeError(
+            f"log_event called without request context for '{event_type}'. "
+            "For background jobs, use 'with system_context():' context manager."
+        )
+
     try:
         # Build combined metadata: required request fields + custom event data
         # Start with required request fields (all null if no request_metadata)

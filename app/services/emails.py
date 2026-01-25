@@ -488,7 +488,6 @@ def verify_email(
             "email_id": email_id,
             "email": email["email"],
         },
-        request_metadata=None,
     )
 
     # Fetch updated email
@@ -641,7 +640,6 @@ def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
             "email": email["email"],
             "flow": "public_link",
         },
-        request_metadata=None,
     )
 
     return True

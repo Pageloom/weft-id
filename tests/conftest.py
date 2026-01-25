@@ -85,6 +85,24 @@ def clear_dependency_overrides():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def test_system_context():
+    """
+    Run all tests in system context by default.
+
+    Tests run outside of web request context, so log_event would fail
+    without request metadata. This fixture wraps all tests in system_context()
+    to bypass the context requirement.
+
+    For integration tests using TestClient, the middleware will set actual
+    request context, so this fixture doesn't interfere.
+    """
+    from utils.request_context import system_context
+
+    with system_context():
+        yield
+
+
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI application."""

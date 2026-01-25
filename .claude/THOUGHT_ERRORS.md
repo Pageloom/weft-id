@@ -58,6 +58,15 @@ Project architecture: "Routers: HTTP/template layer only. Never import database 
 
 ---
 
+## Restarting Containers After Code Changes
+
+**Wrong:** `make restart-app` when changing background job code
+**Right:** Restart the worker container for changes to `app/jobs/`
+
+Background jobs run in a separate worker container. Changes to job handlers require restarting the worker container, not the app container.
+
+---
+
 ## Adding New Thought Errors
 
 When you make a mistake that causes wasted effort or confusion, add it here:

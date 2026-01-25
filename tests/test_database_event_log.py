@@ -512,7 +512,7 @@ def test_event_logging_creates_metadata_and_event(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="test_artifact",
         artifact_id=event_id,
-        event_type="test_event_with_metadata",
+        event_type="user_created",
         metadata={"test_key": "test_value"},
     )
 
@@ -570,7 +570,7 @@ def test_metadata_hash_with_complex_nested_custom_fields(test_tenant, test_user)
         actor_user_id=str(test_user["id"]),
         artifact_type="test_artifact",
         artifact_id=event_id,
-        event_type="test_complex_metadata",
+        event_type="user_updated",
         metadata=complex_metadata,
     )
 
@@ -614,7 +614,7 @@ def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="test_artifact",
         artifact_id=event_id_1,
-        event_type="test_deterministic_hash_1",
+        event_type="user_created",
         metadata=metadata.copy(),
     )
 
@@ -623,7 +623,7 @@ def test_metadata_hash_deterministic_with_same_data(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="test_artifact",
         artifact_id=event_id_2,
-        event_type="test_deterministic_hash_2",
+        event_type="user_updated",
         metadata=metadata.copy(),
     )
 
@@ -668,7 +668,7 @@ def test_metadata_hash_with_boolean_and_null_values(test_tenant, test_user):
         actor_user_id=str(test_user["id"]),
         artifact_type="test_artifact",
         artifact_id=event_id,
-        event_type="test_null_boolean_values",
+        event_type="user_profile_updated",
         metadata=metadata_with_nulls,
     )
 

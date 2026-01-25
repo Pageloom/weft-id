@@ -9,11 +9,7 @@
             <h1 class="text-2xl font-semibold">Background Jobs</h1>
         </div>
 
-        {% if success == 'export_started' %}
-        <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-            <p class="text-green-800">Export job started. It will appear in the list below once processing begins.</p>
-        </div>
-        {% elif success and success.startswith('deleted_') %}
+        {% if success and success.startswith('deleted_') %}
         <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
             <p class="text-green-800">Successfully deleted {{ success.split('_')[1] }} job(s).</p>
         </div>

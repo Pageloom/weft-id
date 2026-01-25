@@ -323,7 +323,6 @@ def test_log_event_helper_function(make_requesting_user):
 
     tenant_id = str(uuid4())
     user_id = str(uuid4())
-    unique_event_type = f"test_helper_{uuid4().hex[:8]}"
 
     with (
         patch("services.event_log.database") as mock_db,
@@ -334,9 +333,9 @@ def test_log_event_helper_function(make_requesting_user):
         log_event(
             tenant_id=tenant_id,
             actor_user_id=user_id,
-            artifact_type="test",
+            artifact_type="user",
             artifact_id=user_id,
-            event_type=unique_event_type,
+            event_type="user_created",
             metadata={"test": True},
         )
 
@@ -344,8 +343,8 @@ def test_log_event_helper_function(make_requesting_user):
         call_kwargs = mock_db.event_log.create_event.call_args.kwargs
         assert call_kwargs["tenant_id"] == tenant_id
         assert call_kwargs["actor_user_id"] == user_id
-        assert call_kwargs["artifact_type"] == "test"
-        assert call_kwargs["event_type"] == unique_event_type
+        assert call_kwargs["artifact_type"] == "user"
+        assert call_kwargs["event_type"] == "user_created"
         assert call_kwargs["combined_metadata"]["test"] is True
 
 
@@ -364,9 +363,9 @@ def test_log_event_does_not_raise_on_failure(make_requesting_user):
         log_event(
             tenant_id="invalid-uuid",
             actor_user_id=str(uuid4()),
-            artifact_type="test",
+            artifact_type="user",
             artifact_id=str(uuid4()),
-            event_type="test_failure",
+            event_type="user_created",
         )
 
         # If we get here, the function didn't raise

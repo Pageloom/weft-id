@@ -4,6 +4,64 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Replace External CDN Dependencies with Local Versions
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want to eliminate external CDN and API dependencies for frontend assets and QR code generation
+So that I can strengthen security posture, protect user privacy, and eliminate supply chain attack vectors
+
+**Completed Work:**
+
+**Tailwind CSS Migration:**
+
+- [x] Install `tailwindcss-cli` or equivalent build tooling
+- [x] Create `tailwind.config.js` with project-specific configuration
+- [x] Set up PostCSS build pipeline for optimized CSS generation
+- [x] Remove `<script src="https://cdn.tailwindcss.com"></script>` from `app/templates/base.html`
+- [x] Replace with compiled CSS file served locally
+- [x] Update CSP to remove `https://cdn.tailwindcss.com` from `script-src`
+- [x] Verify all existing Tailwind styles still work correctly
+
+**QR Code Generation (CRITICAL - Privacy Issue):**
+
+- [x] Install `qrcode[pil]` Python package
+- [x] Create server-side QR code generation function in `app/utils/qr.py`
+- [x] Generate QR codes as base64-encoded data URLs
+- [x] Update `app/templates/mfa_setup_totp.html` to use local QR generation instead of `https://api.qrserver.com`
+- [x] Remove `https://api.qrserver.com` from CSP `script-src` and `img-src` directives
+- [x] Verify TOTP setup flow works correctly with locally-generated QR codes
+- [x] Test on multiple devices to ensure QR codes scan properly
+
+**Security Improvements:**
+
+- [x] Update CSP to remove external domains
+- [x] Update security headers tests to verify stricter CSP
+- [x] Document new build process in CLAUDE.md
+
+**Technical Implementation:**
+
+- Frontend build: Standalone Tailwind CLI (no Node.js dependency)
+- QR generation: `qrcode[pil]` Python library
+- Updated `app/middleware/security_headers.py` CSP configuration
+- Updated relevant templates
+- Added build step to Dockerfile
+- Added Makefile targets (`make build-css`, `make watch-css`)
+
+**Effort:** M
+**Value:** High (Security & Privacy)
+
+**Notes:**
+
+- CRITICAL issue resolved: TOTP secrets no longer leak to third-party API
+- Benefits: Stronger CSP without external domains, no user data leaving infrastructure, no supply chain attack risk, better performance with optimized Tailwind builds
+- Eliminated two external dependencies and significantly reduced attack surface
+- All 1729 tests pass
+
+---
+
 ## SAML Upstream IdP Support - Phase 4: Provider Helpers, SLO & Certificate Management
 
 **Status:** Complete

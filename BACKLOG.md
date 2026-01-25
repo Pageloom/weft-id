@@ -6,6 +6,66 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Replace External CDN Dependencies with Local Versions
+
+**User Story:**
+As a platform operator
+I want to eliminate external CDN and API dependencies for frontend assets and QR code generation
+So that I can strengthen security posture, protect user privacy, and eliminate supply chain attack vectors
+
+**Acceptance Criteria:**
+
+**Tailwind CSS Migration:**
+
+- [ ] Install `tailwindcss-cli` or equivalent build tooling
+- [ ] Create `tailwind.config.js` with project-specific configuration
+- [ ] Set up PostCSS build pipeline for optimized CSS generation
+- [ ] Remove `<script src="https://cdn.tailwindcss.com"></script>` from `app/templates/base.html`
+- [ ] Replace with compiled CSS file served locally
+- [ ] Update CSP to remove `https://cdn.tailwindcss.com` from `script-src`
+- [ ] Verify all existing Tailwind styles still work correctly
+
+**QR Code Generation (CRITICAL - Privacy Issue):**
+
+- [ ] Install `qrcode[pil]` Python package
+- [ ] Create server-side QR code generation function in `app/services/mfa.py` or utility module
+- [ ] Generate QR codes as base64-encoded data URLs or serve via dedicated endpoint
+- [ ] Update `app/templates/mfa_setup_totp.html` to use local QR generation instead of `https://api.qrserver.com`
+- [ ] Remove `https://api.qrserver.com` from CSP `script-src` and `img-src` directives
+- [ ] Verify TOTP setup flow works correctly with locally-generated QR codes
+- [ ] Test on multiple devices to ensure QR codes scan properly
+
+**Security Improvements:**
+
+- [ ] Remove `'unsafe-inline'` from CSP `script-src` if possible (migrate inline scripts to files or use nonces)
+- [ ] Update security headers tests to verify stricter CSP
+- [ ] Document new build process in README.md and CLAUDE.md
+
+**Technical Implementation:**
+
+- Frontend build: Tailwind CLI, PostCSS, or integrated build tool
+- QR generation: `qrcode` Python library with PIL support
+- Update `app/middleware/security_headers.py` CSP configuration
+- Update relevant templates
+- Add build step to Makefile or Docker build process
+
+**Dependencies:**
+
+- `qrcode[pil]` Python package
+- `tailwindcss-cli` or similar frontend build tooling
+
+**Effort:** M
+**Value:** High (Security & Privacy - TOTP secrets currently leak to third-party API)
+
+**Notes:**
+
+- **CRITICAL:** The QR Server API issue is a privacy/security vulnerability. TOTP secrets (containing account info) are being sent to `api.qrserver.com`.
+- Benefits: Stronger CSP without external domains, no user data leaving infrastructure, no supply chain attack risk, better performance with optimized Tailwind builds.
+- This change eliminates two external dependencies and significantly reduces attack surface.
+- Consider this a prerequisite for production deployment given the TOTP secret leakage issue.
+
+---
+
 ## Integration Management Frontend (Apps & B2B)
 
 **User Story:**

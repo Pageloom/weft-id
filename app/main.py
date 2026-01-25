@@ -44,8 +44,9 @@ app = FastAPI(
     title="Loom Identity Platform API",
     version="1.0.0",
     description="Multi-tenant identity platform with OAuth2 and RESTful API",
-    openapi_url="/openapi.json",
-    docs_url="/docs",
+    openapi_url="/openapi.json" if settings.ENABLE_OPENAPI_DOCS else None,
+    docs_url="/docs" if settings.ENABLE_OPENAPI_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_OPENAPI_DOCS else None,
 )
 
 # Add session middleware with dynamic per-tenant session configuration

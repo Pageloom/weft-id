@@ -54,7 +54,7 @@ Follow these architectural principles:
 1. Format code: `poetry run black app/ tests/`
 2. Fix linting issues: `poetry run ruff check --fix app/ tests/`
 3. Type check: `poetry run mypy app/`
-4. Run all tests: `poetry run pytest`
+4. Run all tests: `./test` (or `poetry run python -m pytest`)
 
 All four checks must pass before committing.
 

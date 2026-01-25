@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Convenience script for running tests
+# Usage: ./test [pytest args]
+#
+# Examples:
+#   ./test                    # Run all tests
+#   ./test -v                 # Verbose output
+#   ./test -n auto            # Parallel execution
+#   ./test --cov=app          # With coverage
+#   ./test tests/test_file.py # Run specific file
+
+exec poetry run python -m pytest "$@"

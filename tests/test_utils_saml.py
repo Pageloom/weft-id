@@ -550,3 +550,516 @@ def test_build_saml_settings_without_slo_urls(sample_certificate):
 
     assert "singleLogoutService" not in settings["idp"]
     assert "singleLogoutService" not in settings["sp"]
+
+
+# =============================================================================
+# Extract Issuer from Response Tests
+# =============================================================================
+
+
+def test_extract_issuer_from_response_valid():
+    """Test extracting issuer from valid SAML response."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    # Create a sample SAML response with issuer in Response element
+    saml_response = """<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+  <saml:Issuer>https://idp.example.com</saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+</samlp:Response>"""
+
+    encoded = base64.b64encode(saml_response.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result == "https://idp.example.com"
+
+
+def test_extract_issuer_from_response_in_assertion():
+    """Test extracting issuer from SAML assertion element."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    # SAML response with issuer only in Assertion
+    saml_response = """<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+                xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+  <saml:Assertion>
+    <saml:Issuer>https://assertion-issuer.example.com</saml:Issuer>
+  </saml:Assertion>
+</samlp:Response>"""
+
+    encoded = base64.b64encode(saml_response.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result == "https://assertion-issuer.example.com"
+
+
+def test_extract_issuer_from_response_without_namespace():
+    """Test extracting issuer when no namespace prefix is used."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    # SAML-like response without proper namespace prefixes
+    saml_response = """<?xml version="1.0"?>
+<Response>
+  <Issuer>https://no-namespace.example.com</Issuer>
+</Response>"""
+
+    encoded = base64.b64encode(saml_response.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result == "https://no-namespace.example.com"
+
+
+def test_extract_issuer_from_response_no_issuer():
+    """Test extracting issuer when no issuer is present."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    saml_response = """<?xml version="1.0"?>
+<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol">
+  <samlp:Status>
+    <samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+  </samlp:Status>
+</samlp:Response>"""
+
+    encoded = base64.b64encode(saml_response.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result is None
+
+
+def test_extract_issuer_from_response_invalid_base64():
+    """Test extracting issuer with invalid base64 input."""
+    from app.utils.saml import extract_issuer_from_response
+
+    result = extract_issuer_from_response("not-valid-base64!!!")
+
+    assert result is None
+
+
+def test_extract_issuer_from_response_invalid_xml():
+    """Test extracting issuer with invalid XML."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    invalid_xml = "not valid xml <unclosed"
+    encoded = base64.b64encode(invalid_xml.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result is None
+
+
+def test_extract_issuer_from_response_whitespace_trimmed():
+    """Test that issuer text is trimmed of whitespace."""
+    import base64
+
+    from app.utils.saml import extract_issuer_from_response
+
+    saml_response = """<?xml version="1.0"?>
+<Response>
+  <Issuer>  https://whitespace.example.com  </Issuer>
+</Response>"""
+
+    encoded = base64.b64encode(saml_response.encode("utf-8")).decode("utf-8")
+    result = extract_issuer_from_response(encoded)
+
+    assert result == "https://whitespace.example.com"
+
+
+# =============================================================================
+# Single Logout (SLO) Utility Tests
+# =============================================================================
+
+
+@pytest.fixture
+def saml_settings_with_slo(sample_certificate):
+    """Build SAML settings with SLO configured for testing."""
+    cert_pem, key_pem = sample_certificate
+
+    return build_saml_settings(
+        sp_entity_id="https://sp.example.com",
+        sp_acs_url="https://sp.example.com/acs",
+        sp_certificate_pem=cert_pem,
+        sp_private_key_pem=key_pem,
+        idp_entity_id="https://idp.example.com",
+        idp_sso_url="https://idp.example.com/sso",
+        idp_certificate_pem=cert_pem,
+        idp_slo_url="https://idp.example.com/slo",
+        sp_slo_url="https://sp.example.com/slo",
+    )
+
+
+def test_build_logout_request_basic(saml_settings_with_slo):
+    """Test building a basic logout request."""
+    from app.utils.saml import build_logout_request
+
+    redirect_url, request_id = build_logout_request(
+        settings=saml_settings_with_slo,
+        name_id="user@example.com",
+    )
+
+    # Should return a redirect URL to the IdP's SLO endpoint
+    assert redirect_url.startswith("https://idp.example.com/slo")
+    assert "SAMLRequest=" in redirect_url
+    assert request_id is not None
+
+
+def test_build_logout_request_with_session_index(saml_settings_with_slo):
+    """Test building logout request with session index."""
+    from app.utils.saml import build_logout_request
+
+    redirect_url, request_id = build_logout_request(
+        settings=saml_settings_with_slo,
+        name_id="user@example.com",
+        name_id_format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+        session_index="session-12345",
+    )
+
+    assert redirect_url.startswith("https://idp.example.com/slo")
+    assert request_id is not None
+
+
+def test_build_logout_request_uses_email_format_by_default(saml_settings_with_slo):
+    """Test that email NameID format is used by default."""
+    from app.utils.saml import build_logout_request
+
+    # The function uses email format by default when name_id_format is None
+    redirect_url, _ = build_logout_request(
+        settings=saml_settings_with_slo,
+        name_id="user@example.com",
+        name_id_format=None,
+    )
+
+    # Should succeed with default format
+    assert redirect_url.startswith("https://idp.example.com/slo")
+
+
+def test_process_logout_response_success(saml_settings_with_slo):
+    """Test processing successful logout response."""
+    from app.utils.saml import process_logout_response
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = []
+        MockAuth.return_value = mock_auth
+
+        success, error = process_logout_response(
+            settings=saml_settings_with_slo,
+            get_data={"SAMLResponse": "encoded-response"},
+        )
+
+        assert success is True
+        assert error is None
+        mock_auth.process_slo.assert_called_once()
+
+
+def test_process_logout_response_with_errors(saml_settings_with_slo):
+    """Test processing logout response with errors."""
+    from app.utils.saml import process_logout_response
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = ["Invalid signature", "Response expired"]
+        MockAuth.return_value = mock_auth
+
+        success, error = process_logout_response(
+            settings=saml_settings_with_slo,
+            get_data={"SAMLResponse": "encoded-response"},
+        )
+
+        assert success is False
+        assert "Invalid signature" in error
+        assert "Response expired" in error
+
+
+def test_process_logout_response_exception(saml_settings_with_slo):
+    """Test processing logout response when exception is raised."""
+    from app.utils.saml import process_logout_response
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.process_slo.side_effect = Exception("SLO processing failed")
+        MockAuth.return_value = mock_auth
+
+        success, error = process_logout_response(
+            settings=saml_settings_with_slo,
+            get_data={"SAMLResponse": "encoded-response"},
+        )
+
+        assert success is False
+        assert "SLO processing failed" in error
+
+
+def test_process_logout_response_with_request_id(saml_settings_with_slo):
+    """Test processing logout response with request ID validation."""
+    from app.utils.saml import process_logout_response
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = []
+        MockAuth.return_value = mock_auth
+
+        success, error = process_logout_response(
+            settings=saml_settings_with_slo,
+            get_data={"SAMLResponse": "encoded-response"},
+            request_id="original-request-id",
+        )
+
+        assert success is True
+        # Verify request_id was passed to process_slo
+        call_kwargs = mock_auth.process_slo.call_args[1]
+        assert call_kwargs["request_id"] == "original-request-id"
+
+
+def test_process_logout_request_success(saml_settings_with_slo):
+    """Test processing IdP-initiated logout request."""
+    from app.utils.saml import process_logout_request
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.get_nameid.return_value = "user@example.com"
+        mock_auth.get_session_index.return_value = "session-123"
+        mock_auth.get_last_request_id.return_value = "request-456"
+        MockAuth.return_value = mock_auth
+
+        request_data = {
+            "http_host": "sp.example.com",
+            "script_name": "/slo",
+            "get_data": {"SAMLRequest": "encoded-request"},
+            "post_data": {},
+        }
+
+        name_id, session_index, request_id = process_logout_request(
+            settings=saml_settings_with_slo,
+            request_data=request_data,
+        )
+
+        assert name_id == "user@example.com"
+        assert session_index == "session-123"
+        assert request_id == "request-456"
+
+
+def test_process_logout_request_exception(saml_settings_with_slo):
+    """Test processing logout request when exception is raised."""
+    from app.utils.saml import process_logout_request
+
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+        mock_auth = MagicMock()
+        mock_auth.process_slo.side_effect = Exception("Invalid request")
+        MockAuth.return_value = mock_auth
+
+        request_data = {
+            "http_host": "sp.example.com",
+            "script_name": "/slo",
+            "get_data": {"SAMLRequest": "encoded-request"},
+            "post_data": {},
+        }
+
+        name_id, session_index, request_id = process_logout_request(
+            settings=saml_settings_with_slo,
+            request_data=request_data,
+        )
+
+        assert name_id is None
+        assert session_index is None
+        assert request_id is None
+
+
+def test_build_logout_response_success(saml_settings_with_slo):
+    """Test building logout response."""
+    from app.utils.saml import build_logout_response
+
+    redirect_url = build_logout_response(
+        settings=saml_settings_with_slo,
+        in_response_to="original-request-id",
+    )
+
+    assert redirect_url.startswith("https://idp.example.com/slo")
+    assert "SAMLResponse=" in redirect_url
+
+
+def test_build_logout_response_without_in_response_to(saml_settings_with_slo):
+    """Test building logout response without InResponseTo."""
+    from app.utils.saml import build_logout_response
+
+    redirect_url = build_logout_response(
+        settings=saml_settings_with_slo,
+        in_response_to=None,
+    )
+
+    assert redirect_url.startswith("https://idp.example.com/slo")
+    assert "SAMLResponse=" in redirect_url
+
+
+def test_build_logout_response_no_slo_url(sample_certificate):
+    """Test building logout response when IdP has no SLO URL."""
+    from app.utils.saml import build_logout_response
+
+    cert_pem, key_pem = sample_certificate
+
+    # Build settings without SLO URL
+    settings = build_saml_settings(
+        sp_entity_id="https://sp.example.com",
+        sp_acs_url="https://sp.example.com/acs",
+        sp_certificate_pem=cert_pem,
+        sp_private_key_pem=key_pem,
+        idp_entity_id="https://idp.example.com",
+        idp_sso_url="https://idp.example.com/sso",
+        idp_certificate_pem=cert_pem,
+        # No idp_slo_url
+    )
+
+    with pytest.raises(ValueError, match="IdP has no SLO URL configured"):
+        build_logout_response(settings=settings, in_response_to="request-id")
+
+
+def test_build_logout_response_slo_url_with_query_string(sample_certificate):
+    """Test building logout response when SLO URL already has query params."""
+    from app.utils.saml import build_logout_response
+
+    cert_pem, key_pem = sample_certificate
+
+    # Build settings with SLO URL that has query params
+    settings = build_saml_settings(
+        sp_entity_id="https://sp.example.com",
+        sp_acs_url="https://sp.example.com/acs",
+        sp_certificate_pem=cert_pem,
+        sp_private_key_pem=key_pem,
+        idp_entity_id="https://idp.example.com",
+        idp_sso_url="https://idp.example.com/sso",
+        idp_certificate_pem=cert_pem,
+        idp_slo_url="https://idp.example.com/slo?param=value",
+        sp_slo_url="https://sp.example.com/slo",
+    )
+
+    redirect_url = build_logout_response(settings=settings, in_response_to="request-id")
+
+    # Should use & instead of ? since URL already has query params
+    assert "idp.example.com/slo?param=value&SAMLResponse=" in redirect_url
+
+
+# =============================================================================
+# Edge Case Tests (for complete coverage)
+# =============================================================================
+
+
+def test_get_encryption_key_with_valid_32_byte_key():
+    """Test encryption key generation when key is exactly 32 bytes."""
+    import base64
+    import hashlib
+
+    # Create a valid 32-byte key (base64 encoded)
+    valid_key = base64.urlsafe_b64encode(b"a" * 32).decode()
+
+    with patch("app.utils.saml.settings") as mock_settings:
+        mock_settings.SAML_KEY_ENCRYPTION_KEY = valid_key
+
+        # Reimport to pick up mocked settings
+        from importlib import reload
+
+        import app.utils.saml
+
+        reload(app.utils.saml)
+        from app.utils.saml import _get_encryption_key
+
+        result = _get_encryption_key()
+
+        # Should return base64-encoded version of the key
+        assert len(base64.urlsafe_b64decode(result)) == 32
+
+
+def test_get_encryption_key_with_invalid_key_falls_back_to_hash():
+    """Test encryption key generation falls back to SHA256 hash for invalid keys."""
+    import base64
+
+    with patch("app.utils.saml.settings") as mock_settings:
+        mock_settings.SAML_KEY_ENCRYPTION_KEY = "not-valid-base64!"
+
+        from importlib import reload
+
+        import app.utils.saml
+
+        reload(app.utils.saml)
+        from app.utils.saml import _get_encryption_key
+
+        result = _get_encryption_key()
+
+        # Should still return a valid 32-byte key (base64 encoded)
+        assert len(base64.urlsafe_b64decode(result)) == 32
+
+
+def test_get_certificate_expiry_fallback_for_older_cryptography():
+    """Test certificate expiry uses not_valid_after when not_valid_after_utc not available."""
+    cert_pem, _ = generate_sp_certificate("test-tenant")
+
+    # Create a mock cert that raises AttributeError for not_valid_after_utc
+    class MockCert:
+        @property
+        def not_valid_after_utc(self):
+            raise AttributeError("not_valid_after_utc not available")
+
+        @property
+        def not_valid_after(self):
+            return datetime.datetime(2030, 1, 1, 0, 0, 0)
+
+    with patch("app.utils.saml.x509.load_pem_x509_certificate", return_value=MockCert()):
+        result = get_certificate_expiry(cert_pem)
+        assert result == datetime.datetime(2030, 1, 1, 0, 0, 0)
+
+
+def test_parse_idp_metadata_with_certificate_as_list():
+    """Test parsing IdP metadata when certificate is returned as a list."""
+    with patch(
+        "onelogin.saml2.idp_metadata_parser.OneLogin_Saml2_IdPMetadataParser.parse"
+    ) as mock_parse:
+        # Simulate metadata where certificate is returned as a list
+        mock_parse.return_value = {
+            "idp": {
+                "entityId": "https://idp.example.com",
+                "singleSignOnService": {"url": "https://idp.example.com/sso"},
+                "singleLogoutService": {"url": "https://idp.example.com/slo"},
+                "x509cert": [
+                    "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADA",  # First cert
+                    "MIICqDCCAZACCQC6SOM/9zQJgTANBgkqhkiG9w0BAQsFADA",  # Second cert
+                ],
+            }
+        }
+
+        result = parse_idp_metadata_xml("<fake-xml>")
+
+        # Should take the first certificate
+        assert "-----BEGIN CERTIFICATE-----" in result["certificate_pem"]
+        assert "MIICpDCCAYwCCQC5RNM/8zPIfzANBgkqhkiG9w0BAQsFADA" in result[
+            "certificate_pem"
+        ]
+
+
+def test_parse_idp_metadata_with_empty_certificate_list():
+    """Test parsing IdP metadata when certificate list is empty."""
+    with patch(
+        "onelogin.saml2.idp_metadata_parser.OneLogin_Saml2_IdPMetadataParser.parse"
+    ) as mock_parse:
+        # Simulate metadata where certificate list is empty
+        mock_parse.return_value = {
+            "idp": {
+                "entityId": "https://idp.example.com",
+                "singleSignOnService": {"url": "https://idp.example.com/sso"},
+                "x509cert": [],  # Empty list
+            }
+        }
+
+        with pytest.raises(ValueError, match="missing X.509 certificate"):
+            parse_idp_metadata_xml("<fake-xml>")

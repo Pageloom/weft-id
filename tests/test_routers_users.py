@@ -1777,3 +1777,998 @@ def test_set_password_with_invalid_email_id_returns_error(test_tenant):
     assert response.status_code == 303
     assert "/login" in response.headers["location"]
     assert "error=invalid_link" in response.headers["location"]
+
+
+# =============================================================================
+# IdP Assignment Route Tests (update_user_idp_route)
+# =============================================================================
+
+
+def test_update_user_idp_success(test_super_admin_user):
+    """Test super_admin can assign user to an IdP."""
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?success=idp_updated" in response.headers["location"]
+        mock_assign.assert_called_once()
+        call_args = mock_assign.call_args
+        assert call_args[1]["user_id"] == "user-123"
+        assert call_args[1]["saml_idp_id"] == "idp-456"
+
+
+def test_update_user_idp_remove_idp(test_super_admin_user):
+    """Test super_admin can remove user from IdP (set to password-only)."""
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": ""},  # Empty = password-only
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=idp_updated" in response.headers["location"]
+        mock_assign.assert_called_once()
+        # Empty string should be converted to None
+        assert mock_assign.call_args[1]["saml_idp_id"] is None
+
+
+def test_update_user_idp_denied_for_admin(test_admin_user):
+    """Test admin cannot assign user to IdP (super_admin only)."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_assign.assert_not_called()
+
+
+def test_update_user_idp_denied_for_member(test_user):
+    """Test member cannot assign user to IdP."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_assign.assert_not_called()
+
+
+def test_update_user_idp_user_not_found(test_super_admin_user):
+    """Test update IdP returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        mock_assign.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=user_not_found" in response.headers["location"]
+
+
+def test_update_user_idp_idp_not_found(test_super_admin_user):
+    """Test update IdP returns error when IdP not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        mock_assign.side_effect = NotFoundError(
+            message="IdP not found", code="idp_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=idp_not_found" in response.headers["location"]
+
+
+def test_update_user_idp_validation_error(test_super_admin_user):
+    """Test update IdP returns error on validation failure."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        mock_assign.side_effect = ValidationError(
+            message="Cannot assign to disabled IdP", code="idp_disabled"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-idp",
+            data={"saml_idp_id": "idp-456"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=idp_disabled" in response.headers["location"]
+
+
+def test_update_user_idp_service_error(test_super_admin_user):
+    """Test update IdP renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_assign.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(
+                content="Error", status_code=500
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/update-idp",
+                data={"saml_idp_id": "idp-456"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Inactivation Route Tests (inactivate_user_route)
+# =============================================================================
+
+
+def test_inactivate_user_success(test_admin_user):
+    """Test admin can inactivate a user."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/inactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?success=user_inactivated" in response.headers["location"]
+        mock_inactivate.assert_called_once()
+
+
+def test_inactivate_user_denied_for_member(test_user):
+    """Test member cannot inactivate a user."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/inactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_inactivate.assert_not_called()
+
+
+def test_inactivate_user_not_found(test_admin_user):
+    """Test inactivate returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
+        mock_inactivate.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/inactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_inactivate_user_validation_error(test_admin_user):
+    """Test inactivate returns error on validation failure (e.g., already inactivated)."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
+        mock_inactivate.side_effect = ValidationError(
+            message="User already inactivated", code="already_inactivated"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/inactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=already_inactivated" in response.headers["location"]
+
+
+def test_inactivate_user_service_error(test_admin_user):
+    """Test inactivate renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_inactivate.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(
+                content="Error", status_code=500
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/inactivate",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Reactivation Route Tests (reactivate_user_route)
+# =============================================================================
+
+
+def test_reactivate_user_success(test_admin_user):
+    """Test admin can reactivate a user."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?success=user_reactivated" in response.headers["location"]
+        mock_reactivate.assert_called_once()
+
+
+def test_reactivate_user_denied_for_member(test_user):
+    """Test member cannot reactivate a user."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_reactivate.assert_not_called()
+
+
+def test_reactivate_user_not_found(test_admin_user):
+    """Test reactivate returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
+        mock_reactivate.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_reactivate_user_validation_error(test_admin_user):
+    """Test reactivate returns error on validation failure (e.g., already active)."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
+        mock_reactivate.side_effect = ValidationError(
+            message="User is already active", code="already_active"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reactivate",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=already_active" in response.headers["location"]
+
+
+def test_reactivate_user_service_error(test_admin_user):
+    """Test reactivate renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_reactivate.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(
+                content="Error", status_code=500
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/reactivate",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Anonymization Route Tests (anonymize_user_route)
+# =============================================================================
+
+
+def test_anonymize_user_success(test_super_admin_user):
+    """Test super_admin can anonymize a user."""
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/anonymize",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?success=user_anonymized" in response.headers["location"]
+        mock_anonymize.assert_called_once()
+
+
+def test_anonymize_user_denied_for_admin(test_admin_user):
+    """Test admin cannot anonymize a user (super_admin only)."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/anonymize",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_anonymize.assert_not_called()
+
+
+def test_anonymize_user_denied_for_member(test_user):
+    """Test member cannot anonymize a user."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/anonymize",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_anonymize.assert_not_called()
+
+
+def test_anonymize_user_not_found(test_super_admin_user):
+    """Test anonymize returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        mock_anonymize.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/anonymize",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_anonymize_user_validation_error(test_super_admin_user):
+    """Test anonymize returns error on validation failure (e.g., cannot anonymize self)."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        mock_anonymize.side_effect = ValidationError(
+            message="Cannot anonymize your own account", code="cannot_anonymize_self"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/anonymize",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=cannot_anonymize_self" in response.headers["location"]
+
+
+def test_anonymize_user_service_error(test_super_admin_user):
+    """Test anonymize renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_anonymize.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(
+                content="Error", status_code=500
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/anonymize",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Users Index Permission & Fallback Tests
+# =============================================================================
+
+
+def test_users_index_no_permission_redirects_to_account(test_user):
+    """Test users index redirects to /account when user has no /users access."""
+    override_auth(app, test_user)
+
+    # Mock has_page_access to return False for /users
+    with patch("routers.users.has_page_access", return_value=False):
+        client = TestClient(app)
+        response = client.get("/users/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account"
+
+
+def test_users_index_fallback_to_account(test_user):
+    """Test users index falls back to /account when no children are accessible."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.has_page_access", return_value=True):
+        with patch("routers.users.get_first_accessible_child", return_value=None):
+            client = TestClient(app)
+            response = client.get("/users/", follow_redirects=False)
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert response.headers["location"] == "/account"
+
+
+# =============================================================================
+# Update User Name Error Path Tests
+# =============================================================================
+
+
+def test_update_user_name_not_found(test_admin_user):
+    """Test update name returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        mock_update.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-name",
+            data={"first_name": "New", "last_name": "Name"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_update_user_name_service_error(test_admin_user):
+    """Test update name renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_update.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/update-name",
+                data={"first_name": "New", "last_name": "Name"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+def test_update_user_name_denied_for_member(test_user):
+    """Test member cannot update user name."""
+    override_auth(app, test_user)
+
+    with patch("services.users.update_user") as mock_update:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-name",
+            data={"first_name": "New", "last_name": "Name"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_update.assert_not_called()
+
+
+# =============================================================================
+# Update User Role Error Path Tests
+# =============================================================================
+
+
+def test_update_user_role_not_found(test_super_admin_user):
+    """Test update role returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        mock_update.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/update-role",
+            data={"role": "admin"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_update_user_role_last_super_admin(test_super_admin_user):
+    """Test update role prevents demoting last super_admin."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        mock_update.side_effect = ValidationError(
+            message="Cannot demote last super admin", code="last_super_admin"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/other-user/update-role",
+            data={"role": "member"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=cannot_demote_last_super_admin" in response.headers["location"]
+
+
+def test_update_user_role_validation_error(test_super_admin_user):
+    """Test update role renders error page on other validation errors."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_update.side_effect = ValidationError(
+                message="Some other error", code="other_error"
+            )
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/other-user/update-role",
+                data={"role": "admin"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 400
+            mock_error_page.assert_called_once()
+
+
+def test_update_user_role_service_error(test_super_admin_user):
+    """Test update role renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_super_admin_user)
+
+    with patch("services.users.update_user") as mock_update:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_update.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/other-user/update-role",
+                data={"role": "admin"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Add User Email Error Path Tests
+# =============================================================================
+
+
+def test_add_user_email_denied_for_member(test_user):
+    """Test member cannot add email to other users."""
+    override_auth(app, test_user)
+
+    with patch("services.emails.add_user_email") as mock_add:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/add-email",
+            data={"email": "new@example.com"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_add.assert_not_called()
+
+
+def test_add_user_email_not_found(test_admin_user):
+    """Test add email returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.settings.is_privileged_domain", return_value=True):
+        with patch("services.emails.add_user_email") as mock_add:
+            mock_add.side_effect = NotFoundError(
+                message="User not found", code="user_not_found"
+            )
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/add-email",
+                data={"email": "new@privileged.com"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_add_user_email_service_error(test_admin_user):
+    """Test add email renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.settings.is_privileged_domain", return_value=True):
+        with patch("services.emails.add_user_email") as mock_add:
+            with patch("routers.users.render_error_page") as mock_error_page:
+                from fastapi.responses import HTMLResponse
+
+                mock_add.side_effect = ServiceError(message="Database error")
+                mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/add-email",
+                    data={"email": "new@privileged.com"},
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 500
+                mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Remove User Email Error Path Tests
+# =============================================================================
+
+
+def test_remove_user_email_denied_for_member(test_user):
+    """Test member cannot remove emails from other users."""
+    override_auth(app, test_user)
+
+    with patch("services.emails.delete_user_email") as mock_delete:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/remove-email/email-456",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_delete.assert_not_called()
+
+
+def test_remove_user_email_service_error(test_admin_user):
+    """Test remove email renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.emails.get_email_address_by_id", return_value="old@example.com"):
+        with patch("services.emails.delete_user_email") as mock_delete:
+            with patch("routers.users.render_error_page") as mock_error_page:
+                from fastapi.responses import HTMLResponse
+
+                mock_delete.side_effect = ServiceError(message="Database error")
+                mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/remove-email/email-456",
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 500
+                mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# Promote User Email Error Path Tests
+# =============================================================================
+
+
+def test_promote_user_email_denied_for_member(test_user):
+    """Test member cannot promote emails for other users."""
+    override_auth(app, test_user)
+
+    with patch("services.emails.set_primary_email") as mock_promote:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/promote-email/email-456",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_promote.assert_not_called()
+
+
+def test_promote_user_email_not_verified(test_admin_user):
+    """Test promote email returns error when email not verified."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.emails.get_primary_email", return_value="old@example.com"):
+        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
+            with patch("services.emails.set_primary_email") as mock_promote:
+                mock_promote.side_effect = ValidationError(
+                    message="Email not verified", code="email_not_verified"
+                )
+
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/promote-email/email-456",
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "error=email_not_verified" in response.headers["location"]
+
+
+def test_promote_user_email_validation_error(test_admin_user):
+    """Test promote email renders error page on other validation errors."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.emails.get_primary_email", return_value="old@example.com"):
+        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
+            with patch("services.emails.set_primary_email") as mock_promote:
+                with patch("routers.users.render_error_page") as mock_error_page:
+                    from fastapi.responses import HTMLResponse
+
+                    mock_promote.side_effect = ValidationError(
+                        message="Other error", code="other_error"
+                    )
+                    mock_error_page.return_value = HTMLResponse(
+                        content="Error", status_code=400
+                    )
+
+                    client = TestClient(app)
+                    response = client.post(
+                        "/users/user-123/promote-email/email-456",
+                        follow_redirects=False,
+                    )
+
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 400
+                    mock_error_page.assert_called_once()
+
+
+def test_promote_user_email_service_error(test_admin_user):
+    """Test promote email renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("services.emails.get_primary_email", return_value="old@example.com"):
+        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
+            with patch("services.emails.set_primary_email") as mock_promote:
+                with patch("routers.users.render_error_page") as mock_error_page:
+                    from fastapi.responses import HTMLResponse
+
+                    mock_promote.side_effect = ServiceError(message="Database error")
+                    mock_error_page.return_value = HTMLResponse(
+                        content="Error", status_code=500
+                    )
+
+                    client = TestClient(app)
+                    response = client.post(
+                        "/users/user-123/promote-email/email-456",
+                        follow_redirects=False,
+                    )
+
+                    app.dependency_overrides.clear()
+
+                    assert response.status_code == 500
+                    mock_error_page.assert_called_once()

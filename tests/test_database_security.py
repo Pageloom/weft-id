@@ -205,3 +205,17 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
 
     settings = database.security.get_security_settings(test_tenant["id"])
     assert settings["session_timeout_seconds"] is None
+
+
+# =============================================================================
+# Note: get_all_tenants_with_inactivity_threshold() is tested via
+# test_jobs_inactivate_idle_users.py with mocked database calls.
+#
+# Direct database testing is not possible because the function uses get_pool()
+# directly (bypassing the session context manager), but RLS is still active.
+# The RLS policy requires app.tenant_id to be set to a valid UUID, and when
+# it's not set, the policy's cast of ''::uuid fails.
+#
+# This is by design - the function is meant for background workers that run
+# with elevated privileges (BYPASSRLS) in production.
+# =============================================================================

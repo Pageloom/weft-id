@@ -17,6 +17,7 @@ os.environ.setdefault("POSTGRES_DB", "appdb")
 os.environ.setdefault("POSTGRES_PORT", "5432")
 os.environ.setdefault("BASE_DOMAIN", "pageloom.localhost")
 os.environ.setdefault("IS_DEV", "true")  # Tests run in dev mode
+os.environ.setdefault("ENABLE_OPENAPI_DOCS", "true")  # Enable OpenAPI docs for tests
 
 from datetime import UTC  # noqa: E402
 

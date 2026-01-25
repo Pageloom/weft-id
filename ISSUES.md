@@ -171,39 +171,6 @@ Security assessment performed: 2026-01-25
 
 ---
 
-## [SECURITY] OpenAPI/Swagger Debug Endpoints Exposed in Production
-
-**Found in:** `app/main.py:47-48`
-**Severity:** Medium
-**OWASP Category:** A05:2021 - Security Misconfiguration
-
-**Description:**
-The `/docs` (Swagger UI) and `/openapi.json` endpoints are available without authentication in production. This exposes the complete API structure, endpoint paths, and parameter schemas to unauthenticated users.
-
-**Risk:**
-Information disclosure that aids attackers in mapping the API surface. While not directly exploitable, it reduces the effort required to find and probe endpoints.
-
-**Current Code:**
-```python
-app = FastAPI(
-    ...
-    openapi_url="/openapi.json",
-    docs_url="/docs",
-)
-```
-
-**Remediation:**
-Conditionally disable these endpoints in production:
-```python
-app = FastAPI(
-    ...
-    openapi_url="/openapi.json" if settings.IS_DEV else None,
-    docs_url="/docs" if settings.IS_DEV else None,
-)
-```
-
----
-
 ## [SECURITY] CSP unsafe-inline Weakens XSS Protection
 
 **Found in:** `app/middleware/security_headers.py:19`
@@ -262,7 +229,7 @@ One-time quality gate that permanently prevents CSRF protection gaps in frontend
 |----------|-------|------------|
 | Critical | 0 | - |
 | High | 0 | - |
-| Medium | 1 | Security (OpenAPI endpoints exposed) |
+| Medium | 0 | - |
 | Low | 3 | Security (CSP unsafe-inline), Deps (user-agents unmaintained), Tech Debt (CSRF backstop test) |
 
 ## Dependency Audit Summary (2026-01-17)
@@ -291,5 +258,5 @@ All production dependencies are at versions that include fixes for known CVEs. R
 7. ~~BYPASS_OTP risk (Medium - MFA bypass in production)~~ **RESOLVED**
 8. ~~Logging gaps (High - compliance/detection)~~ **RESOLVED**
 9. ~~Security headers (Medium - defense in depth)~~ **RESOLVED**
-10. OpenAPI debug endpoints exposed (Medium - information disclosure)
+10. ~~OpenAPI debug endpoints exposed (Medium - information disclosure)~~ **RESOLVED**
 11. CSP unsafe-inline (Low - defense in depth)

@@ -36,6 +36,9 @@ SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
 # MFA bypass mode (DEVELOPMENT/ON-PREM ONLY - allows any 6-digit code)
 BYPASS_OTP = _parse_bool(os.environ.get("BYPASS_OTP"))
 
+# OpenAPI/Swagger documentation endpoints (disabled by default, enable via environment variable)
+ENABLE_OPENAPI_DOCS = _parse_bool(os.environ.get("ENABLE_OPENAPI_DOCS"))
+
 SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "dev-secret-key-change-in-production")
 MFA_ENCRYPTION_KEY = os.environ.get(
     "MFA_ENCRYPTION_KEY", "dev-mfa-key-change-in-production-must-be-base64"

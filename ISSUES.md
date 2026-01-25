@@ -165,6 +165,44 @@ No CVEs found in vulnerability databases for these packages at their installed v
 
 ---
 
+# Technical Debt
+
+## [CLEANUP] RequestingUser.request_metadata field is superfluous
+
+**Severity:** Low (cleanup)
+**Category:** Technical Debt
+
+**Description:**
+The `request_metadata` field in `RequestingUser` (defined in `app/services/types.py`) and the explicit passing pattern `request_metadata=requesting_user.get("request_metadata")` in `log_event()` calls are now superfluous.
+
+Event request context (IP address, user agent, device, session) is handled automatically by:
+1. `RequestContextMiddleware` sets a contextvar for ALL web requests
+2. `log_event()` auto-reads from the contextvar if `request_metadata` not explicitly passed
+3. `RuntimeError` is raised if context is missing and not in `system_context()`
+
+**Evidence:**
+- ~33 occurrences of `request_metadata=requesting_user.get("request_metadata")` across service files
+- `RequestingUser` TypedDict has `request_metadata: NotRequired[dict[str, Any] | None]` field
+- `build_requesting_user()` in `app/dependencies.py` populates this field
+
+**Impact:**
+- Unnecessary boilerplate code
+- Confusing for developers (two ways to pass context)
+- Extra work in `build_requesting_user()` to populate unused field
+
+**Suggested Fix:**
+1. Remove `request_metadata` field from `RequestingUser` TypedDict
+2. Remove all `request_metadata=requesting_user.get("request_metadata")` arguments from `log_event()` calls
+3. Simplify `build_requesting_user()` to not extract request metadata
+4. Rely entirely on the contextvar mechanism
+
+**Files to modify:**
+- `app/services/types.py` - Remove field from TypedDict
+- `app/dependencies.py` - Simplify `build_requesting_user()`
+- `app/services/*.py` - Remove explicit `request_metadata` arguments (~33 occurrences)
+
+---
+
 # Summary
 
 | Severity | Count | Categories |
@@ -172,6 +210,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 | Critical | 0 | - |
 | High | 0 | - |
 | Medium | 0 | - |
+| Low | 1 | Technical Debt (RequestingUser.request_metadata cleanup) |
 
 ## Dependency Audit Summary (2026-01-17)
 

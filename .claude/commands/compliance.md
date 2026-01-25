@@ -114,6 +114,7 @@ python scripts/compliance_check.py --check architecture  # Router imports
 python scripts/compliance_check.py --check activity      # Activity/event logging
 python scripts/compliance_check.py --check tenant        # Tenant isolation
 python scripts/compliance_check.py --check api-first     # API coverage
+python scripts/compliance_check.py --check data-quality  # Event log data quality (requires DB)
 
 # JSON output for programmatic use
 python scripts/compliance_check.py --json
@@ -127,7 +128,18 @@ python scripts/compliance_check.py --json
 | Activity/Event Logging | ✅ Good (RequestingUser + mutations) | Complex logic flows |
 | Tenant Isolation | ✅ Good (database function signatures) | SQL content review |
 | API-First | ✅ Basic (service vs API router presence) | Endpoint coverage details |
+| Event Data Quality | ✅ Database query (requires DB connection) | None |
 | Authorization | ❌ Not covered | Always manual |
+
+### Event Context Handling
+
+**Important**: Event log request context (IP address, user agent, device, session) is handled **automatically** by middleware:
+
+1. `RequestContextMiddleware` sets a contextvar for ALL web requests
+2. `log_event()` auto-reads from the contextvar if `request_metadata` not explicitly passed
+3. `RuntimeError` is raised if context is missing and not in `system_context()`
+
+You do NOT need to check for explicit `request_metadata=requesting_user.get("request_metadata")` passing. The `data-quality` check queries the database to verify events have proper context, which validates the middleware is working correctly.
 
 ### Interpreting Script Results
 
@@ -477,6 +489,13 @@ python scripts/compliance_check.py
 
 Report what the script found (or that it found no violations).
 
+**Optional: Data Quality Check** (if database is available):
+```bash
+python scripts/compliance_check.py --check data-quality
+```
+
+This queries the event_log table to find events missing request context (IP, user agent). If violations are found, it indicates the middleware may not be setting context correctly for certain code paths.
+
 ### 2. Ask the User
 
 Based on script results, ask:
@@ -492,7 +511,11 @@ Based on script results, ask:
    - Specific module or principle
    - None, script results are sufficient
 
-3. **Is this verification after fixes?**
+3. **Should I run the data-quality check?** (requires database connection)
+   - Yes, check event log for missing request context
+   - No, skip data quality check
+
+4. **Is this verification after fixes?**
    - No, initial scan
    - Yes, verification mode
 

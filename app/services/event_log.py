@@ -34,7 +34,7 @@ from services.activity import track_activity
 from services.exceptions import ForbiddenError, NotFoundError
 from services.types import RequestingUser
 from utils import request_metadata as req_meta
-from utils.request_context import get_request_context, is_system_context
+from utils.request_context import get_api_client_context, get_request_context, is_system_context
 
 # System actor UUID for automated/background processes.
 # This is a well-known constant, not a real user record.
@@ -110,11 +110,22 @@ def log_event(
             "remote_address": None,
             "session_id_hash": None,
             "user_agent": None,
+            # API client fields (null for web requests)
+            "api_client_id": None,
+            "api_client_name": None,
+            "api_client_type": None,
         }
 
         # Merge in actual request metadata if provided
         if request_metadata:
             combined_metadata.update(request_metadata)
+
+        # Merge in API client context if this is an API request
+        api_client = get_api_client_context()
+        if api_client:
+            combined_metadata["api_client_id"] = api_client["client_id"]
+            combined_metadata["api_client_name"] = api_client["client_name"]
+            combined_metadata["api_client_type"] = api_client["client_type"]
 
         # Merge in custom event metadata if provided
         if metadata:
@@ -227,6 +238,9 @@ def list_events(
         user_agent = metadata_dict.get("user_agent")
         device = metadata_dict.get("device")
         session_id_hash = metadata_dict.get("session_id_hash")
+        api_client_id = metadata_dict.get("api_client_id")
+        api_client_name = metadata_dict.get("api_client_name")
+        api_client_type = metadata_dict.get("api_client_type")
 
         items.append(
             EventLogItem(
@@ -245,6 +259,9 @@ def list_events(
                 user_agent=user_agent,
                 device=device,
                 session_id_hash=session_id_hash,
+                api_client_id=api_client_id,
+                api_client_name=api_client_name,
+                api_client_type=api_client_type,
             )
         )
 
@@ -302,6 +319,9 @@ def get_event(
     user_agent = metadata_dict.get("user_agent")
     device = metadata_dict.get("device")
     session_id_hash = metadata_dict.get("session_id_hash")
+    api_client_id = metadata_dict.get("api_client_id")
+    api_client_name = metadata_dict.get("api_client_name")
+    api_client_type = metadata_dict.get("api_client_type")
 
     return EventLogItem(
         id=str(event["id"]),
@@ -319,4 +339,7 @@ def get_event(
         user_agent=user_agent,
         device=device,
         session_id_hash=session_id_hash,
+        api_client_id=api_client_id,
+        api_client_name=api_client_name,
+        api_client_type=api_client_type,
     )

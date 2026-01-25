@@ -4,6 +4,96 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Event Detail Pane Cleanup
+
+**Status:** Complete
+
+**User Story:**
+As an admin viewing event details
+I want a clear distinction between context and additional details
+So that I can quickly see the standard info and drill into extras only when relevant
+
+**Completed Work:**
+
+**Section 1: Context**
+- [x] Always visible
+- [x] Shows fields conditionally based on event source:
+  - IP Address (always)
+  - User Agent (always)
+  - Device Type (web only, hidden for API)
+  - Session ID (web only, hidden for API)
+  - API Client (API only, shows client name + client_id)
+- [x] No "N/A" for inapplicable fields; simply hide them
+
+**Section 2: Details**
+- [x] Only appears if event has additional event-specific fields
+- [x] Shows only fields not in the Context section
+- [x] Hidden entirely if no additional fields exist
+
+**Section 3: Raw Event**
+- [x] Section at the bottom
+- [x] Full event as JSON (type, timestamp, user, context, details, everything)
+- [x] Useful for debugging and support
+
+**Backend: API Client Context Population:**
+- [x] API client info (client_id, client_name) auto-populated in contextvar when API endpoints are called
+- [x] Event logging automatically captures API client context (same pattern as web session context)
+
+**Technical Implementation:**
+- `app/utils/request_context.py`: Added API client contextvar and functions
+- `app/api_dependencies.py`: Sets API client context after OAuth2 token validation
+- `app/database/oauth2.py`: Added `get_client_by_id()` function
+- `app/services/event_log.py`: Captures API client context in metadata
+- `app/schemas/event_log.py`: Added api_client_* fields to EventLogItem
+- `app/templates/admin_event_detail.html`: 3-section layout with conditional display
+- `tests/test_request_context.py`: Tests for API client context
+
+**Effort:** S
+**Value:** Low
+
+---
+
+## Verbose Descriptions for Event Types
+
+**Status:** Complete
+
+**User Story:**
+As an admin reviewing event logs
+I want human-readable descriptions for each event type
+So that I can quickly understand what each event means without consulting documentation
+
+**Completed Work:**
+
+**Description Display:**
+- [x] Mouseover tooltip on event type in event list view
+- [x] Description shown on event detail pane
+- [x] Event log export includes machine-readable mapping of all event types to descriptions
+
+**Description Content:**
+- [x] One-liner description for each event type (e.g., "user.login" → "User successfully authenticated")
+- [x] All existing event types have descriptions
+
+**Implementation:**
+- [x] Hardcoded map in `app/constants/event_types.py`: event_type → description
+- [x] Lockfile `app/constants/event_types.lock` containing all event type keys
+- [x] Test that verifies lockfile is a subset of current map keys (no deletions allowed)
+- [x] Adding new event types requires manually updating the lockfile (explicit acknowledgment)
+
+**Backwards Compatibility Guarantee:**
+- [x] Event types must never be deleted or renamed
+- [x] Unwanted event types can be deprecated but must remain in the map
+- [x] Test enforces this by failing if any lockfile entry is missing from the map
+
+**Technical Implementation:**
+- `app/constants/event_types.py`: EVENT_TYPE_DESCRIPTIONS dict with 50+ event types
+- `app/constants/event_types.lock`: Lockfile with all event type keys
+- `tests/test_event_types.py`: Test verifying backwards compatibility
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Replace External CDN Dependencies with Local Versions
 
 **Status:** Complete

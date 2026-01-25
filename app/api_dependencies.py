@@ -7,6 +7,7 @@ from dependencies import get_tenant_id_from_request
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import APIKeyCookie, OAuth2PasswordBearer
 from utils import auth
+from utils.request_context import set_api_client_context
 
 # Security schemes for OpenAPI documentation
 # These are used to show the "Authorize" button in Swagger UI
@@ -58,6 +59,18 @@ def get_current_user_api(
             user = database.users.get_user_by_id(tenant_id, token_data["user_id"])
 
             if user:
+                # Set API client context for event logging
+                # token_data["client_id"] is the internal UUID (FK to oauth2_clients.id)
+                client = database.oauth2.get_client_by_id(
+                    tenant_id, str(token_data["client_id"])
+                )
+                if client:
+                    set_api_client_context(
+                        client_id=client["client_id"],
+                        client_name=client["name"],
+                        client_type=client["client_type"],
+                    )
+
                 # Add primary email to user dict (API responses include email)
                 primary_email = database.user_emails.get_primary_email(tenant_id, user["id"])
                 if primary_email:

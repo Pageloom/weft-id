@@ -1205,3 +1205,57 @@ So that I can maintain security hygiene and ensure only active users have access
 **Value:** High (Security, Compliance, Account Lifecycle)
 
 ---
+
+## Complete Event Request Context (IP, User Agent, Device, Session)
+
+**Status:** Complete
+
+**User Story:**
+As an administrator reviewing security events and audit logs
+I want all events to include complete request context (IP address, user agent, device type, session ID)
+So that I can trace security incidents, detect anomalous behavior, and maintain comprehensive audit trails
+
+**Completed Work:**
+
+**Contextvar-Based Automatic Context Propagation:**
+
+- [x] Created `app/utils/request_context.py` with contextvar for request-scoped metadata
+- [x] Created `app/middleware/request_context.py` to automatically extract and set context for all web requests
+- [x] Added `RequestContextMiddleware` to app middleware stack in `app/main.py`
+- [x] Updated `log_event()` in `app/services/event_log.py` to auto-read from contextvar
+- [x] Added fail-safe: `RuntimeError` if context missing and not in system context
+
+**Service Layer Cleanup:**
+
+- [x] Removed `request_metadata=None` from 4 calls in `app/services/oauth2.py`
+- [x] Removed `request_metadata=None` from 2 calls in `app/services/emails.py`
+- [x] Removed `request_metadata=None` from 2 calls in `app/services/saml.py`
+- [x] MFA service (7 calls) now automatically gets context from middleware
+
+**System Context Escape Hatch:**
+
+- [x] Added `system_context()` context manager for background jobs/CLI commands
+- [x] Added autouse fixture in `tests/conftest.py` to wrap all tests in system context
+- [x] Documented usage pattern for legitimate no-context scenarios
+
+**Technical Implementation:**
+
+- Middleware extracts IP, user agent, device, session hash at request start
+- Contextvar propagates through async call chain automatically
+- No service function signature changes needed
+- All 1729 tests pass
+
+Request metadata structure (from `app/utils/request_metadata.py`):
+```python
+{
+    "remote_address": str,  # IP from X-Forwarded-For or X-Real-IP or client.host
+    "user_agent": str,      # Full user agent string
+    "device": str,          # Parsed: Mobile, Desktop, Tablet, Bot, or Unknown
+    "session_id_hash": str  # SHA-256 hash of session ID (or null if no session)
+}
+```
+
+**Effort:** M
+**Value:** High (Security, Compliance, Audit Trail)
+
+---

@@ -1,8 +1,9 @@
 COMPOSE := docker compose
 WAIT_TIMEOUT ?= 60
+TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-%
+.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -52,4 +53,10 @@ up-%: ## Rebuild+start just one service (no deps). Example: make up-app
 
 sh-%: ## Open a shell to a service. Example: make sh-app
 	-$(COMPOSE) exec $* bash || $(COMPOSE) exec $* sh
+
+build-css: ## Build Tailwind CSS for production
+	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --minify
+
+watch-css: ## Watch and rebuild CSS on changes (dev mode)
+	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --watch
 

@@ -57,8 +57,8 @@ def test_csp_header_value(client, test_tenant_host):
 
     # Verify CSP includes expected directives
     assert "default-src 'self'" in csp
-    assert "script-src 'self' 'unsafe-inline' https://api.qrserver.com" in csp
-    assert "img-src 'self' https://api.qrserver.com data:" in csp
+    assert "script-src 'self' 'unsafe-inline'" in csp
+    assert "img-src 'self' data:" in csp
     assert "style-src 'self' 'unsafe-inline'" in csp
     assert "frame-ancestors 'none'" in csp
     assert "base-uri 'self'" in csp
@@ -142,27 +142,27 @@ def test_security_headers_do_not_duplicate(client, test_tenant_host):
     assert rp_count == 1
 
 
-def test_csp_allows_qr_server_for_totp(client, test_tenant_host):
-    """Test that CSP allows QR server for TOTP setup."""
+def test_csp_blocks_external_domains(client, test_tenant_host):
+    """Test that CSP does not allow external domains (QR codes and CSS are local)."""
     # Check the login page for CSP (any page will have the same CSP)
     response = client.get("/login", headers={"Host": test_tenant_host})
 
     csp = response.headers.get("Content-Security-Policy", "")
 
-    # Verify CSP allows api.qrserver.com for scripts and images
-    assert "https://api.qrserver.com" in csp
-    # Should be in both script-src and img-src
-    assert "script-src 'self' 'unsafe-inline' https://api.qrserver.com" in csp
-    assert "img-src 'self' https://api.qrserver.com data:" in csp
+    # Verify CSP does NOT allow external domains
+    # QR codes are now generated locally, not from api.qrserver.com
+    assert "api.qrserver.com" not in csp
+    # Tailwind CSS is now built locally, not from cdn.tailwindcss.com
+    assert "cdn.tailwindcss.com" not in csp
 
 
-def test_csp_allows_inline_styles_for_tailwind(client, test_tenant_host):
-    """Test that CSP allows inline styles for Tailwind CSS."""
+def test_csp_allows_inline_styles(client, test_tenant_host):
+    """Test that CSP allows inline styles for custom page styles."""
     response = client.get("/login", headers={"Host": test_tenant_host})
 
     csp = response.headers.get("Content-Security-Policy", "")
 
-    # Verify CSP allows unsafe-inline for styles (required for Tailwind)
+    # Verify CSP allows unsafe-inline for styles (required for inline styles in templates)
     assert "style-src 'self' 'unsafe-inline'" in csp
 
 

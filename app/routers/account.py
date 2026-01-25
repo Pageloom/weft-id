@@ -22,6 +22,7 @@ from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import ConflictError, NotFoundError, ServiceError, ValidationError
 from utils.email import send_email_verification, send_mfa_code_email
+from utils.qr import generate_qr_code_base64
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
@@ -330,10 +331,17 @@ def mfa_setup_totp(
         # TOTP already active - redirect back
         return RedirectResponse(url="/account/mfa", status_code=303)
 
+    # Generate QR code locally to avoid leaking TOTP secret to third-party API
+    qr_data_url = generate_qr_code_base64(setup_response.uri)
+
     return templates.TemplateResponse(
         "mfa_setup_totp.html",
         get_template_context(
-            request, tenant_id, uri=setup_response.uri, secret=setup_response.secret
+            request,
+            tenant_id,
+            uri=setup_response.uri,
+            secret=setup_response.secret,
+            qr_data_url=qr_data_url,
         ),
     )
 

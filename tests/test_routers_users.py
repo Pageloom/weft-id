@@ -2424,6 +2424,34 @@ def test_reset_mfa_service_error(test_admin_user):
             mock_error_page.assert_called_once()
 
 
+def test_reset_mfa_email_includes_admin_name_and_timestamp(test_admin_user):
+    """Test email notification includes admin name and formatted timestamp."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa"):
+        with patch(
+            "routers.users.emails_service.get_primary_email",
+            return_value="user@example.com",
+        ):
+            with patch("routers.users.send_mfa_reset_notification") as mock_email:
+                client = TestClient(app)
+                client.post("/users/user-123/reset-mfa", follow_redirects=False)
+
+                app.dependency_overrides.clear()
+
+                mock_email.assert_called_once()
+                call_args = mock_email.call_args[0]
+                # arg 0: email address
+                assert call_args[0] == "user@example.com"
+                # arg 1: admin name (first_name + last_name from fixture)
+                admin_name = call_args[1]
+                assert isinstance(admin_name, str)
+                assert len(admin_name) > 0
+                # arg 2: timestamp string in expected format
+                reset_time = call_args[2]
+                assert "UTC" in reset_time
+
+
 def test_reset_mfa_no_email_notification_when_no_primary_email(test_admin_user):
     """Test no email notification sent when user has no primary email."""
     override_auth(app, test_admin_user)

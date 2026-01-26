@@ -545,6 +545,45 @@ def test_reset_user_mfa_user_not_found(test_tenant, test_admin_user):
     assert exc_info.value.code == "user_not_found"
 
 
+def test_reset_user_mfa_as_super_admin(test_tenant, test_super_admin_user, test_user):
+    """Test that super admin can also reset user's MFA."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set up TOTP for test_user
+    _setup_user_with_totp(test_tenant["id"], str(test_user["id"]))
+
+    result = mfa_service.reset_user_mfa(requesting_user, str(test_user["id"]))
+
+    assert result.enabled is False
+    assert result.has_backup_codes is False
+
+    # Verify event logged with super admin as actor
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "mfa_reset_by_admin"
+    assert str(events[0]["actor_user_id"]) == str(test_super_admin_user["id"])
+
+
+def test_reset_user_mfa_already_disabled(test_tenant, test_admin_user, test_user):
+    """Test resetting MFA for a user whose MFA was already disabled.
+
+    Should succeed gracefully (idempotent). The event log should record
+    was_enabled=False showing the previous state.
+    """
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    # Explicitly disable MFA first (simulating a previous reset)
+    database.users.update_mfa_status(test_tenant["id"], str(test_user["id"]), enabled=False)
+
+    result = mfa_service.reset_user_mfa(requesting_user, str(test_user["id"]))
+
+    assert result.enabled is False
+
+    # Verify event logged with correct metadata showing prior state
+    events = database.event_log.list_events(test_tenant["id"], limit=1)
+    assert events[0]["event_type"] == "mfa_reset_by_admin"
+    assert events[0]["metadata"]["was_enabled"] is False
+
+
 # =============================================================================
 # Utility Functions Tests
 # =============================================================================

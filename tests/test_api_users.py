@@ -1246,6 +1246,50 @@ def test_admin_reset_user_mfa(make_user_dict):
         assert data["enabled"] is False
 
 
+def test_reset_user_mfa_not_found_api(make_user_dict):
+    """Test resetting MFA for non-existent user returns 404."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    fake_id = str(uuid4())
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.users.mfa_service") as mock_svc:
+        mock_svc.reset_user_mfa.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(f"/api/v1/users/{fake_id}/mfa/reset")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 404
+
+
+def test_reset_user_mfa_forbidden_api(make_user_dict):
+    """Test resetting MFA when service raises ForbiddenError returns 403."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    user_id = str(uuid4())
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.users.mfa_service") as mock_svc:
+        mock_svc.reset_user_mfa.side_effect = ForbiddenError(
+            message="Admin access required", code="admin_required"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(f"/api/v1/users/{user_id}/mfa/reset")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 403
+
+
 # =============================================================================
 # User State Management (Inactivate/Reactivate/Anonymize)
 # =============================================================================

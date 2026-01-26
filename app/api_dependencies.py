@@ -61,9 +61,7 @@ def get_current_user_api(
             if user:
                 # Set API client context for event logging
                 # token_data["client_id"] is the internal UUID (FK to oauth2_clients.id)
-                client = database.oauth2.get_client_by_id(
-                    tenant_id, str(token_data["client_id"])
-                )
+                client = database.oauth2.get_client_by_id(tenant_id, str(token_data["client_id"]))
                 if client:
                     set_api_client_context(
                         client_id=client["client_id"],

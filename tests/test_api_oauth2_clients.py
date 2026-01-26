@@ -387,6 +387,121 @@ def test_regenerate_client_secret_invalidates_old_secret(
 # =============================================================================
 
 
+def test_list_clients_filter_by_type_normal(
+    client,
+    test_tenant_host,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+    b2b_oauth2_client,
+):
+    """Test filtering list by client_type=normal."""
+    response = client.get(
+        "/api/v1/oauth2/clients?client_type=normal",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    for c in data:
+        assert c["client_type"] == "normal"
+
+
+def test_list_clients_filter_by_type_b2b(
+    client,
+    test_tenant_host,
+    oauth2_admin_authorization_header,
+    normal_oauth2_client,
+    b2b_oauth2_client,
+):
+    """Test filtering list by client_type=b2b."""
+    response = client.get(
+        "/api/v1/oauth2/clients?client_type=b2b",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    for c in data:
+        assert c["client_type"] == "b2b"
+
+
+def test_list_clients_includes_description_and_is_active(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that list response includes description and is_active fields."""
+    response = client.get(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+
+    for client_data in data:
+        assert "description" in client_data
+        assert "is_active" in client_data
+        assert isinstance(client_data["is_active"], bool)
+
+
+def test_create_normal_client_with_description(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test creating a normal client with a description."""
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Described Client",
+            "redirect_uris": ["https://example.com/callback"],
+            "description": "A client for testing",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["description"] == "A client for testing"
+    assert data["is_active"] is True
+
+
+def test_create_b2b_client_with_description(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test creating a B2B client with a description."""
+    response = client.post(
+        "/api/v1/oauth2/clients/b2b",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Described B2B",
+            "role": "member",
+            "description": "Service account for syncing",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["description"] == "Service account for syncing"
+    assert data["is_active"] is True
+
+
+def test_create_normal_client_description_optional(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test that description is optional (defaults to null)."""
+    response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "No Desc Client",
+            "redirect_uris": ["https://example.com/callback"],
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["description"] is None
+
+
 def test_client_response_format_without_secret(
     client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
 ):
@@ -406,6 +521,8 @@ def test_client_response_format_without_secret(
         assert "client_type" in client_data
         assert "name" in client_data
         assert "created_at" in client_data
+        assert "description" in client_data
+        assert "is_active" in client_data
 
 
 def test_client_response_format_with_secret(

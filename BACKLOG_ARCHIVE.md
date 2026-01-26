@@ -4,6 +4,70 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Integration Management Frontend - Phase 1: List & Create
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to view existing OAuth2 integrations and create new ones through a web UI
+So that I can set up Apps and B2B service accounts without using API calls directly
+
+**Completed Work:**
+
+**Navigation & Page Structure:**
+
+- [x] New "Integrations" item in Admin sub-navigation
+- [x] Two sub-tabs: "Apps" and "B2B"
+- [x] Accessible to Admin and Super Admin roles (matching existing API permissions)
+
+**Database Enhancements:**
+
+- [x] Migration adds `description TEXT` column to `oauth2_clients`
+- [x] Migration adds `is_active BOOLEAN NOT NULL DEFAULT true` column to `oauth2_clients` (prep for Phase 2 soft-delete)
+- [x] Existing API endpoints include `description` and `is_active` in responses
+- [x] Create endpoints accept optional `description` field
+
+**Apps Tab (Normal OAuth2 Clients):**
+
+- [x] List view showing: Name, Client ID, Redirect URIs count, Created At, Status (active/inactive badge)
+- [x] "Create App" button opens modal form
+- [x] Creation form: Name (required), Description (optional), Redirect URIs (textarea, one per line)
+- [x] On successful creation: credentials modal shows Client ID and Client Secret with copy buttons
+- [x] Credentials displayed via session (one-time read, never in URLs)
+- [x] Dismiss button: "I've saved the credentials" (no ESC/backdrop dismiss for credentials modal)
+
+**B2B Tab (Service Accounts):**
+
+- [x] List view showing: Name, Client ID, Service Role, Created At, Status badge
+- [x] "Create B2B Client" button opens modal form
+- [x] Creation form: Name (required), Description (optional), Role (select: member/admin/super_admin)
+- [x] Same credentials display flow as Apps tab
+
+**Testing:**
+
+- [x] Router tests for all routes (list, create, auth, error handling)
+- [x] Service tests for updated functions (type filter, description param)
+- [x] API tests updated for new response fields
+- [x] Database tests for new columns and filters
+
+**Technical Implementation:**
+
+- Database migration: `db-init/00026_oauth2_client_enhancements.sql`
+- Database layer: `app/database/oauth2.py` with `client_type` filter, `description` param, LEFT JOIN for B2B service roles
+- Service layer: `app/services/oauth2.py` with `client_type` and `description` pass-through
+- Schemas: `app/schemas/oauth2.py` with `description` and `is_active` fields
+- API router: `app/routers/api/v1/oauth2_clients.py` with new fields and filter
+- Frontend router: `app/routers/integrations.py` with session-based credential display
+- Templates: `app/templates/integrations_apps.html`, `app/templates/integrations_b2b.html`
+- Pages registered in `app/pages.py`, router in `app/main.py`
+- 86 new tests across 5 test files (router, service, API, database, pages)
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Admin MFA Reset for Users
 
 **Status:** Complete

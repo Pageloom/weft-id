@@ -388,3 +388,92 @@ def test_users_user_detail_not_in_nav():
     assert user_detail is not None
     assert user_detail.show_in_nav is False
     assert user_detail.creates_nav_level is False
+
+
+# =============================================================================
+# Integration Pages Tests
+# =============================================================================
+
+
+def test_integrations_page_exists():
+    """Test that the integrations page is registered."""
+    page = get_page_by_path("/admin/integrations")
+    assert page is not None
+    assert page.title == "Integrations"
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is True
+
+
+def test_integrations_apps_page_exists():
+    """Test that the integrations apps page is registered."""
+    page = get_page_by_path("/admin/integrations/apps")
+    assert page is not None
+    assert page.title == "Apps"
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is True
+
+
+def test_integrations_b2b_page_exists():
+    """Test that the integrations B2B page is registered."""
+    page = get_page_by_path("/admin/integrations/b2b")
+    assert page is not None
+    assert page.title == "B2B"
+    assert page.permission == PagePermission.ADMIN
+    assert page.show_in_nav is True
+
+
+def test_integrations_page_access_member():
+    """Test that members cannot access integration pages."""
+    assert not has_page_access("/admin/integrations", "member")
+    assert not has_page_access("/admin/integrations/apps", "member")
+    assert not has_page_access("/admin/integrations/b2b", "member")
+
+
+def test_integrations_page_access_admin():
+    """Test that admins can access integration pages."""
+    assert has_page_access("/admin/integrations", "admin")
+    assert has_page_access("/admin/integrations/apps", "admin")
+    assert has_page_access("/admin/integrations/b2b", "admin")
+
+
+def test_integrations_page_access_super_admin():
+    """Test that super_admins can access integration pages."""
+    assert has_page_access("/admin/integrations", "super_admin")
+    assert has_page_access("/admin/integrations/apps", "super_admin")
+    assert has_page_access("/admin/integrations/b2b", "super_admin")
+
+
+def test_integrations_first_accessible_child_admin():
+    """Test that first accessible child for integrations is apps."""
+    first_child = get_first_accessible_child("/admin/integrations", "admin")
+    assert first_child == "/admin/integrations/apps"
+
+
+def test_integrations_children_structure():
+    """Test the integrations page has expected children."""
+    page = get_page_by_path("/admin/integrations")
+    assert page.children is not None
+    assert len(page.children) == 2
+
+    child_paths = [child.path for child in page.children]
+    assert "/admin/integrations/apps" in child_paths
+    assert "/admin/integrations/b2b" in child_paths
+
+
+def test_integrations_in_admin_nav():
+    """Test that integrations appears in admin navigation."""
+    admin_page = get_page_by_path("/admin")
+    assert admin_page is not None
+
+    child_titles = [child.title for child in admin_page.children]
+    assert "Integrations" in child_titles
+
+
+def test_integrations_get_all_paths():
+    """Test get_all_paths includes integrations pages."""
+    page = get_page_by_path("/admin/integrations")
+    all_paths = page.get_all_paths()
+
+    assert "/admin/integrations" in all_paths
+    assert "/admin/integrations/apps" in all_paths
+    assert "/admin/integrations/b2b" in all_paths

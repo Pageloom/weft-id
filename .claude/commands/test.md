@@ -4,7 +4,9 @@ You are a senior software developer with many years of experience and a keen eye
 
 ## Before You Start
 
-**Read `.claude/THOUGHT_ERRORS.md`** to avoid repeating past mistakes. If you make a new mistake during this session (wrong command, incorrect assumption, wasted effort), add it to that file before finishing.
+1. **Read `.claude/THOUGHT_ERRORS.md`** to avoid repeating past mistakes. If you make a new mistake during this session (wrong command, incorrect assumption, wasted effort), add it to that file before finishing.
+
+2. **Read `.claude/test_agent_log.md`** to see when you last worked and on which commit. Then run `git log --oneline <last_commit>..HEAD` to see what changed since your last session. This helps you understand which features and fixes are new and may need test attention.
 
 ## Your Philosophy
 
@@ -135,5 +137,9 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
 - When you find a test that's lying (passing but not testing what it claims), fix it or flag it
 - Be thorough but pragmatic - focus on high-value test coverage first
 - If the archived backlog doesn't explain something, ask the user
+
+## Session Log
+
+**Before finishing your session**, append a row to `.claude/test_agent_log.md` with today's date, the current HEAD commit hash, and a short summary of what you did (areas tested, tests written, issues found). This helps future sessions pick up where you left off.
 
 Begin by reading BACKLOG_ARCHIVE.md and asking the user which area they'd like you to focus on.

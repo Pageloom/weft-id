@@ -432,6 +432,18 @@ def get_identity_provider(
     return _idp_row_to_config(row)
 
 
+def idp_requires_platform_mfa(tenant_id: str, idp_id: str) -> bool:
+    """Check if an IdP requires platform MFA after SAML authentication.
+
+    Internal helper for admin-gated routes. No authorization check
+    because this only returns a single boolean flag.
+    """
+    row = database.saml.get_identity_provider(tenant_id, idp_id)
+    if row is None:
+        return False
+    return bool(row.get("require_platform_mfa", False))
+
+
 def create_identity_provider(
     requesting_user: RequestingUser,
     data: IdPCreate,

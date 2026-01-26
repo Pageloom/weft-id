@@ -441,3 +441,47 @@ def test_send_reactivation_request_admin_notification_failure():
         )
 
         assert result is False
+
+
+def test_send_mfa_reset_notification():
+    """Test sending MFA reset notification to user."""
+    from utils.email import send_mfa_reset_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_mfa_reset_notification(
+            to_email="user@example.com",
+            admin_name="Jane Admin",
+            reset_timestamp="2026-01-26 12:00 UTC",
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Your multi-factor authentication was reset"
+        assert "Jane Admin" in html_body
+        assert "2026-01-26 12:00 UTC" in html_body
+        assert "Jane Admin" in text_body
+        assert "2026-01-26 12:00 UTC" in text_body
+        # Verify no action links in the email
+        assert "href=" not in html_body or 'class="button"' not in html_body
+
+
+def test_send_mfa_reset_notification_failure():
+    """Test failure when sending MFA reset notification."""
+    from utils.email import send_mfa_reset_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_mfa_reset_notification(
+            to_email="user@example.com",
+            admin_name="Jane Admin",
+            reset_timestamp="2026-01-26 12:00 UTC",
+        )
+
+        assert result is False

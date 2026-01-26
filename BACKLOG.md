@@ -6,55 +6,127 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Integration Management Frontend (Apps & B2B)
+## Integration Management Frontend - Phase 1: List & Create
 
 **User Story:**
-As a super admin
-I want to manage OAuth2 clients (Apps) and B2B service accounts through a web UI
-So that I can configure integrations without using API calls directly
+As an admin
+I want to view existing OAuth2 integrations and create new ones through a web UI
+So that I can set up Apps and B2B service accounts without using API calls directly
+
+**Context:**
+
+The backend API for OAuth2 client management already exists and is fully tested:
+- `GET /api/v1/oauth2/clients` (list), `POST /api/v1/oauth2/clients` (create normal), `POST /api/v1/oauth2/clients/b2b` (create B2B)
+- Service layer: `app/services/oauth2.py` with event logging
+- Database layer: `app/database/oauth2.py` with tenant-scoped RLS
+- Schemas: `app/schemas/oauth2.py`
+
+What's missing is the admin UI and a few backend additions (`description` and `is_active` columns).
 
 **Acceptance Criteria:**
 
 **Navigation & Page Structure:**
 
-- [ ] New "Integration" item in Admin navigation
+- [ ] New "Integrations" item in Admin sub-navigation
 - [ ] Two sub-tabs: "Apps" and "B2B"
-- [ ] Super Admin only access
+- [ ] Accessible to Admin and Super Admin roles (matching existing API permissions)
+
+**Database Enhancements:**
+
+- [ ] Migration adds `description TEXT` column to `oauth2_clients`
+- [ ] Migration adds `is_active BOOLEAN NOT NULL DEFAULT true` column to `oauth2_clients` (prep for Phase 2 soft-delete)
+- [ ] Existing API endpoints include `description` and `is_active` in responses
+- [ ] Create endpoints accept optional `description` field
 
 **Apps Tab (Normal OAuth2 Clients):**
 
-- [ ] List view showing: Name, Client ID, Created At
-- [ ] "Create App" button opens creation form
-- [ ] Creation form: Name (required), Description (optional), Redirect URIs (multiple allowed)
-- [ ] On successful creation: show credentials once with checkbox "I have copied the information and stored it securely" to enable proceed button
-- [ ] Edit existing app: Name, Description, Redirect URIs
-- [ ] Regenerate secret with confirmation, same "copied securely" checkbox flow
-- [ ] Deactivate app (soft-delete: disabled apps remain for event log cross-reference)
+- [ ] List view showing: Name, Client ID, Redirect URIs count, Created At, Status (active/inactive badge)
+- [ ] "Create App" button opens modal form
+- [ ] Creation form: Name (required), Description (optional), Redirect URIs (textarea, one per line)
+- [ ] On successful creation: credentials modal shows Client ID and Client Secret with copy buttons
+- [ ] Credentials displayed via session (one-time read, never in URLs)
+- [ ] Dismiss button: "I've saved the credentials" (no ESC/backdrop dismiss for credentials modal)
 
 **B2B Tab (Service Accounts):**
 
-- [ ] List view showing: Name, Client ID, Role, Created At
-- [ ] "Create B2B Client" button opens creation form
-- [ ] Creation form: Name (required), Description (optional), Role (member/admin/super_admin)
-- [ ] On successful creation: show credentials once with same "copied securely" checkbox flow
-- [ ] Edit existing B2B client: Name, Description
-- [ ] Change service user role (any super admin can do this)
-- [ ] Regenerate secret with confirmation, same flow
-- [ ] Deactivate B2B client (soft-delete: disabled clients remain for event log cross-reference)
+- [ ] List view showing: Name, Client ID, Service Role, Created At, Status badge
+- [ ] "Create B2B Client" button opens modal form
+- [ ] Creation form: Name (required), Description (optional), Role (select: member/admin/super_admin)
+- [ ] Same credentials display flow as Apps tab
 
-**Credentials Display (both tabs):**
+**Testing:**
 
-- [ ] After create or regenerate: modal shows Client ID and Client Secret
-- [ ] Checkbox: "I have copied the information and stored it securely"
-- [ ] Checkbox must be checked to enable "Proceed" button
-- [ ] Proceeding returns to the list view
+- [ ] Router tests for all routes (list, create, auth, error handling)
+- [ ] Service tests for updated functions (type filter, description param)
+- [ ] API tests updated for new response fields
+- [ ] Database tests for new columns and filters
 
-**Backend Changes Required:**
+**Backend Changes:**
 
-- Database migration: Add `description TEXT` column to `oauth2_clients` table
-- `PATCH /api/v1/oauth2/clients/{client_id}` endpoint for updating name, description, redirect_uris
-- Endpoint to update B2B service user role
-- Modify create/list endpoints to include description field
+- Database migration: `db-init/00026_oauth2_client_enhancements.sql`
+- Update `app/database/oauth2.py`: add `client_type` filter and `active_only` filter to `get_all_clients`, add `description` to create functions and all SELECT/RETURNING clauses
+- Update `app/services/oauth2.py`: pass through `client_type` and `description` params
+- Update `app/schemas/oauth2.py`: add `description` and `is_active` fields
+- Update `app/routers/api/v1/oauth2_clients.py`: include new fields in responses
+- New frontend router: `app/routers/integrations.py`
+- New templates: `app/templates/integrations_apps.html`, `app/templates/integrations_b2b.html`
+- Register pages in `app/pages.py`, router in `app/main.py`
+
+**Effort:** M
+**Value:** High
+
+---
+
+## Integration Management Frontend - Phase 2: Edit, Regenerate & Deactivate
+
+**User Story:**
+As an admin
+I want to edit integration details, rotate secrets, and deactivate integrations through the web UI
+So that I can manage the full lifecycle of OAuth2 clients without API calls
+
+**Context:**
+
+Phase 1 delivers list and create functionality. This phase adds the remaining CRUD operations: editing client details, regenerating secrets, and soft-delete (deactivation). The `is_active` column is already added in Phase 1's migration.
+
+**Acceptance Criteria:**
+
+**Apps Tab - Edit & Manage:**
+
+- [ ] Click client row to open detail/edit view
+- [ ] Edit form: Name, Description, Redirect URIs
+- [ ] "Regenerate Secret" with confirmation dialog, then credentials modal (same flow as create)
+- [ ] "Deactivate" button with confirmation (soft-delete: sets `is_active = false`)
+- [ ] Inactive clients shown in list with "Inactive" badge, grayed out
+- [ ] Option to reactivate inactive clients
+
+**B2B Tab - Edit & Manage:**
+
+- [ ] Click client row to open detail/edit view
+- [ ] Edit form: Name, Description
+- [ ] Change service user role (select dropdown)
+- [ ] "Regenerate Secret" with same flow
+- [ ] "Deactivate" with same soft-delete flow
+- [ ] Inactive clients shown with badge
+
+**Backend Changes:**
+
+- [ ] `PATCH /api/v1/oauth2/clients/{client_id}` endpoint for updating name, description, redirect_uris
+- [ ] `PATCH /api/v1/oauth2/clients/{client_id}/role` endpoint for changing B2B service user role
+- [ ] `PATCH /api/v1/oauth2/clients/{client_id}/deactivate` endpoint (sets is_active = false)
+- [ ] `PATCH /api/v1/oauth2/clients/{client_id}/reactivate` endpoint (sets is_active = true)
+- [ ] Deactivated clients reject OAuth2 token requests
+- [ ] All write operations emit event logs
+
+**Testing:**
+
+- [ ] Full test coverage for new API endpoints
+- [ ] Router tests for edit, regenerate, deactivate flows
+- [ ] Service tests for update, deactivate, reactivate logic
+- [ ] Verify deactivated clients cannot authenticate
+
+**Dependencies:**
+
+- Integration Management Frontend - Phase 1 complete
 
 **Effort:** M
 **Value:** High

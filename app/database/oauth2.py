@@ -15,6 +15,7 @@ def create_normal_client(
     name: str,
     redirect_uris: list[str],
     created_by: str,
+    description: str | None = None,
 ) -> dict | None:
     """
     Create a normal OAuth2 client for authorization code flow.
@@ -41,20 +42,21 @@ def create_normal_client(
         """
         insert into oauth2_clients (
             tenant_id, client_id, client_secret_hash, client_type,
-            name, redirect_uris, created_by
+            name, description, redirect_uris, created_by
         )
         values (
             :tenant_id, :client_id, :client_secret_hash, 'normal',
-            :name, :redirect_uris, :created_by
+            :name, :description, :redirect_uris, :created_by
         )
-        returning id, tenant_id, client_id, client_type, name, redirect_uris,
-                  service_user_id, created_at
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, created_at
         """,
         {
             "tenant_id": tenant_id_value,
             "client_id": client_id,
             "client_secret_hash": client_secret_hash,
             "name": name,
+            "description": description,
             "redirect_uris": redirect_uris,
             "created_by": created_by,
         },
@@ -72,6 +74,7 @@ def create_b2b_client(
     name: str,
     role: str,
     created_by: str,
+    description: str | None = None,
 ) -> dict | None:
     """
     Create a B2B OAuth2 client for client credentials flow.
@@ -115,20 +118,21 @@ def create_b2b_client(
         """
         insert into oauth2_clients (
             tenant_id, client_id, client_secret_hash, client_type,
-            name, service_user_id, created_by
+            name, description, service_user_id, created_by
         )
         values (
             :tenant_id, :client_id, :client_secret_hash, 'b2b',
-            :name, :service_user_id, :created_by
+            :name, :description, :service_user_id, :created_by
         )
-        returning id, tenant_id, client_id, client_type, name, redirect_uris,
-                  service_user_id, created_at
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, created_at
         """,
         {
             "tenant_id": tenant_id_value,
             "client_id": client_id,
             "client_secret_hash": client_secret_hash,
             "name": name,
+            "description": description,
             "service_user_id": service_user["user_id"],
             "created_by": created_by,
         },
@@ -152,7 +156,7 @@ def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None
         tenant_id,
         """
         select id, tenant_id, client_id, client_secret_hash, client_type,
-               name, redirect_uris, service_user_id, created_at
+               name, description, redirect_uris, service_user_id, is_active, created_at
         from oauth2_clients
         where client_id = :client_id
         """,
@@ -174,8 +178,8 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, client_id, client_type, name,
-               redirect_uris, service_user_id, created_at
+        select id, tenant_id, client_id, client_type, name, description,
+               redirect_uris, service_user_id, is_active, created_at
         from oauth2_clients
         where id = :id
         """,
@@ -183,20 +187,40 @@ def get_client_by_id(tenant_id: TenantArg, id: str) -> dict | None:
     )
 
 
-def get_all_clients(tenant_id: TenantArg) -> list[dict]:
+def get_all_clients(tenant_id: TenantArg, client_type: str | None = None) -> list[dict]:
     """
     Get all OAuth2 clients for a tenant.
 
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_type: Optional filter by client type ('normal' or 'b2b')
+
     Returns:
-        List of client records
+        List of client records (includes service_role from joined users table)
     """
+    if client_type:
+        return fetchall(
+            tenant_id,
+            """
+            select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
+                   c.description, c.redirect_uris, c.service_user_id,
+                   c.is_active, c.created_at, u.role as service_role
+            from oauth2_clients c
+            left join users u on c.service_user_id = u.id
+            where c.client_type = :client_type
+            order by c.created_at desc
+            """,
+            {"client_type": client_type},
+        )
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, client_id, client_type, name, redirect_uris,
-               service_user_id, created_at
-        from oauth2_clients
-        order by created_at desc
+        select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
+               c.description, c.redirect_uris, c.service_user_id,
+               c.is_active, c.created_at, u.role as service_role
+        from oauth2_clients c
+        left join users u on c.service_user_id = u.id
+        order by c.created_at desc
         """,
         {},
     )

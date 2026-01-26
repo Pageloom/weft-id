@@ -190,17 +190,18 @@ def validate_refresh_token(
 # =============================================================================
 
 
-def get_all_clients(tenant_id: str) -> list[dict]:
+def get_all_clients(tenant_id: str, client_type: str | None = None) -> list[dict]:
     """
     Get all OAuth2 clients for a tenant.
 
     Args:
         tenant_id: Tenant ID
+        client_type: Optional filter by client type ('normal' or 'b2b')
 
     Returns:
         List of client dicts
     """
-    return database.oauth2.get_all_clients(tenant_id)
+    return database.oauth2.get_all_clients(tenant_id, client_type=client_type)
 
 
 def create_normal_client(
@@ -208,6 +209,7 @@ def create_normal_client(
     name: str,
     redirect_uris: list[str],
     created_by: str,
+    description: str | None = None,
 ) -> dict:
     """
     Create a normal OAuth2 client (authorization code flow).
@@ -217,6 +219,7 @@ def create_normal_client(
         name: Client name
         redirect_uris: List of allowed redirect URIs
         created_by: User ID who created the client
+        description: Optional client description
 
     Returns:
         Client dict including plaintext client_secret
@@ -227,6 +230,7 @@ def create_normal_client(
         name=name,
         redirect_uris=redirect_uris,
         created_by=created_by,
+        description=description,
     )
 
     if result is None:
@@ -254,6 +258,7 @@ def create_b2b_client(
     name: str,
     role: str,
     created_by: str,
+    description: str | None = None,
 ) -> dict:
     """
     Create a B2B OAuth2 client (client credentials flow).
@@ -265,6 +270,7 @@ def create_b2b_client(
         name: Client name (used as service user first_name)
         role: Role for service user (member, admin, super_admin)
         created_by: User ID who created the client
+        description: Optional client description
 
     Returns:
         Client dict including plaintext client_secret
@@ -275,6 +281,7 @@ def create_b2b_client(
         name=name,
         role=role,
         created_by=created_by,
+        description=description,
     )
 
     if result is None:

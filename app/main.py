@@ -21,6 +21,7 @@ from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
+from routers import integrations as integrations_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
 from routers.api.v1 import exports as exports_api  # noqa: E402
@@ -81,6 +82,7 @@ app.include_router(auth.router)
 app.include_router(mfa.router)
 app.include_router(account_router.router)
 app.include_router(admin_router.router)
+app.include_router(integrations_router.router)
 app.include_router(settings_router.router)
 app.include_router(tenants.router)
 app.include_router(users.router)

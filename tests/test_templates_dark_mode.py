@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Classes that MUST have dark: variants when used
 LIGHT_CLASSES_REQUIRING_DARK = {
     # Background colors
@@ -149,9 +148,7 @@ class TestCriticalTemplatesDarkMode:
         assert template_path.exists(), f"Template {template_name} not found"
 
         issues = check_dark_mode_coverage(template_path)
-        assert not issues, (
-            f"Template {template_name} missing dark mode:\n" + "\n".join(issues[:10])
-        )
+        assert not issues, f"Template {template_name} missing dark mode:\n" + "\n".join(issues[:10])
 
 
 class TestDarkModeClassPairs:
@@ -177,12 +174,8 @@ class TestDarkModeClassPairs:
                     if cls == "bg-white":
                         # Check if next few classes have dark:bg-*
                         next_classes = classes[i + 1 : i + 4]
-                        has_dark_bg = any(
-                            c.startswith("dark:bg-") for c in next_classes
-                        )
-                        if not has_dark_bg and any(
-                            c.startswith("dark:") for c in classes
-                        ):
+                        has_dark_bg = any(c.startswith("dark:bg-") for c in next_classes)
+                        if not has_dark_bg and any(c.startswith("dark:") for c in classes):
                             warnings.append(
                                 f"{template.name}:{line_num}: bg-white not immediately "
                                 "followed by dark:bg-* variant"

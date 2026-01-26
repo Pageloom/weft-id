@@ -203,6 +203,26 @@ PAGES = [
                     ),
                 ],
             ),
+            Page(
+                path="/admin/integrations",
+                title="Integrations",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/integrations/apps",
+                        title="Apps",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
+                        path="/admin/integrations/b2b",
+                        title="B2B",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                ],
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

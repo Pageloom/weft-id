@@ -43,6 +43,47 @@ def test_get_all_clients(test_tenant, normal_oauth2_client, b2b_oauth2_client):
     assert b2b_oauth2_client["client_id"] in client_ids
 
 
+def test_get_all_clients_filter_normal(test_tenant, normal_oauth2_client, b2b_oauth2_client):
+    """Test listing only normal clients."""
+    result = oauth2_service.get_all_clients(test_tenant["id"], client_type="normal")
+
+    client_types = {c["client_type"] for c in result}
+    assert "normal" in client_types
+    assert "b2b" not in client_types
+
+
+def test_get_all_clients_filter_b2b(test_tenant, normal_oauth2_client, b2b_oauth2_client):
+    """Test listing only B2B clients."""
+    result = oauth2_service.get_all_clients(test_tenant["id"], client_type="b2b")
+
+    client_types = {c["client_type"] for c in result}
+    assert "b2b" in client_types
+    assert "normal" not in client_types
+
+
+def test_get_all_clients_includes_description_and_is_active(test_tenant, normal_oauth2_client):
+    """Test that get_all_clients returns description and is_active fields."""
+    result = oauth2_service.get_all_clients(test_tenant["id"])
+
+    assert len(result) >= 1
+    client = next(c for c in result if c["client_id"] == normal_oauth2_client["client_id"])
+    assert "description" in client
+    assert "is_active" in client
+    assert client["is_active"] is True
+
+
+def test_get_all_clients_includes_service_role(
+    test_tenant, normal_oauth2_client, b2b_oauth2_client
+):
+    """Test that get_all_clients returns service_role from joined users table."""
+    result = oauth2_service.get_all_clients(test_tenant["id"], client_type="b2b")
+
+    assert len(result) >= 1
+    b2b = next(c for c in result if c["client_id"] == b2b_oauth2_client["client_id"])
+    assert "service_role" in b2b
+    assert b2b["service_role"] == "admin"  # b2b_oauth2_client fixture uses admin role
+
+
 def test_create_normal_client_success(test_tenant, test_admin_user):
     """Test creating a normal OAuth2 client."""
     result = oauth2_service.create_normal_client(
@@ -57,6 +98,46 @@ def test_create_normal_client_success(test_tenant, test_admin_user):
     assert result["client_type"] == "normal"
     assert result["redirect_uris"] == ["https://example.com/callback"]
     assert "client_secret" in result
+
+
+def test_create_normal_client_with_description(test_tenant, test_admin_user):
+    """Test creating a normal client with a description."""
+    result = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Described Client",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+        description="My test app description",
+    )
+
+    assert result is not None
+    assert result["description"] == "My test app description"
+
+
+def test_create_normal_client_without_description(test_tenant, test_admin_user):
+    """Test creating a normal client without description defaults to None."""
+    result = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="No Desc Client",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+    )
+
+    assert result is not None
+    assert result["description"] is None
+
+
+def test_create_normal_client_returns_is_active(test_tenant, test_admin_user):
+    """Test creating a normal client returns is_active field."""
+    result = oauth2_service.create_normal_client(
+        tenant_id=test_tenant["id"],
+        name="Active Client",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+    )
+
+    assert result is not None
+    assert result["is_active"] is True
 
 
 def test_create_normal_client_logs_event(test_tenant, test_admin_user):
@@ -94,6 +175,33 @@ def test_create_b2b_client_success(test_tenant, test_admin_user):
     assert result["client_type"] == "b2b"
     assert result["service_user_id"] is not None
     assert "client_secret" in result
+
+
+def test_create_b2b_client_with_description(test_tenant, test_admin_user):
+    """Test creating a B2B client with a description."""
+    result = oauth2_service.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        name="Described B2B",
+        role="member",
+        created_by=test_admin_user["id"],
+        description="Sync service for data pipeline",
+    )
+
+    assert result is not None
+    assert result["description"] == "Sync service for data pipeline"
+
+
+def test_create_b2b_client_returns_is_active(test_tenant, test_admin_user):
+    """Test creating a B2B client returns is_active field."""
+    result = oauth2_service.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        name="Active B2B",
+        role="member",
+        created_by=test_admin_user["id"],
+    )
+
+    assert result is not None
+    assert result["is_active"] is True
 
 
 def test_create_b2b_client_logs_event(test_tenant, test_admin_user):

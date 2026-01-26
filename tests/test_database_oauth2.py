@@ -142,6 +142,115 @@ def test_get_all_clients(test_tenant, normal_oauth2_client, b2b_oauth2_client):
     assert b2b_oauth2_client["client_id"] in client_ids
 
 
+def test_get_all_clients_filter_normal(test_tenant, normal_oauth2_client, b2b_oauth2_client):
+    """Test filtering clients by type 'normal'."""
+    clients = database.oauth2.get_all_clients(test_tenant["id"], client_type="normal")
+
+    client_ids = [c["client_id"] for c in clients]
+    assert normal_oauth2_client["client_id"] in client_ids
+    assert b2b_oauth2_client["client_id"] not in client_ids
+    # All returned clients should be normal type
+    for c in clients:
+        assert c["client_type"] == "normal"
+
+
+def test_get_all_clients_filter_b2b(test_tenant, normal_oauth2_client, b2b_oauth2_client):
+    """Test filtering clients by type 'b2b'."""
+    clients = database.oauth2.get_all_clients(test_tenant["id"], client_type="b2b")
+
+    client_ids = [c["client_id"] for c in clients]
+    assert b2b_oauth2_client["client_id"] in client_ids
+    assert normal_oauth2_client["client_id"] not in client_ids
+    for c in clients:
+        assert c["client_type"] == "b2b"
+
+
+def test_get_all_clients_returns_description_and_is_active(test_tenant, normal_oauth2_client):
+    """Test that get_all_clients returns description and is_active columns."""
+    clients = database.oauth2.get_all_clients(test_tenant["id"])
+
+    assert len(clients) >= 1
+    client = next(c for c in clients if c["client_id"] == normal_oauth2_client["client_id"])
+    assert "description" in client
+    assert "is_active" in client
+    assert client["is_active"] is True  # Default value
+
+
+def test_get_all_clients_b2b_returns_service_role(test_tenant, b2b_oauth2_client):
+    """Test that get_all_clients returns service_role for B2B clients via JOIN."""
+    clients = database.oauth2.get_all_clients(test_tenant["id"], client_type="b2b")
+
+    assert len(clients) >= 1
+    client = next(c for c in clients if c["client_id"] == b2b_oauth2_client["client_id"])
+    assert "service_role" in client
+    assert client["service_role"] in ("member", "admin", "super_admin")
+
+
+def test_create_normal_client_with_description(test_tenant, test_admin_user):
+    """Test creating a normal client with a description."""
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="Described App",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+        description="A test application for integration testing",
+    )
+
+    assert client is not None
+    assert client["description"] == "A test application for integration testing"
+    assert client["is_active"] is True
+
+
+def test_create_normal_client_without_description(test_tenant, test_admin_user):
+    """Test creating a normal client without description defaults to None."""
+    client = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="No Description App",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+    )
+
+    assert client is not None
+    assert client["description"] is None
+    assert client["is_active"] is True
+
+
+def test_create_b2b_client_with_description(test_tenant, test_admin_user):
+    """Test creating a B2B client with a description."""
+    client = database.oauth2.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="Described B2B",
+        role="member",
+        created_by=test_admin_user["id"],
+        description="B2B service for syncing data",
+    )
+
+    assert client is not None
+    assert client["description"] == "B2B service for syncing data"
+    assert client["is_active"] is True
+
+
+def test_get_client_by_client_id_returns_new_columns(test_tenant, test_admin_user):
+    """Test that get_client_by_client_id returns description and is_active."""
+    created = database.oauth2.create_normal_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=test_tenant["id"],
+        name="Columns Test App",
+        redirect_uris=["https://example.com/callback"],
+        created_by=test_admin_user["id"],
+        description="Testing column retrieval",
+    )
+
+    client = database.oauth2.get_client_by_client_id(test_tenant["id"], created["client_id"])
+
+    assert client is not None
+    assert client["description"] == "Testing column retrieval"
+    assert client["is_active"] is True
+
+
 def test_delete_client_success(test_tenant, test_admin_user):
     """Test deleting an OAuth2 client."""
     # Create a client to delete

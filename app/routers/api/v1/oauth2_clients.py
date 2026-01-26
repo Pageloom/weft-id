@@ -27,10 +27,12 @@ def _client_to_response(
         "client_id": client["client_id"],
         "client_type": client["client_type"],
         "name": client["name"],
+        "description": client.get("description"),
         "redirect_uris": client.get("redirect_uris"),
         "service_user_id": (
             str(client["service_user_id"]) if client.get("service_user_id") else None
         ),
+        "is_active": client.get("is_active", True),
         "created_at": client["created_at"],
     }
     if include_secret:
@@ -43,16 +45,20 @@ def _client_to_response(
 def list_clients(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(require_admin_api)],
+    client_type: str | None = None,
 ):
     """
     List all OAuth2 clients for the tenant.
 
     Requires admin role.
 
+    Query Parameters:
+        client_type: Optional filter by type ('normal' or 'b2b')
+
     Returns:
         List of OAuth2 clients (without secrets)
     """
-    clients = oauth2_service.get_all_clients(tenant_id)
+    clients = oauth2_service.get_all_clients(tenant_id, client_type=client_type)
     return [_client_to_response(client) for client in clients]
 
 
@@ -83,6 +89,7 @@ def create_normal_client(
             name=client_data.name,
             redirect_uris=client_data.redirect_uris,
             created_by=str(user["id"]),
+            description=client_data.description,
         )
 
         return _client_to_response(client, include_secret=True)
@@ -120,6 +127,7 @@ def create_b2b_client(
             name=client_data.name,
             role=client_data.role,
             created_by=str(user["id"]),
+            description=client_data.description,
         )
 
         return _client_to_response(client, include_secret=True)

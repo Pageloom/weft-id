@@ -13,6 +13,7 @@ class NormalClientCreate(BaseModel):
     """Request schema for creating a normal OAuth2 client (authorization code flow)."""
 
     name: str = Field(..., min_length=1, max_length=255, description="Client name")
+    description: str | None = Field(None, max_length=500, description="Optional client description")
     redirect_uris: list[str] = Field(
         ...,
         min_length=1,
@@ -24,6 +25,7 @@ class B2BClientCreate(BaseModel):
     """Request schema for creating a B2B OAuth2 client (client credentials flow)."""
 
     name: str = Field(..., min_length=1, max_length=255, description="Client name")
+    description: str | None = Field(None, max_length=500, description="Optional client description")
     role: str = Field(
         ...,
         pattern="^(member|admin|super_admin)$",
@@ -40,8 +42,10 @@ class ClientResponse(BaseModel):
     client_id: str
     client_type: str
     name: str
+    description: str | None = None
     redirect_uris: list[str] | None
     service_user_id: str | None
+    is_active: bool = True
     created_at: datetime
 
 

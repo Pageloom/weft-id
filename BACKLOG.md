@@ -6,40 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Dark Mode with System Preference Detection
-
-**User Story:**
-As a user
-I want the application to support dark mode that follows my system preference
-So that I can use the platform comfortably in low-light environments
-
-**Acceptance Criteria:**
-
-**User Preference Model:**
-- [ ] New user setting: "Theme" with options: "System" (default), "Light", "Dark"
-- [ ] Setting stored in database, persists across devices
-- [ ] Accessible from user settings page
-
-**Theme Detection & Application:**
-- [ ] When set to "System": detect `prefers-color-scheme` on page load
-- [ ] Theme applied on page load (no mid-session transitions)
-- [ ] Anonymous pages (login, error pages) follow system preference only
-
-**Implementation:**
-- [ ] Tailwind dark mode classes added to all templates using Tailwind's default dark palette
-- [ ] Use Tailwind's `dark:` variant for all color scheme styling
-- [ ] JavaScript snippet in base template for system detection
-- [ ] All pages updated (dashboard, settings, admin pages, auth pages)
-
-**Out of Scope:**
-- Email template dark mode (email clients handle this)
-- Per-tenant default theme setting
-
-**Effort:** M
-**Value:** Medium
-
----
-
 ## Admin MFA Reset for Users
 
 **User Story:**

@@ -4,6 +4,53 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Dark Mode with System Preference Detection
+
+**Status:** Complete
+
+**User Story:**
+As a user
+I want the application to support dark mode that follows my system preference
+So that I can use the platform comfortably in low-light environments
+
+**Completed Work:**
+
+**User Preference Model:**
+- [x] New user setting: "Theme" with options: "System" (default), "Light", "Dark"
+- [x] Setting stored in database, persists across devices
+- [x] Accessible from user settings page
+
+**Theme Detection & Application:**
+- [x] When set to "System": detect `prefers-color-scheme` on page load
+- [x] Theme applied on page load (no mid-session transitions)
+- [x] Anonymous pages (login, error pages) follow system preference only
+
+**Implementation:**
+- [x] Tailwind dark mode classes added to all templates using Tailwind's default dark palette
+- [x] Use Tailwind's `dark:` variant for all color scheme styling
+- [x] JavaScript snippet in base template for system detection
+- [x] All pages updated (dashboard, settings, admin pages, auth pages)
+
+**Out of Scope:**
+- Email template dark mode (email clients handle this)
+- Per-tenant default theme setting
+
+**Technical Implementation:**
+- Database migration: `00025_user_theme.sql` adding theme column to users table
+- Theme field in user schemas (UserProfile, UserProfileUpdate)
+- Database layer: `update_user_theme()` function
+- Service layer: Theme update in `update_current_user_profile()`
+- Router: POST endpoint `/account/profile/update-theme`
+- Tailwind config: `darkMode: 'class'`
+- JavaScript: blocking script in `<head>` for FOUC prevention, localStorage sync
+- All 36 templates updated with `dark:` variants
+- Test suite enforcing dark mode coverage (`tests/test_templates_dark_mode.py`)
+
+**Effort:** M
+**Value:** Medium
+
+---
+
 ## Event Detail Pane Cleanup
 
 **Status:** Complete

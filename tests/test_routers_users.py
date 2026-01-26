@@ -2308,6 +2308,144 @@ def test_anonymize_user_service_error(test_super_admin_user):
 
 
 # =============================================================================
+# Reset MFA Tests
+# =============================================================================
+
+
+def test_reset_mfa_success(test_admin_user):
+    """Test admin can reset MFA for a user."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        with patch(
+            "routers.users.emails_service.get_primary_email",
+            return_value="user@example.com",
+        ):
+            with patch("routers.users.send_mfa_reset_notification") as mock_email:
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/reset-mfa",
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+                mock_reset.assert_called_once()
+                mock_email.assert_called_once()
+                # Verify email args
+                call_args = mock_email.call_args
+                assert call_args[0][0] == "user@example.com"
+
+
+def test_reset_mfa_denied_for_member(test_user):
+    """Test member cannot reset MFA for a user."""
+    override_auth(app, test_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reset-mfa",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+        mock_reset.assert_not_called()
+
+
+def test_reset_mfa_user_not_found(test_admin_user):
+    """Test reset MFA returns error when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        mock_reset.side_effect = NotFoundError(message="User not found", code="user_not_found")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reset-mfa",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/list?error=user_not_found" in response.headers["location"]
+
+
+def test_reset_mfa_validation_error(test_admin_user):
+    """Test reset MFA returns error on validation failure."""
+    from services.exceptions import ValidationError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        mock_reset.side_effect = ValidationError(message="MFA not enabled", code="mfa_not_enabled")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/user-123/reset-mfa",
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "/users/user-123?error=mfa_not_enabled" in response.headers["location"]
+
+
+def test_reset_mfa_service_error(test_admin_user):
+    """Test reset MFA renders error page on service error."""
+    from services.exceptions import ServiceError
+
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        with patch("routers.users.render_error_page") as mock_error_page:
+            from fastapi.responses import HTMLResponse
+
+            mock_reset.side_effect = ServiceError(message="Database error")
+            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+
+            client = TestClient(app)
+            response = client.post(
+                "/users/user-123/reset-mfa",
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 500
+            mock_error_page.assert_called_once()
+
+
+def test_reset_mfa_no_email_notification_when_no_primary_email(test_admin_user):
+    """Test no email notification sent when user has no primary email."""
+    override_auth(app, test_admin_user)
+
+    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
+        with patch("routers.users.emails_service.get_primary_email", return_value=None):
+            with patch("routers.users.send_mfa_reset_notification") as mock_email:
+                client = TestClient(app)
+                response = client.post(
+                    "/users/user-123/reset-mfa",
+                    follow_redirects=False,
+                )
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 303
+                assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+                mock_reset.assert_called_once()
+                mock_email.assert_not_called()
+
+
+# =============================================================================
 # Users Index Permission & Fallback Tests
 # =============================================================================
 

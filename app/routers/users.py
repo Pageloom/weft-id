@@ -1,5 +1,6 @@
 """User management routes."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from dependencies import (
@@ -14,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
 from schemas.api import UserCreate
 from services import emails as emails_service
+from services import mfa as mfa_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
@@ -26,6 +28,7 @@ from services.exceptions import (
 )
 from services.types import RequestingUser
 from utils.email import (
+    send_mfa_reset_notification,
     send_new_user_invitation,
     send_new_user_privileged_domain_notification,
     send_primary_email_changed_notification,
@@ -339,6 +342,13 @@ def user_detail(
         except ServiceError:
             pass  # Ignore errors getting IdPs
 
+    # Check if user's IdP requires platform MFA (for MFA reset section)
+    idp_requires_mfa = False
+    if user_detail_data.saml_idp_id:
+        idp_requires_mfa = saml_service.idp_requires_platform_mfa(
+            tenant_id, user_detail_data.saml_idp_id
+        )
+
     # Get success/error messages from query params
     success = request.query_params.get("success")
     error = request.query_params.get("error")
@@ -352,6 +362,7 @@ def user_detail(
             emails=user_detail_data.emails,
             privileged_domains=privileged_domains,
             idps=idps,
+            idp_requires_mfa=idp_requires_mfa,
             success=success,
             error=error,
         ),
@@ -702,3 +713,35 @@ def anonymize_user_route(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url=f"/users/{user_id}?success=user_anonymized", status_code=303)
+
+
+@router.post("/{user_id}/reset-mfa")
+def reset_mfa_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Reset MFA for a user (admin only)."""
+    # Check admin permission
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        mfa_service.reset_user_mfa(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    # Send email notification to the user
+    primary_email = emails_service.get_primary_email(tenant_id, user_id)
+    if primary_email:
+        admin_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        reset_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        send_mfa_reset_notification(primary_email, admin_name, reset_time)
+
+    return RedirectResponse(url=f"/users/{user_id}?success=mfa_reset", status_code=303)

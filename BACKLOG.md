@@ -6,47 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Admin MFA Reset for Users
-
-**User Story:**
-As an admin or super admin
-I want to disable MFA for a user who has lost access to their authenticator
-So that I can help them regain account access after out-of-band identity verification
-
-**Acceptance Criteria:**
-
-**Access & Permissions:**
-- [ ] Available to admins and super admins
-- [ ] Action appears on user detail page (admin view)
-
-**Behavior:**
-- [ ] "Reset MFA" button disables TOTP MFA for the target user
-- [ ] User's next login follows standard email/password + email OTP flow
-- [ ] User can then re-enroll in TOTP MFA from their settings
-
-**Notification:**
-- [ ] User receives email notification that their MFA was reset
-- [ ] Email includes: timestamp, which admin performed the action
-- [ ] Email does not include any action links (no "click here to re-enable")
-
-**Event Logging:**
-- [ ] Action logged with: admin who performed it, target user, timestamp
-
-**Security Considerations:**
-- [ ] No self-service "I lost my authenticator" flow
-- [ ] No in-app way for users to request MFA reset
-- [ ] Admins expected to verify user identity out-of-band before using this
-
-**Out of Scope:**
-- Self-service MFA recovery
-- Admin notification workflow
-- Rate limiting on resets (trust admins)
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## Integration Management Frontend (Apps & B2B)
 
 **User Story:**

@@ -4,6 +4,54 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Admin MFA Reset for Users
+
+**Status:** Complete
+
+**User Story:**
+As an admin or super admin
+I want to disable MFA for a user who has lost access to their authenticator
+So that I can help them regain account access after out-of-band identity verification
+
+**Completed Work:**
+
+**Access & Permissions:**
+- [x] Available to admins and super admins
+- [x] Action appears on user detail page (admin view)
+
+**Behavior:**
+- [x] "Reset MFA" button disables TOTP MFA for the target user
+- [x] User's next login follows standard email/password + email OTP flow
+- [x] User can then re-enroll in TOTP MFA from their settings
+
+**Notification:**
+- [x] User receives email notification that their MFA was reset
+- [x] Email includes: timestamp, which admin performed the action
+- [x] Email does not include any action links (no "click here to re-enable")
+
+**Event Logging:**
+- [x] Action logged with: admin who performed it, target user, timestamp
+
+**Security Considerations:**
+- [x] No self-service "I lost my authenticator" flow
+- [x] No in-app way for users to request MFA reset
+- [x] Admins expected to verify user identity out-of-band before using this
+
+**Implementation Details:**
+- MFA section on user detail page shows contextual info based on MFA method
+- Email MFA users: info display only (no reset needed)
+- TOTP users: reset button shown when not on SSO, or when SSO requires platform MFA
+- TOTP users on SSO without platform MFA: info only (authenticator unused)
+- Email notification sent to user after reset with admin name and timestamp
+- Service function `reset_user_mfa()` in `app/services/mfa.py`
+- Frontend route `POST /users/{user_id}/reset-mfa` in `app/routers/users.py`
+- API endpoint `POST /api/v1/users/{user_id}/mfa/reset` (pre-existing)
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Dark Mode with System Preference Detection
 
 **Status:** Complete

@@ -37,6 +37,8 @@
                 User has been anonymized. Personal data has been permanently removed.
                 {% elif success == 'idp_updated' %}
                 User's IdP assignment updated successfully.
+                {% elif success == 'mfa_reset' %}
+                User's MFA has been reset. They will use email verification on next login.
                 {% else %}
                 Operation completed successfully.
                 {% endif %}
@@ -345,6 +347,39 @@
             {% endif %}
             {% endif %}
         </div>
+
+        <!-- MFA Section -->
+        {% if target_user.mfa_enabled and target_user.id != user.id and not target_user.is_anonymized %}
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Multi-Factor Authentication</h2>
+
+            {% if target_user.mfa_method == 'email' %}
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+                This user has email-based MFA enabled. Verification codes are sent to their email on each login.
+            </p>
+
+            {% elif target_user.mfa_method == 'totp' %}
+                {% set show_reset = not target_user.saml_idp_id or idp_requires_mfa %}
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This user has authenticator (TOTP) MFA enabled.
+                {% if target_user.saml_idp_id and not idp_requires_mfa %}
+                However, their IdP does not require platform MFA, so the authenticator is not used during SSO login.
+                {% endif %}
+            </p>
+
+                {% if show_reset %}
+            <form method="post" action="/users/{{ target_user.id }}/reset-mfa" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="bg-amber-600 text-white hover:bg-amber-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        onclick="return confirm('Are you sure you want to reset MFA for this user? Their authenticator and backup codes will be deleted. They will need to re-enroll.')">
+                    Reset MFA
+                </button>
+            </form>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Email Addresses -->
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">

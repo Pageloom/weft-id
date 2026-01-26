@@ -588,3 +588,62 @@ Please review this request at:
     # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_mfa_reset_notification(
+    to_email: str,
+    admin_name: str,
+    reset_timestamp: str,
+) -> bool:
+    """Send notification when an admin resets a user's MFA.
+
+    Informs the user that their MFA was reset, including which admin
+    performed the action and when. No action links are included.
+    """
+    # ruff: noqa: E501
+    subject = "Your multi-factor authentication was reset"
+
+    text_body = f"""
+Your multi-factor authentication (MFA) has been reset by an administrator.
+
+Reset by: {admin_name}
+Time: {reset_timestamp}
+
+Your next login will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.
+
+If you did not expect this change, please contact your administrator.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .warning-box {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Your MFA Was Reset</h1>
+        <div class="warning-box">
+            <p>Your multi-factor authentication (MFA) has been reset by an administrator.</p>
+        </div>
+        <p><strong>Reset by:</strong> {admin_name}</p>
+        <p><strong>Time:</strong> {reset_timestamp}</p>
+        <p>Your next login will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.</p>
+        <div class="footer">
+            <p>If you did not expect this change, please contact your administrator.</p>
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)

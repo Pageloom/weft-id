@@ -125,8 +125,11 @@ class TestTemplateScriptNonceBackstop:
 
     TEMPLATES_DIR = Path(__file__).parent.parent / "app" / "templates"
 
-    # Pattern to match <script> tags without nonce attribute
-    SCRIPT_WITHOUT_NONCE = re.compile(r"<script(?![^>]*\bnonce=)[^>]*>", re.IGNORECASE)
+    # Pattern to match inline <script> tags without nonce attribute
+    # (External scripts with src= are allowed without nonce since CSP allows 'self')
+    INLINE_SCRIPT_WITHOUT_NONCE = re.compile(
+        r"<script(?![^>]*\bnonce=)(?![^>]*\bsrc=)[^>]*>", re.IGNORECASE
+    )
 
     # Pattern to match <script> tags with nonce attribute
     SCRIPT_WITH_NONCE = re.compile(
@@ -134,24 +137,28 @@ class TestTemplateScriptNonceBackstop:
     )
 
     def test_all_script_tags_have_nonce(self):
-        """All <script> tags in templates must have nonce="{{ csp_nonce }}"."""
+        """All inline <script> tags in templates must have nonce="{{ csp_nonce }}".
+
+        External scripts (with src attribute) don't need nonces because CSP
+        allows 'self' for script-src.
+        """
         violations = []
 
         for template_path in self.TEMPLATES_DIR.glob("**/*.html"):
             content = template_path.read_text()
 
-            # Find all script tags without nonce
-            for match in self.SCRIPT_WITHOUT_NONCE.finditer(content):
+            # Find all inline script tags without nonce
+            for match in self.INLINE_SCRIPT_WITHOUT_NONCE.finditer(content):
                 # Get line number for better error messages
                 line_num = content[: match.start()].count("\n") + 1
                 violations.append(
                     f"{template_path.relative_to(self.TEMPLATES_DIR)}:{line_num}: "
-                    f"Script tag missing nonce attribute: {match.group()[:50]}..."
+                    f"Inline script tag missing nonce attribute: {match.group()[:50]}..."
                 )
 
         if violations:
             pytest.fail(
-                f"Found {len(violations)} script tag(s) without nonce attribute:\n"
+                f"Found {len(violations)} inline script tag(s) without nonce attribute:\n"
                 + "\n".join(violations)
             )
 
@@ -236,14 +243,12 @@ class TestInlineEventHandlerBackstop:
             pytest.fail(
                 f"Found {len(violations)} inline event handler(s) (CSP-blocked):\n"
                 + "\n".join(violations)
-                + "\n\nFix: Use addEventListener in a <script nonce=\"{{ csp_nonce }}\"> block."
+                + '\n\nFix: Use addEventListener in a <script nonce="{{ csp_nonce }}"> block.'
             )
 
     def test_templates_directory_exists_for_handler_check(self):
         """Sanity check that templates directory exists."""
-        assert (
-            self.TEMPLATES_DIR.exists()
-        ), f"Templates directory not found: {self.TEMPLATES_DIR}"
+        assert self.TEMPLATES_DIR.exists(), f"Templates directory not found: {self.TEMPLATES_DIR}"
         template_count = len(list(self.TEMPLATES_DIR.glob("**/*.html")))
         # Should have a reasonable number of templates
         assert template_count >= 10, f"Expected at least 10 templates, found {template_count}"

@@ -287,7 +287,7 @@
 
                 <button type="submit"
                         class="confirm-btn bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        data-confirm="Are you sure? This action may make the user's password unusable or inactivate their account.">
+                        data-confirm="Update authentication for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;This action may make their password unusable or inactivate their account.">
                     Update Authentication
                 </button>
             </form>
@@ -324,7 +324,7 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
                             class="confirm-btn bg-yellow-600 text-white hover:bg-yellow-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                            data-confirm="Are you sure you want to inactivate this user? They will no longer be able to sign in.">
+                            data-confirm="Inactivate {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;They will no longer be able to sign in.">
                         Inactivate User
                     </button>
                 </form>
@@ -334,7 +334,8 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
                             class="confirm-btn bg-red-600 text-white hover:bg-red-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                            data-confirm="WARNING: This action is IRREVERSIBLE!&#10;&#10;Anonymizing this user will permanently delete their personal data (name, email, MFA settings). The user record will be preserved for audit purposes but will show as [Anonymized User].&#10;&#10;Are you absolutely sure?">
+                            data-confirm="Anonymize {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;WARNING: This action is IRREVERSIBLE!&#10;&#10;Their personal data (name, email, MFA settings) will be permanently deleted. The user record will be preserved for audit purposes but will show as [Anonymized User]."
+                            data-destructive="true">
                         Anonymize (GDPR)
                     </button>
                 </form>
@@ -372,7 +373,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="confirm-btn bg-amber-600 text-white hover:bg-amber-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        data-confirm="Are you sure you want to reset MFA for this user? Their authenticator and backup codes will be deleted. They will need to re-enroll.">
+                        data-confirm="Reset MFA for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;Their authenticator and backup codes will be deleted. They will need to re-enroll.">
                     Reset MFA
                 </button>
             </form>
@@ -423,7 +424,8 @@
                         <form method="post" action="/users/{{ target_user.id }}/remove-email/{{ email.id }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1"
-                                    data-confirm="Are you sure you want to remove this email?">
+                                    data-confirm="Remove {{ email.email }} from {{ target_user.first_name }} {{ target_user.last_name }}?"
+                                    data-destructive="true">
                                 Remove
                             </button>
                         </form>
@@ -481,13 +483,16 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-// Confirmation dialogs
+// Confirmation dialogs with styled modal
 document.querySelectorAll('.confirm-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var form = this.closest('form');
         var message = this.dataset.confirm.replace(/&#10;/g, '\n');
-        if (!confirm(message)) {
-            e.preventDefault();
-        }
+        var isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, function() {
+            form.submit();
+        }, { destructive: isDestructive });
     });
 });
 </script>

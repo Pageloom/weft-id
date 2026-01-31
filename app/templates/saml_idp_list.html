@@ -231,7 +231,8 @@
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         class="confirm-btn text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                                        data-confirm="Delete this identity provider? This cannot be undone.">
+                                        data-confirm="Delete {{ idp.name }}?&#10;&#10;This cannot be undone."
+                                        data-destructive="true">
                                     Delete
                                 </button>
                             </form>
@@ -300,12 +301,16 @@ document.getElementById('copy-metadata-url-btn')?.addEventListener('click', func
 document.getElementById('show-rotate-cert-btn')?.addEventListener('click', showRotateCertModal);
 document.getElementById('hide-rotate-cert-btn')?.addEventListener('click', hideRotateCertModal);
 
-// Confirmation dialogs
+// Confirmation dialogs with styled modal
 document.querySelectorAll('.confirm-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
-        if (!confirm(this.dataset.confirm)) {
-            e.preventDefault();
-        }
+        e.preventDefault();
+        var form = this.closest('form');
+        var message = this.dataset.confirm;
+        var isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, function() {
+            form.submit();
+        }, { destructive: isDestructive });
     });
 });
 

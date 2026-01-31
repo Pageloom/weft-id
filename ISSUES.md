@@ -73,26 +73,6 @@ Not Affected - Version 2.12.0 is newer than the fixed version 2.4.0.
 
 ---
 
-## [DEPS] user-agents: Unmaintained Package Warning
-
-**Package:** user-agents
-**Installed Version:** 2.2.0
-**Last Updated:** 2020 (>4 years ago)
-**Severity:** Low
-**Source:** https://github.com/selwin/python-user-agents
-
-**Description:**
-Package has not received updates in over 4 years. May not correctly parse modern user agent strings and could have undiscovered vulnerabilities. The package is still functional but is not actively maintained.
-
-**Exploitability in This Project:**
-Low - Used only for display/logging purposes, not security decisions.
-
-**Remediation:**
-- Consider alternative: `ua-parser` (actively maintained)
-- Or accept risk if functionality is non-critical
-
----
-
 ## [DEPS] fastapi: No Known Vulnerabilities
 
 **Package:** fastapi
@@ -173,22 +153,7 @@ Security assessment performed: 2026-01-25
 
 # Technical Debt
 
-## [TECH-DEBT] Add CSRF Protection Backstop Test
-
-**Severity:** Low
-**Category:** Quality / Security Assurance
-
-**Description:**
-Add a static analysis test that verifies all non-GET frontend routes have CSRF protection. This serves as a guardrail to prevent future regressions where a developer adds a POST/PUT/DELETE route without CSRF protection.
-
-**Implementation:**
-- Test parses frontend router files (not API routers)
-- Identifies all non-GET route handlers
-- Verifies each has the CSRF dependency/decorator
-- Fails if any unprotected routes are found
-
-**Benefit:**
-One-time quality gate that permanently prevents CSRF protection gaps in frontend routes.
+No technical debt items.
 
 ---
 
@@ -199,20 +164,21 @@ One-time quality gate that permanently prevents CSRF protection gaps in frontend
 | Critical | 0 | - |
 | High | 0 | - |
 | Medium | 0 | - |
-| Low | 2 | Deps (user-agents unmaintained), Tech Debt (CSRF backstop test) |
+| Low | 0 | - |
 
-## Dependency Audit Summary (2026-01-17)
+## Dependency Audit Summary (2026-01-31)
 
 | Severity | Count | Packages |
 |----------|-------|----------|
 | Critical | 0 | - |
 | High | 0 | - |
 | Medium | 0 | - |
-| Low | 1 | user-agents (unmaintained) |
+| Low | 0 | - |
 | Safe | All | All production dependencies |
 
 ### Packages Requiring Attention
-1. **user-agents** - Unmaintained, consider replacement with `ua-parser` when convenient
+
+None. All dependencies are secure and actively maintained.
 
 ### Packages Confirmed Safe
 All production dependencies are at versions that include fixes for known CVEs. Recent CVEs in the Python ecosystem (CVE-2026-21226 Azure Core, CVE-2025-68668 n8n, CVE-2025-68664 LangChain) do not affect this project.
@@ -229,3 +195,5 @@ All production dependencies are at versions that include fixes for known CVEs. R
 9. ~~Security headers (Medium - defense in depth)~~ **RESOLVED**
 10. ~~OpenAPI debug endpoints exposed (Medium - information disclosure)~~ **RESOLVED**
 11. ~~CSP unsafe-inline (Low - defense in depth)~~ **RESOLVED**
+12. ~~user-agents unmaintained (Low - replaced with ua-parser)~~ **RESOLVED**
+13. ~~CSRF backstop test (Low - added static analysis test)~~ **RESOLVED**

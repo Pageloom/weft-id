@@ -1,12 +1,32 @@
 # Project Instructions
 
-## Git commits
+## What This Project Is
+
+Weft-ID is a multi-tenant identity federation platform that acts as middleware between applications and identity providers (Okta, Entra ID, Google Workspace, SAML/OIDC). Core capabilities:
+
+- SAML 2.0 and OAuth2 identity provider integration
+- Multi-factor authentication (TOTP-based with backup codes)
+- User lifecycle management with inactivation/reactivation workflows
+- Comprehensive audit logging and activity tracking
+- Tenant-isolated data with Row-Level Security (RLS)
+
+## Before Starting Work
+
+**Read `.claude/THOUGHT_ERRORS.md`** for common mistakes to avoid. Key gotchas:
+
+- **Tests**: Use `poetry run python -m pytest` or `./test` (not `pytest` directly)
+- **Type checking**: Use `mypy` (not `pyright`)
+- **UUIDs**: Convert to string when comparing across boundaries
+- **Background jobs**: Restart worker container, not app container
+- **Mocking sessions**: Patch `starlette.requests.Request.session`, not client cookies
+
+## Git Commits
+
 - Keep them short and to the point
-- The summary should be short
-- The description should include a short definition of what problem
-  was addressed
-- The description should thenafter explain, tersely, how it was done
-- Do NOT include claude attributions in commit messages
+- The summary should be short (80 chars or less)
+- The description should include a short definition of what problem was addressed
+- The description should then explain, tersely, how it was done
+- Do NOT include Claude attributions in commit messages
 
 ## Architecture Overview
 
@@ -19,6 +39,113 @@ Request → Router → Service → Database → PostgreSQL
 - **Routers** (`app/routers/`): HTTP/template layer only. Never import database modules directly.
 - **Services** (`app/services/`): Business logic and authorization. Receives `RequestingUser`, returns Pydantic schemas, raises `ServiceError` subclasses.
 - **Database** (`app/database/`): SQL execution with tenant scoping. Returns dicts.
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/pages.py` | Authorization registry. All routes must be registered here |
+| `app/constants/event_types.py` | Event type registry for audit logging |
+| `app/schemas/common.py` | `RequestingUser` TypedDict and common schemas |
+| `app/services/exceptions.py` | ServiceError subclasses (ForbiddenError, NotFoundError, ValidationError) |
+| `app/services/event_log.py` | `log_event()` function for audit logging |
+| `app/services/activity.py` | `track_activity()` for read operation tracking |
+| `BACKLOG.md` | Product backlog (pending items) |
+| `BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
+| `ISSUES.md` | Active quality/security issues (goal: keep empty) |
+| `ISSUES_ARCHIVE.md` | Resolved issues with fix details |
+| `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
+
+## Directory Structure
+
+```
+app/
+├── routers/          # HTTP layer (imports services only)
+│   └── api/v1/       # RESTful API endpoints
+├── services/         # Business logic (imports database)
+├── database/         # SQL execution (returns dicts)
+├── schemas/          # Pydantic models
+├── templates/        # Jinja2 templates
+├── middleware/       # Request processing
+├── jobs/             # Background task handlers
+└── constants/        # Enums and constants
+tests/                # Mirrors app/ structure
+db-init/              # SQL migrations (sequential numbering)
+scripts/              # Compliance and dependency checks
+.claude/commands/     # Agent skill definitions
+```
+
+## Core Types
+
+**RequestingUser** (TypedDict in `app/schemas/common.py`):
+```python
+{
+    "id": str,           # User ID
+    "tenant_id": str,    # Tenant ID for scoping
+    "role": str,         # "super_admin" | "admin" | "user"
+    "email": str,
+    # ... additional fields
+}
+```
+
+**ServiceError Subclasses** (in `app/services/exceptions.py`):
+- `ForbiddenError` - Authorization failures (403)
+- `NotFoundError` - Resource not found (404)
+- `ValidationError` - Input validation failures (400)
+
+## Service Function Pattern
+
+```python
+def do_something(
+    requesting_user: RequestingUser,
+    data: SomeSchema,
+) -> ResultSchema:
+    """Authorization: Requires admin role."""
+    _require_admin(requesting_user)
+    # ... business logic ...
+    # ... database calls ...
+    # ... event log ...
+    return ResultSchema(...)
+```
+
+## Event Logging Pattern
+
+**Writes must log events** (after successful mutation):
+```python
+from app.services.event_log import log_event
+
+log_event(
+    tenant_id=requesting_user["tenant_id"],
+    actor_user_id=requesting_user["id"],
+    event_type="user_created",  # Past tense, from event_types.py
+    artifact_type="user",
+    artifact_id=user_id,
+    metadata={"role": user_data.role}  # Context for audit trail
+)
+```
+
+**Reads must track activity** (at function start):
+```python
+from app.services.activity import track_activity
+
+def get_users(requesting_user: RequestingUser) -> list[UserResponse]:
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+    # ... rest of function
+```
+
+## Tenant Isolation
+
+Database functions use Row-Level Security (RLS):
+- All queries are scoped via `tenant_id` parameter
+- Use `UNSCOPED` constant for intentional cross-tenant operations (system tasks only)
+- Database layer functions: `fetchall(tenant_id, ...)`, `fetchone(tenant_id, ...)`, `execute(tenant_id, ...)`
+
+## Background Jobs
+
+Background jobs run in a separate worker container.
+- Code location: `app/jobs/`
+- Job registry: `app/jobs/registry.py`
+- **Changes require worker restart**: `docker compose restart worker`
 
 ## Development Commands
 
@@ -138,7 +265,7 @@ All checks must pass before committing.
 3. **Read service functions must track activity** - call `track_activity(tenant_id, user_id)` at the start of read-only service functions
 4. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
 5. **New pages must be registered in `app/pages.py`** - each route checks access via this file
-6. **Migrations** go in `db-init/` with sequential numbering (next: `00020_*.sql`)
+6. **Migrations** go in `db-init/` with sequential numbering (check existing files for next number)
 7. **Run formatting, linting, and typechecking** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`
 9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete
@@ -150,30 +277,17 @@ All checks must pass before committing.
 - **Cover happy paths and key edge cases** - don't just test the golden path
 - **All existing tests must pass** - never break existing functionality
 - Tests live in `tests/` mirroring the app structure
+- **Test environment**: Tests set `IS_DEV=true` (in `tests/conftest.py`) to bypass production validation
 
-## Service Function Pattern
-
-```python
-def do_something(
-    requesting_user: RequestingUser,
-    data: SomeSchema,
-) -> ResultSchema:
-    """Authorization: Requires admin role."""
-    _require_admin(requesting_user)
-    # ... business logic ...
-    # ... database calls ...
-    # ... event log ...
-    return ResultSchema(...)
-```
-
-## Development Workflow
+## Agent Workflow
 
 - Use `/pm` to add items to the product backlog
-- Use `/dev` to implement items from the backlog
+- Use `/dev` to implement items from the backlog (checks ISSUES.md first)
 - Use `/test` to review quality and push coverage intelligently
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 - Use `/deps` to audit third-party dependencies for known CVEs and vulnerabilities
+- Use `/note` to quickly add items to NOTES.md
 
 ## Issue Tracking
 
@@ -181,4 +295,5 @@ def do_something(
 - Architectural violations found by `/compliance` are logged in `ISSUES.md`
 - Security vulnerabilities found by `/security` are logged in `ISSUES.md`
 - Dependency vulnerabilities found by `/deps` are logged in `ISSUES.md`
+- `/dev` checks ISSUES.md first before BACKLOG.md (bugs before features)
 - Goal: keep `ISSUES.md` empty

@@ -138,6 +138,52 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
 - Be thorough but pragmatic - focus on high-value test coverage first
 - If the archived backlog doesn't explain something, ask the user
 
+## Known Coverage Gaps: SAML
+
+The SAML module (`services/saml.py`, `database/saml.py`, `routers/saml.py`) has ~85-90% coverage with intentional gaps that require true E2E tests to cover. Do not waste time trying to unit/integration test these.
+
+### Why SAML is Different
+
+SAML authentication requires cryptographic signature validation. The `python3-saml` library validates:
+- XML signatures using the IdP's certificate
+- Timing constraints (NotOnOrAfter)
+- Audience restrictions
+- Proper SAML bindings (POST/Redirect)
+
+You cannot mock these at the HTTP level because the library performs real cryptographic validation. Mocking the entire library defeats the purpose of testing the actual SAML flow.
+
+### What's Covered (and sufficient)
+
+- SP certificate management (create, get, rotate)
+- IdP CRUD operations (create, list, update, delete, enable/disable)
+- Admin UI endpoints (list, new, edit pages)
+- Authorization checks (super_admin required)
+- Test mode with mocked SAML responses
+- Domain binding operations
+- Metadata URL parsing
+
+### What Requires E2E Tests (not unit/integration)
+
+1. **Real SAML ACS flow** (`routers/saml.py:351-371`) - Error handling in the Assertion Consumer Service requires real signed SAML assertions from an IdP
+
+2. **IdP-initiated Single Logout** (`services/saml.py:2277-2329`) - Requires a signed LogoutRequest from the IdP
+
+3. **Real metadata refresh** (`services/saml.py:917-941`) - The full update path after fetching from a real metadata URL
+
+4. **SAML debug cleanup** (`database/saml.py:1098-1112`) - Background job that cleans entries older than 24 hours
+
+5. **Database failure branches** (`services/saml.py:177, 290`) - Defensive code for impossible conditions
+
+### How to E2E Test SAML
+
+The project includes SimpleSAMLphp in docker-compose for manual testing. Automated E2E tests would need:
+1. SimpleSAMLphp configured with matching certificates
+2. Playwright to navigate the IdP login page
+3. Handle the POST back to ACS
+4. Verify session creation
+
+This is complex and fragile. Accept the coverage gap or invest in a proper E2E test suite with the SimpleSAMLphp simulator.
+
 ## Session Log
 
 **Before finishing your session**, append a row to `.claude/test_agent_log.md` with today's date, the current HEAD commit hash, and a short summary of what you did (areas tested, tests written, issues found). This helps future sessions pick up where you left off.

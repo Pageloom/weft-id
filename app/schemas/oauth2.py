@@ -33,6 +33,28 @@ class B2BClientCreate(BaseModel):
     )
 
 
+class ClientUpdate(BaseModel):
+    """Request schema for updating an OAuth2 client."""
+
+    name: str | None = Field(None, min_length=1, max_length=255, description="Client name")
+    description: str | None = Field(None, max_length=500, description="Optional client description")
+    redirect_uris: list[str] | None = Field(
+        None,
+        min_length=1,
+        description="List of exact redirect URIs (normal clients only)",
+    )
+
+
+class ClientRoleUpdate(BaseModel):
+    """Request schema for updating a B2B client's service role."""
+
+    role: str = Field(
+        ...,
+        pattern="^(member|admin|super_admin)$",
+        description="New role for the service user",
+    )
+
+
 class ClientResponse(BaseModel):
     """Response schema for OAuth2 client (without secret)."""
 

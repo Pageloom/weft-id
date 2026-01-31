@@ -370,3 +370,207 @@ def regenerate_client_secret(tenant_id: str, client_id: str, actor_user_id: str)
         )
 
     return new_secret
+
+
+def update_client(
+    tenant_id: str,
+    client_id: str,
+    actor_user_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    redirect_uris: list[str] | None = None,
+) -> dict | None:
+    """
+    Update an OAuth2 client's name, description, and/or redirect URIs.
+
+    Args:
+        tenant_id: Tenant ID
+        client_id: The client_id string (e.g., "loom_client_abc123")
+        actor_user_id: User ID performing the update
+        name: New client name (optional)
+        description: New description (optional)
+        redirect_uris: New redirect URIs for normal clients (optional)
+
+    Returns:
+        Updated client dict, or None if not found
+    """
+    # Get current client for comparison
+    old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if not old_client:
+        return None
+
+    # Validate: redirect_uris only allowed for normal clients
+    if redirect_uris is not None and old_client["client_type"] != "normal":
+        raise ValidationError(
+            "Redirect URIs can only be set for normal clients",
+            code="redirect_uris_not_allowed",
+        )
+
+    result = database.oauth2.update_client(
+        tenant_id=tenant_id,
+        client_id=client_id,
+        name=name,
+        description=description,
+        redirect_uris=redirect_uris,
+    )
+
+    if result:
+        # Build list of changed fields for audit log
+        changed_fields = []
+        if name is not None and name != old_client.get("name"):
+            changed_fields.append("name")
+        if description is not None and description != old_client.get("description"):
+            changed_fields.append("description")
+        if redirect_uris is not None and redirect_uris != old_client.get("redirect_uris"):
+            changed_fields.append("redirect_uris")
+
+        if changed_fields:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=actor_user_id,
+                artifact_type="oauth2_client",
+                artifact_id=str(result["id"]),
+                event_type="oauth2_client_updated",
+                metadata={
+                    "name": result["name"],
+                    "client_id": client_id,
+                    "changed_fields": changed_fields,
+                },
+            )
+
+    return result
+
+
+def update_b2b_client_role(
+    tenant_id: str,
+    client_id: str,
+    role: str,
+    actor_user_id: str,
+) -> dict | None:
+    """
+    Update the service user role for a B2B OAuth2 client.
+
+    Args:
+        tenant_id: Tenant ID
+        client_id: The client_id string
+        role: New role ('member', 'admin', 'super_admin')
+        actor_user_id: User ID performing the update
+
+    Returns:
+        Updated client dict with service_role, or None if not found
+    """
+    # Get current client for comparison
+    old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if not old_client:
+        return None
+
+    if old_client["client_type"] != "b2b":
+        raise ValidationError(
+            "Role can only be changed for B2B clients",
+            code="role_change_not_allowed",
+        )
+
+    result = database.oauth2.update_b2b_client_role(tenant_id, client_id, role)
+
+    if result:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="oauth2_client",
+            artifact_id=str(result["id"]),
+            event_type="oauth2_client_role_changed",
+            metadata={
+                "name": result["name"],
+                "client_id": client_id,
+                "new_role": role,
+                "service_user_id": str(result.get("service_user_id")),
+            },
+        )
+
+    return result
+
+
+def deactivate_client(tenant_id: str, client_id: str, actor_user_id: str) -> dict | None:
+    """
+    Deactivate an OAuth2 client (soft delete).
+
+    Also revokes all tokens for this client.
+
+    Args:
+        tenant_id: Tenant ID
+        client_id: The client_id string
+        actor_user_id: User ID performing the deactivation
+
+    Returns:
+        Updated client dict, or None if not found
+    """
+    # Get current client
+    old_client = database.oauth2.get_client_by_client_id(tenant_id, client_id)
+    if not old_client:
+        return None
+
+    result = database.oauth2.deactivate_client(tenant_id, client_id)
+
+    if result:
+        # Revoke all tokens for this client
+        database.oauth2.revoke_all_client_tokens(tenant_id, str(old_client["id"]))
+
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="oauth2_client",
+            artifact_id=str(result["id"]),
+            event_type="oauth2_client_deactivated",
+            metadata={
+                "name": result["name"],
+                "client_id": client_id,
+                "client_type": result["client_type"],
+            },
+        )
+
+    return result
+
+
+def reactivate_client(tenant_id: str, client_id: str, actor_user_id: str) -> dict | None:
+    """
+    Reactivate a deactivated OAuth2 client.
+
+    Args:
+        tenant_id: Tenant ID
+        client_id: The client_id string
+        actor_user_id: User ID performing the reactivation
+
+    Returns:
+        Updated client dict, or None if not found
+    """
+    result = database.oauth2.reactivate_client(tenant_id, client_id)
+
+    if result:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=actor_user_id,
+            artifact_type="oauth2_client",
+            artifact_id=str(result["id"]),
+            event_type="oauth2_client_reactivated",
+            metadata={
+                "name": result["name"],
+                "client_id": client_id,
+                "client_type": result["client_type"],
+            },
+        )
+
+    return result
+
+
+def get_client_by_id(tenant_id: str, id: str) -> dict | None:
+    """
+    Get an OAuth2 client by its internal UUID.
+
+    Args:
+        tenant_id: Tenant ID
+        id: Internal client UUID
+
+    Returns:
+        Client dict or None if not found
+    """
+    return database.oauth2.get_client_by_id(tenant_id, id)

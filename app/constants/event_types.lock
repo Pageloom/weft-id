@@ -12,8 +12,12 @@ mfa_email_enabled
 mfa_reset_by_admin
 mfa_totp_enabled
 oauth2_client_created
+oauth2_client_deactivated
 oauth2_client_deleted
+oauth2_client_reactivated
+oauth2_client_role_changed
 oauth2_client_secret_regenerated
+oauth2_client_updated
 password_set
 primary_email_changed
 privileged_domain_added

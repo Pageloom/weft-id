@@ -65,8 +65,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_saml_idp_assigned": "User assigned to SAML identity provider",
     # OAuth2
     "oauth2_client_created": "OAuth2 client application registered",
+    "oauth2_client_updated": "OAuth2 client application updated",
     "oauth2_client_deleted": "OAuth2 client application removed",
     "oauth2_client_secret_regenerated": "OAuth2 client secret regenerated",
+    "oauth2_client_role_changed": "OAuth2 B2B client service role changed",
+    "oauth2_client_deactivated": "OAuth2 client application deactivated",
+    "oauth2_client_reactivated": "OAuth2 client application reactivated",
     # Settings & Configuration
     "privileged_domain_added": "Privileged email domain added",
     "privileged_domain_deleted": "Privileged email domain removed",

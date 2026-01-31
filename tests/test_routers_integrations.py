@@ -1244,3 +1244,341 @@ def test_b2b_reactivate_success(test_admin_user):
 
         assert response.status_code == 303
         assert "success=reactivated" in response.headers["location"]
+
+
+# =============================================================================
+# Additional Error Handling Tests
+# =============================================================================
+
+
+def test_app_edit_not_found(test_admin_user):
+    """Test editing an app that returns None redirects with not_found error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_client") as mock_update:
+        mock_update.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/weft-id_client_missing/edit",
+            data={
+                "name": "Updated Name",
+                "description": "",
+                "redirect_uris": "https://example.com/callback",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_app_edit_service_error(test_admin_user):
+    """Test editing an app when service raises error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_client") as mock_update:
+        from services.exceptions import ServiceError
+
+        mock_update.side_effect = ServiceError("update failed")
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/weft-id_client_edit123/edit",
+            data={
+                "name": "Updated Name",
+                "description": "",
+                "redirect_uris": "https://example.com/callback",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=update_failed" in response.headers["location"]
+
+
+def test_app_deactivate_not_found(test_admin_user):
+    """Test deactivating non-existent app redirects with not_found error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.deactivate_client") as mock_deact:
+        mock_deact.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/nonexistent/deactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_app_reactivate_not_found(test_admin_user):
+    """Test reactivating non-existent app redirects with not_found error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.reactivate_client") as mock_react:
+        mock_react.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/nonexistent/reactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_edit_empty_name(test_admin_user):
+    """Test editing B2B client with empty name returns error."""
+    _setup_admin_overrides(test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        data={
+            "name": "   ",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=name_required" in response.headers["location"]
+
+
+def test_b2b_edit_not_found(test_admin_user):
+    """Test editing B2B client that returns None redirects with not_found error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_client") as mock_update:
+        mock_update.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/weft-id_b2b_missing/edit",
+            data={
+                "name": "Updated Name",
+                "description": "",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_edit_service_error(test_admin_user):
+    """Test editing B2B client when service raises error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_client") as mock_update:
+        from services.exceptions import ServiceError
+
+        mock_update.side_effect = ServiceError("update failed")
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+            data={
+                "name": "Updated Name",
+                "description": "",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=update_failed" in response.headers["location"]
+
+
+def test_b2b_role_change_not_found(test_admin_user):
+    """Test role change for B2B client that returns None."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_b2b_client_role") as mock_update:
+        mock_update.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/weft-id_b2b_role123/role",
+            data={
+                "role": "admin",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_role_change_service_error(test_admin_user):
+    """Test role change when service raises error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.update_b2b_client_role") as mock_update:
+        from services.exceptions import ServiceError
+
+        mock_update.side_effect = ServiceError("role change failed")
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/weft-id_b2b_role123/role",
+            data={
+                "role": "admin",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=role_change_failed" in response.headers["location"]
+
+
+def test_b2b_regenerate_secret_wrong_type(test_admin_user):
+    """Test regenerating secret for B2B client that's actually normal type."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_client_normal",
+        "client_type": "normal",  # Wrong type for B2B route
+        "name": "Normal Client",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = mock_client
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/weft-id_client_normal/regenerate-secret",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_regenerate_secret_not_found(test_admin_user):
+    """Test regenerating secret for non-existent B2B client."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/nonexistent/regenerate-secret",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_deactivate_not_found(test_admin_user):
+    """Test deactivating non-existent B2B client."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.deactivate_client") as mock_deact:
+        mock_deact.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/nonexistent/deactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_reactivate_not_found(test_admin_user):
+    """Test reactivating non-existent B2B client."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.reactivate_client") as mock_react:
+        mock_react.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/nonexistent/reactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_b2b_detail_wrong_type(test_admin_user):
+    """Test B2B detail page redirects when client is normal type."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "weft-id_client_normal",
+        "client_type": "normal",  # Wrong type for B2B route
+        "name": "Normal Client",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = mock_client
+
+        client = TestClient(app)
+        response = client.get(
+            "/admin/integrations/b2b/weft-id_client_normal", follow_redirects=False
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]

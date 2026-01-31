@@ -194,3 +194,56 @@ class TestTemplateScriptNonceBackstop:
 
         # We know there are at least 17 script tags across templates
         assert script_count >= 17, f"Expected at least 17 script tags, found {script_count}"
+
+
+class TestInlineEventHandlerBackstop:
+    """Backstop test to ensure no inline event handlers exist in templates.
+
+    Inline event handlers (onclick, onchange, onsubmit, etc.) are blocked by CSP
+    when using nonce-based script execution. All event handling must be done via
+    addEventListener in nonce-protected script blocks.
+    """
+
+    TEMPLATES_DIR = Path(__file__).parent.parent / "app" / "templates"
+
+    # Pattern to match inline event handler attributes
+    # Covers all standard DOM event handler attributes
+    INLINE_HANDLER_PATTERN = re.compile(
+        r"\s+on(click|change|submit|load|error|focus|blur|keydown|keyup|keypress|"
+        r"mousedown|mouseup|mouseover|mouseout|mousemove|input|reset|select|"
+        r"contextmenu|dblclick|drag|dragend|dragenter|dragleave|dragover|"
+        r"dragstart|drop|scroll|wheel|copy|cut|paste)\s*=\s*[\"']",
+        re.IGNORECASE,
+    )
+
+    def test_no_inline_event_handlers(self):
+        """All templates must not contain inline event handlers (CSP-blocked)."""
+        violations = []
+
+        for template_path in self.TEMPLATES_DIR.glob("**/*.html"):
+            content = template_path.read_text()
+
+            for match in self.INLINE_HANDLER_PATTERN.finditer(content):
+                # Get line number for better error messages
+                line_num = content[: match.start()].count("\n") + 1
+                # Extract the handler name
+                handler = match.group(0).strip()
+                violations.append(
+                    f"{template_path.relative_to(self.TEMPLATES_DIR)}:{line_num}: {handler[:30]}..."
+                )
+
+        if violations:
+            pytest.fail(
+                f"Found {len(violations)} inline event handler(s) (CSP-blocked):\n"
+                + "\n".join(violations)
+                + "\n\nFix: Use addEventListener in a <script nonce=\"{{ csp_nonce }}\"> block."
+            )
+
+    def test_templates_directory_exists_for_handler_check(self):
+        """Sanity check that templates directory exists."""
+        assert (
+            self.TEMPLATES_DIR.exists()
+        ), f"Templates directory not found: {self.TEMPLATES_DIR}"
+        template_count = len(list(self.TEMPLATES_DIR.glob("**/*.html")))
+        # Should have a reasonable number of templates
+        assert template_count >= 10, f"Expected at least 10 templates, found {template_count}"

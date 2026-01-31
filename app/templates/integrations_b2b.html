@@ -10,7 +10,7 @@
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">B2B</h1>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Service accounts using the client credentials flow</p>
             </div>
-            <button onclick="showCreateModal()"
+            <button id="show-create-btn"
                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 Create B2B Client
             </button>
@@ -149,7 +149,7 @@
             </div>
 
             <div class="flex justify-end gap-3 mt-6">
-                <button type="button" onclick="hideCreateModal()"
+                <button type="button" id="hide-create-btn"
                         class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                     Cancel
                 </button>
@@ -178,8 +178,7 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Client ID</label>
                 <div class="flex items-center gap-2">
                     <code id="cred-client-id" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ pending_credentials.client_id }}</code>
-                    <button onclick="copyToClipboard('cred-client-id', this)"
-                            class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0">
+                    <button class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="cred-client-id">
                         Copy
                     </button>
                 </div>
@@ -189,8 +188,7 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Client Secret</label>
                 <div class="flex items-center gap-2">
                     <code id="cred-client-secret" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ pending_credentials.client_secret }}</code>
-                    <button onclick="copyToClipboard('cred-client-secret', this)"
-                            class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0">
+                    <button class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="cred-client-secret">
                         Copy
                     </button>
                 </div>
@@ -198,7 +196,7 @@
         </div>
 
         <div class="mt-6">
-            <button onclick="dismissCredentials()"
+            <button id="dismiss-credentials-btn"
                     class="w-full px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
                 I've saved the credentials
             </button>
@@ -233,6 +231,18 @@ function copyToClipboard(elementId, button) {
         alert('Failed to copy. Please copy manually.');
     });
 }
+
+// Button click handlers
+document.getElementById('show-create-btn').addEventListener('click', showCreateModal);
+document.getElementById('hide-create-btn').addEventListener('click', hideCreateModal);
+document.getElementById('dismiss-credentials-btn')?.addEventListener('click', dismissCredentials);
+
+// Copy buttons
+document.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        copyToClipboard(this.dataset.target, this);
+    });
+});
 
 // Create modal: close on ESC and backdrop click
 document.addEventListener('keydown', function(e) {

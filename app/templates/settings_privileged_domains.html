@@ -77,8 +77,8 @@
                             {% if domain.bound_idp_id %}
                             <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/unbind">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
-                                        onclick="return confirm('Unbind this domain from its IdP? New users with this domain will no longer be auto-assigned.')">
+                                <button type="submit" class="confirm-btn text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                                        data-confirm="Unbind this domain from its IdP? New users with this domain will no longer be auto-assigned.">
                                     Unbind
                                 </button>
                             </form>
@@ -92,8 +92,8 @@
                                     <option value="{{ idp.id }}">{{ idp.name }}</option>
                                     {% endfor %}
                                 </select>
-                                <button type="submit" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                        onclick="return confirm('Bind this domain to the selected IdP? All existing users with this domain will be assigned to the IdP and their passwords will be wiped.')">
+                                <button type="submit" class="confirm-btn text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                        data-confirm="Bind this domain to the selected IdP? All existing users with this domain will be assigned to the IdP and their passwords will be wiped.">
                                     Bind
                                 </button>
                             </form>
@@ -102,8 +102,8 @@
 
                             <form method="post" action="/admin/settings/privileged-domains/delete/{{ domain.id }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                        onclick="return confirm('Are you sure you want to remove this domain?')">
+                                <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                        data-confirm="Are you sure you want to remove this domain?">
                                     Remove
                                 </button>
                             </form>
@@ -153,4 +153,15 @@
         {% endif %}
     </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+// Confirmation dialogs
+document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        if (!confirm(this.dataset.confirm)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
 {% endblock %}

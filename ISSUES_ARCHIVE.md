@@ -1445,3 +1445,38 @@ Implemented per-request CSP nonces:
 **Verification:** All 1983 tests pass. Type checking passes.
 
 ---
+
+## [TD-001] Inline JavaScript Event Handlers Blocked by CSP
+
+**Status:** Resolved (2026-01-31)
+
+**Original Severity:** High
+
+**Category:** Security / UX
+
+**Original Description:** Many templates used inline JavaScript event handlers (e.g., `onclick="window.location='...'"`, `onclick="showModal()"`). These were blocked by the Content Security Policy which uses nonces for script execution. Only `<script nonce="...">` blocks execute; inline event attributes were silently ignored. This caused buttons, modals, and clickable elements to fail silently.
+
+**Resolution:**
+Migrated all 50+ inline event handlers across 14 templates to use CSP-compliant event listeners attached from nonce-protected script blocks.
+
+**Patterns Applied:**
+1. **Modal/Function Calls**: `onclick="showModal()"` → `id="show-modal-btn"` + `addEventListener('click', showModal)`
+2. **Confirm Dialogs**: `onclick="return confirm('...')"` → `class="confirm-btn" data-confirm="..."` + delegated listener
+3. **Copy to Clipboard**: `onclick="copyToClipboard('id')"` → `class="copy-btn" data-target="id"` + delegated listener
+4. **Select/Navigation**: `onchange="window.location='?'+this.value"` → `id` + `addEventListener('change', ...)`
+5. **Clickable Rows**: `onclick="window.location='...'"` → `class="clickable-row" data-href="..."` + delegated listener
+6. **Disabled Pagination**: `onclick="return false;"` → `href="#"` when disabled + `aria-disabled="true"`
+
+**Templates Fixed:**
+- Phase 1: `integrations_b2b_detail.html`, `integrations_b2b.html`, `integrations_apps.html`, `integrations_app_detail.html`
+- Phase 2: `saml_idp_list.html`, `saml_idp_form.html`, `saml_debug_detail.html`, `saml_test_result.html`
+- Phase 3: `user_detail.html`, `settings_privileged_domains.html`, `admin_reactivation_requests.html`
+- Phase 4: `admin_events.html`, `users_list.html`
+- Phase 5: `mfa_backup_codes.html`
+
+**Prevention Test Added:**
+Added `TestInlineEventHandlerBackstop` class to `tests/test_csp_nonce.py` with regex-based static analysis to prevent future inline event handler regressions. The test scans all templates for `onclick=`, `onchange=`, `onsubmit=`, etc. and fails if any are found.
+
+**Verification:** All 1977 tests pass. Backstop test confirms 0 inline handlers remaining.
+
+---

@@ -20,7 +20,6 @@
             <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
             <select
                 id="page-size"
-                onchange="window.location.href='?page=1&size=' + this.value"
                 class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
                 <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
@@ -33,9 +32,9 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}"
+            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600{% else %}text-gray-400 bg-gray-100 dark:bg-gray-800 cursor-not-allowed{% endif %}"
-            {% if not pagination.has_previous %}onclick="return false;"{% endif %}
+            {% if not pagination.has_previous %}aria-disabled="true"{% endif %}
         >
             Previous
         </a>
@@ -45,9 +44,9 @@
         </span>
 
         <a
-            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}"
+            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600{% else %}text-gray-400 bg-gray-100 dark:bg-gray-800 cursor-not-allowed{% endif %}"
-            {% if not pagination.has_next %}onclick="return false;"{% endif %}
+            {% if not pagination.has_next %}aria-disabled="true"{% endif %}
         >
             Next
         </a>
@@ -109,7 +108,7 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for event in events %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="window.location='/admin/audit/events/{{ event.id }}'">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer clickable-row" data-href="/admin/audit/events/{{ event.id }}">
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                             {{ fmt_datetime(event.created_at) }}
                         </td>
@@ -154,4 +153,20 @@
         </div>
     </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+// Page size selector
+document.querySelectorAll('#page-size').forEach(function(select) {
+    select.addEventListener('change', function() {
+        window.location.href = '?page=1&size=' + this.value;
+    });
+});
+
+// Clickable table rows
+document.querySelectorAll('.clickable-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+        window.location = this.dataset.href;
+    });
+});
+</script>
 {% endblock %}

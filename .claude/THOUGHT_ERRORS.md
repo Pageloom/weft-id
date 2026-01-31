@@ -67,6 +67,25 @@ Background jobs run in a separate worker container. Changes to job handlers requ
 
 ---
 
+## Running pip-audit
+
+**Wrong:** `poetry run pip-audit` (command not found)
+**Right:** `poetry run python -m pip_audit`
+
+Like pytest, pip-audit must be run as a Python module. The script entry point isn't created by poetry.
+
+---
+
+## Dependency Security Scanning Limitations
+
+**Issue:** `scripts/deps_check.py` may miss vulnerabilities that `pip-audit` catches directly.
+
+**Why:** The script only scans direct dependencies from pyproject.toml, not transitive dependencies. Vulnerabilities in transitive deps (like ecdsa via sendgrid) are missed.
+
+**Workaround:** Run `poetry run python -m pip_audit --progress-spinner off` directly to catch all vulnerabilities including transitive dependencies.
+
+---
+
 ## Adding New Thought Errors
 
 When you make a mistake that causes wasted effort or confusion, add it here:

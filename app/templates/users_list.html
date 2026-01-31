@@ -23,7 +23,10 @@
             <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
             <select
                 id="page-size"
-                onchange="window.location.href='?page=1&size=' + this.value + '&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}'"
+                data-sort="{{ sort_field }}"
+                data-order="{{ sort_order }}"
+                data-search="{% if search %}{{ search | urlencode }}{% endif %}"
+                data-filters="{{ filter_params() }}"
                 class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
@@ -37,9 +40,9 @@
     <!-- Page navigation -->
     <div class="flex items-center gap-2">
         <a
-            href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+            href="{% if pagination.has_previous %}?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
-            {% if not pagination.has_previous %}onclick="return false;"{% endif %}
+            {% if not pagination.has_previous %}aria-disabled="true"{% endif %}
         >
             Previous
         </a>
@@ -49,9 +52,9 @@
         </span>
 
         <a
-            href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+            href="{% if pagination.has_next %}?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
-            {% if not pagination.has_next %}onclick="return false;"{% endif %}
+            {% if not pagination.has_next %}aria-disabled="true"{% endif %}
         >
             Next
         </a>
@@ -154,7 +157,7 @@
                 <div class="flex gap-2">
                     <button
                         type="button"
-                        onclick="applyFilters()"
+                        id="apply-filters-btn"
                         class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                         Apply Filters
@@ -191,6 +194,21 @@
 
             window.location.href = url;
         }
+
+        // Apply Filters button
+        document.getElementById('apply-filters-btn')?.addEventListener('click', applyFilters);
+
+        // Page size selector
+        document.querySelectorAll('#page-size').forEach(function(select) {
+            select.addEventListener('change', function() {
+                let url = '?page=1&size=' + this.value;
+                url += '&sort=' + this.dataset.sort;
+                url += '&order=' + this.dataset.order;
+                if (this.dataset.search) url += '&search=' + this.dataset.search;
+                url += this.dataset.filters;
+                window.location.href = url;
+            });
+        });
         </script>
 
         <!-- Active Filters Indicator -->

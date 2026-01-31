@@ -286,8 +286,8 @@
                 </div>
 
                 <button type="submit"
-                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        onclick="return confirm('Are you sure? This action may make the user\'s password unusable or inactivate their account.')">
+                        class="confirm-btn bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        data-confirm="Are you sure? This action may make the user's password unusable or inactivate their account.">
                     Update Authentication
                 </button>
             </form>
@@ -323,8 +323,8 @@
                 <form method="post" action="/users/{{ target_user.id }}/inactivate" class="inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                            class="bg-yellow-600 text-white hover:bg-yellow-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                            onclick="return confirm('Are you sure you want to inactivate this user? They will no longer be able to sign in.')">
+                            class="confirm-btn bg-yellow-600 text-white hover:bg-yellow-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                            data-confirm="Are you sure you want to inactivate this user? They will no longer be able to sign in.">
                         Inactivate User
                     </button>
                 </form>
@@ -333,8 +333,8 @@
                 <form method="post" action="/users/{{ target_user.id }}/anonymize" class="inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                            class="bg-red-600 text-white hover:bg-red-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                            onclick="return confirm('WARNING: This action is IRREVERSIBLE!\n\nAnonymizing this user will permanently delete their personal data (name, email, MFA settings). The user record will be preserved for audit purposes but will show as [Anonymized User].\n\nAre you absolutely sure?')">
+                            class="confirm-btn bg-red-600 text-white hover:bg-red-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                            data-confirm="WARNING: This action is IRREVERSIBLE!&#10;&#10;Anonymizing this user will permanently delete their personal data (name, email, MFA settings). The user record will be preserved for audit purposes but will show as [Anonymized User].&#10;&#10;Are you absolutely sure?">
                         Anonymize (GDPR)
                     </button>
                 </form>
@@ -371,8 +371,8 @@
             <form method="post" action="/users/{{ target_user.id }}/reset-mfa" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
-                        class="bg-amber-600 text-white hover:bg-amber-700 font-medium py-2 px-4 rounded-md transition duration-150"
-                        onclick="return confirm('Are you sure you want to reset MFA for this user? Their authenticator and backup codes will be deleted. They will need to re-enroll.')">
+                        class="confirm-btn bg-amber-600 text-white hover:bg-amber-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        data-confirm="Are you sure you want to reset MFA for this user? Their authenticator and backup codes will be deleted. They will need to re-enroll.">
                     Reset MFA
                 </button>
             </form>
@@ -422,8 +422,8 @@
                         </form>
                         <form method="post" action="/users/{{ target_user.id }}/remove-email/{{ email.id }}" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1"
-                                    onclick="return confirm('Are you sure you want to remove this email?')">
+                            <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1"
+                                    data-confirm="Are you sure you want to remove this email?">
                                 Remove
                             </button>
                         </form>
@@ -479,4 +479,16 @@
         </div>
     </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+// Confirmation dialogs
+document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        var message = this.dataset.confirm.replace(/&#10;/g, '\n');
+        if (!confirm(message)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
 {% endblock %}

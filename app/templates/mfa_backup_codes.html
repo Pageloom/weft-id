@@ -56,7 +56,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function copyBackupCodes() {
     const codes = [
         {% for code in backup_codes %}'{{ code }}',{% endfor %}

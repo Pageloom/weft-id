@@ -54,7 +54,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const locale = new Intl.DateTimeFormat().resolvedOptions().locale;

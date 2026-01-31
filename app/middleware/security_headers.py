@@ -16,8 +16,8 @@ from starlette.responses import Response
 from starlette.types import ASGIApp
 
 # Content Security Policy
-# Note: unsafe-inline is allowed for style-src and script-src due to existing inline scripts.
-# Future improvement: migrate to CSP nonces to remove unsafe-inline.
+# Nonce-based CSP is used when available (set by route handlers via get_csp_nonce).
+# Fallback CSP with unsafe-inline is used for non-HTML responses or error pages.
 DEFAULT_CSP = (
     "default-src 'self'; "
     "script-src 'self' 'unsafe-inline'; "
@@ -27,6 +27,26 @@ DEFAULT_CSP = (
     "base-uri 'self'; "
     "form-action 'self'"
 )
+
+
+def _build_csp_with_nonce(nonce: str) -> str:
+    """Build CSP header with nonce for inline scripts and styles.
+
+    Args:
+        nonce: The cryptographic nonce for this request
+
+    Returns:
+        CSP header value with nonce replacing unsafe-inline
+    """
+    return (
+        "default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}'; "
+        "img-src 'self' data:; "
+        f"style-src 'self' 'nonce-{nonce}'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
 
 # X-Frame-Options: Prevent the page from being embedded in frames
 DEFAULT_X_FRAME_OPTIONS = "DENY"
@@ -93,8 +113,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Call the next middleware/route handler
         response: Response = await call_next(request)
 
+        # Use nonce-based CSP if a nonce was generated for this request
+        # (set by route handlers via get_csp_nonce)
+        nonce = getattr(request.state, "csp_nonce", None)
+        if nonce:
+            csp = _build_csp_with_nonce(nonce)
+        else:
+            csp = self.csp
+
         # Add security headers to the response
-        response.headers["Content-Security-Policy"] = self.csp
+        response.headers["Content-Security-Policy"] = csp
         response.headers["X-Frame-Options"] = self.x_frame_options
         response.headers["X-Content-Type-Options"] = self.x_content_type_options
         response.headers["Referrer-Policy"] = self.referrer_policy

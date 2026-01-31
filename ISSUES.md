@@ -171,37 +171,6 @@ Security assessment performed: 2026-01-25
 
 ---
 
-## [SECURITY] CSP unsafe-inline Weakens XSS Protection
-
-**Found in:** `app/middleware/security_headers.py:19`
-**Severity:** Low
-**OWASP Category:** A05:2021 - Security Misconfiguration
-
-**Description:**
-The Content Security Policy includes `'unsafe-inline'` for both `script-src` and `style-src` directives. This weakens XSS protection by allowing inline scripts and styles to execute.
-
-**Risk:**
-If an XSS vulnerability is introduced elsewhere in the application, the CSP will not block inline script execution. This is a defense-in-depth concern rather than a direct vulnerability.
-
-**Current Code:**
-```python
-DEFAULT_CSP = (
-    "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "  # unsafe-inline reduces protection
-    ...
-)
-```
-
-**Note:** Already documented in code comments as a known limitation due to existing inline scripts.
-
-**Remediation:**
-Migrate to CSP nonces when inline scripts are refactored:
-1. Generate cryptographic nonces per-request
-2. Add nonce attribute to all inline `<script>` tags
-3. Update CSP to use `'nonce-{value}'` instead of `'unsafe-inline'`
-
----
-
 # Technical Debt
 
 ## [TECH-DEBT] Add CSRF Protection Backstop Test
@@ -230,7 +199,7 @@ One-time quality gate that permanently prevents CSRF protection gaps in frontend
 | Critical | 0 | - |
 | High | 0 | - |
 | Medium | 0 | - |
-| Low | 3 | Security (CSP unsafe-inline), Deps (user-agents unmaintained), Tech Debt (CSRF backstop test) |
+| Low | 2 | Deps (user-agents unmaintained), Tech Debt (CSRF backstop test) |
 
 ## Dependency Audit Summary (2026-01-17)
 
@@ -259,4 +228,4 @@ All production dependencies are at versions that include fixes for known CVEs. R
 8. ~~Logging gaps (High - compliance/detection)~~ **RESOLVED**
 9. ~~Security headers (Medium - defense in depth)~~ **RESOLVED**
 10. ~~OpenAPI debug endpoints exposed (Medium - information disclosure)~~ **RESOLVED**
-11. CSP unsafe-inline (Low - defense in depth)
+11. ~~CSP unsafe-inline (Low - defense in depth)~~ **RESOLVED**

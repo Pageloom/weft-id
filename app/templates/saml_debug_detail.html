@@ -117,7 +117,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function copyXmlToClipboard() {
     const xml = document.getElementById('saml-xml').textContent;
     navigator.clipboard.writeText(xml).then(() => {

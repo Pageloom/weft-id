@@ -19,6 +19,7 @@ from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from settings import IS_DEV
+from utils.csp_nonce import get_csp_nonce
 from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
 from utils.template_context import get_template_context
@@ -89,6 +90,7 @@ def _store_saml_debug_and_respond(
             "error_detail": error_detail,
             "is_dev": IS_DEV,
             "raw_saml_xml": raw_saml_xml,
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -212,13 +214,21 @@ def saml_login(
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "idp_not_found", "error_detail": str(e)},
+            {
+                "error_type": "idp_not_found",
+                "error_detail": str(e),
+                "csp_nonce": get_csp_nonce(request),
+            },
         )
     except ServiceError as e:
         return templates.TemplateResponse(
             request,
             "saml_error.html",
-            {"error_type": "configuration_error", "error_detail": str(e)},
+            {
+                "error_type": "configuration_error",
+                "error_detail": str(e),
+                "csp_nonce": get_csp_nonce(request),
+            },
         )
 
 
@@ -529,7 +539,11 @@ def saml_select_idp(
     return templates.TemplateResponse(
         request,
         "saml_idp_select.html",
-        {"idps": idps, "relay_state": relay_state},
+        {
+            "idps": idps,
+            "relay_state": relay_state,
+            "csp_nonce": get_csp_nonce(request),
+        },
     )
 
 

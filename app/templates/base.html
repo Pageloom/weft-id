@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Theme detection - MUST be before stylesheet to prevent flash of unstyled content -->
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function() {
         var stored = localStorage.getItem('theme') || 'system';
         var dark = stored === 'dark' ||
@@ -121,7 +121,7 @@
     </div>
 
     {% if user %}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // User dropdown menu toggle
         const menuButton = document.getElementById('user-menu-button');
         const menu = document.getElementById('user-menu');
@@ -166,7 +166,7 @@
     {% endif %}
 
     <!-- Cookie notice logic -->
-    <script>
+    <script nonce="{{ csp_nonce }}">
         (function() {
             if (!localStorage.getItem('cookie_notice_dismissed')) {
                 document.getElementById('cookie-notice').classList.remove('hidden');

@@ -160,7 +160,7 @@
             </div>
         </div>
 
-        <script>
+        <script nonce="{{ csp_nonce }}">
             function switchTab(tab) {
                 // Hide all content
                 document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -491,7 +491,7 @@
 </div>
 
 {% if idp %}
-<script>
+<script nonce="{{ csp_nonce }}">
     // Provider display names
     const providerNames = {
         'okta': 'Okta',

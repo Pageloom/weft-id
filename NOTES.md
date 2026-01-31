@@ -3,6 +3,7 @@
 Quick reminders to later build out into full backlog items.
 
 - Rebrand to WeftID - no more "Loom" and also have an SVG icon in place.
+- Get rid of the loom part in `loom_b2b_ad140666eb4c4e6f756cc865` client IDs - instead lets go for weftid
 - `<h2>` are not correct in dark-mode (they are too dark).
 - Follow up on "Background Job Created" as an event type—does it really need to exist? It doesn't change data.
 - IP allowlist (or similar ability to restrict access to certain IPs or networks)

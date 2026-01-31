@@ -123,13 +123,11 @@
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Only set timezone/locale if we're on the password form
-    const tzInput = document.getElementById('timezone');
-    const localeInput = document.getElementById('locale');
+    var tzInput = document.getElementById('timezone');
+    var localeInput = document.getElementById('locale');
     if (tzInput && localeInput) {
-        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
-        tzInput.value = tz;
-        localeInput.value = locale.replace('-', '_');
+        tzInput.value = WeftUtils.detectTimezone();
+        localeInput.value = WeftUtils.detectLocale();
     }
 });
 </script>

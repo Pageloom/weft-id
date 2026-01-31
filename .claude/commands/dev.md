@@ -64,6 +64,20 @@ All four checks must pass before committing.
 - Cover happy paths AND key edge cases
 - All existing tests must continue to pass
 
+**Frontend JavaScript:**
+This is a server-side rendered application. JavaScript is used sparingly for progressive enhancement.
+
+- **Prefer server-side rendering** over client-side JS whenever possible
+- **Reusable patterns** go in `static/js/utils.js` (loaded globally in base.html)
+- **Available utilities** (use instead of duplicating):
+  - `WeftUtils.copyToClipboard(text, feedbackEl)` - clipboard with feedback
+  - `WeftUtils.showModal(id)` / `hideModal(id)` - modal management
+  - `WeftUtils.confirm(message, onConfirm, {destructive: bool})` - styled confirmation
+  - `WeftUtils.detectTimezone()` / `detectLocale()` - user regional settings
+- **Never use** native `confirm()`, `alert()`, or `prompt()` - use the HTML-based utilities
+- **Page-specific JS** stays inline in templates with `nonce="{{ csp_nonce }}"`
+- **When adding new reusable JS**: add it to utils.js, not inline in templates
+
 ### Step 4: Completion
 When implementation is complete:
 1. Verify all acceptance criteria are met

@@ -57,18 +57,12 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-function copyBackupCodes() {
-    const codes = [
+document.getElementById('copy-codes-btn')?.addEventListener('click', function() {
+    var codes = [
         {% for code in backup_codes %}'{{ code }}',{% endfor %}
     ];
-    const text = codes.join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Backup codes copied to clipboard!');
-    }).catch(() => {
-        alert('Failed to copy. Please copy manually.');
-    });
-}
-
-document.getElementById('copy-codes-btn')?.addEventListener('click', copyBackupCodes);
+    var text = codes.join('\n');
+    WeftUtils.copyToClipboard(text, this);
+});
 </script>
 {% endblock %}

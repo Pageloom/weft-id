@@ -36,6 +36,21 @@
         </button>
     </div>
 
+    <!-- Confirmation modal (used by WeftUtils.confirm) -->
+    <div id="weft-confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm mx-4 p-6 border-2 border-gray-300 dark:border-gray-600">
+            <p id="weft-confirm-message" class="text-gray-900 dark:text-gray-100 mb-6"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="weft-confirm-cancel" class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
+                    Cancel
+                </button>
+                <button id="weft-confirm-ok" class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-md">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
     {% if user %}
     <!-- Top-level navigation -->
     <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -177,6 +192,9 @@
             });
         })();
     </script>
+
+    <!-- Shared utilities (see static/js/utils.js) -->
+    <script src="/static/js/utils.js"></script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

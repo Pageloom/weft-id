@@ -2587,13 +2587,13 @@ yaml = ["PyYaml"]
 
 [[package]]
 name = "ua-parser-builtins"
-version = "0.18.0.post1"
+version = "202601"
 description = "Precompiled rules for User Agent Parser"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "ua_parser_builtins-0.18.0.post1-py3-none-any.whl", hash = "sha256:eb4f93504040c3a990a6b0742a2afd540d87d7f9f05fd66e94c101db1564674d"},
+    {file = "ua_parser_builtins-202601-py3-none-any.whl", hash = "sha256:f5dc93b0f53724dcd5c3eb79edb0aea281cb304a2c02a9436cbeb8cfb8bc4ad1"},
 ]
 
 [[package]]
@@ -2613,21 +2613,6 @@ brotli = ["brotli (>=1.2.0) ; platform_python_implementation == \"CPython\"", "b
 h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
-
-[[package]]
-name = "user-agents"
-version = "2.2.0"
-description = "A library to identify devices (phones, tablets) and their capabilities by parsing browser user agent strings."
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "user-agents-2.2.0.tar.gz", hash = "sha256:d36d25178db65308d1458c5fa4ab39c9b2619377010130329f3955e7626ead26"},
-    {file = "user_agents-2.2.0-py3-none-any.whl", hash = "sha256:a98c4dc72ecbc64812c4534108806fb0a0b3a11ec3fd1eafe807cee5b0a942e7"},
-]
-
-[package.dependencies]
-ua-parser = ">=0.10.0"
 
 [[package]]
 name = "uvicorn"
@@ -2995,4 +2980,4 @@ lxml = ">=3.8"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "e043884d64f01594c0f0b968653030420056c92744c4a6efffd74dde3758bef6"
+content-hash = "abdc6747acfbf5eff23668e45bb20cf06b38981d9f2338a51ddd3963824639fd"

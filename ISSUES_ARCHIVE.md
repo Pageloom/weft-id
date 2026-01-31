@@ -4,6 +4,50 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [DEPS] user-agents: Unmaintained Package Replaced with ua-parser
+
+**Status:** Resolved (2026-01-31)
+
+**Original Severity:** Low
+
+**Original Description:** The `user-agents` package (v2.2.0) had not received updates since 2020 (>4 years). While still functional, it may not correctly parse modern user agent strings and could have undiscovered vulnerabilities.
+
+**Resolution:**
+- Replaced `user-agents` package with actively maintained `ua-parser` package
+- Rewrote `parse_device_from_user_agent()` function in `app/utils/request_metadata.py` with heuristic-based device type detection (since ua-parser has a different API without `is_mobile`, `is_tablet`, etc.)
+- Updated mypy configuration in `pyproject.toml` to use `ua_parser.*` instead of `user_agents.*`
+
+**Files Modified:**
+- `pyproject.toml` - Swapped dependencies and updated mypy config
+- `app/utils/request_metadata.py` - Updated import and rewrote device parsing function
+
+**Verification:** All 22 request metadata tests pass. Device detection for mobile, tablet, desktop, and bot user agents works correctly.
+
+---
+
+## [TECH-DEBT] CSRF Protection Backstop Test Added
+
+**Status:** Resolved (2026-01-31)
+
+**Original Severity:** Low
+
+**Original Description:** No static analysis test existed to verify all non-GET frontend routes have CSRF protection. This created risk of future regressions where a developer adds a POST/PUT/DELETE route without CSRF protection.
+
+**Resolution:**
+- Created `tests/test_csrf_route_coverage.py` with static analysis tests
+- Tests parse frontend router files using AST to identify all non-GET routes
+- Verifies CSRFMiddleware is registered in `app/main.py`
+- Verifies all CSRF exempt paths are documented with justification
+- Verifies no frontend routes accidentally use exempt path prefixes
+- Documents intentionally exempt routes (SAML ACS, OAuth2 token endpoint)
+
+**Files Created:**
+- `tests/test_csrf_route_coverage.py` - New test file with 5 tests
+
+**Verification:** All 5 CSRF route coverage tests pass.
+
+---
+
 ## [SECURITY] OpenAPI/Swagger Debug Endpoints Exposed in Production
 
 **Status:** Resolved (2026-01-25)

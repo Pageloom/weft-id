@@ -20,7 +20,7 @@ import json
 from typing import Any
 
 from fastapi import Request
-from user_agents import parse
+from ua_parser import parse
 
 
 def extract_remote_address(request: Request) -> str | None:
@@ -58,37 +58,53 @@ def extract_remote_address(request: Request) -> str | None:
 def parse_device_from_user_agent(user_agent_string: str | None) -> str | None:
     """Parse device information from user agent string.
 
+    Uses ua-parser to extract device, browser, and OS information,
+    then applies heuristics to determine the device type.
+
     Args:
         user_agent_string: Full user agent string
 
     Returns:
-        Device description (e.g., "iPhone", "Desktop Chrome") or None
+        Device description (e.g., "Mobile iPhone Safari", "Desktop Chrome") or None
     """
     if not user_agent_string:
         return None
 
     try:
-        ua = parse(user_agent_string)
+        result = parse(user_agent_string)
 
-        # Build device description
+        # Use with_defaults() to handle None values gracefully
+        result = result.with_defaults()
+
         parts = []
+        ua_lower = user_agent_string.lower()
 
-        if ua.is_mobile:
-            parts.append("Mobile")
-        elif ua.is_tablet:
-            parts.append("Tablet")
-        elif ua.is_pc:
-            parts.append("Desktop")
-        elif ua.is_bot:
+        # Extract OS, device, and browser families
+        os_family = result.os.family if result.os else "Other"
+        device_family = result.device.family if result.device else "Other"
+        browser_family = result.user_agent.family if result.user_agent else "Other"
+
+        # Device type detection heuristics
+        # Check for bots first (highest priority)
+        if any(bot_hint in ua_lower for bot_hint in ("bot", "spider", "crawler", "crawl")):
             parts.append("Bot")
+        # Check for tablets (iPad or Android tablets)
+        elif "ipad" in ua_lower or ("tablet" in ua_lower and "android" in ua_lower):
+            parts.append("Tablet")
+        # Check for mobile devices (iOS/Android phones)
+        elif os_family in ("iOS", "Android") or "mobile" in ua_lower:
+            parts.append("Mobile")
+        # Check for desktop operating systems
+        elif os_family in ("Mac OS X", "Windows", "Linux", "Chrome OS", "Ubuntu"):
+            parts.append("Desktop")
 
-        # Add device family if available
-        if ua.device.family and ua.device.family != "Other":
-            parts.append(ua.device.family)
+        # Add device family if meaningful (not generic "Other" or "Mac")
+        if device_family and device_family not in ("Other", "Mac", "Spider"):
+            parts.append(device_family)
 
-        # Add browser if available
-        if ua.browser.family and ua.browser.family != "Other":
-            parts.append(ua.browser.family)
+        # Add browser family if available
+        if browser_family and browser_family != "Other":
+            parts.append(browser_family)
 
         return " ".join(parts) if parts else "Unknown Device"
 

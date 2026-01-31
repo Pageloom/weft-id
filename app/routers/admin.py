@@ -47,7 +47,39 @@ def admin_index(
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
-@router.get("/events", response_class=HTMLResponse)
+@router.get("/audit/", response_class=HTMLResponse)
+@router.get("/audit", response_class=HTMLResponse)
+def audit_index(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Redirect to the first accessible audit page."""
+    first_child = get_first_accessible_child("/admin/audit", user.get("role"))
+
+    if first_child:
+        return RedirectResponse(url=first_child, status_code=303)
+
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@router.get("/todo/", response_class=HTMLResponse)
+@router.get("/todo", response_class=HTMLResponse)
+def todo_index(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Redirect to the first accessible todo page."""
+    first_child = get_first_accessible_child("/admin/todo", user.get("role"))
+
+    if first_child:
+        return RedirectResponse(url=first_child, status_code=303)
+
+    return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@router.get("/audit/events", response_class=HTMLResponse)
 def event_log_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -108,7 +140,7 @@ def event_log_list(
     )
 
 
-@router.get("/events/{event_id}", response_class=HTMLResponse)
+@router.get("/audit/events/{event_id}", response_class=HTMLResponse)
 def event_log_detail(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -121,7 +153,7 @@ def event_log_detail(
     try:
         event = event_log_service.get_event(requesting_user, event_id)
     except NotFoundError:
-        return RedirectResponse(url="/admin/events?error=not_found", status_code=303)
+        return RedirectResponse(url="/admin/audit/events?error=not_found", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -135,7 +167,7 @@ def event_log_detail(
     )
 
 
-@router.post("/events/export")
+@router.post("/audit/events/export")
 def trigger_export(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -157,7 +189,7 @@ def trigger_export(
 # =============================================================================
 
 
-@router.get("/reactivation-requests", response_class=HTMLResponse)
+@router.get("/todo/reactivation", response_class=HTMLResponse)
 def reactivation_requests_list(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -186,7 +218,7 @@ def reactivation_requests_list(
     )
 
 
-@router.get("/reactivation-requests/history", response_class=HTMLResponse)
+@router.get("/todo/reactivation/history", response_class=HTMLResponse)
 def reactivation_requests_history(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -210,7 +242,7 @@ def reactivation_requests_history(
     )
 
 
-@router.post("/reactivation-requests/{request_id}/approve")
+@router.post("/todo/reactivation/{request_id}/approve")
 def approve_reactivation_request(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -224,12 +256,12 @@ def approve_reactivation_request(
         result = reactivation_service.approve_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/reactivation-requests?error=request_not_found",
+            url="/admin/todo/reactivation?error=request_not_found",
             status_code=303,
         )
     except ValidationError as exc:
         return RedirectResponse(
-            url=f"/admin/reactivation-requests?error={exc.code}",
+            url=f"/admin/todo/reactivation?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
@@ -241,12 +273,12 @@ def approve_reactivation_request(
         send_account_reactivated_notification(result.email, login_url)
 
     return RedirectResponse(
-        url="/admin/reactivation-requests?success=approved",
+        url="/admin/todo/reactivation?success=approved",
         status_code=303,
     )
 
 
-@router.post("/reactivation-requests/{request_id}/deny")
+@router.post("/todo/reactivation/{request_id}/deny")
 def deny_reactivation_request(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
@@ -260,12 +292,12 @@ def deny_reactivation_request(
         result = reactivation_service.deny_request(requesting_user, request_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/reactivation-requests?error=request_not_found",
+            url="/admin/todo/reactivation?error=request_not_found",
             status_code=303,
         )
     except ValidationError as exc:
         return RedirectResponse(
-            url=f"/admin/reactivation-requests?error={exc.code}",
+            url=f"/admin/todo/reactivation?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
@@ -276,6 +308,6 @@ def deny_reactivation_request(
         send_reactivation_denied_notification(result.email)
 
     return RedirectResponse(
-        url="/admin/reactivation-requests?success=denied",
+        url="/admin/todo/reactivation?success=denied",
         status_code=303,
     )

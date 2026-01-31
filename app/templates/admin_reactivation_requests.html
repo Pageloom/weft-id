@@ -7,7 +7,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Reactivation Requests</h1>
-            <a href="/admin/reactivation-requests/history" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+            <a href="/admin/todo/reactivation/history" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                 View History &rarr;
             </a>
         </div>
@@ -96,7 +96,7 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <form method="post" action="/admin/reactivation-requests/{{ req.id }}/approve" class="inline">
+                            <form method="post" action="/admin/todo/reactivation/{{ req.id }}/approve" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         onclick="return confirm('Approve this reactivation request? The user will be able to sign in again.')"
@@ -104,7 +104,7 @@
                                     Approve
                                 </button>
                             </form>
-                            <form method="post" action="/admin/reactivation-requests/{{ req.id }}/deny" class="inline">
+                            <form method="post" action="/admin/todo/reactivation/{{ req.id }}/deny" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         onclick="return confirm('Deny this reactivation request? The user will not be able to request reactivation again.')"

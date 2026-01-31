@@ -25,9 +25,9 @@ pydantic = {extras = ["email"], version = "^2.0.0"}
 resend = "^2.0.0"
 sendgrid = "^6.11.0"
 pymemcache = "^4.0.0"
-user-agents = "^2.2.0"
 python3-saml = "^1.16.0"
 qrcode = {extras = ["pil"], version = "^8.0"}
+ua-parser = "^1.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"
@@ -72,7 +72,7 @@ namespace_packages = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pymemcache.*", "sendgrid.*", "user_agents.*", "onelogin.*", "requests.*", "qrcode.*", "PIL.*"]
+module = ["pymemcache.*", "sendgrid.*", "ua_parser.*", "onelogin.*", "requests.*", "qrcode.*", "PIL.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

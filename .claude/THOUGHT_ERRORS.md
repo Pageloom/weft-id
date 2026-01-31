@@ -86,6 +86,28 @@ Like pytest, pip-audit must be run as a Python module. The script entry point is
 
 ---
 
+## CSP Blocks Inline Event Handlers
+
+**Wrong:** Adding `onclick="doSomething()"` or `onclick="window.location='...'"` to HTML elements
+**Right:** Use `<a href="...">` for navigation, or attach event listeners from `<script nonce="{{ csp_nonce }}">` blocks
+
+This project uses CSP with nonces. Only script blocks with the correct nonce execute. Inline event handlers (`onclick`, `onsubmit`, `onchange`, etc.) are silently blocked and fail without error messages.
+
+**Symptoms:** Buttons don't work, modals don't open, clickable rows don't navigate, but no console errors appear.
+
+**Audit command:** `grep -r "onclick=\|onsubmit=\|onchange=" app/templates/`
+
+---
+
+## Section Pages Need Redirect Routes
+
+**Wrong:** Adding a section page to `pages.py` without a corresponding route
+**Right:** Add both the page definition AND a redirect route (e.g., `/admin/audit/` redirects to `/admin/audit/events`)
+
+Section pages (containers for sub-pages) don't have their own content. They need redirect routes that call `get_first_accessible_child()` to navigate to their first accessible child page.
+
+---
+
 ## Adding New Thought Errors
 
 When you make a mistake that causes wasted effort or confusion, add it here:

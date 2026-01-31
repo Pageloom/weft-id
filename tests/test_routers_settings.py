@@ -15,15 +15,15 @@ def test_settings_index_redirects_to_first_child(test_admin_user):
     app.dependency_overrides[get_current_user] = lambda: test_admin_user
 
     with patch("routers.settings.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/privileged-domains"
+        mock_first_child.return_value = "/admin/settings/privileged-domains"
 
         client = TestClient(app)
-        response = client.get("/admin/", follow_redirects=False)
+        response = client.get("/admin/settings/", follow_redirects=False)
 
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        assert response.headers["location"] == "/admin/privileged-domains"
+        assert response.headers["location"] == "/admin/settings/privileged-domains"
 
 
 def test_privileged_domains_list(test_admin_user):
@@ -61,7 +61,7 @@ def test_privileged_domains_list(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>domains</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/privileged-domains")
+                response = client.get("/admin/settings/privileged-domains")
 
                 app.dependency_overrides.clear()
 
@@ -91,7 +91,7 @@ def test_privileged_domains_with_error_param(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>error</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/privileged-domains?error=invalid_domain")
+                response = client.get("/admin/settings/privileged-domains?error=invalid_domain")
 
                 app.dependency_overrides.clear()
 
@@ -125,7 +125,7 @@ def test_add_privileged_domain_success(test_admin_user):
 
                 client = TestClient(app)
                 response = client.post(
-                    "/admin/privileged-domains/add",
+                    "/admin/settings/privileged-domains/add",
                     data={"domain": "example.com"},
                     follow_redirects=False,
                 )
@@ -133,7 +133,7 @@ def test_add_privileged_domain_success(test_admin_user):
                 app.dependency_overrides.clear()
 
                 assert response.status_code == 303
-                assert response.headers["location"] == "/admin/privileged-domains"
+                assert response.headers["location"] == "/admin/settings/privileged-domains"
                 mock_add.assert_called_once()
 
 
@@ -163,7 +163,7 @@ def test_add_privileged_domain_with_at_prefix(test_admin_user):
 
                 client = TestClient(app)
                 response = client.post(
-                    "/admin/privileged-domains/add",
+                    "/admin/settings/privileged-domains/add",
                     data={"domain": "@example.com"},
                     follow_redirects=False,
                 )
@@ -195,7 +195,7 @@ def test_add_privileged_domain_invalid_shows_error_page(test_admin_user):
         client = TestClient(app)
         # Empty domain after strip - shows error page
         response = client.post(
-            "/admin/privileged-domains/add",
+            "/admin/settings/privileged-domains/add",
             data={"domain": "   "},
             follow_redirects=False,
         )
@@ -223,7 +223,9 @@ def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/privileged-domains/add", data={"domain": "localhost"}, follow_redirects=False
+            "/admin/settings/privileged-domains/add",
+            data={"domain": "localhost"},
+            follow_redirects=False,
         )
 
         app.dependency_overrides.clear()
@@ -251,7 +253,7 @@ def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/privileged-domains/add",
+                "/admin/settings/privileged-domains/add",
                 data={"domain": "example.com"},
                 follow_redirects=False,
             )
@@ -288,13 +290,13 @@ def test_delete_privileged_domain(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/privileged-domains/delete/domain-id-123", follow_redirects=False
+                "/admin/settings/privileged-domains/delete/domain-id-123", follow_redirects=False
             )
 
             app.dependency_overrides.clear()
 
             assert response.status_code == 303
-            assert response.headers["location"] == "/admin/privileged-domains"
+            assert response.headers["location"] == "/admin/settings/privileged-domains"
             mock_delete.assert_called_once()
 
 
@@ -316,7 +318,7 @@ def test_delete_privileged_domain_not_found_shows_error(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/privileged-domains/delete/nonexistent-id", follow_redirects=False
+                "/admin/settings/privileged-domains/delete/nonexistent-id", follow_redirects=False
             )
 
             app.dependency_overrides.clear()
@@ -355,7 +357,7 @@ def test_tenant_security_page(test_super_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>security</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/security")
+                response = client.get("/admin/settings/security")
 
                 app.dependency_overrides.clear()
 
@@ -388,7 +390,7 @@ def test_tenant_security_page_no_settings(test_super_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>security</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/security")
+                response = client.get("/admin/settings/security")
 
                 app.dependency_overrides.clear()
 
@@ -417,7 +419,7 @@ def test_update_tenant_security(test_super_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/security/update",
+                "/admin/settings/security/update",
                 data={
                     "session_timeout": "3600",
                     "persistent_sessions": "true",
@@ -456,7 +458,7 @@ def test_update_tenant_security_no_timeout(test_super_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/security/update",
+                "/admin/settings/security/update",
                 data={
                     "session_timeout": "",  # Empty = indefinite
                     "persistent_sessions": "",
@@ -499,7 +501,7 @@ def test_update_tenant_security_invalid_timeout_shows_error_page(test_super_admi
 
         client = TestClient(app)
         response = client.post(
-            "/admin/security/update",
+            "/admin/settings/security/update",
             data={
                 "session_timeout": "0",  # Zero is invalid
                 "persistent_sessions": "true",
@@ -533,8 +535,8 @@ def test_tenant_security_form_action_url_is_correct():
         template_content = f.read()
 
     # Verify the form action points to the correct route
-    assert 'action="/admin/security/update"' in template_content, (
-        "Form should POST to /admin/security/update to match the route at "
+    assert 'action="/admin/settings/security/update"' in template_content, (
+        "Form should POST to /admin/settings/security/update to match the route at "
         "app/routers/settings.py:143 (router prefix='/admin', route='/security/update'). "
         "Found form action does not match the actual route endpoint."
     )
@@ -564,7 +566,7 @@ def test_bind_domain_to_idp_success(test_super_admin_user):
     with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
         client = TestClient(app)
         response = client.post(
-            "/admin/privileged-domains/domain-123/bind",
+            "/admin/settings/privileged-domains/domain-123/bind",
             data={"idp_id": "idp-456"},
             follow_redirects=False,
         )
@@ -572,7 +574,10 @@ def test_bind_domain_to_idp_success(test_super_admin_user):
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        assert "/admin/privileged-domains?success=domain_bound" in response.headers["location"]
+        assert (
+            "/admin/settings/privileged-domains?success=domain_bound"
+            in response.headers["location"]
+        )
         mock_bind.assert_called_once()
         call_kwargs = mock_bind.call_args[1]
         assert call_kwargs["domain_id"] == "domain-123"
@@ -604,7 +609,7 @@ def test_bind_domain_to_idp_service_error(test_super_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/privileged-domains/domain-123/bind",
+                "/admin/settings/privileged-domains/domain-123/bind",
                 data={"idp_id": "idp-456"},
                 follow_redirects=False,
             )
@@ -634,14 +639,17 @@ def test_unbind_domain_from_idp_success(test_super_admin_user):
     with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
         client = TestClient(app)
         response = client.post(
-            "/admin/privileged-domains/domain-123/unbind",
+            "/admin/settings/privileged-domains/domain-123/unbind",
             follow_redirects=False,
         )
 
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        assert "/admin/privileged-domains?success=domain_unbound" in response.headers["location"]
+        assert (
+            "/admin/settings/privileged-domains?success=domain_unbound"
+            in response.headers["location"]
+        )
         mock_unbind.assert_called_once()
         call_kwargs = mock_unbind.call_args[1]
         assert call_kwargs["domain_id"] == "domain-123"
@@ -672,7 +680,7 @@ def test_unbind_domain_from_idp_service_error(test_super_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/privileged-domains/domain-123/unbind",
+                "/admin/settings/privileged-domains/domain-123/unbind",
                 follow_redirects=False,
             )
 
@@ -711,7 +719,7 @@ def test_settings_index_fallback_to_dashboard():
     # Mock the function where it's imported into the module
     with patch("routers.settings.get_first_accessible_child", return_value=None):
         client = TestClient(app)
-        response = client.get("/admin/", follow_redirects=False)
+        response = client.get("/admin/settings/", follow_redirects=False)
 
         app.dependency_overrides.clear()
 
@@ -748,7 +756,7 @@ def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>domains</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/privileged-domains")
+                response = client.get("/admin/settings/privileged-domains")
 
                 app.dependency_overrides.clear()
 
@@ -777,7 +785,7 @@ def test_privileged_domains_regular_admin_no_idps(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>domains</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/privileged-domains")
+                response = client.get("/admin/settings/privileged-domains")
 
                 app.dependency_overrides.clear()
 
@@ -815,7 +823,7 @@ def test_admin_security_service_error(test_super_admin_user):
             mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
             client = TestClient(app)
-            response = client.get("/admin/security")
+            response = client.get("/admin/settings/security")
 
             app.dependency_overrides.clear()
 
@@ -845,7 +853,7 @@ def test_update_security_non_numeric_timeout_error(test_super_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/security/update",
+            "/admin/settings/security/update",
             data={
                 "session_timeout": "not-a-number",  # Non-numeric
                 "persistent_sessions": "true",
@@ -882,7 +890,7 @@ def test_update_security_non_numeric_inactivity_error(test_super_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/security/update",
+            "/admin/settings/security/update",
             data={
                 "session_timeout": "3600",
                 "persistent_sessions": "true",
@@ -923,7 +931,7 @@ def test_update_security_service_error(test_super_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/security/update",
+                "/admin/settings/security/update",
                 data={
                     "session_timeout": "3600",
                     "persistent_sessions": "true",

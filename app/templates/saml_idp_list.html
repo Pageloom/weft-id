@@ -11,11 +11,11 @@
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Configure SAML SSO providers for your organization</p>
             </div>
             <div class="flex gap-2">
-                <a href="/admin/identity-providers/debug"
+                <a href="/admin/settings/identity-providers/debug"
                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                     Debug Log
                 </a>
-                <a href="/admin/identity-providers/new"
+                <a href="/admin/settings/identity-providers/new"
                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                     Add Identity Provider
                 </a>
@@ -148,7 +148,7 @@
                     {% for idp in idps %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/identity-providers/{{ idp.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                            <a href="/admin/settings/identity-providers/{{ idp.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                 {{ idp.name }}
                             </a>
                             {% if idp.is_default %}
@@ -201,18 +201,18 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="/admin/identity-providers/{{ idp.id }}" class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
+                            <a href="/admin/settings/identity-providers/{{ idp.id }}" class="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
                                 Edit
                             </a>
                             {% if idp.is_enabled %}
-                            <form method="post" action="/admin/identity-providers/{{ idp.id }}/toggle" class="inline">
+                            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/toggle" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 mr-3">
                                     Disable
                                 </button>
                             </form>
                             {% else %}
-                            <form method="post" action="/admin/identity-providers/{{ idp.id }}/toggle" class="inline">
+                            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/toggle" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 mr-3">
                                     Enable
@@ -220,14 +220,14 @@
                             </form>
                             {% endif %}
                             {% if not idp.is_default %}
-                            <form method="post" action="/admin/identity-providers/{{ idp.id }}/set-default" class="inline">
+                            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/set-default" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 mr-3">
                                     Set Default
                                 </button>
                             </form>
                             {% endif %}
-                            <form method="post" action="/admin/identity-providers/{{ idp.id }}/delete" class="inline">
+                            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         onclick="return confirm('Delete this identity provider? This cannot be undone.')"
@@ -264,7 +264,7 @@
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
-            <form method="post" action="/admin/identity-providers/rotate-certificate" class="inline">
+            <form method="post" action="/admin/settings/identity-providers/rotate-certificate" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">

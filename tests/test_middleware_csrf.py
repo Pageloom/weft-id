@@ -80,7 +80,7 @@ class TestIsExempt:
         """Regular web routes should not be exempt."""
         assert _is_exempt("/login") is False
         assert _is_exempt("/users/new") is False
-        assert _is_exempt("/admin/events") is False
+        assert _is_exempt("/admin/audit/events") is False
         assert _is_exempt("/account/profile") is False
 
 

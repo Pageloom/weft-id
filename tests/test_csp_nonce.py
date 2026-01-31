@@ -11,7 +11,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from utils.csp_nonce import generate_csp_nonce, get_csp_nonce
 
 

@@ -75,7 +75,7 @@
                             {% if user.role == 'super_admin' and idps %}
                             <!-- IdP Binding Controls -->
                             {% if domain.bound_idp_id %}
-                            <form method="post" action="/admin/privileged-domains/{{ domain.id }}/unbind">
+                            <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/unbind">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
                                         onclick="return confirm('Unbind this domain from its IdP? New users with this domain will no longer be auto-assigned.')">
@@ -83,7 +83,7 @@
                                 </button>
                             </form>
                             {% else %}
-                            <form method="post" action="/admin/privileged-domains/{{ domain.id }}/bind"
+                            <form method="post" action="/admin/settings/privileged-domains/{{ domain.id }}/bind"
                                   class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="idp_id" required class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -100,7 +100,7 @@
                             {% endif %}
                             {% endif %}
 
-                            <form method="post" action="/admin/privileged-domains/delete/{{ domain.id }}">
+                            <form method="post" action="/admin/settings/privileged-domains/delete/{{ domain.id }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                                         onclick="return confirm('Are you sure you want to remove this domain?')">
@@ -121,7 +121,7 @@
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Add Privileged Domain</h2>
-            <form method="post" action="/admin/privileged-domains/add" class="flex gap-3">
+            <form method="post" action="/admin/settings/privileged-domains/add" class="flex gap-3">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex-1">
                     <input type="text" name="domain" placeholder="company.com"

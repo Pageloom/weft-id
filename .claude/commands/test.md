@@ -188,4 +188,6 @@ This is complex and fragile. Accept the coverage gap or invest in a proper E2E t
 
 **Before finishing your session**, append a row to `.claude/test_agent_log.md` with today's date, the current HEAD commit hash, and a short summary of what you did (areas tested, tests written, issues found). This helps future sessions pick up where you left off.
 
+Note: Do NOT commit directly. Update the log, then let the user commit all changes together (including the log update). The commit hash in the log is the starting point, not the result.
+
 Begin by reading BACKLOG_ARCHIVE.md and asking the user which area they'd like you to focus on.

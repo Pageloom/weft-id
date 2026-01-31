@@ -44,10 +44,22 @@ python scripts/deps_check.py --issues-md
 4. Categorizes findings by severity (critical/high/medium/low)
 5. Returns exit code 1 if critical/high vulnerabilities found
 
+**Known Limitation:** The script only scans direct dependencies from pyproject.toml, not transitive dependencies. Always verify with pip-audit directly (see below).
+
 **Install pip-audit for best results:**
 ```bash
 poetry add --group dev pip-audit
 ```
+
+### Secondary Tool: Direct pip-audit
+
+Run pip-audit directly to catch transitive dependency vulnerabilities that `deps_check.py` may miss:
+
+```bash
+poetry run python -m pip_audit --progress-spinner off
+```
+
+**Important:** Use `python -m pip_audit`, not `pip-audit` directly (the entry point isn't created by poetry).
 
 ### Interpreting Results
 
@@ -60,13 +72,19 @@ The script outputs:
 
 ## Your Workflow
 
-### Step 1: Run Automated Scan
+### Step 1: Run Automated Scans
+
+Run both scans to ensure comprehensive coverage:
 
 ```bash
+# Scan direct dependencies
 python scripts/deps_check.py
+
+# Scan ALL dependencies including transitive (catches more vulnerabilities)
+poetry run python -m pip_audit --progress-spinner off
 ```
 
-Review the output. If vulnerabilities are found, proceed to Step 2.
+Review both outputs. If vulnerabilities are found, proceed to Step 2.
 
 ### Step 2: Investigate Critical/High Findings
 

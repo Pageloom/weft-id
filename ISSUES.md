@@ -8,16 +8,63 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 # Dependency Vulnerabilities
 
-Dependency audit performed: 2026-01-17
+Dependency audit performed: 2026-01-31
 
-**Status:** All dependencies secure. No known CVEs affecting current versions.
+**Status:** Two vulnerabilities found. One requires update, one is transitive with no fix available.
 
 ---
 
-## [DEPS] python-multipart: CVE-2024-24762 - Content-Type Header ReDoS
+## [DEPS] python-multipart: CVE-2026-24486 - Path Traversal
 
 **Package:** python-multipart
-**Installed Version:** 0.0.9
+**Installed Version:** 0.0.18
+**Vulnerable Versions:** < 0.0.22
+**Fixed Version:** 0.0.22
+**Severity:** High (CVSS: 8.6)
+**Advisory:** https://github.com/advisories/GHSA-wp53-j4wj-2cfg
+
+**Description:**
+A path traversal vulnerability exists when using non-default configuration options UPLOAD_DIR and UPLOAD_KEEP_FILENAME=True. An attacker can write uploaded files to arbitrary locations on the filesystem by crafting a malicious filename that begins with `/`.
+
+**Exploitability in This Project:**
+Low - This project does not use UPLOAD_DIR or UPLOAD_KEEP_FILENAME configurations. The multipart parsing is only used for form data (CSRF tokens), not file uploads.
+
+**Remediation:**
+Update to version 0.0.22 or later: `poetry update python-multipart`
+
+---
+
+## [DEPS] ecdsa: CVE-2024-23342 - Minerva Timing Attack (Transitive)
+
+**Package:** ecdsa
+**Installed Version:** 0.19.1
+**Fixed Version:** None (no planned fix)
+**Severity:** High (CVSS: 7.4)
+**Advisory:** https://github.com/advisories/GHSA-wj6h-64fc-37mp
+
+**Description:**
+The python-ecdsa library is vulnerable to the Minerva timing attack on P-256 curve operations. Using the sign_digest() API and timing signatures, an attacker can leak the internal nonce which may allow private key discovery after analyzing hundreds to thousands of signing operations.
+
+**Why No Fix:**
+The ecdsa maintainers consider side-channel attacks out of scope because implementing side-channel-free code in pure Python is impossible. The package is intended for non-security-critical uses.
+
+**Exploitability in This Project:**
+Low - This is a transitive dependency of sendgrid, which uses it for internal token signing. The attacker would need to:
+1. Control timing measurements of sendgrid API calls
+2. Gather hundreds of timing samples
+3. Have a way to recover sendgrid's signing key (not user-facing)
+
+**Remediation Options:**
+1. Accept the risk (sendgrid's internal use is not directly exploitable)
+2. Replace sendgrid with resend (this project already has resend as primary email backend)
+3. Monitor for sendgrid updates that switch to pyca/cryptography
+
+---
+
+## [DEPS] python-multipart: CVE-2024-24762 - Content-Type Header ReDoS (Resolved)
+
+**Package:** python-multipart
+**Installed Version:** 0.0.18
 **Vulnerable Versions:** < 0.0.7
 **Fixed Version:** 0.0.7+
 **Severity:** High (CVSS: 7.5)
@@ -27,7 +74,7 @@ Dependency audit performed: 2026-01-17
 When using form data, python-multipart uses a Regular Expression to parse the HTTP Content-Type header. An attacker could send a custom-made Content-Type option that causes the RegEx to consume CPU resources and stall indefinitely, blocking the main event loop and preventing all request handling.
 
 **Exploitability in This Project:**
-Not Affected - Version 0.0.9 is newer than the fixed version 0.0.7.
+Not Affected - Version 0.0.18 is newer than the fixed version 0.0.7.
 
 **Status:** Safe - current version includes the fix.
 
@@ -135,7 +182,7 @@ No CVEs found in vulnerability databases for these packages at their installed v
 
 **Packages:**
 - resend 2.19.0 - No CVEs (email service SDK)
-- sendgrid 6.12.4 - No Python SDK CVEs (WordPress plugin CVEs don't apply)
+- sendgrid 6.12.4 - Transitive ecdsa dependency has CVE-2024-23342 (see above)
 - pymemcache 4.0.0 - No CVEs found
 - email-validator 2.3.0 - No CVEs (actually helps mitigate Python email module issues)
 - babel 2.17.0 - No CVEs (Python i18n, not JavaScript Babel)
@@ -171,17 +218,17 @@ No technical debt items.
 | Severity | Count | Packages |
 |----------|-------|----------|
 | Critical | 0 | - |
-| High | 0 | - |
+| High | 2 | python-multipart, ecdsa (transitive) |
 | Medium | 0 | - |
 | Low | 0 | - |
-| Safe | All | All production dependencies |
 
 ### Packages Requiring Attention
 
-None. All dependencies are secure and actively maintained.
+1. **python-multipart** - Update to 0.0.22 (path traversal, low exploitability in this project)
+2. **ecdsa** - Transitive via sendgrid, no fix available (timing attack, low exploitability)
 
 ### Packages Confirmed Safe
-All production dependencies are at versions that include fixes for known CVEs. Recent CVEs in the Python ecosystem (CVE-2026-21226 Azure Core, CVE-2025-68668 n8n, CVE-2025-68664 LangChain) do not affect this project.
+Most production dependencies are at versions that include fixes for known CVEs. Recent CVEs in the Python ecosystem (CVE-2026-21226 Azure Core, CVE-2025-68668 n8n, CVE-2025-68664 LangChain) do not affect this project.
 
 **Priority Remediation Order:**
 1. ~~XSS in users_list.html (Critical - immediate exploit)~~ **RESOLVED**

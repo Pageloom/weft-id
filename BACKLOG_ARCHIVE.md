@@ -4,6 +4,70 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Integration Management Frontend - Phase 2: Edit, Regenerate & Deactivate
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to edit integration details, rotate secrets, and deactivate integrations through the web UI
+So that I can manage the full lifecycle of OAuth2 clients without API calls
+
+**Completed Work:**
+
+**Apps Tab - Edit & Manage:**
+
+- [x] Click client row to open detail/edit view
+- [x] Edit form: Name, Description, Redirect URIs
+- [x] "Regenerate Secret" with confirmation dialog, then credentials modal (same flow as create)
+- [x] "Deactivate" button with confirmation (soft-delete: sets `is_active = false`)
+- [x] Inactive clients shown in list with "Inactive" badge, grayed out
+- [x] Option to reactivate inactive clients
+
+**B2B Tab - Edit & Manage:**
+
+- [x] Click client row to open detail/edit view
+- [x] Edit form: Name, Description
+- [x] Change service user role (select dropdown)
+- [x] "Regenerate Secret" with same flow
+- [x] "Deactivate" with same soft-delete flow
+- [x] Inactive clients shown with badge
+
+**Backend Changes:**
+
+- [x] `GET /api/v1/oauth2/clients/{client_id}` endpoint for fetching single client
+- [x] `PATCH /api/v1/oauth2/clients/{client_id}` endpoint for updating name, description, redirect_uris
+- [x] `PATCH /api/v1/oauth2/clients/{client_id}/role` endpoint for changing B2B service user role
+- [x] `POST /api/v1/oauth2/clients/{client_id}/deactivate` endpoint (sets is_active = false)
+- [x] `POST /api/v1/oauth2/clients/{client_id}/reactivate` endpoint (sets is_active = true)
+- [x] Deactivated clients reject OAuth2 token requests
+- [x] All write operations emit event logs
+
+**Testing:**
+
+- [x] Full test coverage for new API endpoints
+- [x] Router tests for edit, regenerate, deactivate flows
+- [x] Service tests for update, deactivate, reactivate logic
+- [x] Verify deactivated clients cannot authenticate
+
+**Technical Implementation:**
+
+- Event types: 4 new event types in `app/constants/event_types.py`
+- Schemas: `ClientUpdate`, `ClientRoleUpdate` in `app/schemas/oauth2.py`
+- Database layer: `update_client()`, `update_b2b_client_role()`, `deactivate_client()`, `reactivate_client()` in `app/database/oauth2.py`
+- Service layer: Corresponding functions with event logging in `app/services/oauth2.py`
+- API router: 5 new endpoints in `app/routers/api/v1/oauth2_clients.py`
+- Token endpoint: is_active check in `app/routers/oauth2.py`
+- Frontend router: 10 new routes in `app/routers/integrations.py`
+- Templates: `integrations_app_detail.html`, `integrations_b2b_detail.html`
+- Updated list templates with clickable rows and inactive styling
+- Comprehensive tests added to `test_api_oauth2_clients.py` and `test_routers_integrations.py`
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Integration Management Frontend - Phase 1: List & Create
 
 **Status:** Complete

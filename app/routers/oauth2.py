@@ -297,6 +297,16 @@ def token_endpoint(
             },
         )
 
+    # Check if client is active
+    if not client.get("is_active", True):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_client",
+                "error_description": "Client is deactivated",
+            },
+        )
+
     # ========================================================================
     # Grant Type: authorization_code
     # ========================================================================

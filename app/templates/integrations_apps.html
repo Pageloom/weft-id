@@ -53,7 +53,8 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     {% for client in clients %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer {% if not client.is_active %}opacity-60{% endif %}"
+                        onclick="window.location='/admin/integrations/apps/{{ client.client_id }}'">
                         <td class="px-4 py-4">
                             <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ client.name }}</div>
                             {% if client.description %}

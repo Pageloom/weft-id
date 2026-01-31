@@ -691,3 +691,556 @@ def test_b2b_list_pops_pending_credentials(test_admin_user):
                 assert response.status_code == 200
                 ctx_kwargs = mock_ctx.call_args[1]
                 assert "pending_credentials" in ctx_kwargs
+
+
+# =============================================================================
+# App Detail Tests
+# =============================================================================
+
+
+def test_app_detail_renders(test_admin_user):
+    """Test app detail page renders successfully."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_client_detail123",
+        "client_type": "normal",
+        "name": "Detail Test App",
+        "description": "A test app",
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        with patch("routers.integrations.get_template_context") as mock_ctx:
+            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
+                mock_get.return_value = mock_client
+                mock_ctx.return_value = {"request": MagicMock()}
+                mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/integrations/apps/loom_client_detail123")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                mock_tmpl.assert_called_once()
+                assert mock_tmpl.call_args[0][0] == "integrations_app_detail.html"
+                ctx_kwargs = mock_ctx.call_args[1]
+                assert ctx_kwargs["client"] == mock_client
+
+
+def test_app_detail_not_found_redirects(test_admin_user):
+    """Test app detail page redirects when client not found."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/admin/integrations/apps/nonexistent", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+def test_app_detail_wrong_type_redirects(test_admin_user):
+    """Test app detail page redirects when client is B2B type."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_wrong",
+        "client_type": "b2b",  # Wrong type
+        "name": "B2B Client",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = mock_client
+
+        client = TestClient(app)
+        response = client.get("/admin/integrations/apps/loom_b2b_wrong", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+# =============================================================================
+# App Edit Tests
+# =============================================================================
+
+
+def test_app_edit_success(test_admin_user):
+    """Test editing an app succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_updated_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_client_edit123",
+        "client_type": "normal",
+        "name": "Updated Name",
+        "description": "Updated desc",
+        "redirect_uris": ["https://new.example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.update_client") as mock_update:
+        mock_update.return_value = mock_updated_client
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/loom_client_edit123/edit",
+            data={
+                "name": "Updated Name",
+                "description": "Updated desc",
+                "redirect_uris": "https://new.example.com/callback",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=updated" in response.headers["location"]
+        mock_update.assert_called_once()
+
+
+def test_app_edit_empty_name_returns_error(test_admin_user):
+    """Test editing an app with empty name returns error."""
+    _setup_admin_overrides(test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/loom_client_edit123/edit",
+        data={
+            "name": "",
+            "description": "",
+            "redirect_uris": "https://example.com/callback",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=name_required" in response.headers["location"]
+
+
+def test_app_edit_empty_uris_returns_error(test_admin_user):
+    """Test editing an app with empty redirect URIs returns error."""
+    _setup_admin_overrides(test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/loom_client_edit123/edit",
+        data={
+            "name": "Test",
+            "description": "",
+            "redirect_uris": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=redirect_uris_required" in response.headers["location"]
+
+
+# =============================================================================
+# App Regenerate Secret Tests
+# =============================================================================
+
+
+def test_app_regenerate_secret_success(test_admin_user):
+    """Test regenerating app secret succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_client_regen123",
+        "client_type": "normal",
+        "name": "Regen App",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        with patch("services.oauth2.regenerate_client_secret") as mock_regen:
+            mock_get.return_value = mock_client
+            mock_regen.return_value = "new_secret_xyz"
+
+            client = TestClient(app)
+            response = client.post(
+                "/admin/integrations/apps/loom_client_regen123/regenerate-secret",
+                data={"csrf_token": "test-token"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "success=secret_regenerated" in response.headers["location"]
+
+
+def test_app_regenerate_secret_not_found(test_admin_user):
+    """Test regenerating secret for non-existent app redirects with error."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/nonexistent/regenerate-secret",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+# =============================================================================
+# App Deactivate/Reactivate Tests
+# =============================================================================
+
+
+def test_app_deactivate_success(test_admin_user):
+    """Test deactivating an app succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_deactivated = {
+        "id": str(uuid4()),
+        "client_id": "loom_client_deact123",
+        "client_type": "normal",
+        "name": "Deact App",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": False,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.deactivate_client") as mock_deact:
+        mock_deact.return_value = mock_deactivated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/loom_client_deact123/deactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=deactivated" in response.headers["location"]
+
+
+def test_app_reactivate_success(test_admin_user):
+    """Test reactivating an app succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_reactivated = {
+        "id": str(uuid4()),
+        "client_id": "loom_client_react123",
+        "client_type": "normal",
+        "name": "React App",
+        "description": None,
+        "redirect_uris": ["https://example.com/callback"],
+        "service_user_id": None,
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.reactivate_client") as mock_react:
+        mock_react.return_value = mock_reactivated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/apps/loom_client_react123/reactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=reactivated" in response.headers["location"]
+
+
+# =============================================================================
+# B2B Detail Tests
+# =============================================================================
+
+
+def test_b2b_detail_renders(test_admin_user):
+    """Test B2B detail page renders successfully."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_detail123",
+        "client_type": "b2b",
+        "name": "Detail Test B2B",
+        "description": "A B2B client",
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "service_role": "admin",
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        with patch("routers.integrations.get_template_context") as mock_ctx:
+            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
+                mock_get.return_value = mock_client
+                mock_ctx.return_value = {"request": MagicMock()}
+                mock_tmpl.return_value = HTMLResponse(content="<html>b2b detail</html>")
+
+                client = TestClient(app)
+                response = client.get("/admin/integrations/b2b/loom_b2b_detail123")
+
+                app.dependency_overrides.clear()
+
+                assert response.status_code == 200
+                mock_tmpl.assert_called_once()
+                assert mock_tmpl.call_args[0][0] == "integrations_b2b_detail.html"
+
+
+def test_b2b_detail_not_found_redirects(test_admin_user):
+    """Test B2B detail page redirects when client not found."""
+    _setup_admin_overrides(test_admin_user)
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        mock_get.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/admin/integrations/b2b/nonexistent", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "error=not_found" in response.headers["location"]
+
+
+# =============================================================================
+# B2B Edit Tests
+# =============================================================================
+
+
+def test_b2b_edit_success(test_admin_user):
+    """Test editing a B2B client succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_updated = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_edit123",
+        "client_type": "b2b",
+        "name": "Updated B2B Name",
+        "description": "Updated desc",
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.update_client") as mock_update:
+        mock_update.return_value = mock_updated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/loom_b2b_edit123/edit",
+            data={
+                "name": "Updated B2B Name",
+                "description": "Updated desc",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=updated" in response.headers["location"]
+
+
+# =============================================================================
+# B2B Role Change Tests
+# =============================================================================
+
+
+def test_b2b_role_change_success(test_admin_user):
+    """Test changing B2B client role succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_updated = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_role123",
+        "client_type": "b2b",
+        "name": "Role Test B2B",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "service_role": "super_admin",
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.update_b2b_client_role") as mock_update:
+        mock_update.return_value = mock_updated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/loom_b2b_role123/role",
+            data={
+                "role": "super_admin",
+                "csrf_token": "test-token",
+            },
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=role_changed" in response.headers["location"]
+
+
+def test_b2b_role_change_invalid_role(test_admin_user):
+    """Test changing to invalid role returns error."""
+    _setup_admin_overrides(test_admin_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/loom_b2b_role123/role",
+        data={
+            "role": "invalid_role",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=invalid_role" in response.headers["location"]
+
+
+# =============================================================================
+# B2B Regenerate/Deactivate/Reactivate Tests
+# =============================================================================
+
+
+def test_b2b_regenerate_secret_success(test_admin_user):
+    """Test regenerating B2B client secret succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_client = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_regen123",
+        "client_type": "b2b",
+        "name": "Regen B2B",
+        "description": None,
+        "redirect_uris": None,
+        "service_user_id": str(uuid4()),
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.get_client_by_client_id") as mock_get:
+        with patch("services.oauth2.regenerate_client_secret") as mock_regen:
+            mock_get.return_value = mock_client
+            mock_regen.return_value = "new_b2b_secret"
+
+            client = TestClient(app)
+            response = client.post(
+                "/admin/integrations/b2b/loom_b2b_regen123/regenerate-secret",
+                data={"csrf_token": "test-token"},
+                follow_redirects=False,
+            )
+
+            app.dependency_overrides.clear()
+
+            assert response.status_code == 303
+            assert "success=secret_regenerated" in response.headers["location"]
+
+
+def test_b2b_deactivate_success(test_admin_user):
+    """Test deactivating a B2B client succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_deactivated = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_deact123",
+        "client_type": "b2b",
+        "name": "Deact B2B",
+        "is_active": False,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.deactivate_client") as mock_deact:
+        mock_deact.return_value = mock_deactivated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/loom_b2b_deact123/deactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=deactivated" in response.headers["location"]
+
+
+def test_b2b_reactivate_success(test_admin_user):
+    """Test reactivating a B2B client succeeds."""
+    _setup_admin_overrides(test_admin_user)
+
+    mock_reactivated = {
+        "id": str(uuid4()),
+        "client_id": "loom_b2b_react123",
+        "client_type": "b2b",
+        "name": "React B2B",
+        "is_active": True,
+        "created_at": "2026-01-01T00:00:00",
+    }
+
+    with patch("services.oauth2.reactivate_client") as mock_react:
+        mock_react.return_value = mock_reactivated
+
+        client = TestClient(app)
+        response = client.post(
+            "/admin/integrations/b2b/loom_b2b_react123/reactivate",
+            data={"csrf_token": "test-token"},
+            follow_redirects=False,
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert "success=reactivated" in response.headers["location"]

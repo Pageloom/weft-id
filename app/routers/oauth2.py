@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
+from utils.csp_nonce import get_csp_nonce
 
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
@@ -59,6 +60,7 @@ def authorize_page(
                 "error": "Invalid client_id",
                 "error_description": "The client_id provided is not registered.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -71,6 +73,7 @@ def authorize_page(
                 "error": "Unauthorized client",
                 "error_description": "This client is not authorized for this flow.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -83,6 +86,7 @@ def authorize_page(
                 "error": "Invalid redirect_uri",
                 "error_description": "The redirect_uri does not match registered URIs.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -95,6 +99,7 @@ def authorize_page(
                 "error": "Invalid request",
                 "error_description": "Invalid code_challenge_method. Must be S256 or plain.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -126,6 +131,7 @@ def authorize_page(
             "redirect_uri": redirect_uri,
             "nav": {},
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -162,6 +168,7 @@ def authorize_grant(
                 "error": "Invalid request",
                 "error_description": "Authorization request not found or already used.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -185,6 +192,7 @@ def authorize_grant(
                 "error": "Request expired",
                 "error_description": "Authorization request has expired. Please start over.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -207,6 +215,7 @@ def authorize_grant(
                 "error": "Invalid redirect_uri",
                 "error_description": "The redirect_uri does not match registered URIs.",
                 "nav": {},
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 

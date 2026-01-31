@@ -4,6 +4,7 @@ from dependencies import get_current_user
 from fastapi import Request
 from middleware.csrf import get_csrf_token
 from pages import get_navigation_context
+from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter
 
 
@@ -36,6 +37,7 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "nav": nav_context,  # Full navigation context
         "fmt_datetime": fmt_datetime,  # Datetime formatter function
         "csrf_token": csrf_token,  # CSRF token getter function
+        "csp_nonce": get_csp_nonce(request),  # CSP nonce for inline scripts
         **kwargs,
     }
 

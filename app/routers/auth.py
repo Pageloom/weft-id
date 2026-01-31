@@ -14,6 +14,7 @@ from middleware.csrf import make_csrf_token_func
 from services.event_log import log_event
 from services.exceptions import RateLimitError
 from utils.auth import verify_login_with_status
+from utils.csp_nonce import get_csp_nonce
 from utils.email import (
     send_email_possession_code,
     send_mfa_code_email,
@@ -85,6 +86,7 @@ def login_page(
             "prefill_email": prefill_email,
             "show_password": show_password,
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -186,6 +188,7 @@ def verify_code_page(
             "error": error,
             "success": success,
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -323,6 +326,7 @@ def super_admin_reactivate_page(
             "user": user,
             "prefill_email": prefill_email,
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -541,6 +545,7 @@ def login(
                 "prefill_email": email,
                 "show_password": True,
                 "csrf_token": make_csrf_token_func(request),
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -585,6 +590,7 @@ def login(
                 "prefill_email": email,
                 "show_password": True,
                 "csrf_token": make_csrf_token_func(request),
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -615,6 +621,7 @@ def login(
                 "status": result["status"],
                 "can_request": result.get("can_request_reactivation", False),
                 "csrf_token": make_csrf_token_func(request),
+                "csp_nonce": get_csp_nonce(request),
             },
         )
 
@@ -736,6 +743,7 @@ def request_reactivation(
                     "status": "denied",
                     "can_request": False,
                     "csrf_token": make_csrf_token_func(request),
+                    "csp_nonce": get_csp_nonce(request),
                 },
             )
         elif reason == "request_pending":
@@ -748,6 +756,7 @@ def request_reactivation(
                     "status": "pending",
                     "can_request": False,
                     "csrf_token": make_csrf_token_func(request),
+                    "csp_nonce": get_csp_nonce(request),
                 },
             )
         else:
@@ -790,6 +799,7 @@ def request_reactivation(
             "request": request,
             "email": primary_email,
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 
@@ -882,6 +892,7 @@ def set_password_page(
             "success": success,
             "error": error,
             "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
         },
     )
 

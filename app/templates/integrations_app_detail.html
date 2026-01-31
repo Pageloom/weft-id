@@ -249,7 +249,7 @@
 </div>
 {% endif %}
 
-<script>
+<script nonce="{{ csp_nonce }}">
 function showRegenerateModal() {
     document.getElementById('regenerate-modal').classList.remove('hidden');
     document.getElementById('regenerate-modal').classList.add('flex');

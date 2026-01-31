@@ -48,6 +48,143 @@ def test_admin_index_fallback_to_dashboard(test_admin_user):
         assert response.headers["location"] == "/dashboard"
 
 
+# =============================================================================
+# Audit Section Redirect Tests
+# =============================================================================
+
+
+def test_audit_index_redirects_to_events(test_admin_user):
+    """Test audit section index redirects to first accessible child page."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/admin/audit/events"
+
+        client = TestClient(app)
+        response = client.get("/admin/audit/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/audit/events"
+        mock_first_child.assert_called_once_with("/admin/audit", test_admin_user.get("role"))
+
+
+def test_audit_index_without_trailing_slash(test_admin_user):
+    """Test audit section index works without trailing slash."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/admin/audit/events"
+
+        client = TestClient(app)
+        response = client.get("/admin/audit", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/audit/events"
+
+
+def test_audit_index_fallback_to_dashboard(test_admin_user):
+    """Test audit section index falls back to dashboard when no accessible children."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/admin/audit/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+
+
+# =============================================================================
+# Todo Section Redirect Tests
+# =============================================================================
+
+
+def test_todo_index_redirects_to_reactivation(test_admin_user):
+    """Test todo section index redirects to first accessible child page."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/admin/todo/reactivation"
+
+        client = TestClient(app)
+        response = client.get("/admin/todo/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/todo/reactivation"
+        mock_first_child.assert_called_once_with("/admin/todo", test_admin_user.get("role"))
+
+
+def test_todo_index_without_trailing_slash(test_admin_user):
+    """Test todo section index works without trailing slash."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = "/admin/todo/reactivation"
+
+        client = TestClient(app)
+        response = client.get("/admin/todo", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/admin/todo/reactivation"
+
+
+def test_todo_index_fallback_to_dashboard(test_admin_user):
+    """Test todo section index falls back to dashboard when no accessible children."""
+    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
+    app.dependency_overrides[require_admin] = lambda: test_admin_user
+    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+
+    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
+        mock_first_child.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/admin/todo/", follow_redirects=False)
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/dashboard"
+
+
+# =============================================================================
+# Event Log Routes Tests
+# =============================================================================
+
+
 def test_event_log_list_renders(test_admin_user):
     """Test event log list page renders successfully."""
     from dependencies import get_current_user, get_tenant_id_from_request, require_admin

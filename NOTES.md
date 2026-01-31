@@ -2,6 +2,8 @@
 
 Quick reminders to later build out into full backlog items.
 
+- If there are any javascript confirm dialoges or alerts - lets replace them with prettier HTML rendered
+  ones
 - In the users list the auth-method is listed as None if a user has email/password. Given that that email
   possession must always be proved, lets list it as email/password.
 - Create an accessibility agent whose focus it is to make sure that the frontend has a good accessibility posture,

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Privileged Domains - Loom{% endblock %}
+{% block title %}Privileged Domains - WeftId{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl">
@@ -43,7 +43,7 @@
         {% endif %}
 
         <div class="mb-6">
-            <h2 class="text-lg font-medium mb-4">Current Privileged Domains</h2>
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Current Privileged Domains</h2>
 
             {% if domains %}
             <div class="space-y-3">
@@ -120,7 +120,7 @@
         </div>
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h2 class="text-lg font-medium mb-4">Add Privileged Domain</h2>
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Add Privileged Domain</h2>
             <form method="post" action="/admin/privileged-domains/add" class="flex gap-3">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="flex-1">

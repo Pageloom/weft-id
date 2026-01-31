@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}SAML Connection Test - Loom{% endblock %}
+{% block title %}SAML Connection Test - WeftId{% endblock %}
 
 {% block content %}
 <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
@@ -142,7 +142,7 @@
                 <p class="font-medium">Common causes:</p>
                 <ul class="list-disc list-inside space-y-1 text-xs text-gray-500 dark:text-gray-400">
                     {% if test_result.error_type == 'signature_error' %}
-                    <li>IdP certificate in Loom doesn't match the one used by your IdP</li>
+                    <li>IdP certificate in WeftId doesn't match the one used by your IdP</li>
                     <li>Try refreshing metadata or re-entering the certificate</li>
                     {% elif test_result.error_type == 'expired' %}
                     <li>The SAML response has expired - try again</li>

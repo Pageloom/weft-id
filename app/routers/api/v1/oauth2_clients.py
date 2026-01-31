@@ -152,7 +152,7 @@ def delete_client(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Returns:
         204 No Content on success
@@ -179,7 +179,7 @@ def regenerate_client_secret(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Returns:
         Client details including new client_secret (shown only once!)
@@ -213,7 +213,7 @@ def get_client(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Returns:
         Client details (without secret)
@@ -239,7 +239,7 @@ def update_client(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Request Body:
         name: New client name (optional)
@@ -280,7 +280,7 @@ def update_client_role(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_b2b_abc123")
+        client_id: The client_id (e.g., "weft-id_b2b_abc123")
 
     Request Body:
         role: New role ('member', 'admin', 'super_admin')
@@ -318,7 +318,7 @@ def deactivate_client(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Returns:
         Updated client details
@@ -343,7 +343,7 @@ def reactivate_client(
     Requires admin role.
 
     Path Parameters:
-        client_id: The client_id (e.g., "loom_client_abc123")
+        client_id: The client_id (e.g., "weft-id_client_abc123")
 
     Returns:
         Updated client details

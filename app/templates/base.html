@@ -14,7 +14,7 @@
         }
     })();
     </script>
-    <title>{% block title %}Loom{% endblock %}</title>
+    <title>{% block title %}WeftId{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/output.css">
     <style>
         /* Always show scrollbar gutter to prevent layout shift */
@@ -43,7 +43,7 @@
             <div class="flex justify-between items-center h-16">
                 <!-- Main navigation items -->
                 <div class="flex items-center space-x-8">
-                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100">Loom</span>
+                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100">WeftId</span>
                     {% for page in nav.top_level_items %}
                         <a href="{{ page.path }}"
                            class="px-3 py-2 rounded-md text-sm font-medium {% if nav.active_top_level and nav.active_top_level.path == page.path %}bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100{% else %}text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100{% endif %}">

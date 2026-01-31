@@ -108,7 +108,7 @@ def create_b2b_client(
         raise ValueError("Failed to create service user")
 
     # Generate client credentials
-    client_id = oauth2.generate_client_id("loom_b2b")
+    client_id = oauth2.generate_client_id("weft-id_b2b")
     client_secret = oauth2.generate_client_secret()
     client_secret_hash = oauth2.hash_token(client_secret)
 
@@ -146,7 +146,7 @@ def create_b2b_client(
 
 def get_client_by_client_id(tenant_id: TenantArg, client_id: str) -> dict | None:
     """
-    Get OAuth2 client by client_id (the TEXT identifier, e.g., "loom_client_abc123").
+    Get OAuth2 client by client_id (the TEXT identifier, e.g., "weft-id_client_abc123").
 
     Returns:
         Client record with id, tenant_id, client_id, client_secret_hash, client_type,
@@ -304,7 +304,7 @@ def update_client(
 
     Args:
         tenant_id: Tenant ID for scoping
-        client_id: Client ID (the TEXT identifier, e.g., "loom_client_abc123")
+        client_id: Client ID (the TEXT identifier, e.g., "weft-id_client_abc123")
         name: New client name (optional)
         description: New description (optional)
         redirect_uris: New redirect URIs for normal clients (optional)

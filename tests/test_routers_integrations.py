@@ -101,7 +101,7 @@ def test_apps_list_with_clients(test_admin_user):
     mock_clients = [
         {
             "id": str(uuid4()),
-            "client_id": "loom_client_abc123",
+            "client_id": "weft-id_client_abc123",
             "client_type": "normal",
             "name": "Test App",
             "description": "A test app",
@@ -155,7 +155,7 @@ def test_apps_create_success(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_new123",
+        "client_id": "weft-id_client_new123",
         "client_secret": "secret_abc123",
         "client_type": "normal",
         "name": "New App",
@@ -202,7 +202,7 @@ def test_apps_create_with_description(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_new123",
+        "client_id": "weft-id_client_new123",
         "client_secret": "secret_abc123",
         "client_type": "normal",
         "name": "Described App",
@@ -241,7 +241,7 @@ def test_apps_create_stores_credentials_in_session(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_sesstest",
+        "client_id": "weft-id_client_sesstest",
         "client_secret": "secret_sesstest",
         "client_type": "normal",
         "name": "Session Test App",
@@ -284,7 +284,7 @@ def test_apps_create_multiple_redirect_uris(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_multi",
+        "client_id": "weft-id_client_multi",
         "client_secret": "secret_multi",
         "client_type": "normal",
         "name": "Multi URI App",
@@ -470,7 +470,7 @@ def test_b2b_create_success(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_new123",
+        "client_id": "weft-id_b2b_new123",
         "client_secret": "secret_b2b123",
         "client_type": "b2b",
         "name": "New B2B Client",
@@ -517,7 +517,7 @@ def test_b2b_create_with_description(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_desc",
+        "client_id": "weft-id_b2b_desc",
         "client_secret": "secret_desc",
         "client_type": "b2b",
         "name": "Described B2B",
@@ -704,7 +704,7 @@ def test_app_detail_renders(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_detail123",
+        "client_id": "weft-id_client_detail123",
         "client_type": "normal",
         "name": "Detail Test App",
         "description": "A test app",
@@ -722,7 +722,7 @@ def test_app_detail_renders(test_admin_user):
                 mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/integrations/apps/loom_client_detail123")
+                response = client.get("/admin/integrations/apps/weft-id_client_detail123")
 
                 app.dependency_overrides.clear()
 
@@ -755,7 +755,7 @@ def test_app_detail_wrong_type_redirects(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_wrong",
+        "client_id": "weft-id_b2b_wrong",
         "client_type": "b2b",  # Wrong type
         "name": "B2B Client",
         "description": None,
@@ -769,7 +769,7 @@ def test_app_detail_wrong_type_redirects(test_admin_user):
         mock_get.return_value = mock_client
 
         client = TestClient(app)
-        response = client.get("/admin/integrations/apps/loom_b2b_wrong", follow_redirects=False)
+        response = client.get("/admin/integrations/apps/weft-id_b2b_wrong", follow_redirects=False)
 
         app.dependency_overrides.clear()
 
@@ -788,7 +788,7 @@ def test_app_edit_success(test_admin_user):
 
     mock_updated_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_edit123",
+        "client_id": "weft-id_client_edit123",
         "client_type": "normal",
         "name": "Updated Name",
         "description": "Updated desc",
@@ -803,7 +803,7 @@ def test_app_edit_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/apps/loom_client_edit123/edit",
+            "/admin/integrations/apps/weft-id_client_edit123/edit",
             data={
                 "name": "Updated Name",
                 "description": "Updated desc",
@@ -826,7 +826,7 @@ def test_app_edit_empty_name_returns_error(test_admin_user):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/loom_client_edit123/edit",
+        "/admin/integrations/apps/weft-id_client_edit123/edit",
         data={
             "name": "",
             "description": "",
@@ -848,7 +848,7 @@ def test_app_edit_empty_uris_returns_error(test_admin_user):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/apps/loom_client_edit123/edit",
+        "/admin/integrations/apps/weft-id_client_edit123/edit",
         data={
             "name": "Test",
             "description": "",
@@ -875,7 +875,7 @@ def test_app_regenerate_secret_success(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_client_regen123",
+        "client_id": "weft-id_client_regen123",
         "client_type": "normal",
         "name": "Regen App",
         "description": None,
@@ -892,7 +892,7 @@ def test_app_regenerate_secret_success(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/integrations/apps/loom_client_regen123/regenerate-secret",
+                "/admin/integrations/apps/weft-id_client_regen123/regenerate-secret",
                 data={"csrf_token": "test-token"},
                 follow_redirects=False,
             )
@@ -934,7 +934,7 @@ def test_app_deactivate_success(test_admin_user):
 
     mock_deactivated = {
         "id": str(uuid4()),
-        "client_id": "loom_client_deact123",
+        "client_id": "weft-id_client_deact123",
         "client_type": "normal",
         "name": "Deact App",
         "description": None,
@@ -949,7 +949,7 @@ def test_app_deactivate_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/apps/loom_client_deact123/deactivate",
+            "/admin/integrations/apps/weft-id_client_deact123/deactivate",
             data={"csrf_token": "test-token"},
             follow_redirects=False,
         )
@@ -966,7 +966,7 @@ def test_app_reactivate_success(test_admin_user):
 
     mock_reactivated = {
         "id": str(uuid4()),
-        "client_id": "loom_client_react123",
+        "client_id": "weft-id_client_react123",
         "client_type": "normal",
         "name": "React App",
         "description": None,
@@ -981,7 +981,7 @@ def test_app_reactivate_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/apps/loom_client_react123/reactivate",
+            "/admin/integrations/apps/weft-id_client_react123/reactivate",
             data={"csrf_token": "test-token"},
             follow_redirects=False,
         )
@@ -1003,7 +1003,7 @@ def test_b2b_detail_renders(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_detail123",
+        "client_id": "weft-id_b2b_detail123",
         "client_type": "b2b",
         "name": "Detail Test B2B",
         "description": "A B2B client",
@@ -1022,7 +1022,7 @@ def test_b2b_detail_renders(test_admin_user):
                 mock_tmpl.return_value = HTMLResponse(content="<html>b2b detail</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/integrations/b2b/loom_b2b_detail123")
+                response = client.get("/admin/integrations/b2b/weft-id_b2b_detail123")
 
                 app.dependency_overrides.clear()
 
@@ -1058,7 +1058,7 @@ def test_b2b_edit_success(test_admin_user):
 
     mock_updated = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_edit123",
+        "client_id": "weft-id_b2b_edit123",
         "client_type": "b2b",
         "name": "Updated B2B Name",
         "description": "Updated desc",
@@ -1073,7 +1073,7 @@ def test_b2b_edit_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/b2b/loom_b2b_edit123/edit",
+            "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
             data={
                 "name": "Updated B2B Name",
                 "description": "Updated desc",
@@ -1099,7 +1099,7 @@ def test_b2b_role_change_success(test_admin_user):
 
     mock_updated = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_role123",
+        "client_id": "weft-id_b2b_role123",
         "client_type": "b2b",
         "name": "Role Test B2B",
         "description": None,
@@ -1115,7 +1115,7 @@ def test_b2b_role_change_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/b2b/loom_b2b_role123/role",
+            "/admin/integrations/b2b/weft-id_b2b_role123/role",
             data={
                 "role": "super_admin",
                 "csrf_token": "test-token",
@@ -1135,7 +1135,7 @@ def test_b2b_role_change_invalid_role(test_admin_user):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/integrations/b2b/loom_b2b_role123/role",
+        "/admin/integrations/b2b/weft-id_b2b_role123/role",
         data={
             "role": "invalid_role",
             "csrf_token": "test-token",
@@ -1160,7 +1160,7 @@ def test_b2b_regenerate_secret_success(test_admin_user):
 
     mock_client = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_regen123",
+        "client_id": "weft-id_b2b_regen123",
         "client_type": "b2b",
         "name": "Regen B2B",
         "description": None,
@@ -1177,7 +1177,7 @@ def test_b2b_regenerate_secret_success(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                "/admin/integrations/b2b/loom_b2b_regen123/regenerate-secret",
+                "/admin/integrations/b2b/weft-id_b2b_regen123/regenerate-secret",
                 data={"csrf_token": "test-token"},
                 follow_redirects=False,
             )
@@ -1194,7 +1194,7 @@ def test_b2b_deactivate_success(test_admin_user):
 
     mock_deactivated = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_deact123",
+        "client_id": "weft-id_b2b_deact123",
         "client_type": "b2b",
         "name": "Deact B2B",
         "is_active": False,
@@ -1206,7 +1206,7 @@ def test_b2b_deactivate_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/b2b/loom_b2b_deact123/deactivate",
+            "/admin/integrations/b2b/weft-id_b2b_deact123/deactivate",
             data={"csrf_token": "test-token"},
             follow_redirects=False,
         )
@@ -1223,7 +1223,7 @@ def test_b2b_reactivate_success(test_admin_user):
 
     mock_reactivated = {
         "id": str(uuid4()),
-        "client_id": "loom_b2b_react123",
+        "client_id": "weft-id_b2b_react123",
         "client_type": "b2b",
         "name": "React B2B",
         "is_active": True,
@@ -1235,7 +1235,7 @@ def test_b2b_reactivate_success(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            "/admin/integrations/b2b/loom_b2b_react123/reactivate",
+            "/admin/integrations/b2b/weft-id_b2b_react123/reactivate",
             data={"csrf_token": "test-token"},
             follow_redirects=False,
         )

@@ -292,6 +292,144 @@ def get_b2b_client_by_service_user(tenant_id: TenantArg, user_id: str) -> dict |
     )
 
 
+def update_client(
+    tenant_id: TenantArg,
+    client_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    redirect_uris: list[str] | None = None,
+) -> dict | None:
+    """
+    Update an OAuth2 client's name, description, and/or redirect URIs.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier, e.g., "loom_client_abc123")
+        name: New client name (optional)
+        description: New description (optional)
+        redirect_uris: New redirect URIs for normal clients (optional)
+
+    Returns:
+        Updated client record, or None if not found
+    """
+    # Build dynamic update query based on provided fields
+    updates = []
+    params: dict = {"client_id": client_id}
+
+    if name is not None:
+        updates.append("name = :name")
+        params["name"] = name
+
+    if description is not None:
+        updates.append("description = :description")
+        params["description"] = description
+
+    if redirect_uris is not None:
+        updates.append("redirect_uris = :redirect_uris")
+        params["redirect_uris"] = redirect_uris
+
+    if not updates:
+        # No fields to update, just return current record
+        return get_client_by_client_id(tenant_id, client_id)
+
+    query = f"""
+        update oauth2_clients
+        set {", ".join(updates)}
+        where client_id = :client_id
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, created_at
+    """
+
+    return fetchone(tenant_id, query, params)
+
+
+def update_b2b_client_role(tenant_id: TenantArg, client_id: str, role: str) -> dict | None:
+    """
+    Update the service user role for a B2B OAuth2 client.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier)
+        role: New role ('member', 'admin', 'super_admin')
+
+    Returns:
+        Updated client record with service_role, or None if not found
+    """
+    # First get the client to find the service_user_id
+    client = get_client_by_client_id(tenant_id, client_id)
+    if not client or client["client_type"] != "b2b" or not client.get("service_user_id"):
+        return None
+
+    # Update the service user's role
+    execute(
+        tenant_id,
+        "update users set role = :role where id = :user_id",
+        {"role": role, "user_id": client["service_user_id"]},
+    )
+
+    # Return updated client with new role
+    return fetchone(
+        tenant_id,
+        """
+        select c.id, c.tenant_id, c.client_id, c.client_type, c.name,
+               c.description, c.redirect_uris, c.service_user_id,
+               c.is_active, c.created_at, u.role as service_role
+        from oauth2_clients c
+        left join users u on c.service_user_id = u.id
+        where c.client_id = :client_id
+        """,
+        {"client_id": client_id},
+    )
+
+
+def deactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
+    """
+    Deactivate an OAuth2 client (soft delete).
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier)
+
+    Returns:
+        Updated client record, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update oauth2_clients
+        set is_active = false
+        where client_id = :client_id
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, created_at
+        """,
+        {"client_id": client_id},
+    )
+
+
+def reactivate_client(tenant_id: TenantArg, client_id: str) -> dict | None:
+    """
+    Reactivate a deactivated OAuth2 client.
+
+    Args:
+        tenant_id: Tenant ID for scoping
+        client_id: Client ID (the TEXT identifier)
+
+    Returns:
+        Updated client record, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update oauth2_clients
+        set is_active = true
+        where client_id = :client_id
+        returning id, tenant_id, client_id, client_type, name, description,
+                  redirect_uris, service_user_id, is_active, created_at
+        """,
+        {"client_id": client_id},
+    )
+
+
 # ============================================================================
 # OAuth2 Authorization Code Operations
 # ============================================================================

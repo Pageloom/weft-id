@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from schemas.oauth2 import (
     B2BClientCreate,
     ClientResponse,
+    ClientRoleUpdate,
+    ClientUpdate,
     ClientWithSecret,
     NormalClientCreate,
 )
@@ -197,3 +199,158 @@ def regenerate_client_secret(
     # Return client with new secret
     client["client_secret"] = new_secret
     return _client_to_response(client, include_secret=True)
+
+
+@router.get("/{client_id}", response_model=ClientResponse)
+def get_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """
+    Get details for a single OAuth2 client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Returns:
+        Client details (without secret)
+    """
+    client = oauth2_service.get_client_by_client_id(tenant_id, client_id)
+
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    return _client_to_response(client)
+
+
+@router.patch("/{client_id}", response_model=ClientResponse)
+def update_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    client_data: ClientUpdate,
+):
+    """
+    Update an OAuth2 client's name, description, and/or redirect URIs.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Request Body:
+        name: New client name (optional)
+        description: New description (optional)
+        redirect_uris: New redirect URIs for normal clients (optional)
+
+    Returns:
+        Updated client details
+    """
+    try:
+        client = oauth2_service.update_client(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            actor_user_id=str(user["id"]),
+            name=client_data.name,
+            description=client_data.description,
+            redirect_uris=client_data.redirect_uris,
+        )
+
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+
+        return _client_to_response(client)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.patch("/{client_id}/role", response_model=ClientResponse)
+def update_client_role(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+    role_data: ClientRoleUpdate,
+):
+    """
+    Update the service user role for a B2B OAuth2 client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_b2b_abc123")
+
+    Request Body:
+        role: New role ('member', 'admin', 'super_admin')
+
+    Returns:
+        Updated client details
+    """
+    try:
+        client = oauth2_service.update_b2b_client_role(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            role=role_data.role,
+            actor_user_id=str(user["id"]),
+        )
+
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+
+        return _client_to_response(client)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{client_id}/deactivate", response_model=ClientResponse)
+def deactivate_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """
+    Deactivate an OAuth2 client (soft delete).
+
+    Deactivated clients cannot request new tokens. All existing tokens are revoked.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Returns:
+        Updated client details
+    """
+    client = oauth2_service.deactivate_client(tenant_id, client_id, str(user["id"]))
+
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    return _client_to_response(client)
+
+
+@router.post("/{client_id}/reactivate", response_model=ClientResponse)
+def reactivate_client(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(require_admin_api)],
+    client_id: str,
+):
+    """
+    Reactivate a deactivated OAuth2 client.
+
+    Requires admin role.
+
+    Path Parameters:
+        client_id: The client_id (e.g., "loom_client_abc123")
+
+    Returns:
+        Updated client details
+    """
+    client = oauth2_service.reactivate_client(tenant_id, client_id, str(user["id"]))
+
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    return _client_to_response(client)

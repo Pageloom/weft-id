@@ -674,3 +674,349 @@ def test_create_normal_client_no_stack_trace_on_error(
     # Should not have exception class names or stack traces
     assert "Exception" not in data["detail"]
     assert "Traceback" not in data["detail"]
+
+
+# =============================================================================
+# Get Single Client Tests
+# =============================================================================
+
+
+def test_get_client_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that an admin can get a single OAuth2 client."""
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["client_id"] == normal_oauth2_client["client_id"]
+    assert data["name"] == normal_oauth2_client["name"]
+    assert "client_secret" not in data  # No secret in response
+
+
+def test_get_client_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test getting a non-existent client returns 404."""
+    response = client.get(
+        "/api/v1/oauth2/clients/nonexistent_client_id",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_get_client_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    """Test that a regular member cannot get client details."""
+    response = client.get(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Update Client Tests
+# =============================================================================
+
+
+def test_update_client_name_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that an admin can update a client's name."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Updated Client Name"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Updated Client Name"
+    assert data["client_id"] == normal_oauth2_client["client_id"]
+
+
+def test_update_client_description_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that an admin can update a client's description."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"description": "New description"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["description"] == "New description"
+
+
+def test_update_client_redirect_uris_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that an admin can update a normal client's redirect URIs."""
+    new_uris = ["https://new.example.com/callback", "https://other.example.com/auth"]
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"redirect_uris": new_uris},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["redirect_uris"] == new_uris
+
+
+def test_update_b2b_client_redirect_uris_fails(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    """Test that updating redirect URIs on a B2B client fails."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"redirect_uris": ["https://example.com/callback"]},
+    )
+
+    assert response.status_code == 400
+    assert "redirect" in response.json()["detail"].lower()
+
+
+def test_update_client_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test updating a non-existent client returns 404."""
+    response = client.patch(
+        "/api/v1/oauth2/clients/nonexistent_client_id",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "New Name"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_update_client_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    """Test that a regular member cannot update OAuth2 clients."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"name": "Unauthorized Update"},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Update Client Role Tests (B2B only)
+# =============================================================================
+
+
+def test_update_b2b_client_role_as_admin(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    """Test that an admin can update a B2B client's service role."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["client_id"] == b2b_oauth2_client["client_id"]
+
+
+def test_update_normal_client_role_fails(
+    client, test_tenant_host, oauth2_admin_authorization_header, normal_oauth2_client
+):
+    """Test that updating role on a normal client fails."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/role",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 400
+    assert "b2b" in response.json()["detail"].lower()
+
+
+def test_update_client_role_invalid_role(
+    client, test_tenant_host, oauth2_admin_authorization_header, b2b_oauth2_client
+):
+    """Test that invalid role values are rejected."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"role": "superuser"},  # Invalid role
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_client_role_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, b2b_oauth2_client
+):
+    """Test that a regular member cannot update B2B client roles."""
+    response = client.patch(
+        f"/api/v1/oauth2/clients/{b2b_oauth2_client['client_id']}/role",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"role": "admin"},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Deactivate Client Tests
+# =============================================================================
+
+
+def test_deactivate_client_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test that an admin can deactivate an OAuth2 client."""
+    # Create a client to deactivate
+    create_response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Client To Deactivate",
+            "redirect_uris": ["https://example.com/callback"],
+        },
+    )
+    created_client = create_response.json()
+    assert created_client["is_active"] is True
+
+    # Deactivate it
+    response = client.post(
+        f"/api/v1/oauth2/clients/{created_client['client_id']}/deactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_active"] is False
+    assert data["client_id"] == created_client["client_id"]
+
+
+def test_deactivate_client_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test deactivating a non-existent client returns 404."""
+    response = client.post(
+        "/api/v1/oauth2/clients/nonexistent_client_id/deactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 404
+
+
+def test_deactivate_client_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    """Test that a regular member cannot deactivate OAuth2 clients."""
+    response = client.post(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/deactivate",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Reactivate Client Tests
+# =============================================================================
+
+
+def test_reactivate_client_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test that an admin can reactivate a deactivated OAuth2 client."""
+    # Create and deactivate a client
+    create_response = client.post(
+        "/api/v1/oauth2/clients",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={
+            "name": "Client To Reactivate",
+            "redirect_uris": ["https://example.com/callback"],
+        },
+    )
+    created_client = create_response.json()
+
+    client.post(
+        f"/api/v1/oauth2/clients/{created_client['client_id']}/deactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    # Reactivate it
+    response = client.post(
+        f"/api/v1/oauth2/clients/{created_client['client_id']}/reactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_active"] is True
+    assert data["client_id"] == created_client["client_id"]
+
+
+def test_reactivate_client_not_found(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Test reactivating a non-existent client returns 404."""
+    response = client.post(
+        "/api/v1/oauth2/clients/nonexistent_client_id/reactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 404
+
+
+def test_reactivate_client_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, normal_oauth2_client
+):
+    """Test that a regular member cannot reactivate OAuth2 clients."""
+    response = client.post(
+        f"/api/v1/oauth2/clients/{normal_oauth2_client['client_id']}/reactivate",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+# =============================================================================
+# Deactivated Client Token Validation Tests
+# =============================================================================
+
+
+def test_deactivated_client_cannot_get_token(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Test that a deactivated B2B client cannot get access tokens."""
+    # Create a B2B client
+    create_response = client.post(
+        "/api/v1/oauth2/clients/b2b",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"name": "Deactivate Token Test", "role": "member"},
+    )
+    created_client = create_response.json()
+    client_id = created_client["client_id"]
+    client_secret = created_client["client_secret"]
+
+    # Deactivate the client
+    client.post(
+        f"/api/v1/oauth2/clients/{client_id}/deactivate",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    # Try to get a token using client credentials
+    token_response = client.post(
+        "/oauth2/token",
+        headers={"Host": test_tenant_host},
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+    )
+
+    assert token_response.status_code == 400
+    data = token_response.json()
+    assert data["detail"]["error"] == "invalid_client"
+    assert "deactivated" in data["detail"]["error_description"].lower()

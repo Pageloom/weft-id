@@ -106,9 +106,7 @@ def extract_routes_from_file(file_path: Path) -> list[dict]:
                             "delete",
                         ):
                             method = decorator.func.attr
-                            if decorator.args and isinstance(
-                                decorator.args[0], ast.Constant
-                            ):
+                            if decorator.args and isinstance(decorator.args[0], ast.Constant):
                                 path = decorator.args[0].value
 
                 # @router.post (without parentheses - rare but possible)

@@ -4,6 +4,59 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Admin Navigation Reorganization
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want the admin section organized into logical groupings
+So that navigation is less cluttered and related functions are grouped together
+
+**Completed Work:**
+
+**Navigation Structure:**
+
+- [x] Settings section containing:
+  - Security (super_admin only)
+  - Privileged Domains (admin)
+  - Identity Providers (super_admin only)
+- [x] Todo section containing:
+  - Reactivation (admin)
+- [x] Audit section containing:
+  - Event Log (admin)
+- [x] Integrations section containing:
+  - Apps (admin)
+  - B2B (admin)
+
+**URL Changes (no redirects needed):**
+
+- [x] `/admin/security` → `/admin/settings/security`
+- [x] `/admin/privileged-domains` → `/admin/settings/privileged-domains`
+- [x] `/admin/identity-providers/*` → `/admin/settings/identity-providers/*`
+- [x] `/admin/events` → `/admin/audit/events`
+- [x] `/admin/events/{id}` → `/admin/audit/events/{id}`
+- [x] `/admin/reactivation-requests` → `/admin/todo/reactivation`
+- [x] `/admin/reactivation-requests/history` → `/admin/todo/reactivation/history`
+- [x] `/admin/integrations/*` → unchanged (already under `/admin/integrations/`)
+
+**Technical Implementation:**
+
+- Updated `app/pages.py` with new nested hierarchy structure (4 sections)
+- Updated `get_first_accessible_child()` to recursively find leaf pages in nested sections
+- Updated router paths in:
+  - `app/routers/settings.py` (prefix changed to `/admin/settings`)
+  - `app/routers/admin.py` (events to `/audit/events`, reactivation to `/todo/reactivation`)
+  - `app/routers/saml.py` (all paths to `/admin/settings/identity-providers`)
+- Updated 10 templates with hardcoded paths
+- Updated 7 test files with new URL paths
+- All 1988 tests pass
+
+**Effort:** M
+**Value:** High (UX improvement for admins)
+
+---
+
 ## Integration Management Frontend - Phase 2: Edit, Regenerate & Deactivate
 
 **Status:** Complete

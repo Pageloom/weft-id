@@ -17,7 +17,7 @@ def test_admin_index_redirects_to_events(test_admin_user):
     app.dependency_overrides[get_current_user] = lambda: test_admin_user
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/events"
+        mock_first_child.return_value = "/admin/audit/events"
 
         client = TestClient(app)
         response = client.get("/admin/", follow_redirects=False)
@@ -25,7 +25,7 @@ def test_admin_index_redirects_to_events(test_admin_user):
         app.dependency_overrides.clear()
 
         assert response.status_code == 303
-        assert response.headers["location"] == "/admin/events"
+        assert response.headers["location"] == "/admin/audit/events"
 
 
 def test_admin_index_fallback_to_dashboard(test_admin_user):
@@ -72,7 +72,7 @@ def test_event_log_list_renders(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>events</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/events")
+                response = client.get("/admin/audit/events")
 
                 app.dependency_overrides.clear()
 
@@ -103,7 +103,7 @@ def test_event_log_list_with_pagination(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>events</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/events?page=2&size=25")
+                response = client.get("/admin/audit/events?page=2&size=25")
 
                 app.dependency_overrides.clear()
 
@@ -144,7 +144,7 @@ def test_event_log_detail_renders(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>event</html>")
 
                 client = TestClient(app)
-                response = client.get(f"/admin/events/{event_id}")
+                response = client.get(f"/admin/audit/events/{event_id}")
 
                 app.dependency_overrides.clear()
 
@@ -164,7 +164,7 @@ def test_event_log_detail_not_found_redirects(test_admin_user):
         mock_get.side_effect = NotFoundError(message="Not found", code="event_not_found")
 
         client = TestClient(app)
-        response = client.get(f"/admin/events/{uuid4()}", follow_redirects=False)
+        response = client.get(f"/admin/audit/events/{uuid4()}", follow_redirects=False)
 
         app.dependency_overrides.clear()
 
@@ -184,7 +184,7 @@ def test_trigger_export_creates_task(test_admin_user):
         mock_create.return_value = {"id": str(uuid4())}
 
         client = TestClient(app)
-        response = client.post("/admin/events/export", follow_redirects=False)
+        response = client.post("/admin/audit/events/export", follow_redirects=False)
 
         app.dependency_overrides.clear()
 
@@ -213,7 +213,7 @@ def test_admin_routes_require_admin_role(test_user):
     app.dependency_overrides[require_admin] = mock_require_admin
 
     client = TestClient(app, raise_server_exceptions=False)
-    response = client.get("/admin/events")
+    response = client.get("/admin/audit/events")
 
     app.dependency_overrides.clear()
 
@@ -243,7 +243,7 @@ def test_reactivation_requests_list_admin(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/reactivation-requests")
+                response = client.get("/admin/todo/reactivation")
 
                 app.dependency_overrides.clear()
 
@@ -265,7 +265,7 @@ def test_reactivation_requests_list_member_forbidden(test_user):
     app.dependency_overrides[require_admin] = mock_require_admin
 
     client = TestClient(app, raise_server_exceptions=False)
-    response = client.get("/admin/reactivation-requests")
+    response = client.get("/admin/todo/reactivation")
 
     app.dependency_overrides.clear()
 
@@ -289,7 +289,7 @@ def test_reactivation_requests_list_success_message(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/reactivation-requests?success=approved")
+                response = client.get("/admin/todo/reactivation?success=approved")
 
                 app.dependency_overrides.clear()
 
@@ -317,7 +317,7 @@ def test_reactivation_requests_list_error_message(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/reactivation-requests?error=request_not_found")
+                response = client.get("/admin/todo/reactivation?error=request_not_found")
 
                 app.dependency_overrides.clear()
 
@@ -345,7 +345,7 @@ def test_reactivation_history_admin(test_admin_user):
                 mock_template.return_value = HTMLResponse(content="<html>history</html>")
 
                 client = TestClient(app)
-                response = client.get("/admin/reactivation-requests/history")
+                response = client.get("/admin/todo/reactivation/history")
 
                 app.dependency_overrides.clear()
 
@@ -367,7 +367,7 @@ def test_reactivation_history_member_forbidden(test_user):
     app.dependency_overrides[require_admin] = mock_require_admin
 
     client = TestClient(app, raise_server_exceptions=False)
-    response = client.get("/admin/reactivation-requests/history")
+    response = client.get("/admin/todo/reactivation/history")
 
     app.dependency_overrides.clear()
 
@@ -403,7 +403,7 @@ def test_approve_request_success(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                f"/admin/reactivation-requests/{request_id}/approve",
+                f"/admin/todo/reactivation/{request_id}/approve",
                 follow_redirects=False,
             )
 
@@ -431,7 +431,7 @@ def test_approve_request_not_found(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            f"/admin/reactivation-requests/{request_id}/approve",
+            f"/admin/todo/reactivation/{request_id}/approve",
             follow_redirects=False,
         )
 
@@ -459,7 +459,7 @@ def test_approve_request_already_decided(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            f"/admin/reactivation-requests/{request_id}/approve",
+            f"/admin/todo/reactivation/{request_id}/approve",
             follow_redirects=False,
         )
 
@@ -499,7 +499,7 @@ def test_approve_request_sends_email(test_admin_user):
 
             client = TestClient(app)
             client.post(
-                f"/admin/reactivation-requests/{request_id}/approve",
+                f"/admin/todo/reactivation/{request_id}/approve",
                 follow_redirects=False,
             )
 
@@ -539,7 +539,7 @@ def test_deny_request_success(test_admin_user):
 
             client = TestClient(app)
             response = client.post(
-                f"/admin/reactivation-requests/{request_id}/deny",
+                f"/admin/todo/reactivation/{request_id}/deny",
                 follow_redirects=False,
             )
 
@@ -565,7 +565,7 @@ def test_deny_request_not_found(test_admin_user):
 
         client = TestClient(app)
         response = client.post(
-            f"/admin/reactivation-requests/{request_id}/deny",
+            f"/admin/todo/reactivation/{request_id}/deny",
             follow_redirects=False,
         )
 
@@ -605,7 +605,7 @@ def test_deny_request_sends_email(test_admin_user):
 
             client = TestClient(app)
             client.post(
-                f"/admin/reactivation-requests/{request_id}/deny",
+                f"/admin/todo/reactivation/{request_id}/deny",
                 follow_redirects=False,
             )
 

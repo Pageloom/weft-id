@@ -27,7 +27,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="/admin/security/update">
+        <form method="post" action="/admin/settings/security/update">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Session Configuration</h2>

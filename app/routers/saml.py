@@ -553,7 +553,7 @@ def saml_select_idp(
 
 
 @router.get(
-    "/admin/identity-providers",
+    "/admin/settings/identity-providers",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -603,7 +603,7 @@ def list_idps(
 
 
 @router.get(
-    "/admin/identity-providers/new",
+    "/admin/settings/identity-providers/new",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -623,7 +623,7 @@ def new_idp_form(
 
 
 @router.post(
-    "/admin/identity-providers/new",
+    "/admin/settings/identity-providers/new",
     dependencies=[Depends(require_super_admin)],
 )
 def create_idp(
@@ -672,20 +672,22 @@ def create_idp(
         saml_service.create_identity_provider(requesting_user, data, base_url)
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={e.message}",
+            url=f"/admin/settings/identity-providers/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={str(e)}",
+            url=f"/admin/settings/identity-providers/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=created", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=created", status_code=303
+    )
 
 
 @router.post(
-    "/admin/identity-providers/import-metadata",
+    "/admin/settings/identity-providers/import-metadata",
     dependencies=[Depends(require_super_admin)],
 )
 def import_from_metadata(
@@ -706,20 +708,22 @@ def import_from_metadata(
         )
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={e.message}",
+            url=f"/admin/settings/identity-providers/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={str(e)}",
+            url=f"/admin/settings/identity-providers/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=created", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=created", status_code=303
+    )
 
 
 @router.post(
-    "/admin/identity-providers/import-metadata-xml",
+    "/admin/settings/identity-providers/import-metadata-xml",
     dependencies=[Depends(require_super_admin)],
 )
 def import_from_metadata_xml(
@@ -740,16 +744,18 @@ def import_from_metadata_xml(
         )
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={e.message}",
+            url=f"/admin/settings/identity-providers/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/new?error={str(e)}",
+            url=f"/admin/settings/identity-providers/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=created", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=created", status_code=303
+    )
 
 
 # NOTE: Literal routes must be defined BEFORE parameterized routes like {idp_id}
@@ -757,7 +763,7 @@ def import_from_metadata_xml(
 
 
 @router.post(
-    "/admin/identity-providers/rotate-certificate",
+    "/admin/settings/identity-providers/rotate-certificate",
     dependencies=[Depends(require_super_admin)],
 )
 def rotate_certificate(
@@ -772,20 +778,22 @@ def rotate_certificate(
         saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/identity-providers?error=No+SP+certificate+exists+to+rotate",
+            url="/admin/settings/identity-providers?error=No+SP+certificate+exists+to+rotate",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
+            url=f"/admin/settings/identity-providers?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=rotated", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=rotated", status_code=303
+    )
 
 
 @router.get(
-    "/admin/identity-providers/debug",
+    "/admin/settings/identity-providers/debug",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -811,7 +819,7 @@ def saml_debug_list(
 
 
 @router.get(
-    "/admin/identity-providers/{idp_id}",
+    "/admin/settings/identity-providers/{idp_id}",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -834,10 +842,12 @@ def edit_idp_form(
         unbound_domains = saml_service.get_unbound_domains(requesting_user)
 
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
+            url=f"/admin/settings/identity-providers?error={str(e)}",
             status_code=303,
         )
 
@@ -861,7 +871,7 @@ def edit_idp_form(
 
 
 @router.get(
-    "/admin/identity-providers/{idp_id}/test",
+    "/admin/settings/identity-providers/{idp_id}/test",
     dependencies=[Depends(require_super_admin)],
 )
 def test_idp_connection(
@@ -925,7 +935,7 @@ def test_idp_connection(
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}",
+    "/admin/settings/identity-providers/{idp_id}",
     dependencies=[Depends(require_super_admin)],
 )
 def update_idp(
@@ -975,20 +985,22 @@ def update_idp(
             saml_service.set_idp_default(requesting_user, idp_id)
 
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url=f"/admin/identity-providers/{idp_id}?success=updated", status_code=303
+        url=f"/admin/settings/identity-providers/{idp_id}?success=updated", status_code=303
     )
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/toggle",
+    "/admin/settings/identity-providers/{idp_id}/toggle",
     dependencies=[Depends(require_super_admin)],
 )
 def toggle_idp(
@@ -1004,19 +1016,23 @@ def toggle_idp(
         idp = saml_service.get_identity_provider(requesting_user, idp_id)
         saml_service.set_idp_enabled(requesting_user, idp_id, not idp.is_enabled)
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
+            url=f"/admin/settings/identity-providers?error={str(e)}",
             status_code=303,
         )
 
     success = "enabled" if not idp.is_enabled else "disabled"
-    return RedirectResponse(url=f"/admin/identity-providers?success={success}", status_code=303)
+    return RedirectResponse(
+        url=f"/admin/settings/identity-providers?success={success}", status_code=303
+    )
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/set-default",
+    "/admin/settings/identity-providers/{idp_id}/set-default",
     dependencies=[Depends(require_super_admin)],
 )
 def set_default_idp(
@@ -1031,18 +1047,22 @@ def set_default_idp(
     try:
         saml_service.set_idp_default(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
+            url=f"/admin/settings/identity-providers?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=set_default", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=set_default", status_code=303
+    )
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/refresh-metadata",
+    "/admin/settings/identity-providers/{idp_id}/refresh-metadata",
     dependencies=[Depends(require_super_admin)],
 )
 def refresh_idp_metadata(
@@ -1057,23 +1077,27 @@ def refresh_idp_metadata(
     try:
         saml_service.refresh_idp_from_metadata(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={e.message}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=refreshed", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=refreshed", status_code=303
+    )
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/delete",
+    "/admin/settings/identity-providers/{idp_id}/delete",
     dependencies=[Depends(require_super_admin)],
 )
 def delete_idp(
@@ -1088,14 +1112,18 @@ def delete_idp(
     try:
         saml_service.delete_identity_provider(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(url="/admin/identity-providers?error=not_found", status_code=303)
+        return RedirectResponse(
+            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers?error={str(e)}",
+            url=f"/admin/settings/identity-providers?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(url="/admin/identity-providers?success=deleted", status_code=303)
+    return RedirectResponse(
+        url="/admin/settings/identity-providers?success=deleted", status_code=303
+    )
 
 
 # ============================================================================
@@ -1104,7 +1132,7 @@ def delete_idp(
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/bind-domain",
+    "/admin/settings/identity-providers/{idp_id}/bind-domain",
     dependencies=[Depends(require_super_admin)],
 )
 def bind_domain(
@@ -1121,23 +1149,23 @@ def bind_domain(
         saml_service.bind_domain_to_idp(requesting_user, idp_id, domain_id)
     except NotFoundError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url=f"/admin/identity-providers/{idp_id}?success=domain_bound",
+        url=f"/admin/settings/identity-providers/{idp_id}?success=domain_bound",
         status_code=303,
     )
 
 
 @router.post(
-    "/admin/identity-providers/{idp_id}/unbind-domain/{domain_id}",
+    "/admin/settings/identity-providers/{idp_id}/unbind-domain/{domain_id}",
     dependencies=[Depends(require_super_admin)],
 )
 def unbind_domain(
@@ -1154,30 +1182,30 @@ def unbind_domain(
         saml_service.unbind_domain_from_idp(requesting_user, domain_id)
     except NotFoundError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url=f"/admin/identity-providers/{idp_id}?success=domain_unbound",
+        url=f"/admin/settings/identity-providers/{idp_id}?success=domain_unbound",
         status_code=303,
     )
 
 
 # ============================================================================
 # SAML Debug Detail Route (Phase 4)
-# NOTE: The /admin/identity-providers/debug list route is defined earlier in
+# NOTE: The /admin/settings/identity-providers/debug list route is defined earlier in
 # this file (before {idp_id} routes) due to FastAPI route ordering requirements
 # ============================================================================
 
 
 @router.get(
-    "/admin/identity-providers/debug/{entry_id}",
+    "/admin/settings/identity-providers/debug/{entry_id}",
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
@@ -1194,7 +1222,7 @@ def saml_debug_detail(
         entry = saml_service.get_saml_debug_entry(requesting_user, entry_id)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/identity-providers/debug?error=entry_not_found",
+            url="/admin/settings/identity-providers/debug?error=entry_not_found",
             status_code=303,
         )
 

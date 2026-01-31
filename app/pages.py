@@ -142,7 +142,7 @@ PAGES = [
             ),
         ],
     ),
-    # Admin menu (merged Settings + Admin)
+    # Admin menu - organized into Settings, Todo, Audit, Integrations
     Page(
         path="/admin",
         title="Admin",
@@ -150,59 +150,98 @@ PAGES = [
         icon="shield",
         show_in_nav=True,
         children=[
+            # Settings section: Security, Privileged Domains, Identity Providers
             Page(
-                path="/admin/security",
-                title="Security",
-                permission=PagePermission.SUPER_ADMIN,
-                show_in_nav=True,
-            ),
-            Page(
-                path="/admin/privileged-domains",
-                title="Privileged Domains",
+                path="/admin/settings",
+                title="Settings",
                 permission=PagePermission.ADMIN,
-                show_in_nav=True,
-            ),
-            Page(
-                path="/admin/events",
-                title="Event Log",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-            ),
-            Page(
-                path="/admin/events/detail",
-                title="Event Details",
-                permission=PagePermission.ADMIN,
-                show_in_nav=False,
-                creates_nav_level=False,
-            ),
-            Page(
-                path="/admin/reactivation-requests",
-                title="Reactivation Requests",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-            ),
-            Page(
-                path="/admin/identity-providers",
-                title="Identity Providers",
-                permission=PagePermission.SUPER_ADMIN,
                 show_in_nav=True,
                 children=[
                     Page(
-                        path="/admin/identity-providers/new",
-                        title="Add Identity Provider",
+                        path="/admin/settings/security",
+                        title="Security",
                         permission=PagePermission.SUPER_ADMIN,
-                        show_in_nav=False,
-                        creates_nav_level=False,
+                        show_in_nav=True,
                     ),
                     Page(
-                        path="/admin/identity-providers/idp",
-                        title="Identity Provider Details",
+                        path="/admin/settings/privileged-domains",
+                        title="Privileged Domains",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
+                        path="/admin/settings/identity-providers",
+                        title="Identity Providers",
                         permission=PagePermission.SUPER_ADMIN,
-                        show_in_nav=False,
-                        creates_nav_level=False,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/settings/identity-providers/new",
+                                title="Add Identity Provider",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/settings/identity-providers/idp",
+                                title="Identity Provider Details",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
                     ),
                 ],
             ),
+            # Todo section: Reactivation Requests
+            Page(
+                path="/admin/todo",
+                title="Todo",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/todo/reactivation",
+                        title="Reactivation",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/todo/reactivation/history",
+                                title="Reactivation History",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            # Audit section: Event Log
+            Page(
+                path="/admin/audit",
+                title="Audit",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/audit/events",
+                        title="Event Log",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/audit/events/detail",
+                                title="Event Details",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            # Integrations section: Apps, B2B
             Page(
                 path="/admin/integrations",
                 title="Integrations",
@@ -427,7 +466,13 @@ def has_page_access(path: str, user_role: str | None) -> bool:
 
 
 def get_first_accessible_child(path: str, user_role: str | None = None) -> str | None:
-    """Get the first accessible child page for a given parent path."""
+    """Get the first accessible child page for a given parent path.
+
+    If the child is a section container (has children with show_in_nav=True),
+    recursively find the first accessible leaf page within that section.
+    If the child has children but none are navigable (all show_in_nav=False),
+    the child itself is a valid destination page.
+    """
     page = get_page_by_path(path)
 
     if not page or not page.children:
@@ -436,6 +481,20 @@ def get_first_accessible_child(path: str, user_role: str | None = None) -> str |
     # Find first child that user has permission to access and is shown in nav
     for child in page.children:
         if child.show_in_nav and has_permission(child, user_role):
+            # Check if this child has navigable children (show_in_nav=True)
+            if child.children:
+                # Only recurse if there are navigable children
+                has_navigable_children = any(
+                    c.show_in_nav and has_permission(c, user_role) for c in child.children
+                )
+                if has_navigable_children:
+                    nested_child = get_first_accessible_child(child.path, user_role)
+                    if nested_child:
+                        return nested_child
+                    # Shouldn't happen if has_navigable_children is true, but fallback
+                    continue
+            # Either no children, or children are all non-navigable (show_in_nav=False)
+            # This page itself is the destination
             return child.path
 
     return None

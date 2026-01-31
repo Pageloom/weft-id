@@ -48,6 +48,7 @@ def _build_csp_with_nonce(nonce: str) -> str:
         "form-action 'self'"
     )
 
+
 # X-Frame-Options: Prevent the page from being embedded in frames
 DEFAULT_X_FRAME_OPTIONS = "DENY"
 

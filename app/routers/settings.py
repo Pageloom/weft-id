@@ -22,7 +22,7 @@ from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
 router = APIRouter(
-    prefix="/admin",
+    prefix="/admin/settings",
     tags=["admin-settings"],
     dependencies=[Depends(require_admin)],  # All routes require admin role
     include_in_schema=False,
@@ -36,9 +36,9 @@ def admin_settings_index(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Redirect to the first accessible admin page."""
+    """Redirect to the first accessible settings page."""
     # Get first accessible child page
-    first_child = get_first_accessible_child("/admin", user.get("role"))
+    first_child = get_first_accessible_child("/admin/settings", user.get("role"))
 
     if first_child:
         return RedirectResponse(url=first_child, status_code=303)
@@ -97,7 +97,7 @@ def add_privileged_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/admin/privileged-domains", status_code=303)
+    return RedirectResponse(url="/admin/settings/privileged-domains", status_code=303)
 
 
 @router.post("/privileged-domains/delete/{domain_id}")
@@ -115,7 +115,7 @@ def delete_privileged_domain(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/admin/privileged-domains", status_code=303)
+    return RedirectResponse(url="/admin/settings/privileged-domains", status_code=303)
 
 
 @router.post(
@@ -142,7 +142,7 @@ def bind_domain_to_idp(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/privileged-domains?success=domain_bound",
+        url="/admin/settings/privileged-domains?success=domain_bound",
         status_code=303,
     )
 
@@ -169,7 +169,7 @@ def unbind_domain_from_idp(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url="/admin/privileged-domains?success=domain_unbound",
+        url="/admin/settings/privileged-domains?success=domain_unbound",
         status_code=303,
     )
 
@@ -285,4 +285,4 @@ def update_admin_security(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/admin/security?success=1", status_code=303)
+    return RedirectResponse(url="/admin/settings/security?success=1", status_code=303)

@@ -18,18 +18,18 @@ REFRESH_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_REFRESH_TOKEN_EXPIRY)
 CLIENT_CREDENTIALS_TOKEN_EXPIRY = timedelta(seconds=settings.OAUTH2_CLIENT_CREDENTIALS_TOKEN_EXPIRY)
 
 
-def generate_opaque_token(prefix: str = "loom") -> str:
+def generate_opaque_token(prefix: str = "weft-id") -> str:
     """
     Generate a cryptographically secure random opaque token.
 
     Args:
-        prefix: Optional prefix for the token (default: "loom")
+        prefix: Optional prefix for the token (default: "weft-id")
 
     Returns:
         Opaque token string in format "{prefix}_{random_hex}"
 
     Example:
-        "loom_3a7f8b2c1d4e5f6a7b8c9d0e1f2a3b4c"
+        "weft-id_3a7f8b2c1d4e5f6a7b8c9d0e1f2a3b4c"
     """
     random_bytes = secrets.token_bytes(32)  # 256 bits of entropy
     random_hex = random_bytes.hex()
@@ -104,18 +104,18 @@ def verify_pkce_challenge(code_verifier: str, code_challenge: str, method: str) 
         return False
 
 
-def generate_client_id(prefix: str = "loom_client") -> str:
+def generate_client_id(prefix: str = "weft-id_client") -> str:
     """
     Generate a unique client ID for OAuth2 client registration.
 
     Args:
-        prefix: Prefix for client ID (default: "loom_client")
+        prefix: Prefix for client ID (default: "weft-id_client")
 
     Returns:
         Client ID string in format "{prefix}_{random_hex}"
 
     Example:
-        "loom_client_a1b2c3d4e5f6"
+        "weft-id_client_a1b2c3d4e5f6"
     """
     random_bytes = secrets.token_bytes(12)  # 96 bits
     random_hex = random_bytes.hex()

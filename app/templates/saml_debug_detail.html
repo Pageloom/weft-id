@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}SAML Debug Entry - Loom{% endblock %}
+{% block title %}SAML Debug Entry - WeftId{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl">
@@ -88,7 +88,7 @@
             <h3 class="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Troubleshooting Tips</h3>
             <ul class="text-sm text-blue-700 dark:text-blue-300 list-disc list-inside space-y-1">
                 {% if entry.error_type == 'signature_error' %}
-                <li>Verify the IdP certificate is correctly configured in Loom</li>
+                <li>Verify the IdP certificate is correctly configured in WeftId</li>
                 <li>Check if the IdP certificate has been rotated recently</li>
                 <li>Ensure the certificate format is correct (PEM format, no extra whitespace)</li>
                 {% elif entry.error_type == 'expired' %}
@@ -96,20 +96,20 @@
                 <li>Check that the server time is synchronized (NTP)</li>
                 <li>The IdP may have a short assertion validity period</li>
                 {% elif entry.error_type == 'user_not_found' %}
-                <li>The user's email from the SAML assertion does not match any user in Loom</li>
+                <li>The user's email from the SAML assertion does not match any user in WeftId</li>
                 <li>Enable Just-in-Time (JIT) provisioning to auto-create users</li>
                 <li>Verify the attribute mapping for email is correct</li>
                 {% elif entry.error_type == 'idp_not_found' %}
                 <li>The SAML response came from an unrecognized IdP</li>
                 <li>Verify the IdP Entity ID matches the configuration</li>
-                <li>The IdP may not be enabled in Loom</li>
+                <li>The IdP may not be enabled in WeftId</li>
                 {% elif entry.error_type == 'invalid_response' %}
                 <li>The SAML response could not be parsed or validated</li>
                 <li>Check that the ACS URL is correctly configured in the IdP</li>
                 <li>Verify there are no encoding issues with the response</li>
                 {% else %}
                 <li>Review the error detail above for specific guidance</li>
-                <li>Check the IdP configuration matches the settings in Loom</li>
+                <li>Check the IdP configuration matches the settings in WeftId</li>
                 <li>Verify certificates and endpoints are correctly configured</li>
                 {% endif %}
             </ul>

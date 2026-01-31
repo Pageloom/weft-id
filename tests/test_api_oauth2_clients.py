@@ -178,7 +178,7 @@ def test_create_b2b_client_as_admin(client, test_tenant_host, oauth2_admin_autho
     assert data["service_user_id"] is not None  # Service user created
     assert "client_id" in data
     assert "client_secret" in data
-    assert data["client_id"].startswith("loom_b2b_")  # B2B prefix
+    assert data["client_id"].startswith("weft-id_b2b_")  # B2B prefix
 
 
 def test_create_b2b_client_with_admin_role(

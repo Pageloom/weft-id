@@ -316,7 +316,7 @@ def delete_client(tenant_id: str, client_id: str, actor_user_id: str) -> int:
 
     Args:
         tenant_id: Tenant ID
-        client_id: The client_id string (e.g., "loom_client_abc123")
+        client_id: The client_id string (e.g., "weft-id_client_abc123")
         actor_user_id: User ID performing the deletion
 
     Returns:
@@ -385,7 +385,7 @@ def update_client(
 
     Args:
         tenant_id: Tenant ID
-        client_id: The client_id string (e.g., "loom_client_abc123")
+        client_id: The client_id string (e.g., "weft-id_client_abc123")
         actor_user_id: User ID performing the update
         name: New client name (optional)
         description: New description (optional)

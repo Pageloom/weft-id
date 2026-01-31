@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Security Settings - Loom{% endblock %}
+{% block title %}Security Settings - WeftId{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl">
@@ -30,7 +30,7 @@
         <form method="post" action="/admin/security/update">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <h2 class="text-lg font-medium mb-4">Session Configuration</h2>
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Session Configuration</h2>
                 <div class="mb-6">
                     <label for="session_timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Maximum Session Length
@@ -81,7 +81,7 @@
             </div>
 
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
-                <h2 class="text-lg font-medium mb-4">Automatic Inactivation</h2>
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Automatic Inactivation</h2>
                 <div class="mb-6">
                     <label for="inactivity_threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Inactivate users after period of inactivity
@@ -106,7 +106,7 @@
             </div>
 
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
-                <h2 class="text-lg font-medium mb-4">User Permissions</h2>
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">User Permissions</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.
                 </p>

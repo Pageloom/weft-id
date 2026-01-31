@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ client.name }} - B2B - Integrations - Loom{% endblock %}
+{% block title %}{{ client.name }} - B2B - Integrations - WeftId{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl">
@@ -134,7 +134,7 @@
 
             <div class="space-y-4">
                 <!-- Regenerate Secret -->
-                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret will be immediately invalidated.</p>
@@ -146,7 +146,7 @@
                 </div>
 
                 <!-- Deactivate/Reactivate -->
-                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
                     {% if client.is_active %}
                     <div>
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Deactivate B2B Client</h3>

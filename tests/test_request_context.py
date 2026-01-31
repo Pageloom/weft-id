@@ -50,13 +50,13 @@ class TestApiClientContext:
     def test_set_and_get_api_client_context(self):
         """Should be able to set and retrieve API client context."""
         set_api_client_context(
-            client_id="loom_client_abc123",
+            client_id="weft-id_client_abc123",
             client_name="Test App",
             client_type="normal",
         )
         context = get_api_client_context()
         assert context is not None
-        assert context["client_id"] == "loom_client_abc123"
+        assert context["client_id"] == "weft-id_client_abc123"
         assert context["client_name"] == "Test App"
         assert context["client_type"] == "normal"
         clear_api_client_context()

@@ -6,6 +6,59 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Admin Navigation Reorganization
+
+**User Story:**
+As an admin
+I want the admin section organized into logical groupings
+So that navigation is less cluttered and related functions are grouped together
+
+**Acceptance Criteria:**
+
+**Navigation Structure:**
+
+- [ ] Security section containing:
+  - Settings (current security page)
+  - Privileged Domains
+- [ ] Audit section containing:
+  - Event Log
+- [ ] Todo section containing:
+  - Reactivation
+- [ ] Integration section containing:
+  - Identity Providers
+  - Apps
+  - B2B
+
+**URL Changes (no redirects needed):**
+
+- [ ] `/admin/security` → `/admin/security/settings`
+- [ ] `/admin/privileged-domains` → `/admin/security/privileged-domains`
+- [ ] `/admin/events` → `/admin/audit/events`
+- [ ] `/admin/events/{id}` → `/admin/audit/events/{id}`
+- [ ] `/admin/reactivation-requests` → `/admin/todo/reactivation`
+- [ ] `/admin/identity-providers` → `/admin/integration/identity-providers`
+- [ ] `/admin/identity-providers/*` → `/admin/integration/identity-providers/*`
+- [ ] `/admin/integrations/apps` → `/admin/integration/apps`
+- [ ] `/admin/integrations/apps/*` → `/admin/integration/apps/*`
+- [ ] `/admin/integrations/b2b` → `/admin/integration/b2b`
+- [ ] `/admin/integrations/b2b/*` → `/admin/integration/b2b/*`
+
+**Technical Implementation:**
+
+- Update `app/pages.py` with new hierarchy structure
+- Update router paths in:
+  - `app/routers/settings.py` (security settings, privileged domains)
+  - `app/routers/admin.py` (events, reactivation)
+  - `app/routers/saml.py` (identity providers)
+  - `app/routers/integrations.py` (apps, b2b)
+- Update any templates with hardcoded paths
+- Update tests referencing old paths
+
+**Effort:** M
+**Value:** High (UX improvement for admins)
+
+---
+
 ## Organizational Structure & Grouping System
 
 **User Story:**

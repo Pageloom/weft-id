@@ -120,7 +120,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     // Only set timezone/locale if we're on the password form
     const tzInput = document.getElementById('timezone');

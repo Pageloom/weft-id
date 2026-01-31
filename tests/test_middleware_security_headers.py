@@ -57,9 +57,11 @@ def test_csp_header_value(client, test_tenant_host):
 
     # Verify CSP includes expected directives
     assert "default-src 'self'" in csp
-    assert "script-src 'self' 'unsafe-inline'" in csp
+    # script-src uses nonce instead of unsafe-inline
+    assert "script-src 'self' 'nonce-" in csp
     assert "img-src 'self' data:" in csp
-    assert "style-src 'self' 'unsafe-inline'" in csp
+    # style-src uses nonce instead of unsafe-inline
+    assert "style-src 'self' 'nonce-" in csp
     assert "frame-ancestors 'none'" in csp
     assert "base-uri 'self'" in csp
     assert "form-action 'self'" in csp
@@ -156,14 +158,14 @@ def test_csp_blocks_external_domains(client, test_tenant_host):
     assert "cdn.tailwindcss.com" not in csp
 
 
-def test_csp_allows_inline_styles(client, test_tenant_host):
-    """Test that CSP allows inline styles for custom page styles."""
+def test_csp_allows_inline_styles_with_nonce(client, test_tenant_host):
+    """Test that CSP allows inline styles via nonce."""
     response = client.get("/login", headers={"Host": test_tenant_host})
 
     csp = response.headers.get("Content-Security-Policy", "")
 
-    # Verify CSP allows unsafe-inline for styles (required for inline styles in templates)
-    assert "style-src 'self' 'unsafe-inline'" in csp
+    # Verify CSP uses nonce for styles (safer than unsafe-inline)
+    assert "style-src 'self' 'nonce-" in csp
 
 
 def test_csp_prevents_frames(client, test_tenant_host):

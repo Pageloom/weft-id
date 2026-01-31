@@ -1365,3 +1365,39 @@ Implemented server-side authorization request tracking with session-based valida
 
 ---
 
+
+## [SECURITY] CSP unsafe-inline Weakens XSS Protection
+
+**Status:** Resolved (2026-01-31)
+
+**Found in:** `app/middleware/security_headers.py`
+
+**Original Severity:** Low
+
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:** The Content Security Policy included `'unsafe-inline'` for both `script-src` and `style-src` directives, weakening XSS protection by allowing inline scripts and styles to execute.
+
+**Resolution:**
+Implemented per-request CSP nonces:
+- Created `app/utils/csp_nonce.py` with `generate_csp_nonce()` and `get_csp_nonce()` functions
+- Updated `app/utils/template_context.py` to include `csp_nonce` in template context
+- Modified `app/middleware/security_headers.py` to build dynamic CSP with nonces
+- Added `csp_nonce` to all direct-context routes in `auth.py`, `oauth2.py`, `saml.py`
+- Added `nonce="{{ csp_nonce }}"` to all 17 inline `<script>` tags across 15 templates
+- Created `tests/test_csp_nonce.py` with backstop test to prevent regressions
+
+**Key Design Decision:** No database persistence needed. Nonces are stateless and per-request, stored in `request.state`, used in both CSP header and template scripts within the same response.
+
+**Files Modified:**
+- `app/utils/csp_nonce.py` (new)
+- `app/utils/template_context.py`
+- `app/middleware/security_headers.py`
+- `app/routers/auth.py`, `app/routers/oauth2.py`, `app/routers/saml.py`
+- 15 template files with inline scripts
+- `tests/test_csp_nonce.py` (new)
+- `tests/test_middleware_security_headers.py` (updated expectations)
+
+**Verification:** All 1983 tests pass. Type checking passes.
+
+---

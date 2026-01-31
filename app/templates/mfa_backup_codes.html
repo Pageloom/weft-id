@@ -42,7 +42,7 @@
                     </div>
                 </div>
 
-                <button onclick="copyBackupCodes()" class="mt-4 w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-4 rounded-md transition duration-150">
+                <button id="copy-codes-btn" class="mt-4 w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-4 rounded-md transition duration-150">
                     Copy All Codes
                 </button>
             </div>
@@ -68,5 +68,7 @@ function copyBackupCodes() {
         alert('Failed to copy. Please copy manually.');
     });
 }
+
+document.getElementById('copy-codes-btn')?.addEventListener('click', copyBackupCodes);
 </script>
 {% endblock %}

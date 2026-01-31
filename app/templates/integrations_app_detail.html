@@ -107,7 +107,7 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Regenerate Client Secret</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The current secret will be immediately invalidated.</p>
                     </div>
-                    <button onclick="showRegenerateModal()"
+                    <button id="show-regenerate-btn"
                             class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600">
                         Regenerate
                     </button>
@@ -120,7 +120,7 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Deactivate App</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The app will not be able to request tokens. All existing tokens will be revoked.</p>
                     </div>
-                    <button onclick="showDeactivateModal()"
+                    <button id="show-deactivate-btn"
                             class="px-3 py-1.5 text-sm border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">
                         Deactivate
                     </button>
@@ -166,7 +166,7 @@
             The current client secret will be immediately invalidated. Any applications using the current secret will stop working until updated.
         </p>
         <div class="flex justify-end gap-3">
-            <button onclick="hideRegenerateModal()"
+            <button id="hide-regenerate-btn"
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
@@ -189,7 +189,7 @@
             This app will no longer be able to request tokens. All existing tokens will be revoked immediately. You can reactivate it later if needed.
         </p>
         <div class="flex justify-end gap-3">
-            <button onclick="hideDeactivateModal()"
+            <button id="hide-deactivate-btn"
                     class="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cancel
             </button>
@@ -220,8 +220,7 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Client ID</label>
                 <div class="flex items-center gap-2">
                     <code id="cred-client-id" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ pending_credentials.client_id }}</code>
-                    <button onclick="copyToClipboard('cred-client-id', this)"
-                            class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0">
+                    <button class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="cred-client-id">
                         Copy
                     </button>
                 </div>
@@ -231,8 +230,7 @@
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Client Secret</label>
                 <div class="flex items-center gap-2">
                     <code id="cred-client-secret" class="flex-1 bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded border border-gray-200 dark:border-gray-600 text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{{ pending_credentials.client_secret }}</code>
-                    <button onclick="copyToClipboard('cred-client-secret', this)"
-                            class="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0">
+                    <button class="copy-btn px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 shrink-0" data-target="cred-client-secret">
                         Copy
                     </button>
                 </div>
@@ -240,7 +238,7 @@
         </div>
 
         <div class="mt-6">
-            <button onclick="dismissCredentials()"
+            <button id="dismiss-credentials-btn"
                     class="w-full px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700">
                 I've saved the credentials
             </button>
@@ -284,6 +282,20 @@ function copyToClipboard(elementId, button) {
         alert('Failed to copy. Please copy manually.');
     });
 }
+
+// Button click handlers
+document.getElementById('show-regenerate-btn')?.addEventListener('click', showRegenerateModal);
+document.getElementById('hide-regenerate-btn')?.addEventListener('click', hideRegenerateModal);
+document.getElementById('show-deactivate-btn')?.addEventListener('click', showDeactivateModal);
+document.getElementById('hide-deactivate-btn')?.addEventListener('click', hideDeactivateModal);
+document.getElementById('dismiss-credentials-btn')?.addEventListener('click', dismissCredentials);
+
+// Copy buttons
+document.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        copyToClipboard(this.dataset.target, this);
+    });
+});
 
 // Modal close handlers (except credentials modal)
 document.addEventListener('keydown', function(e) {

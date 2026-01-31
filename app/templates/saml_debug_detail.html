@@ -64,7 +64,7 @@
         <div class="mt-6">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">SAML Response XML</h3>
-                <button onclick="copyXmlToClipboard()" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-100">
+                <button id="copy-xml-btn" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-100">
                     Copy XML
                 </button>
             </div>
@@ -118,15 +118,14 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-function copyXmlToClipboard() {
+document.getElementById('copy-xml-btn')?.addEventListener('click', function() {
     const xml = document.getElementById('saml-xml').textContent;
+    const btn = this;
     navigator.clipboard.writeText(xml).then(() => {
-        // Show brief feedback
-        const btn = event.target;
         const originalText = btn.textContent;
         btn.textContent = 'Copied!';
         setTimeout(() => btn.textContent = originalText, 2000);
     });
-}
+});
 </script>
 {% endblock %}

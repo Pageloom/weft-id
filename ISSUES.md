@@ -200,44 +200,7 @@ Security assessment performed: 2026-01-25
 
 # Technical Debt
 
-## [TD-001] Inline JavaScript Event Handlers Blocked by CSP
-
-**Severity:** High
-**Discovered:** 2026-01-31
-**Category:** Security / UX
-
-**Description:**
-Many templates use inline JavaScript event handlers (e.g., `onclick="window.location='...'"`, `onclick="showModal()"`). These are blocked by the Content Security Policy which uses nonces for script execution. Only `<script nonce="...">` blocks execute; inline event attributes are silently ignored.
-
-**Impact:**
-- Buttons and clickable elements fail silently (no error shown to user)
-- Modal dialogs don't open
-- Table row clicks don't navigate
-- Form validation doesn't trigger
-
-**Affected Templates (partial list):**
-- `integrations_apps.html` - Create App button, modal interactions
-- `integrations_b2b.html` - Create B2B Client button, modal interactions
-- `saml_idp_list.html` - various action buttons
-- `saml_idp_form.html` - Test Connection, form interactions
-- Any template with `onclick=`, `onsubmit=`, `onchange=` attributes
-
-**Root Cause:**
-CSP nonce-based script execution was implemented to replace `unsafe-inline`, but inline event handlers were not migrated to use event listeners attached from nonce-protected script blocks.
-
-**Remediation:**
-1. Audit all templates for inline event handlers: `grep -r "onclick=\|onsubmit=\|onchange=\|onkeydown=" app/templates/`
-2. For each handler, either:
-   - Replace with `<a href="...">` tags where navigation is the goal
-   - Move logic to `<script nonce="{{ csp_nonce }}">` block and attach via `addEventListener`
-3. Add a lint/test to prevent future inline handlers
-
-**Workaround Applied:**
-`integrations_apps.html` and `integrations_b2b.html` table rows were converted to use anchor tags with a details icon column.
-
----
-
-No other technical debt items.
+No technical debt items.
 
 ---
 
@@ -246,7 +209,7 @@ No other technical debt items.
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 1 | Technical Debt (TD-001: Inline JS handlers) |
+| High | 0 | - |
 | Medium | 0 | - |
 | Low | 0 | - |
 

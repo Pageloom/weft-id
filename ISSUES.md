@@ -26,46 +26,15 @@ Low. This is a transitive dependency of sendgrid used for internal token signing
 
 ---
 
-## [REFACTOR] God Module - saml.py
-
-**Found in:** `app/services/saml.py`
-**Impact:** High
-
-**Description:**
-The `saml.py` service module has grown to 2,658 lines with 45 functions handling many distinct responsibilities: SP certificate management, IdP CRUD, metadata import, SAML request/response handling, JIT provisioning, domain bindings, logout flows, auth routing, and debug storage.
-
-**Why It Matters:**
-- Cognitive overload when working on any SAML feature
-- High risk of unintended side effects when modifying code
-- Testing is more complex due to interdependencies
-
-**Suggested Refactoring:**
-Split into focused sub-modules under `app/services/saml/`:
-```
-app/services/saml/
-├── __init__.py          # Re-exports for backwards compatibility
-├── certificates.py      # SP certificate management
-├── providers.py         # IdP CRUD operations
-├── metadata.py          # Metadata import/refresh
-├── auth.py              # Request building, response processing
-├── provisioning.py      # JIT provisioning logic
-├── domains.py           # Domain binding management
-├── logout.py            # Logout flows
-├── routing.py           # Auth routing logic
-└── debug.py             # Debug entry storage
-```
-
----
-
 ## [REFACTOR] Long Functions in User Management
 
-**Found in:** `app/services/users.py`, `app/services/saml.py`, `app/services/groups.py`
+**Found in:** `app/services/users.py`, `app/services/saml/auth.py`, `app/services/groups.py`
 **Impact:** Medium
 
 **Description:**
 Several functions exceed 100 lines:
 - `update_user()` in users.py (~130 lines)
-- `process_saml_response()` in saml.py (~130 lines)
+- `process_saml_response()` in saml/auth.py (~130 lines)
 - `sync_user_idp_groups()` in groups.py (~121 lines)
 
 **Suggested Refactoring:**
@@ -77,7 +46,7 @@ Extract sub-operations into focused helper functions.
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 2 | 1 dependency (transitive, no fix), 1 refactoring |
+| High | 1 | 1 dependency (transitive, no fix) |
 | Medium | 1 | Refactoring |
 
 **Last dependency audit:** 2026-02-01 (all direct dependencies are at safe versions)

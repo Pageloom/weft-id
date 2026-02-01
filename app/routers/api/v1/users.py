@@ -22,7 +22,6 @@ from schemas.api import (
     UserListResponse,
     UserProfile,
     UserProfileUpdate,
-    UserSummary,
     UserUpdate,
 )
 from services import emails as emails_service
@@ -40,72 +39,6 @@ from utils.email import (
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
-
-
-def _user_to_profile(user: dict) -> UserProfile:
-    """Convert database user dict to UserProfile schema."""
-    return UserProfile(
-        id=str(user["id"]),
-        email=user.get("email", ""),
-        first_name=user["first_name"],
-        last_name=user["last_name"],
-        role=user["role"],
-        timezone=user.get("tz"),
-        locale=user.get("locale"),
-        mfa_enabled=user.get("mfa_enabled", False),
-        mfa_method=user.get("mfa_method"),
-        created_at=user["created_at"],
-        last_login=user.get("last_login"),
-    )
-
-
-def _user_to_summary(user: dict) -> UserSummary:
-    """Convert database user dict to UserSummary schema."""
-    return UserSummary(
-        id=str(user["id"]),
-        email=user.get("email"),
-        first_name=user["first_name"],
-        last_name=user["last_name"],
-        role=user["role"],
-        created_at=user["created_at"],
-        last_login=user.get("last_login"),
-        last_activity_at=user.get("last_activity_at"),
-        is_inactivated=user.get("is_inactivated", False),
-        is_anonymized=user.get("is_anonymized", False),
-    )
-
-
-def _user_to_detail(user: dict, emails: list[dict], is_service: bool) -> UserDetail:
-    """Convert database user dict to UserDetail schema."""
-    email_list = [
-        EmailInfo(
-            id=str(e["id"]),
-            email=e["email"],
-            is_primary=e["is_primary"],
-            verified_at=e.get("verified_at"),
-            created_at=e["created_at"],
-        )
-        for e in emails
-    ]
-    return UserDetail(
-        id=str(user["id"]),
-        email=user.get("email"),
-        first_name=user["first_name"],
-        last_name=user["last_name"],
-        role=user["role"],
-        timezone=user.get("tz"),
-        locale=user.get("locale"),
-        mfa_enabled=user.get("mfa_enabled", False),
-        mfa_method=user.get("mfa_method"),
-        created_at=user["created_at"],
-        last_login=user.get("last_login"),
-        emails=email_list,
-        is_service_user=is_service,
-        is_inactivated=user.get("is_inactivated", False),
-        is_anonymized=user.get("is_anonymized", False),
-        inactivated_at=user.get("inactivated_at"),
-        anonymized_at=user.get("anonymized_at"),
-    )
 
 
 @router.get("/roles", response_model=list[str])
@@ -177,17 +110,6 @@ def update_current_user_profile(
 # ============================================================================
 # User Email Management Endpoints
 # ============================================================================
-
-
-def _email_to_info(email: dict) -> EmailInfo:
-    """Convert database email dict to EmailInfo schema."""
-    return EmailInfo(
-        id=str(email["id"]),
-        email=email["email"],
-        is_primary=email["is_primary"],
-        verified_at=email.get("verified_at"),
-        created_at=email["created_at"],
-    )
 
 
 @router.get("/me/emails", response_model=EmailList)

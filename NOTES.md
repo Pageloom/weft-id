@@ -4,6 +4,7 @@ Quick reminders to later build out into full backlog items.
 
 - In the users list the auth-method is listed as None if a user has email/password. Given that that email
   possession must always be proved, lets list it as email/password.
+- Oh. We need a function to be able to say: "Does user X have access to app Y". So that admins can help users gain access to apps. Also an overview and export of apps available to a specific user"
 - How do we make user to group assignment super easy and efficient and delightful in the UI? There must be ways to bulk select users
   and bulk select groups, there must also be some sort of way to get an efficient overview, perhaps a canvas with venn-diagrams that show the overlaps of groups somehow? What do we need to do here, because this is central to the usability of the app.
 - Create an accessibility agent whose focus it is to make sure that the frontend has a good accessibility posture,

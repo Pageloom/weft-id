@@ -262,6 +262,34 @@ PAGES = [
                     ),
                 ],
             ),
+            # Groups section: Group management
+            Page(
+                path="/admin/groups",
+                title="Groups",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/groups/list",
+                        title="All Groups",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
+                        path="/admin/groups/new",
+                        title="Add Group",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
+                        path="/admin/groups/detail",
+                        title="Group Details",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=False,
+                        creates_nav_level=False,
+                    ),
+                ],
+            ),
         ],
     ),
     # MFA routes (under /mfa prefix) - these are workflow pages

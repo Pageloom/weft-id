@@ -467,12 +467,14 @@ def test_group_detail_renders(test_admin_user):
         with patch("routers.groups.groups_service.list_members") as mock_members:
             with patch("routers.groups.groups_service.list_parents") as mock_parents:
                 with patch("routers.groups.groups_service.list_children") as mock_children:
-                    with patch("routers.groups.database.users.list_users") as mock_users:
+                    with patch(
+                        "routers.groups.groups_service.list_available_users_for_group"
+                    ) as mock_users:
                         with patch(
-                            "routers.groups.database.groups.get_groups_for_parent_select"
+                            "routers.groups.groups_service.list_available_parents"
                         ) as mock_parent_select:
                             with patch(
-                                "routers.groups.database.groups.get_groups_for_child_select"
+                                "routers.groups.groups_service.list_available_children"
                             ) as mock_child_select:
                                 with patch("routers.groups.get_template_context") as mock_ctx:
                                     with patch(
@@ -565,12 +567,14 @@ def test_group_detail_shows_success_message(test_admin_user):
         with patch("routers.groups.groups_service.list_members") as mock_members:
             with patch("routers.groups.groups_service.list_parents") as mock_parents:
                 with patch("routers.groups.groups_service.list_children") as mock_children:
-                    with patch("routers.groups.database.users.list_users") as mock_users:
+                    with patch(
+                        "routers.groups.groups_service.list_available_users_for_group"
+                    ) as mock_users:
                         with patch(
-                            "routers.groups.database.groups.get_groups_for_parent_select"
+                            "routers.groups.groups_service.list_available_parents"
                         ) as mock_parent_select:
                             with patch(
-                                "routers.groups.database.groups.get_groups_for_child_select"
+                                "routers.groups.groups_service.list_available_children"
                             ) as mock_child_select:
                                 with patch("routers.groups.get_template_context") as mock_ctx:
                                     with patch(

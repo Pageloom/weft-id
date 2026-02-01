@@ -3,6 +3,13 @@ email_added
 email_deleted
 email_verified
 export_task_created
+group_created
+group_deleted
+group_member_added
+group_member_removed
+group_relationship_created
+group_relationship_deleted
+group_updated
 jobs_deleted
 login_failed
 mfa_backup_codes_regenerated

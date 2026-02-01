@@ -108,6 +108,51 @@ Section pages (containers for sub-pages) don't have their own content. They need
 
 ---
 
+## DAG vs Tree Model Confusion
+
+**Wrong:** Assuming that groups sharing a common ancestor cannot become parent-child (tree model thinking)
+**Right:** In a DAG, only true cycles are prevented (A cannot be both ancestor AND descendant of B)
+
+A DAG allows multiple paths to the same node. If groups A and B are both children of C, A can still become a child of B. The only constraint is that no group can be both above and below another in the hierarchy.
+
+**Cycle detection query:** `SELECT 1 FROM group_lineage WHERE ancestor_id = :child_id AND descendant_id = :parent_id`
+
+---
+
+## Closure Table Maintenance Must Be Transactional
+
+**Wrong:** Updating `group_relationships` and `group_lineage` in separate database calls
+**Right:** Always update both tables within a single transaction using `session()` context manager
+
+The closure table (`group_lineage`) must stay in sync with direct relationships (`group_relationships`). If one update succeeds and the other fails, the data becomes inconsistent and cycle detection breaks.
+
+```python
+with session(tenant_id=tenant_id) as cur:
+    cur.execute(...)  # Update relationships
+    cur.execute(...)  # Update lineage
+    # Both commit together or both roll back
+```
+
+---
+
+## Closure Table Self-References
+
+**Wrong:** Forgetting to insert self-referential rows when creating new nodes
+**Right:** Every group must have a `(group_id, group_id, 0)` row in the lineage table
+
+The closure table pattern requires self-references for transitive path calculations to work. When adding a relationship `parent → child`, the SQL joins on these self-references to build all transitive paths.
+
+---
+
+## Running Database Migrations Without Full Reset
+
+**Wrong:** `make db-reset` (destroys all data)
+**Right:** Run migration as postgres superuser: `docker compose exec -T db psql -U postgres -d appdb -f /docker-entrypoint-initdb.d/00027_groups.sql`
+
+Migrations use `SET ROLE appowner` which requires superuser privileges. The `appuser` role cannot execute this. When you need to apply a new migration without losing data, run it as the `postgres` user instead of `appuser`.
+
+---
+
 ## Adding New Thought Errors
 
 When you make a mistake that causes wasted effort or confusion, add it here:

@@ -54,6 +54,64 @@ So that I can model my organization's structure and prepare for access control
 
 ---
 
+## Group System - Phase 2: IdP Group Integration
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want groups to be automatically discovered from IdP authentication
+So that I can leverage existing organizational structure from upstream identity providers
+
+**Completed Work:**
+
+**Auto-created IdP Group:**
+
+- [x] When an IdP is created, automatically create a group with the same name
+- [x] Group is marked as type='idp' and linked to the IdP record
+- [x] All users authenticating via that IdP are automatically added to this group
+- [x] This group cannot have children (leaf-only constraint for IdP groups)
+
+**SAML Group Discovery:**
+
+- [x] Parse group claims from SAML assertions (common attribute names: groups, memberOf, etc.)
+- [x] Auto-create IdP-scoped groups when new group names are discovered
+- [x] Auto-associate users with discovered groups on each authentication
+- [x] IdP groups display which IdP they belong to
+- [x] IdP groups are read-only (admins cannot edit membership directly)
+
+**IdP Group as Children:**
+
+- [x] Admin can make IdP groups children of WeftID groups
+- [x] IdP groups can have multiple WeftID parents
+- [x] IdP groups cannot be parents (enforced)
+
+**IdP Deletion Handling:**
+
+- [x] When IdP is deleted, associated groups are marked is_valid=false
+- [x] Invalid groups are visually distinguished in UI
+- [x] Invalid groups preserve membership data for historical reference
+- [x] Admin can delete invalid groups once empty
+
+**Technical Implementation:**
+
+- Database migration: `db-init/00028_idp_group_integration.sql`
+- Updated `app/services/groups.py` with IdP group functions:
+  - `create_idp_base_group()` - auto-creates group when IdP created
+  - `sync_user_idp_groups()` - syncs user group memberships on SAML auth
+  - `invalidate_idp_groups()` - marks groups invalid when IdP deleted
+  - `list_groups_for_idp()` - lists groups belonging to an IdP
+- Updated `app/services/saml/provisioning.py` to call group sync during authentication
+- Updated `app/database/groups.py` with IdP group queries
+- Updated templates: `groups_list.html`, `groups_detail.html` with IdP badges and invalid state
+- Event types: `idp_group_created`, `idp_group_invalidated`, `idp_group_user_added`, `idp_group_user_removed`, `idp_group_discovered`
+- 14 service tests + 2 API tests for IdP group functionality
+
+**Effort:** M
+**Value:** High (Bridges upstream IdPs with internal group model)
+
+---
+
 ## Admin Navigation Reorganization
 
 **Status:** Complete

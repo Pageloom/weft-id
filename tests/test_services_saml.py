@@ -931,6 +931,153 @@ def test_authenticate_via_saml_existing_user_not_affected_by_jit(
     _verify_event_logged(test_tenant["id"], "user_signed_in_saml", str(test_user["id"]))
 
 
+def test_authenticate_via_saml_syncs_idp_groups_for_jit_user(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that JIT provisioning syncs IdP group memberships from SAML assertion."""
+    from unittest.mock import patch
+
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create enabled IdP with JIT provisioning
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a SAML result with groups
+    new_email = "jit.groupuser@example.com"
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=new_email,
+            first_name="Group",
+            last_name="User",
+            name_id=new_email,
+        ),
+        idp_id=created.id,
+        idp_name=created.name,
+        requires_mfa=False,
+        groups=["Engineering", "DevOps"],  # Groups from SAML assertion
+    )
+
+    # Patch the groups service to verify it's called
+    with patch("services.saml.provisioning.groups_service") as mock_groups:
+        mock_groups.sync_user_idp_groups.return_value = {
+            "added": ["Engineering", "DevOps"],
+            "removed": [],
+            "created": [],
+        }
+
+        user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+        # Verify user was created
+        assert user is not None
+        assert user["first_name"] == "Group"
+
+        # Verify sync_user_idp_groups was called with correct args
+        mock_groups.sync_user_idp_groups.assert_called_once()
+        call_kwargs = mock_groups.sync_user_idp_groups.call_args[1]
+        assert call_kwargs["tenant_id"] == test_tenant["id"]
+        assert call_kwargs["user_email"] == new_email
+        assert call_kwargs["idp_id"] == created.id
+        assert call_kwargs["group_names"] == ["Engineering", "DevOps"]
+
+
+def test_authenticate_via_saml_syncs_idp_groups_for_existing_user(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that SAML auth syncs IdP group memberships for existing users."""
+    from unittest.mock import patch
+
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=False)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a SAML result with existing user's email and groups
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=test_user["first_name"],
+            last_name=test_user["last_name"],
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        idp_name=created.name,
+        requires_mfa=False,
+        groups=["Sales", "Marketing"],  # Groups from SAML assertion
+    )
+
+    # Patch the groups service to verify it's called
+    with patch("services.saml.provisioning.groups_service") as mock_groups:
+        mock_groups.sync_user_idp_groups.return_value = {
+            "added": ["Sales", "Marketing"],
+            "removed": [],
+            "created": [],
+        }
+
+        user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+        # Verify existing user was returned
+        assert str(user["id"]) == str(test_user["id"])
+
+        # Verify sync_user_idp_groups was called
+        mock_groups.sync_user_idp_groups.assert_called_once()
+        call_kwargs = mock_groups.sync_user_idp_groups.call_args[1]
+        assert call_kwargs["user_id"] == str(test_user["id"])
+        assert call_kwargs["group_names"] == ["Sales", "Marketing"]
+
+
+def test_authenticate_via_saml_skips_group_sync_when_no_groups(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that SAML auth skips group sync when no groups in assertion."""
+    from unittest.mock import patch
+
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=False)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a SAML result WITHOUT groups (empty list is the default)
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=test_user["first_name"],
+            last_name=test_user["last_name"],
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+        # groups defaults to empty list, which is falsy
+    )
+
+    # Patch the groups service to verify it's NOT called
+    with patch("services.saml.provisioning.groups_service") as mock_groups:
+        user = saml_service.authenticate_via_saml(test_tenant["id"], saml_result)
+
+        # Verify existing user was returned
+        assert str(user["id"]) == str(test_user["id"])
+
+        # Verify sync_user_idp_groups was NOT called (empty list is falsy)
+        mock_groups.sync_user_idp_groups.assert_not_called()
+
+
 # =============================================================================
 # Connection Testing Tests
 # =============================================================================

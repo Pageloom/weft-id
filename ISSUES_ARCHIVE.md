@@ -1560,3 +1560,26 @@ Lines affected:
 **Verification:** All 2151 tests pass. Compliance check shows 0 violations.
 
 ---
+
+## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
+
+**Status:** Resolved (2026-02-01)
+
+**Original Severity:** High
+
+**Category:** Duplication
+
+**Original Description:** The `_require_admin()` helper function was duplicated 9 times across service modules with 3 inconsistent variants. Similarly, `_require_super_admin()` was duplicated 3 times with 2 variants. This created bug risk (changes required in 12 places) and inconsistency (some logged failures, some didn't).
+
+**Resolution:**
+- Created `app/services/auth.py` with centralized `require_admin()` and `require_super_admin()` functions
+- Functions support optional logging via `log_failure` parameter
+- Updated 8 service files to use centralized functions
+- `event_log.py` kept local copy to avoid circular import
+- Reduced duplication from 12 function definitions to 3
+
+**Files Modified:**
+- `app/services/auth.py` (new)
+- 8 service files (settings.py, bg_tasks.py, groups.py, emails.py, users.py, exports.py, reactivation.py, mfa.py, saml.py)
+
+---

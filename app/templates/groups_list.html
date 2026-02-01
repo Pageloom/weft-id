@@ -100,14 +100,19 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for group in groups %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if not group.is_valid %}opacity-60{% endif %}">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
                                 {{ group.name }}
                             </a>
                             {% if not group.is_valid %}
                             <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-full">
                                 Invalid
+                            </span>
+                            {% endif %}
+                            {% if group.group_type == 'idp' and group.idp_name %}
+                            <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                                ({{ group.idp_name }})
                             </span>
                             {% endif %}
                         </td>

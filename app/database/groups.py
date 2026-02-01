@@ -14,7 +14,7 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
     Get a group by ID with member/relationship counts.
 
     Returns:
-        Dict with id, tenant_id, name, description, group_type, idp_id,
+        Dict with id, tenant_id, name, description, group_type, idp_id, idp_name,
         is_valid, created_by, created_at, updated_at, member_count,
         parent_count, child_count
     """
@@ -22,7 +22,8 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
         tenant_id,
         """
         select g.id, g.tenant_id, g.name, g.description, g.group_type,
-               g.idp_id, g.is_valid, g.created_by, g.created_at, g.updated_at,
+               g.idp_id, idp.name as idp_name, g.is_valid, g.created_by,
+               g.created_at, g.updated_at,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,
                (select count(*) from group_relationships gr
@@ -30,6 +31,7 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
                (select count(*) from group_relationships gr
                 where gr.parent_group_id = g.id) as child_count
         from groups g
+        left join saml_identity_providers idp on g.idp_id = idp.id
         where g.id = :group_id
         """,
         {"group_id": group_id},
@@ -37,10 +39,19 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
 
 
 def get_group_by_name(tenant_id: TenantArg, name: str) -> dict | None:
-    """Get a group by name (for duplicate checking)."""
+    """Get a group by name (for duplicate checking across all groups)."""
     return fetchone(
         tenant_id,
-        "select id, name from groups where name = :name",
+        "select id, name, group_type, idp_id from groups where name = :name",
+        {"name": name},
+    )
+
+
+def get_weftid_group_by_name(tenant_id: TenantArg, name: str) -> dict | None:
+    """Get a WeftID group by name (for duplicate checking within WeftID groups only)."""
+    return fetchone(
+        tenant_id,
+        "select id, name from groups where name = :name and group_type = 'weftid'",
         {"name": name},
     )
 
@@ -119,9 +130,11 @@ def list_groups(
     return fetchall(
         tenant_id,
         f"""
-        select g.id, g.name, g.description, g.group_type, g.is_valid, g.created_at,
+        select g.id, g.name, g.description, g.group_type, g.idp_id, g.is_valid, g.created_at,
+               idp.name as idp_name,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count
         from groups g
+        left join saml_identity_providers idp on g.idp_id = idp.id
         {where_clause}
         order by {order_by}
         limit :limit offset :offset
@@ -713,7 +726,9 @@ def get_groups_for_child_select(
     - The group itself
     - Groups that are already children
     - Groups that are ancestors (would create cycle)
-    - IdP groups (they cannot have parents in Phase 1)
+
+    Note: IdP groups CAN be children (Phase 2 change). The constraint that
+    IdP groups cannot be parents is enforced at the service layer.
     """
     return fetchall(
         tenant_id,
@@ -722,7 +737,6 @@ def get_groups_for_child_select(
         from groups g
         where g.is_valid = true
           and g.id != :parent_id
-          and g.group_type = 'weftid'
           -- Not already a child
           and not exists (
               select 1 from group_relationships gr
@@ -736,4 +750,187 @@ def get_groups_for_child_select(
         order by g.name
         """,
         {"parent_id": parent_group_id},
+    )
+
+
+# ============================================================================
+# IdP Group Operations (Phase 2)
+# ============================================================================
+
+
+def get_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> list[dict]:
+    """Get all groups for a specific IdP."""
+    return fetchall(
+        tenant_id,
+        """
+        select g.id, g.name, g.description, g.group_type, g.is_valid, g.created_at,
+               (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count
+        from groups g
+        where g.idp_id = :idp_id
+        order by g.name
+        """,
+        {"idp_id": idp_id},
+    )
+
+
+def get_group_by_idp_and_name(
+    tenant_id: TenantArg, idp_id: str, name: str
+) -> dict | None:
+    """Get a specific IdP group by name."""
+    return fetchone(
+        tenant_id,
+        """
+        select g.id, g.name, g.group_type, g.idp_id, g.is_valid
+        from groups g
+        where g.idp_id = :idp_id and g.name = :name
+        """,
+        {"idp_id": idp_id, "name": name},
+    )
+
+
+def create_idp_group(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    idp_id: str,
+    name: str,
+    description: str | None = None,
+) -> dict | None:
+    """
+    Create an IdP group with its self-referential lineage entry.
+
+    This is transactional: both the group and its lineage row are created atomically.
+
+    Returns:
+        Dict with id of the created group
+    """
+    with session(tenant_id=tenant_id) as cur:
+        # Create the group with type='idp' and idp_id set
+        cur.execute(
+            """
+            insert into groups (tenant_id, name, description, group_type, idp_id, created_by)
+            values (%(tenant_id)s, %(name)s, %(description)s, 'idp', %(idp_id)s, null)
+            returning id
+            """,
+            {
+                "tenant_id": tenant_id_value,
+                "name": name,
+                "description": description,
+                "idp_id": idp_id,
+            },
+        )
+        result = cur.fetchone()
+        if not result:
+            return None
+
+        group_id = result["id"]
+
+        # Create self-referential lineage entry (depth 0)
+        cur.execute(
+            """
+            insert into group_lineage (tenant_id, ancestor_id, descendant_id, depth)
+            values (%(tenant_id)s, %(group_id)s, %(group_id)s, 0)
+            """,
+            {"tenant_id": tenant_id_value, "group_id": group_id},
+        )
+
+        return {"id": group_id}
+
+
+def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
+    """
+    Mark all groups for an IdP as invalid.
+
+    Called when an IdP is deleted. Groups are preserved for historical reference
+    but marked as invalid so they cannot be used for future operations.
+
+    Returns:
+        Number of groups invalidated
+    """
+    return execute(
+        tenant_id,
+        """
+        update groups
+        set is_valid = false, updated_at = now()
+        where idp_id = :idp_id and is_valid = true
+        """,
+        {"idp_id": idp_id},
+    )
+
+
+def get_user_idp_group_ids(
+    tenant_id: TenantArg, user_id: str, idp_id: str
+) -> list[str]:
+    """
+    Get all IdP group IDs a user belongs to for a specific IdP.
+
+    Used for membership sync to determine which groups to add/remove.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        select g.id
+        from group_memberships gm
+        join groups g on gm.group_id = g.id
+        where gm.user_id = :user_id
+          and g.idp_id = :idp_id
+          and g.is_valid = true
+        """,
+        {"user_id": user_id, "idp_id": idp_id},
+    )
+    return [str(row["id"]) for row in rows]
+
+
+def bulk_add_user_to_groups(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    user_id: str,
+    group_ids: list[str],
+) -> int:
+    """
+    Add user to multiple groups in a single transaction.
+
+    Uses INSERT ... ON CONFLICT to handle duplicates gracefully.
+
+    Returns:
+        Number of memberships created
+    """
+    if not group_ids:
+        return 0
+
+    with session(tenant_id=tenant_id) as cur:
+        # Build values for bulk insert
+        values = ", ".join(
+            f"('{tenant_id_value}', '{gid}', '{user_id}')" for gid in group_ids
+        )
+        cur.execute(
+            f"""
+            insert into group_memberships (tenant_id, group_id, user_id)
+            values {values}
+            on conflict (group_id, user_id) do nothing
+            """
+        )
+        return int(cur.rowcount) if cur.rowcount else 0
+
+
+def bulk_remove_user_from_groups(
+    tenant_id: TenantArg,
+    user_id: str,
+    group_ids: list[str],
+) -> int:
+    """
+    Remove user from multiple groups in a single transaction.
+
+    Returns:
+        Number of memberships removed
+    """
+    if not group_ids:
+        return 0
+
+    return execute(
+        tenant_id,
+        """
+        delete from group_memberships
+        where user_id = :user_id and group_id = any(:group_ids)
+        """,
+        {"user_id": user_id, "group_ids": group_ids},
     )

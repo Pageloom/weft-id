@@ -14,6 +14,7 @@ DEFAULT_ATTRIBUTE_MAPPING = {
     "email": "email",
     "first_name": "firstName",
     "last_name": "lastName",
+    "groups": "groups",
 }
 
 # Provider-specific attribute mapping presets (Phase 4)
@@ -22,16 +23,19 @@ PROVIDER_ATTRIBUTE_PRESETS: dict[str, dict[str, str]] = {
         "email": "email",
         "first_name": "firstName",
         "last_name": "lastName",
+        "groups": "groups",
     },
     "azure_ad": {
         "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
         "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
         "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+        "groups": "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
     },
     "google": {
         "email": "email",
         "first_name": "first_name",
         "last_name": "last_name",
+        "groups": "groups",
     },
     "generic": DEFAULT_ATTRIBUTE_MAPPING,
 }
@@ -197,6 +201,7 @@ class SAMLAttributes(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     name_id: str
+    groups: list[str] = Field(default_factory=list)
 
 
 class SAMLAuthResult(BaseModel):
@@ -206,8 +211,10 @@ class SAMLAuthResult(BaseModel):
     session_index: str | None = None
     name_id_format: str | None = None  # Needed for SLO (Phase 4)
     idp_id: str
+    idp_name: str | None = None  # For group sync logging
     user_id: str | None = None  # Set after user lookup
     requires_mfa: bool = False
+    groups: list[str] = Field(default_factory=list)  # Group claims from assertion
 
 
 class SAMLTestResult(BaseModel):

@@ -627,3 +627,88 @@ def test_remove_child_success(make_user_dict):
         app.dependency_overrides.clear()
 
         assert response.status_code == 204
+
+
+# =============================================================================
+# IdP Group API Tests
+# =============================================================================
+
+
+def test_api_add_member_to_idp_group_returns_403(make_user_dict):
+    """Adding member to IdP group returns 403."""
+    from services.exceptions import ForbiddenError
+
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    group_id = str(uuid4())
+    user_id = str(uuid4())
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.add_member.side_effect = ForbiddenError(
+            message="IdP groups cannot be manually modified",
+            code="idp_group_readonly",
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/members",
+            json={"user_id": user_id},
+        )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 403
+        data = response.json()
+        assert "cannot be manually modified" in data["detail"]
+
+
+def test_api_list_idp_groups(make_user_dict):
+    """Admin can list groups for an IdP."""
+    admin = make_user_dict(role="admin")
+    tenant_id = admin["tenant_id"]
+    idp_id = str(uuid4())
+
+    mock_groups = [
+        GroupSummary(
+            id=str(uuid4()),
+            name="Okta Engineering",
+            description=None,
+            group_type="idp",
+            idp_id=idp_id,
+            idp_name="Okta Corporate",
+            is_valid=True,
+            member_count=5,
+            created_at=datetime.now(UTC),
+        ),
+        GroupSummary(
+            id=str(uuid4()),
+            name="Okta Sales",
+            description=None,
+            group_type="idp",
+            idp_id=idp_id,
+            idp_name="Okta Corporate",
+            is_valid=True,
+            member_count=3,
+            created_at=datetime.now(UTC),
+        ),
+    ]
+
+    app.dependency_overrides[require_admin_api] = lambda: admin
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_groups_for_idp.return_value = mock_groups
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/idp/{idp_id}")
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["group_type"] == "idp"
+        assert data[0]["idp_id"] == idp_id

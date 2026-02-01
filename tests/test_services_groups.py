@@ -234,7 +234,7 @@ def test_create_group_success(make_requesting_user):
         patch("services.groups.database") as mock_db,
         patch("services.groups.log_event") as mock_log,
     ):
-        mock_db.groups.get_group_by_name.return_value = None
+        mock_db.groups.get_weftid_group_by_name.return_value = None
         mock_db.groups.create_group.return_value = mock_created
         mock_db.groups.get_group_by_id.return_value = mock_group
 
@@ -326,7 +326,7 @@ def test_update_group_success(make_requesting_user):
         patch("services.groups.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_existing, mock_updated]
-        mock_db.groups.get_group_by_name.return_value = None
+        mock_db.groups.get_weftid_group_by_name.return_value = None
         mock_db.groups.update_group.return_value = 1
 
         result = groups_service.update_group(requesting_user, group_id, group_data)
@@ -993,3 +993,500 @@ def test_list_available_children_not_found(make_requesting_user):
             groups_service.list_available_children(requesting_user, group_id)
 
         assert exc_info.value.code == "group_not_found"
+
+
+# =============================================================================
+# IdP Group Tests
+# =============================================================================
+
+
+def test_create_idp_base_group_success():
+    """Test creating a base group when IdP is created."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    group_id = str(uuid4())
+
+    mock_created = {"id": group_id}
+    mock_group = {
+        "id": group_id,
+        "name": idp_name,
+        "description": f"All users authenticating via {idp_name}",
+        "group_type": "idp",
+        "idp_id": idp_id,
+        "idp_name": idp_name,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # No existing group with this name for this IdP
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = mock_created
+        mock_db.groups.get_group_by_id.return_value = mock_group
+
+        result = groups_service.create_idp_base_group(tenant_id, idp_id, idp_name)
+
+        assert result.name == idp_name
+        assert result.group_type == "idp"
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["event_type"] == "idp_group_created"
+        assert call_kwargs["metadata"]["idp_name"] == idp_name
+
+
+def test_sync_user_idp_groups_adds_new_groups():
+    """Test that sync adds user to new IdP groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    group_id = str(uuid4())
+
+    mock_existing_group = {
+        "id": group_id,
+        "name": "Engineering",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # User is not in any IdP groups yet
+        mock_db.groups.get_user_idp_group_ids.return_value = []
+        # Group already exists
+        mock_db.groups.get_group_by_idp_and_name.return_value = mock_existing_group
+        mock_db.groups.get_group_by_id.return_value = mock_existing_group
+        mock_db.groups.bulk_add_user_to_groups.return_value = None
+
+        result = groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, ["Engineering"]
+        )
+
+        assert "Engineering" in result["added"]
+        assert len(result["removed"]) == 0
+        mock_db.groups.bulk_add_user_to_groups.assert_called_once()
+
+
+def test_sync_user_idp_groups_removes_old_groups():
+    """Test that sync removes user from old IdP groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    old_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # User was in a group but no longer
+        mock_db.groups.get_user_idp_group_ids.return_value = [old_group_id]
+        mock_db.groups.bulk_remove_user_from_groups.return_value = None
+
+        result = groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, []
+        )
+
+        assert len(result["added"]) == 0
+        assert len(result["removed"]) == 1
+        mock_db.groups.bulk_remove_user_from_groups.assert_called_once()
+
+
+def test_sync_user_idp_groups_creates_discovered_groups():
+    """Test that sync creates groups discovered during authentication."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    new_group_id = str(uuid4())
+
+    mock_created = {"id": new_group_id}
+    mock_new_group = {
+        "id": new_group_id,
+        "name": "New Team",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        mock_db.groups.get_user_idp_group_ids.return_value = []
+        # Group doesn't exist yet
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = mock_created
+        mock_db.groups.get_group_by_id.return_value = mock_new_group
+        mock_db.groups.bulk_add_user_to_groups.return_value = None
+
+        result = groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, ["New Team"]
+        )
+
+        assert "New Team" in result["created"]
+        # Created and added
+        mock_db.groups.create_idp_group.assert_called_once()
+
+
+def test_sync_logs_with_idp_attribution():
+    """Test that sync logs use SYSTEM_ACTOR_ID with IdP metadata."""
+    from services.event_log import SYSTEM_ACTOR_ID
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    group_id = str(uuid4())
+
+    mock_group = {
+        "id": group_id,
+        "name": "Engineering",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        mock_db.groups.get_user_idp_group_ids.return_value = []
+        mock_db.groups.get_group_by_idp_and_name.return_value = mock_group
+        mock_db.groups.bulk_add_user_to_groups.return_value = None
+
+        groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, ["Engineering"]
+        )
+
+        # Check log_event was called with SYSTEM_ACTOR_ID and IdP metadata
+        mock_log.assert_called()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
+        assert call_kwargs["metadata"]["idp_id"] == idp_id
+        assert call_kwargs["metadata"]["idp_name"] == idp_name
+        assert call_kwargs["metadata"]["sync_source"] == "saml_authentication"
+
+
+def test_add_member_to_idp_group_forbidden(make_requesting_user):
+    """Test that adding member to IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_group = {
+        "id": group_id,
+        "name": "Okta Engineering",
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+        "is_valid": True,
+    }
+
+    with patch("services.groups.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_idp_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.add_member(requesting_user, group_id, user_id)
+
+        assert exc_info.value.code == "idp_group_readonly"
+
+
+def test_remove_member_from_idp_group_forbidden(make_requesting_user):
+    """Test that removing member from IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_group = {
+        "id": group_id,
+        "name": "Okta Engineering",
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+        "is_valid": True,
+    }
+
+    with patch("services.groups.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_idp_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.remove_member(requesting_user, group_id, user_id)
+
+        assert exc_info.value.code == "idp_group_readonly"
+
+
+def test_update_idp_group_forbidden(make_requesting_user):
+    """Test that updating an IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+    group_data = GroupUpdate(name="New Name")
+
+    mock_idp_group = {
+        "id": group_id,
+        "name": "Okta Engineering",
+        "description": None,
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_idp_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.update_group(requesting_user, group_id, group_data)
+
+        assert exc_info.value.code == "idp_group_readonly"
+
+
+def test_delete_valid_idp_group_forbidden(make_requesting_user):
+    """Test that deleting a valid IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_group = {
+        "id": group_id,
+        "name": "Okta Engineering",
+        "description": None,
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+        "is_valid": True,  # Still valid (IdP exists)
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_idp_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.delete_group(requesting_user, group_id)
+
+        assert exc_info.value.code == "idp_group_active"
+
+
+def test_delete_invalid_idp_group_allowed(make_requesting_user):
+    """Test that deleting an invalid IdP group is allowed."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_invalid_idp_group = {
+        "id": group_id,
+        "name": "Okta Engineering",
+        "description": None,
+        "group_type": "idp",
+        "idp_id": None,  # IdP was deleted
+        "is_valid": False,  # Marked invalid
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_invalid_idp_group
+        mock_db.groups.delete_group.return_value = 1
+
+        # Should not raise
+        groups_service.delete_group(requesting_user, group_id)
+
+        mock_db.groups.delete_group.assert_called_once()
+        mock_log.assert_called_once()
+
+
+def test_add_idp_group_as_child_allowed(make_requesting_user):
+    """Test that IdP groups can be added as children of WeftID groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    parent_id = str(uuid4())
+    idp_group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_parent = {"id": parent_id, "name": "All Engineering", "group_type": "weftid"}
+    mock_idp_child = {
+        "id": idp_group_id,
+        "name": "Okta Engineering",
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_idp_child]
+        mock_db.groups.relationship_exists.return_value = False
+        mock_db.groups.would_create_cycle.return_value = False
+        mock_db.groups.add_group_relationship.return_value = {"id": str(uuid4())}
+
+        # Should not raise
+        groups_service.add_child(requesting_user, parent_id, idp_group_id)
+
+        mock_db.groups.add_group_relationship.assert_called_once()
+
+
+def test_add_idp_group_as_parent_forbidden(make_requesting_user):
+    """Test that IdP groups cannot have children (cannot be parents)."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_group_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_parent = {
+        "id": idp_group_id,
+        "name": "Okta Engineering",
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+    }
+    mock_child = {"id": child_id, "name": "Some Child", "group_type": "weftid"}
+
+    with patch("services.groups.database") as mock_db:
+        mock_db.groups.get_group_by_id.side_effect = [mock_idp_parent, mock_child]
+        mock_db.groups.relationship_exists.return_value = False
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.add_child(requesting_user, idp_group_id, child_id)
+
+        assert exc_info.value.code == "idp_cannot_be_parent"
+
+
+def test_invalidate_idp_groups_on_deletion():
+    """Test that IdP groups are invalidated when IdP is deleted."""
+    from services.event_log import SYSTEM_ACTOR_ID
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    group1_id = str(uuid4())
+    group2_id = str(uuid4())
+
+    mock_groups = [
+        {"id": group1_id, "name": "Engineering", "is_valid": True},
+        {"id": group2_id, "name": "Sales", "is_valid": True},
+    ]
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # Get groups returns the groups to be invalidated
+        mock_db.groups.get_groups_by_idp.return_value = mock_groups
+        mock_db.groups.invalidate_groups_by_idp.return_value = 2
+
+        count = groups_service.invalidate_idp_groups(tenant_id, idp_id, idp_name)
+
+        assert count == 2
+        mock_db.groups.invalidate_groups_by_idp.assert_called_once()
+        # Log should be called once per group
+        assert mock_log.call_count == 2
+        # Check the first call
+        call_kwargs = mock_log.call_args_list[0][1]
+        assert call_kwargs["event_type"] == "idp_group_invalidated"
+        assert call_kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
+        assert call_kwargs["metadata"]["idp_name"] == idp_name
+
+
+def test_list_groups_for_idp_success(make_requesting_user):
+    """Test listing groups belonging to an IdP."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_groups = [
+        {
+            "id": uuid4(),
+            "name": "Okta Engineering",
+            "description": None,
+            "group_type": "idp",
+            "idp_id": idp_id,
+            "idp_name": "Okta",
+            "is_valid": True,
+            "member_count": 5,
+            "created_at": datetime.now(UTC),
+        },
+        {
+            "id": uuid4(),
+            "name": "Okta Sales",
+            "description": None,
+            "group_type": "idp",
+            "idp_id": idp_id,
+            "idp_name": "Okta",
+            "is_valid": True,
+            "member_count": 3,
+            "created_at": datetime.now(UTC),
+        },
+    ]
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_groups_by_idp.return_value = mock_groups
+
+        result = groups_service.list_groups_for_idp(requesting_user, idp_id)
+
+        assert len(result) == 2
+        assert result[0].group_type == "idp"
+        mock_db.groups.get_groups_by_idp.assert_called_once_with(tenant_id, idp_id)

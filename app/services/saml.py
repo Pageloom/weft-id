@@ -18,6 +18,7 @@ from datetime import UTC
 from typing import Any
 
 import database
+import services.groups as groups_service
 from schemas.saml import (
     PROVIDER_ATTRIBUTE_PRESETS,
     PROVIDER_SETUP_GUIDES,
@@ -501,11 +502,13 @@ def create_identity_provider(
             code="idp_creation_failed",
         )
 
+    idp_id = str(row["id"])
+
     log_event(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="saml_identity_provider",
-        artifact_id=str(row["id"]),
+        artifact_id=idp_id,
         event_type="saml_idp_created",
         metadata={
             "name": data.name,
@@ -514,6 +517,23 @@ def create_identity_provider(
             "is_enabled": data.is_enabled,
         },
     )
+
+    # Create base IdP group (Phase 2: IdP Group Integration)
+    # This group will contain all users authenticating via this IdP
+    try:
+        groups_service.create_idp_base_group(
+            tenant_id=tenant_id,
+            idp_id=idp_id,
+            idp_name=data.name,
+        )
+    except ConflictError:
+        # Group name already exists - this is fine, the IdP was still created
+        # The admin can manually manage groups if there's a naming conflict
+        logger.warning(
+            "Could not create base group for IdP %s: group name '%s' already exists",
+            idp_id,
+            data.name,
+        )
 
     return _idp_row_to_config(row)
 
@@ -625,6 +645,20 @@ def delete_identity_provider(
             "Unbind or rebind domains first.",
             code="idp_has_bound_domains",
             details={"domain_count": domain_count, "idp_id": idp_id},
+        )
+
+    # Invalidate all IdP groups before deletion (Phase 2: IdP Group Integration)
+    # Groups are preserved but marked invalid for historical reference
+    invalidated_count = groups_service.invalidate_idp_groups(
+        tenant_id=tenant_id,
+        idp_id=idp_id,
+        idp_name=existing["name"],
+    )
+    if invalidated_count > 0:
+        logger.info(
+            "Invalidated %d IdP group(s) before deleting IdP %s",
+            invalidated_count,
+            existing["name"],
         )
 
     database.saml.delete_identity_provider(tenant_id, idp_id)
@@ -1304,6 +1338,9 @@ def process_saml_response(
     first_name = _get_saml_attribute(raw_attributes, mapping.get("first_name", "firstName"))
     last_name = _get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
 
+    # Extract group claims (Phase 2: IdP Group Integration)
+    groups = _get_saml_group_attributes(raw_attributes, mapping.get("groups", "groups"))
+
     if not email:
         raise ValidationError(
             message="SAML response missing email attribute",
@@ -1316,11 +1353,14 @@ def process_saml_response(
             first_name=first_name,
             last_name=last_name,
             name_id=name_id,
+            groups=groups,
         ),
         session_index=auth.get_session_index(),
         name_id_format=name_id_format,
         idp_id=idp_id,
+        idp_name=idp.name,
         requires_mfa=idp.require_platform_mfa,
+        groups=groups,
     )
 
 
@@ -1481,6 +1521,43 @@ def _get_saml_attribute(attributes: dict, attr_name: str) -> str | None:
     return str(value)
 
 
+def _get_saml_group_attributes(attributes: dict, attr_name: str) -> list[str]:
+    """
+    Extract group claim values from SAML attributes.
+
+    SAML group claims can be:
+    - A list of strings: ["group1", "group2"]
+    - A single string: "group1"
+    - Comma-separated: "group1,group2"
+
+    This function normalizes all formats to a list of strings.
+    """
+    value = attributes.get(attr_name)
+    if value is None:
+        return []
+
+    # Handle list of values
+    if isinstance(value, list):
+        groups: list[str] = []
+        for v in value:
+            if v:
+                # Handle comma-separated values within list items
+                if isinstance(v, str) and "," in v:
+                    groups.extend(s.strip() for s in v.split(",") if s.strip())
+                else:
+                    groups.append(str(v).strip())
+        return groups
+
+    # Handle single string value
+    if isinstance(value, str):
+        # Check for comma-separated
+        if "," in value:
+            return [s.strip() for s in value.split(",") if s.strip()]
+        return [value.strip()] if value.strip() else []
+
+    return []
+
+
 def _jit_provision_user(
     tenant_id: str,
     saml_result: SAMLAuthResult,
@@ -1636,6 +1713,19 @@ def authenticate_via_saml(
             idp=idp,
         )
 
+        user_id = str(user["id"])
+
+        # Sync IdP group memberships (Phase 2: IdP Group Integration)
+        if saml_result.groups:
+            groups_service.sync_user_idp_groups(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                user_email=saml_result.attributes.email,
+                idp_id=saml_result.idp_id,
+                idp_name=saml_result.idp_name or idp.get("name", "Unknown"),
+                group_names=saml_result.groups,
+            )
+
         # Return immediately - JIT provisioning already logged the creation event
         # No need to log sign-in since this is their first login (creation implies sign-in)
         return user
@@ -1671,6 +1761,21 @@ def authenticate_via_saml(
             "password_preserved": bool(user.get("password_hash")),
         },
     )
+
+    # Sync IdP group memberships (Phase 2: IdP Group Integration)
+    if saml_result.groups:
+        # Get IdP name for logging
+        idp = database.saml.get_identity_provider(tenant_id, saml_result.idp_id)
+        idp_name = idp.get("name", "Unknown") if idp else "Unknown"
+
+        groups_service.sync_user_idp_groups(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=email,
+            idp_id=saml_result.idp_id,
+            idp_name=saml_result.idp_name or idp_name,
+            group_names=saml_result.groups,
+        )
 
     return user
 

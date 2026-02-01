@@ -338,7 +338,7 @@
                     </button>
                     <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Fills in recommended attribute names for the selected provider type</span>
                 </div>
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label for="attr_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Email Attribute
@@ -362,6 +362,15 @@
                         <input type="text" id="attr_last_name" name="attr_last_name"
                                value="{{ idp.attribute_mapping.last_name if idp.attribute_mapping else 'lastName' }}"
                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="attr_groups" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Groups Attribute
+                        </label>
+                        <input type="text" id="attr_groups" name="attr_groups"
+                               value="{{ idp.attribute_mapping.groups if idp.attribute_mapping else 'groups' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The SAML attribute containing group membership claims</p>
                     </div>
                 </div>
             </div>
@@ -556,6 +565,7 @@
             document.getElementById('attr_email').value = data.attribute_mapping.email || '';
             document.getElementById('attr_first_name').value = data.attribute_mapping.first_name || '';
             document.getElementById('attr_last_name').value = data.attribute_mapping.last_name || '';
+            document.getElementById('attr_groups').value = data.attribute_mapping.groups || '';
 
             // Flash success
             btn.innerHTML = `

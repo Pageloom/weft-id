@@ -140,7 +140,9 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
 
 ## Known Coverage Gaps: SAML
 
-The SAML module (`services/saml.py`, `database/saml.py`, `routers/saml.py`) has ~85-90% coverage with intentional gaps that require true E2E tests to cover. Do not waste time trying to unit/integration test these.
+**Coverage threshold: 80%+ for all SAML modules is acceptable.** Do not flag SAML coverage gaps below this threshold as issues.
+
+The SAML modules (`app/services/saml/`, `database/saml.py`, `routers/saml.py`) have intentional gaps that require true E2E tests to cover. Do not waste time trying to unit/integration test these.
 
 ### Why SAML is Different
 

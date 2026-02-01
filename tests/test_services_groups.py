@@ -1490,3 +1490,152 @@ def test_list_groups_for_idp_success(make_requesting_user):
         assert len(result) == 2
         assert result[0].group_type == "idp"
         mock_db.groups.get_groups_by_idp.assert_called_once_with(tenant_id, idp_id)
+
+
+def test_create_idp_base_group_raises_conflict_when_duplicate():
+    """Test that creating an IdP base group raises ConflictError if already exists."""
+    from services import groups as groups_service
+    from services.exceptions import ConflictError
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    existing_group_id = str(uuid4())
+
+    mock_existing_group = {
+        "id": existing_group_id,
+        "name": idp_name,
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.system_context"),
+    ):
+        # Group already exists for this IdP
+        mock_db.groups.get_group_by_idp_and_name.return_value = mock_existing_group
+
+        # Should raise ConflictError
+        with pytest.raises(ConflictError) as exc_info:
+            groups_service.create_idp_base_group(tenant_id, idp_id, idp_name)
+
+        assert "already exists" in exc_info.value.message
+        # Should NOT try to create
+        mock_db.groups.create_idp_group.assert_not_called()
+
+
+def test_sync_user_idp_groups_no_op_when_already_in_sync():
+    """Test that sync is a no-op when user is already in all provided groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    group_id = str(uuid4())
+
+    mock_existing_group = {
+        "id": group_id,
+        "name": "Engineering",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # User is already in the Engineering group
+        mock_db.groups.get_user_idp_group_ids.return_value = [group_id]
+        # Group exists
+        mock_db.groups.get_group_by_idp_and_name.return_value = mock_existing_group
+
+        result = groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, ["Engineering"]
+        )
+
+        # No additions, no removals
+        assert len(result["added"]) == 0
+        assert len(result["removed"]) == 0
+        assert len(result["created"]) == 0
+        # Should NOT call bulk_add or bulk_remove
+        mock_db.groups.bulk_add_user_to_groups.assert_not_called()
+        mock_db.groups.bulk_remove_user_from_groups.assert_not_called()
+        # Should NOT log any events
+        mock_log.assert_not_called()
+
+
+def test_invalidate_idp_groups_returns_zero_when_idp_has_no_groups():
+    """Test that invalidating groups for IdP with no groups returns 0 without DB call."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    idp_name = "Empty IdP"
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.system_context"),
+    ):
+        # IdP has no groups
+        mock_db.groups.get_groups_by_idp.return_value = []
+
+        count = groups_service.invalidate_idp_groups(tenant_id, idp_id, idp_name)
+
+        assert count == 0
+        # Should NOT call invalidate (short-circuits when no groups)
+        mock_db.groups.invalidate_groups_by_idp.assert_not_called()
+        # Should NOT log any events (no groups to invalidate)
+        mock_log.assert_not_called()
+
+
+def test_idp_group_can_have_multiple_weftid_parents(make_requesting_user):
+    """Test that IdP groups can have multiple WeftID groups as parents."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_group_id = str(uuid4())
+    parent1_id = str(uuid4())
+    parent2_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_group = {
+        "id": idp_group_id,
+        "name": "Okta Engineering",
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+    }
+    mock_parent1 = {"id": parent1_id, "name": "All Engineering", "group_type": "weftid"}
+    mock_parent2 = {"id": parent2_id, "name": "All Teams", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.log_event") as mock_log,
+    ):
+        # First parent addition
+        mock_db.groups.get_group_by_id.side_effect = [mock_parent1, mock_idp_group]
+        mock_db.groups.relationship_exists.return_value = False
+        mock_db.groups.would_create_cycle.return_value = False
+        mock_db.groups.add_group_relationship.return_value = {"id": str(uuid4())}
+
+        # Add first parent
+        groups_service.add_child(requesting_user, parent1_id, idp_group_id)
+        mock_db.groups.add_group_relationship.assert_called_once()
+
+        # Reset mocks for second parent
+        mock_db.groups.reset_mock()
+        mock_log.reset_mock()
+
+        # Second parent addition
+        mock_db.groups.get_group_by_id.side_effect = [mock_parent2, mock_idp_group]
+        mock_db.groups.relationship_exists.return_value = False
+        mock_db.groups.would_create_cycle.return_value = False
+        mock_db.groups.add_group_relationship.return_value = {"id": str(uuid4())}
+
+        # Add second parent - should not raise
+        groups_service.add_child(requesting_user, parent2_id, idp_group_id)
+        mock_db.groups.add_group_relationship.assert_called_once()

@@ -110,10 +110,11 @@ The script `scripts/compliance_check.py` performs AST-based analysis to catch co
 python scripts/compliance_check.py
 
 # Check specific principle
-python scripts/compliance_check.py --check architecture  # Router imports
-python scripts/compliance_check.py --check activity      # Activity/event logging
-python scripts/compliance_check.py --check tenant        # Tenant isolation
-python scripts/compliance_check.py --check api-first     # API coverage
+python scripts/compliance_check.py --check architecture    # Router imports
+python scripts/compliance_check.py --check activity        # Activity/event logging
+python scripts/compliance_check.py --check tenant          # Tenant isolation
+python scripts/compliance_check.py --check api-first       # API coverage
+python scripts/compliance_check.py --check authorization   # Route auth dependencies
 
 # JSON output for programmatic use
 python scripts/compliance_check.py --json
@@ -127,7 +128,7 @@ python scripts/compliance_check.py --json
 | Activity/Event Logging | ✅ Good (RequestingUser + mutations) | Complex logic flows |
 | Tenant Isolation | ✅ Good (database function signatures) | SQL content review |
 | API-First | ✅ Basic (service vs API router presence) | Endpoint coverage details |
-| Authorization | ❌ Not covered | Always manual |
+| Authorization | ✅ Good (router auth vs pages.py) | Service-level role checks |
 
 ### Event Context Handling
 
@@ -137,7 +138,7 @@ python scripts/compliance_check.py --json
 2. `log_event()` auto-reads from the contextvar if `request_metadata` not explicitly passed
 3. `RuntimeError` is raised if context is missing and not in `system_context()`
 
-You do NOT need to check for explicit `request_metadata=requesting_user.get("request_metadata")` passing. The `data-quality` check queries the database to verify events have proper context, which validates the middleware is working correctly.
+You do NOT need to check for explicit `request_metadata=requesting_user.get("request_metadata")` passing.
 
 ### Interpreting Script Results
 
@@ -149,9 +150,9 @@ You do NOT need to check for explicit `request_metadata=requesting_user.get("req
 
 After running the script, you should manually review:
 1. Any violations the script found (verify they're real)
-2. Authorization patterns (script doesn't check these)
-3. Complex service functions where the script might miss edge cases
-4. API endpoint coverage details (script only checks router existence)
+2. Complex service functions where the script might miss edge cases
+3. API endpoint coverage details (script only checks router existence)
+4. Service-level role checks (script only checks router-level auth)
 
 ## Your Workflow
 
@@ -189,11 +190,12 @@ Based on script results and user's answers, focus manual review on:
 4. Functions can use `UNSCOPED` for intentional cross-tenant operations
 5. Check that all database functions have `tenant_id` parameter or use `UNSCOPED`
 
-**For Authorization** (always manual - script doesn't cover):
-1. List all modules in `app/routers/`
-2. Verify each route is registered in `app/pages.py`
+**For Authorization** (if script found issues OR manual review requested):
+1. Focus on routers the script flagged for auth mismatches
+2. Verify routes use appropriate auth dependencies or `has_page_access()` checks
 3. Check service functions enforce role-based access
 4. Verify no privilege escalation vulnerabilities
+5. The script checks router-level auth vs pages.py permissions, including defense-in-depth patterns
 
 **For Architecture** (if script found issues):
 1. Focus on imports the script flagged
@@ -497,8 +499,7 @@ Based on script results, ask:
    - No, skip to manual scanning
 
 2. **What additional manual scanning do you need?**
-   - Full manual scan (all principles including Authorization)
-   - Authorization patterns only (not covered by script)
+   - Full manual scan (all five principles)
    - Specific module or principle
    - None, script results are sufficient
 

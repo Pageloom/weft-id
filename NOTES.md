@@ -2,10 +2,10 @@
 
 Quick reminders to later build out into full backlog items.
 
-- ~~If there are any javascript confirm dialoges or alerts - lets replace them with prettier HTML rendered
-  ones~~ (Done - see `static/js/utils.js` and `WeftUtils.confirm()`)
 - In the users list the auth-method is listed as None if a user has email/password. Given that that email
   possession must always be proved, lets list it as email/password.
+- How do we make user to group assignment super easy and efficient and delightful in the UI? There must be ways to bulk select users
+  and bulk select groups, there must also be some sort of way to get an efficient overview, perhaps a canvas with venn-diagrams that show the overlaps of groups somehow? What do we need to do here, because this is central to the usability of the app.
 - Create an accessibility agent whose focus it is to make sure that the frontend has a good accessibility posture,
   according to some standard.
 - Follow up on "Background Job Created" as an event type—does it really need to exist? It doesn't change data.

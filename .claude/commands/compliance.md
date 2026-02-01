@@ -114,7 +114,6 @@ python scripts/compliance_check.py --check architecture  # Router imports
 python scripts/compliance_check.py --check activity      # Activity/event logging
 python scripts/compliance_check.py --check tenant        # Tenant isolation
 python scripts/compliance_check.py --check api-first     # API coverage
-python scripts/compliance_check.py --check data-quality  # Event log data quality (requires DB)
 
 # JSON output for programmatic use
 python scripts/compliance_check.py --json
@@ -128,7 +127,6 @@ python scripts/compliance_check.py --json
 | Activity/Event Logging | ✅ Good (RequestingUser + mutations) | Complex logic flows |
 | Tenant Isolation | ✅ Good (database function signatures) | SQL content review |
 | API-First | ✅ Basic (service vs API router presence) | Endpoint coverage details |
-| Event Data Quality | ✅ Database query (requires DB connection) | None |
 | Authorization | ❌ Not covered | Always manual |
 
 ### Event Context Handling
@@ -489,13 +487,6 @@ python scripts/compliance_check.py
 
 Report what the script found (or that it found no violations).
 
-**Optional: Data Quality Check** (if database is available):
-```bash
-python scripts/compliance_check.py --check data-quality
-```
-
-This queries the event_log table to find events missing request context (IP, user agent). If violations are found, it indicates the middleware may not be setting context correctly for certain code paths.
-
 ### 2. Ask the User
 
 Based on script results, ask:
@@ -511,11 +502,7 @@ Based on script results, ask:
    - Specific module or principle
    - None, script results are sufficient
 
-3. **Should I run the data-quality check?** (requires database connection)
-   - Yes, check event log for missing request context
-   - No, skip data quality check
-
-4. **Is this verification after fixes?**
+3. **Is this verification after fixes?**
    - No, initial scan
    - Yes, verification mode
 

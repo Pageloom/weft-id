@@ -200,7 +200,41 @@ Security assessment performed: 2026-01-25
 
 # Technical Debt
 
-No technical debt items.
+## Service Layer Architecture: Groups Router Bypasses Service Layer
+
+**Found in:** `app/routers/groups.py:5,157,165-166`
+**Severity:** High
+**Principle Violated:** Service Layer Architecture
+**Description:** The groups router directly imports and uses the `database` module, bypassing the service layer. This breaks the layered architecture principle where routers should only call service functions.
+
+**Evidence:**
+```python
+# Line 5
+import database
+
+# Lines 157-166 (in group detail view)
+available_users = database.users.list_users(tenant_id, page=1, page_size=100)
+available_parents = database.groups.get_groups_for_parent_select(tenant_id, group_id)
+available_children = database.groups.get_groups_for_child_select(tenant_id, group_id)
+```
+
+**Impact:**
+- Bypasses activity tracking (reads not tracked via `track_activity()`)
+- Bypasses authorization checks that would be enforced in service layer
+- Breaks architectural consistency and maintainability
+- Makes it harder to add cross-cutting concerns uniformly
+
+**Root Cause:** The group detail page needs data for dropdown menus (available users, available parent/child groups). These were added directly in the router as convenience functions rather than going through the service layer.
+
+**Suggested fix:**
+1. Add service functions in `app/services/groups.py`:
+   - `list_available_users_for_group(requesting_user, group_id)` - returns users not already members
+   - `list_available_parents(requesting_user, group_id)` - returns groups valid as parents
+   - `list_available_children(requesting_user, group_id)` - returns groups valid as children
+2. Remove `import database` from the router
+3. Call the new service functions instead
+
+---
 
 ---
 
@@ -209,7 +243,7 @@ No technical debt items.
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 0 | - |
+| High | 1 | Service Layer Architecture |
 | Medium | 0 | - |
 | Low | 0 | - |
 

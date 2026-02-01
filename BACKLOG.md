@@ -8,92 +8,144 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Organizational Structure & Grouping System
+## Group System - Phase 1: Core Infrastructure
 
 **User Story:**
-As an admin or user of the identity platform
-I want to organize people into flexible hierarchical structures and ad-hoc groups
-So that downstream applications can bootstrap teams, channels, and access controls based on organizational context
+As an admin
+I want to create groups and organize them hierarchically
+So that I can model my organization's structure and prepare for access control
 
 **Acceptance Criteria:**
 
-**Hierarchical Organizational Structure:**
+**WeftID Groups:**
 
-- [ ] Support 1-6 levels of organizational hierarchy (hard cap at 6 levels)
-- [ ] Each level has a customizable type name (e.g., "Organization", "Business Unit", "Department", "Team")
-- [ ] Default level names: Organization → Business Unit → Department → Team
-- [ ] Admins can rename level types (e.g., "Business Unit" → "Division")
-- [ ] Each organizational unit within a level has its own name (e.g., "Engineering Department", "Platform Team")
-- [ ] Organizations can skip levels (e.g., Organization → Team directly)
-- [ ] Users can belong to multiple organizational units across different branches simultaneously
-- [ ] All users can view the complete organizational structure
-- [ ] Only Super Admins and Admins can create/edit/delete organizational units
-- [ ] Only Super Admins and Admins can add/remove people to/from organizational units
+- [ ] Admin can create groups with name (required) and description (optional)
+- [ ] Admin can edit group name and description
+- [ ] Admin can delete groups (children become orphaned, not deleted)
+- [ ] Admin can add users as direct members of groups
+- [ ] Admin can remove users from groups
+- [ ] List view of all groups with member counts
 
-**Ad-hoc Groups:**
+**Group Hierarchy:**
 
-- [ ] Any user can create ad-hoc groups (e.g., "Security Champions", "Project Phoenix")
-- [ ] Group creator sets visibility: Public (visible to all) or Private (visible to members only)
-- [ ] Group creator can invite and uninvite members
-- [ ] Other users can invite to ad-hoc groups but cannot uninvite (unless they're admins)
-- [ ] Super Admins and Admins can see all ad-hoc groups regardless of visibility
-- [ ] Super Admins and Admins can manage membership and change visibility of any ad-hoc group
-- [ ] Regular users see: public groups + private groups they're members of
-- [ ] Ad-hoc groups transcend hierarchical boundaries (cross-functional)
-
-**User Profile & Titles:**
-
-- [ ] Users can have an optional "title" field (e.g., "Senior Engineer", "VP of Sales")
-- [ ] All users can view their own organizational placement (units and groups)
-- [ ] User profile displays: hierarchical placement(s), ad-hoc group memberships, and title
-- [ ] Existing roles (Super Admin, Admin, User) remain unchanged - they control IdP permissions only
-
-**API/Data Exposure:**
-
-- [ ] API endpoints to query organizational structure
-- [ ] API endpoints to list members of any organizational unit or group
-- [ ] Enable downstream applications to consume org structure (e.g., auto-create chat channels)
-- [ ] Future: Support syncing org structure from upstream IdPs (optional input) - not in MVP
-
-**Out of Scope (for MVP):**
-
-- Manager-employee relationship tracking
-- Reporting structure and approval chains
-- Org chart visualization UI
-- Bulk import of organizational structure
-- Syncing from upstream IdPs (Okta, Azure AD, etc.)
-- Organizational unit permissions/access control within the IdP
+- [ ] Admin can make one group a child of another (group-in-group)
+- [ ] Groups can have multiple parents
+- [ ] Groups can have multiple children
+- [ ] Cycle detection prevents circular relationships
+- [ ] UI shows parent/child relationships
 
 **Technical Implementation:**
 
-- Database migration: New tables for org units, org levels, groups, memberships
-- Database schema:
-    - `org_levels`: id, tenant_id, level_number (1-6), level_name, created_at
-    - `org_units`: id, tenant_id, level_id, parent_unit_id, name, created_at
-    - `org_memberships`: user_id, org_unit_id, joined_at
-    - `groups`: id, tenant_id, name, is_public, creator_user_id, created_at
-    - `group_memberships`: user_id, group_id, joined_at
-- New router: `app/routers/organization.py`
-- New database module: `app/database/organization.py`
-- Update user profile endpoints to include org data
-- UI pages for managing org structure (admin only)
-- UI for creating/managing ad-hoc groups (all users)
-- UI for viewing org structure (all users)
+- Database migration:
+  - `groups`: id, tenant_id, name, description, group_type (enum: 'weftid', 'idp'), idp_id (nullable), is_valid (boolean, default true), created_at
+  - `group_memberships`: id, group_id, user_id, created_at
+  - `group_relationships`: id, parent_group_id, child_group_id, created_at (unique constraint on pair)
+- New router: `app/routers/groups.py`
+- New service: `app/services/groups.py`
+- New database module: `app/database/groups.py`
+- Cycle detection algorithm (DFS on relationship graph)
+- Admin UI pages for group management
+
+**Effort:** M
+**Value:** High (Foundation for access control)
+
+---
+
+## Group System - Phase 2: IdP Group Integration
+
+**User Story:**
+As an admin
+I want groups to be automatically discovered from IdP authentication
+So that I can leverage existing organizational structure from upstream identity providers
+
+**Acceptance Criteria:**
+
+**Auto-created IdP Group:**
+
+- [ ] When an IdP is created, automatically create a group with the same name
+- [ ] Group is marked as type='idp' and linked to the IdP record
+- [ ] All users authenticating via that IdP are automatically added to this group
+- [ ] This group cannot have children (leaf-only constraint for IdP groups)
+
+**SAML Group Discovery:**
+
+- [ ] Parse group claims from SAML assertions (common attribute names: groups, memberOf, etc.)
+- [ ] Auto-create IdP-scoped groups when new group names are discovered
+- [ ] Auto-associate users with discovered groups on each authentication
+- [ ] IdP groups display which IdP they belong to
+- [ ] IdP groups are read-only (admins cannot edit membership directly)
+
+**IdP Group as Children:**
+
+- [ ] Admin can make IdP groups children of WeftID groups
+- [ ] IdP groups can have multiple WeftID parents
+- [ ] IdP groups cannot be parents (enforced)
+
+**IdP Deletion Handling:**
+
+- [ ] When IdP is deleted, associated groups are marked is_valid=false
+- [ ] Invalid groups are visually distinguished in UI
+- [ ] Invalid groups cannot be used for future app assignments
+- [ ] Invalid groups preserve membership data for historical reference
+- [ ] Admin can delete invalid groups once empty
+
+**Technical Implementation:**
+
+- Update SAML authentication flow to extract group claims
+- Update IdP creation to auto-create associated group
+- Update user authentication to manage group memberships
+- Add is_valid flag handling
+- UI updates: show IdP badge on IdP groups, invalid state styling
 
 **Dependencies:**
 
-- None (pure backend/database work)
+- Phase 1 complete
 
-**Effort:** XL (2-3 weeks)
-**Value:** High (Core MVP Feature - Foundation for IdP)
+**Effort:** M
+**Value:** High (Bridges upstream IdPs with internal group model)
 
-**Notes:**
+---
 
-- This is foundational for the MVP identity platform
-- Enables downstream applications to leverage organizational context
-- Flexible enough to support various org models (flat to deeply nested)
-- Balance between admin control (hierarchy) and user empowerment (ad-hoc groups)
-- Data model should be extensible for future upstream IdP sync
+## Group System - Phase 3: User Experience
+
+**User Story:**
+As a user
+I want to see which groups I belong to
+So that I understand my organizational context and access rights
+
+**Acceptance Criteria:**
+
+**Dashboard - My Groups:**
+
+- [ ] "My Groups" section on user dashboard
+- [ ] Shows all groups user is a member of (direct or via IdP)
+- [ ] Distinguishes between WeftID groups and IdP groups
+- [ ] Shows group hierarchy context (e.g., "Engineering > Backend Team")
+
+**Effective Membership:**
+
+- [ ] Calculate effective membership (user in child group = member of parent)
+- [ ] API endpoint to query effective memberships for a user
+- [ ] API endpoint to query effective members of a group (including via children)
+
+**Admin Enhancements:**
+
+- [ ] View effective members of a group (not just direct)
+- [ ] Filter/search groups
+- [ ] Bulk user assignment to groups
+
+**Technical Implementation:**
+
+- Recursive CTE queries for effective membership
+- Dashboard template updates
+- API endpoints under `/api/v1/groups/`
+
+**Dependencies:**
+
+- Phase 2 complete
+
+**Effort:** S
+**Value:** Medium (User visibility, API for downstream apps)
 
 ---
 

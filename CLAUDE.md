@@ -140,6 +140,65 @@ Database functions use Row-Level Security (RLS):
 - Use `UNSCOPED` constant for intentional cross-tenant operations (system tasks only)
 - Database layer functions: `fetchall(tenant_id, ...)`, `fetchone(tenant_id, ...)`, `execute(tenant_id, ...)`
 
+## Group System Architecture
+
+Groups organize users and support hierarchical relationships via a DAG (Directed Acyclic Graph) model.
+
+### Data Model
+
+| Table | Purpose |
+|-------|---------|
+| `groups` | Group definitions (name, description, type) |
+| `group_memberships` | User-to-group membership |
+| `group_relationships` | Direct parent-child edges |
+| `group_lineage` | Closure table for all ancestor-descendant pairs |
+
+### DAG Model
+
+- Groups can have **multiple parents** (unlike a tree)
+- Only true cycles are prevented (A cannot be both ancestor AND descendant of B)
+- Example: Groups A and B can both be children of C, and A can become a child of B
+
+### Closure Table Pattern
+
+The `group_lineage` table pre-computes all ancestor-descendant relationships:
+
+```
+ancestor_id | descendant_id | depth
+------------+---------------+------
+group_a     | group_a       | 0      -- self-reference (every group has this)
+group_a     | group_b       | 1      -- direct child
+group_a     | group_c       | 2      -- grandchild (transitive)
+```
+
+**Benefits:**
+- O(1) cycle detection: `SELECT 1 FROM group_lineage WHERE ancestor_id = child AND descendant_id = parent`
+- O(1) ancestry queries: find all ancestors or descendants with a single query
+- Depth tracking enables hierarchy visualization
+
+**Maintenance:**
+- On group creation: insert self-reference row `(group_id, group_id, 0)`
+- On relationship creation: insert transitive paths atomically (all ancestors of parent become ancestors of all descendants of child)
+- On relationship deletion: rebuild lineage for affected subtree
+
+### Transactional Consistency
+
+Relationship changes must update both `group_relationships` AND `group_lineage` atomically. Use the database `session()` context manager for transactions:
+
+```python
+with session(tenant_id=tenant_id) as cur:
+    # 1. Insert/delete the direct relationship
+    cur.execute(...)
+    # 2. Update the lineage table
+    cur.execute(...)
+    # Transaction commits when context exits
+```
+
+### Group Types
+
+- `weftid`: Manually managed groups (admin can add/remove members)
+- `idp`: Identity Provider groups (synced from external IdP, read-only in WeftId)
+
 ## Background Jobs
 
 Background jobs run in a separate worker container.

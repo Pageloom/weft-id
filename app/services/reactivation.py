@@ -15,6 +15,7 @@ All functions:
 import database
 from schemas.reactivation import ReactivationRequest
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
@@ -22,21 +23,6 @@ from services.exceptions import (
     ValidationError,
 )
 from services.types import RequestingUser
-
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
-
 
 # =============================================================================
 # Request Creation (by inactivated user)
@@ -204,7 +190,7 @@ def list_pending_requests(
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -239,7 +225,7 @@ def count_pending_requests(requesting_user: RequestingUser) -> int:
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
     return database.reactivation.count_pending_requests(requesting_user["tenant_id"])
 
@@ -261,7 +247,7 @@ def list_previous_requests(
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -309,7 +295,7 @@ def approve_request(
         NotFoundError: If request does not exist
         ValidationError: If request already decided
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -393,7 +379,7 @@ def deny_request(
         NotFoundError: If request does not exist
         ValidationError: If request already decided
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

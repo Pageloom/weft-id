@@ -191,11 +191,12 @@ Refactoring analysis performed: 2026-02-01 (Services Layer Deep Scan)
 
 ---
 
-## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
+## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services (Resolved)
 
 **Found in:** 9 files in `app/services/`
 **Impact:** High
 **Category:** Duplication
+**Status:** Resolved (2026-02-01)
 
 **Description:**
 The `_require_admin()` helper function is duplicated 9 times across service modules with 3 inconsistent variants. Similarly, `_require_super_admin()` is duplicated 3 times with 2 variants.
@@ -259,6 +260,9 @@ def require_super_admin(user: RequestingUser, log_failure: bool = False) -> None
 Then update all service files to import from `services.auth`.
 
 **Files Affected:** 9 service files (settings.py, bg_tasks.py, groups.py, emails.py, users.py, event_log.py, exports.py, reactivation.py, mfa.py, saml.py)
+
+**Resolution:**
+Created `app/services/auth.py` with centralized `require_admin()` and `require_super_admin()` functions that support optional logging. Updated 8 service files to use these functions (event_log.py kept local copy to avoid circular import). Reduced duplication from 12 function definitions to 3 (auth.py + event_log.py fallback).
 
 ---
 
@@ -383,7 +387,7 @@ def update_user(...) -> UserDetail:
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 2 | Refactoring (Authorization duplication, God module) |
+| High | 1 | Refactoring (God module) |
 | Medium | 1 | Refactoring (Long functions) |
 | Low | 0 | - |
 

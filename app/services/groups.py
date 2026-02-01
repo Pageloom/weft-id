@@ -29,6 +29,7 @@ from schemas.groups import (
     GroupUpdate,
 )
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import (
     ConflictError,
@@ -38,20 +39,6 @@ from services.exceptions import (
 )
 from services.types import RequestingUser
 from utils.request_context import system_context
-
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
 
 
 def _is_idp_group(group: dict) -> bool:
@@ -162,7 +149,7 @@ def list_groups(
     Returns:
         GroupListResponse with paginated groups
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -208,7 +195,7 @@ def get_group(
     Raises:
         NotFoundError: If group doesn't exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     row = database.groups.get_group_by_id(requesting_user["tenant_id"], group_id)
@@ -241,7 +228,7 @@ def create_group(
         ValidationError: If name is empty
         ConflictError: If name already exists
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
     name = group_data.name.strip()
@@ -320,7 +307,7 @@ def update_group(
         ValidationError: If new name is empty
         ConflictError: If new name already exists
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -406,7 +393,7 @@ def delete_group(
     Raises:
         NotFoundError: If group doesn't exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -455,7 +442,7 @@ def list_members(
 
     Authorization: Requires admin role.
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -490,7 +477,7 @@ def add_member(
         NotFoundError: If group or user doesn't exist
         ConflictError: If user is already a member
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -551,7 +538,7 @@ def remove_member(
     Raises:
         NotFoundError: If group doesn't exist or user is not a member
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -603,7 +590,7 @@ def list_parents(
 
     Authorization: Requires admin role.
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -632,7 +619,7 @@ def list_children(
 
     Authorization: Requires admin role.
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -667,7 +654,7 @@ def add_child(
         ValidationError: If would create a cycle or self-reference
         ConflictError: If relationship already exists
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -748,7 +735,7 @@ def remove_child(
     Raises:
         NotFoundError: If relationship doesn't exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -819,7 +806,7 @@ def list_available_users_for_group(
     Returns:
         List of users not already in the group
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -871,7 +858,7 @@ def list_available_parents(
     Returns:
         List of groups valid as parents
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -915,7 +902,7 @@ def list_available_children(
     Returns:
         List of groups valid as children
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -1271,7 +1258,7 @@ def list_groups_for_idp(
     Returns:
         List of GroupSummary for all groups linked to this IdP
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
     rows = database.groups.get_groups_by_idp(requesting_user["tenant_id"], idp_id)
     return [_row_to_summary(row) for row in rows]

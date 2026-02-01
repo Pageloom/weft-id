@@ -23,6 +23,7 @@ from schemas.api import (
     TOTPSetupResponse,
 )
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import (
     ForbiddenError,
@@ -42,34 +43,6 @@ from utils.mfa import (
     verify_email_otp,
     verify_totp_code,
 )
-
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        # Log authorization failure before raising
-        log_event(
-            tenant_id=user["tenant_id"],
-            actor_user_id=user["id"],
-            artifact_type="user",
-            artifact_id=user["id"],
-            event_type="authorization_denied",
-            metadata={
-                "required_role": "admin",
-                "actual_role": user["role"],
-                "service": "mfa",
-            },
-        )
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
-
 
 # =============================================================================
 # Internal Helpers (private)
@@ -569,7 +542,7 @@ def reset_user_mfa(
         ForbiddenError: If requesting user is not admin
         NotFoundError: If target user does not exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="mfa")
 
     tenant_id = requesting_user["tenant_id"]
 

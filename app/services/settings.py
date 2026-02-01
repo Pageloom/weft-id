@@ -19,6 +19,7 @@ from schemas.settings import (
     TenantSecuritySettingsUpdate,
 )
 from services.activity import track_activity
+from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -27,31 +28,6 @@ from services.exceptions import (
     ValidationError,
 )
 from services.types import RequestingUser
-
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
-
-
-def _require_super_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not super_admin."""
-    if user["role"] != "super_admin":
-        raise ForbiddenError(
-            message="Super admin access required",
-            code="super_admin_required",
-            required_role="super_admin",
-        )
-
 
 # =============================================================================
 # Domain Validation Helpers (private)
@@ -132,7 +108,7 @@ def list_privileged_domains(
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -162,7 +138,7 @@ def add_privileged_domain(
         ValidationError: If domain format is invalid
         ConflictError: If domain already exists
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -225,7 +201,7 @@ def delete_privileged_domain(
         ForbiddenError: If user lacks admin permissions
         NotFoundError: If domain does not exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -279,7 +255,7 @@ def get_security_settings(
     Raises:
         ForbiddenError: If user lacks super_admin permissions
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -424,7 +400,7 @@ def update_security_settings(
         ForbiddenError: If user lacks super_admin permissions
         ValidationError: If validation fails (e.g., negative timeout)
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user)
 
     tenant_id = requesting_user["tenant_id"]
 

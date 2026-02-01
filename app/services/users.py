@@ -23,6 +23,7 @@ from schemas.api import (
     UserUpdate,
 )
 from services.activity import track_activity
+from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -31,57 +32,6 @@ from services.exceptions import (
     ValidationError,
 )
 from services.types import RequestingUser
-
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        # Log authorization failure before raising
-        log_event(
-            tenant_id=user["tenant_id"],
-            actor_user_id=user["id"],
-            artifact_type="user",
-            artifact_id=user["id"],
-            event_type="authorization_denied",
-            metadata={
-                "required_role": "admin",
-                "actual_role": user["role"],
-                "service": "users",
-            },
-        )
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
-
-
-def _require_super_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not super_admin."""
-    if user["role"] != "super_admin":
-        # Log authorization failure before raising
-        log_event(
-            tenant_id=user["tenant_id"],
-            actor_user_id=user["id"],
-            artifact_type="user",
-            artifact_id=user["id"],
-            event_type="authorization_denied",
-            metadata={
-                "required_role": "super_admin",
-                "actual_role": user["role"],
-                "service": "users",
-            },
-        )
-        raise ForbiddenError(
-            message="Super admin access required",
-            code="super_admin_required",
-            required_role="super_admin",
-        )
-
 
 # =============================================================================
 # Utility Functions (no authorization required)
@@ -409,7 +359,7 @@ def list_users(
     Raises:
         ForbiddenError: If user lacks admin permissions
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -455,7 +405,7 @@ def get_user(
         ForbiddenError: If user lacks admin permissions
         NotFoundError: If user does not exist
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -508,7 +458,7 @@ def create_user(
         ConflictError: If email already exists
         ValidationError: If creation fails
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -608,7 +558,7 @@ def update_user(
         NotFoundError: If user does not exist
         ValidationError: If update would leave no super_admins
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -736,7 +686,7 @@ def delete_user(
         NotFoundError: If user does not exist
         ValidationError: If user is a service user or self-deletion attempted
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -815,7 +765,7 @@ def inactivate_user(
         NotFoundError: If user does not exist
         ValidationError: If inactivation would violate constraints
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -899,7 +849,7 @@ def reactivate_user(
         NotFoundError: If user does not exist
         ValidationError: If user is anonymized or not inactivated
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 
@@ -1037,7 +987,7 @@ def anonymize_user(
         NotFoundError: If user does not exist
         ValidationError: If anonymization would violate constraints
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="users")
 
     tenant_id = requesting_user["tenant_id"]
 

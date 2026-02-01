@@ -38,20 +38,30 @@ def test_claim_next_task(test_tenant, test_user):
     """Test claiming the next pending task."""
     import database
 
-    # Create a task
+    unique_job_type = f"test_claim_specific_{uuid4().hex}"
+
+    # Create a task with a unique job type
     created = database.bg_tasks.create_task(
         tenant_id=str(test_tenant["id"]),
-        job_type=f"test_job_{uuid4().hex[:8]}",
+        job_type=unique_job_type,
         created_by=str(test_user["id"]),
     )
 
-    # Claim the task
-    claimed = database.bg_tasks.claim_next_task()
+    # Claim tasks until we get our specific one (other tests may have pending tasks)
+    # We limit iterations to avoid infinite loops
+    claimed = None
+    for _ in range(100):
+        result = database.bg_tasks.claim_next_task()
+        if result is None:
+            break
+        if result["id"] == created["id"]:
+            claimed = result
+            break
 
-    assert claimed is not None
+    assert claimed is not None, "Our task should have been claimed"
     assert claimed["id"] == created["id"]
     assert claimed["tenant_id"] == test_tenant["id"]
-    assert claimed["job_type"].startswith("test_job_")
+    assert claimed["job_type"] == unique_job_type
 
 
 def test_claim_next_task_no_pending(test_tenant, test_user):

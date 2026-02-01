@@ -14,6 +14,7 @@ from schemas.groups import (
     GroupMemberList,
     GroupParentsList,
     GroupRelationshipAdd,
+    GroupSummary,
     GroupUpdate,
 )
 from services import groups as groups_service
@@ -325,5 +326,35 @@ def remove_child(
 
     try:
         groups_service.remove_child(requesting_user, group_id, child_group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# IdP Groups
+# =============================================================================
+
+
+@router.get("/idp/{idp_id}", response_model=list[GroupSummary])
+def list_idp_groups(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    idp_id: str,
+):
+    """
+    List groups belonging to an identity provider.
+
+    Returns all groups that were auto-created or discovered from the specified IdP.
+
+    Requires admin role.
+
+    Returns:
+        List of group summaries for the IdP
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        return groups_service.list_groups_for_idp(requesting_user, idp_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

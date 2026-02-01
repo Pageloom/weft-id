@@ -177,9 +177,19 @@ def _require_admin(user: RequestingUser) -> None:
         )
 
 
-def _get_actor_name(tenant_id: str, user_id: str) -> str:
-    """Get display name for an actor."""
+def _get_actor_name(
+    tenant_id: str, user_id: str, metadata: dict[str, Any] | None = None
+) -> str:
+    """Get display name for an actor.
+
+    For system actors (SYSTEM_ACTOR_ID), checks metadata for IdP attribution.
+    If metadata contains 'idp_name', returns "IdP: {name}" to clearly show
+    the identity provider was responsible for the action.
+    """
     if user_id == SYSTEM_ACTOR_ID:
+        # Check if this is an IdP-driven action
+        if metadata and metadata.get("idp_name"):
+            return f"IdP: {metadata['idp_name']}"
         return "System"
 
     user = database.users.get_user_by_id(tenant_id, user_id)
@@ -223,7 +233,8 @@ def list_events(
     # Enrich with actor names and artifact names
     items = []
     for e in events:
-        actor_name = _get_actor_name(tenant_id, str(e["actor_user_id"]))
+        metadata_dict = e.get("metadata") or {}
+        actor_name = _get_actor_name(tenant_id, str(e["actor_user_id"]), metadata_dict)
 
         # Build artifact name for user artifacts
         artifact_name = None
@@ -233,7 +244,6 @@ def list_events(
             artifact_name = f"{first} {last}".strip() or None
 
         # Extract request metadata fields from metadata dict
-        metadata_dict = e.get("metadata") or {}
         remote_address = metadata_dict.get("remote_address")
         user_agent = metadata_dict.get("user_agent")
         device = metadata_dict.get("device")
@@ -304,7 +314,9 @@ def get_event(
             code="event_not_found",
         )
 
-    actor_name = _get_actor_name(tenant_id, str(event["actor_user_id"]))
+    # Extract metadata first so we can use it for actor name lookup
+    metadata_dict = event.get("metadata") or {}
+    actor_name = _get_actor_name(tenant_id, str(event["actor_user_id"]), metadata_dict)
 
     # Build artifact name for user artifacts
     artifact_name = None
@@ -314,7 +326,6 @@ def get_event(
         artifact_name = f"{first} {last}".strip() or None
 
     # Extract request metadata fields from metadata dict
-    metadata_dict = event.get("metadata") or {}
     remote_address = metadata_dict.get("remote_address")
     user_agent = metadata_dict.get("user_agent")
     device = metadata_dict.get("device")

@@ -86,6 +86,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "group_member_removed": "User removed from group",
     "group_relationship_created": "Group hierarchy relationship created",
     "group_relationship_deleted": "Group hierarchy relationship removed",
+    # IdP Group Integration
+    "idp_group_created": "Group auto-created for identity provider",
+    "idp_group_discovered": "New group discovered from identity provider",
+    "idp_group_invalidated": "IdP group marked invalid after IdP deletion",
+    "idp_group_member_added": "User added to IdP group during authentication",
+    "idp_group_member_removed": "User removed from IdP group during authentication",
 }
 
 

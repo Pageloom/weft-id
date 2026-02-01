@@ -44,6 +44,7 @@ from schemas.saml import (
     UnboundDomain,
 )
 from services.activity import track_activity
+from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
@@ -65,34 +66,6 @@ from utils.saml import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-# ============================================================================
-# Authorization Helpers
-# ============================================================================
-
-
-def _require_super_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not super_admin."""
-    if user["role"] != "super_admin":
-        # Log authorization failure before raising
-        log_event(
-            tenant_id=user["tenant_id"],
-            actor_user_id=user["id"],
-            artifact_type="user",
-            artifact_id=user["id"],
-            event_type="authorization_denied",
-            metadata={
-                "required_role": "super_admin",
-                "actual_role": user["role"],
-                "service": "saml",
-            },
-        )
-        raise ForbiddenError(
-            message="Super admin access required",
-            code="super_admin_required",
-            required_role="super_admin",
-        )
 
 
 # ============================================================================
@@ -144,7 +117,7 @@ def get_or_create_sp_certificate(
     Returns:
         SPCertificate with certificate_pem (no private key exposed)
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -213,7 +186,7 @@ def get_sp_metadata(
     Returns:
         SPMetadata with entity_id, acs_url, metadata_url, certificate info
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     # Get or create certificate
@@ -254,7 +227,7 @@ def rotate_sp_certificate(
     """
     from datetime import timedelta
 
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     tenant_id = requesting_user["tenant_id"]
 
     # Get current certificate
@@ -401,7 +374,7 @@ def list_identity_providers(
 
     Authorization: Requires super_admin role.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     rows = database.saml.list_identity_providers(requesting_user["tenant_id"])
@@ -419,7 +392,7 @@ def get_identity_provider(
 
     Authorization: Requires super_admin role.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     row = database.saml.get_identity_provider(requesting_user["tenant_id"], idp_id)
@@ -458,7 +431,7 @@ def create_identity_provider(
     Also ensures SP certificate exists for the tenant.
     Logs: saml_idp_created event.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -549,7 +522,7 @@ def update_identity_provider(
     Authorization: Requires super_admin role.
     Logs: saml_idp_updated event.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -614,7 +587,7 @@ def delete_identity_provider(
     Security: Cannot delete if users are assigned or domains are bound.
     Must explicitly migrate users/unbind domains first.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -684,7 +657,7 @@ def set_idp_enabled(
     Authorization: Requires super_admin role.
     Logs: saml_idp_enabled or saml_idp_disabled event.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -728,7 +701,7 @@ def set_idp_default(
     Authorization: Requires super_admin role.
     Logs: saml_idp_set_default event.
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -816,7 +789,7 @@ def import_idp_from_metadata_url(
     Returns:
         Created IdPConfig
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     # Fetch and parse metadata
@@ -886,7 +859,7 @@ def import_idp_from_metadata_xml(
     Returns:
         Created IdPConfig
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     # Parse metadata XML directly
@@ -922,7 +895,7 @@ def refresh_idp_from_metadata(
     Raises:
         ValidationError if IdP has no metadata URL or refresh fails
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -1801,7 +1774,7 @@ def list_domain_bindings(
     Returns:
         DomainBindingList with bound domains
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -1851,7 +1824,7 @@ def bind_domain_to_idp(
     Returns:
         Created DomainBinding
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -1966,7 +1939,7 @@ def unbind_domain_from_idp(
         requesting_user: The authenticated user
         domain_id: Domain UUID to unbind
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -2025,7 +1998,7 @@ def rebind_domain_to_idp(
     Returns:
         Updated DomainBinding
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -2144,7 +2117,7 @@ def get_unbound_domains(
     Returns:
         List of UnboundDomain
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     rows = database.saml.get_unbound_domains(requesting_user["tenant_id"])
@@ -2187,7 +2160,7 @@ def assign_user_idp(
         user_id: User UUID to update
         saml_idp_id: IdP UUID to assign, or None for password-only
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -2620,7 +2593,7 @@ def list_saml_debug_entries(
     Returns:
         List of debug entry dicts
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     return database.saml.get_debug_entries(requesting_user["tenant_id"], limit)
@@ -2645,7 +2618,7 @@ def get_saml_debug_entry(
     Raises:
         NotFoundError if entry doesn't exist
     """
-    _require_super_admin(requesting_user)
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     entry = database.saml.get_debug_entry(requesting_user["tenant_id"], entry_id)

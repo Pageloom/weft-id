@@ -26,20 +26,6 @@ from services.exceptions import (
 )
 from services.types import RequestingUser
 
-# =============================================================================
-# Authorization Helpers (private)
-# =============================================================================
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-            required_role="admin",
-        )
-
 
 def _can_manage_emails(requesting_user: RequestingUser, target_user_id: str) -> bool:
     """Check if requesting user can manage target user's emails."""

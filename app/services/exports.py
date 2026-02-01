@@ -9,20 +9,12 @@ from typing import Any
 import database
 from schemas.event_log import ExportFileItem, ExportListResponse
 from services.activity import track_activity
+from services.auth import require_admin
 from services.exceptions import ForbiddenError, NotFoundError
 from services.types import RequestingUser
 from utils import storage
 
 logger = logging.getLogger(__name__)
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-        )
 
 
 def list_exports(requesting_user: RequestingUser) -> ExportListResponse:
@@ -37,7 +29,7 @@ def list_exports(requesting_user: RequestingUser) -> ExportListResponse:
     Returns:
         ExportListResponse with list of available exports
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
@@ -83,7 +75,7 @@ def get_download(
     Raises:
         NotFoundError: If export not found or expired
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]

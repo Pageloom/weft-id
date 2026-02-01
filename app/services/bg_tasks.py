@@ -9,20 +9,12 @@ import logging
 import database
 from schemas.bg_tasks import JobDetail, JobListItem, JobListResponse, JobStatus
 from services.activity import track_activity
+from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import ForbiddenError, NotFoundError
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
-
-
-def _require_admin(user: RequestingUser) -> None:
-    """Raise ForbiddenError if user is not admin or super_admin."""
-    if user["role"] not in ("admin", "super_admin"):
-        raise ForbiddenError(
-            message="Admin access required",
-            code="admin_required",
-        )
 
 
 def create_export_task(requesting_user: RequestingUser) -> dict | None:
@@ -37,7 +29,7 @@ def create_export_task(requesting_user: RequestingUser) -> dict | None:
     Returns:
         Dict with task_id and created_at, or None if creation failed
     """
-    _require_admin(requesting_user)
+    require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     result = database.bg_tasks.create_task(

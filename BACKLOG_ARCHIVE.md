@@ -4,6 +4,56 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Group System - Phase 1: Core Infrastructure
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to create groups and organize them hierarchically
+So that I can model my organization's structure and prepare for access control
+
+**Completed Work:**
+
+**WeftID Groups:**
+
+- [x] Admin can create groups with name (required) and description (optional)
+- [x] Admin can edit group name and description
+- [x] Admin can delete groups (children become orphaned, not deleted)
+- [x] Admin can add users as direct members of groups
+- [x] Admin can remove users from groups
+- [x] List view of all groups with member counts
+
+**Group Hierarchy:**
+
+- [x] Admin can make one group a child of another (group-in-group)
+- [x] Groups can have multiple parents
+- [x] Groups can have multiple children
+- [x] Cycle detection prevents circular relationships
+- [x] UI shows parent/child relationships
+
+**Technical Implementation:**
+
+- Database migration: `db-init/00027_groups.sql`
+  - `groups`: id, tenant_id, name, description, group_type (enum: 'weftid', 'idp'), idp_id (nullable), is_valid (boolean, default true), created_at
+  - `group_memberships`: id, group_id, user_id, created_at
+  - `group_relationships`: id, parent_group_id, child_group_id, created_at (unique constraint on pair)
+  - `group_lineage`: closure table for DAG ancestor-descendant tracking (O(1) cycle detection)
+- New router: `app/routers/groups.py` (frontend)
+- New API router: `app/routers/api/v1/groups.py` (RESTful API)
+- New service: `app/services/groups.py`
+- New database module: `app/database/groups.py`
+- New schemas: `app/schemas/groups.py`
+- Templates: `groups_list.html`, `groups_new.html`, `groups_detail.html`
+- DAG model with closure table pattern for efficient hierarchy queries
+- Cycle detection via lineage table (prevents A being both ancestor AND descendant of B)
+- 52 comprehensive tests covering API, service, database, and router layers
+
+**Effort:** M
+**Value:** High (Foundation for access control)
+
+---
+
 ## Admin Navigation Reorganization
 
 **Status:** Complete

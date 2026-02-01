@@ -8,49 +8,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Group System - Phase 1: Core Infrastructure
-
-**User Story:**
-As an admin
-I want to create groups and organize them hierarchically
-So that I can model my organization's structure and prepare for access control
-
-**Acceptance Criteria:**
-
-**WeftID Groups:**
-
-- [ ] Admin can create groups with name (required) and description (optional)
-- [ ] Admin can edit group name and description
-- [ ] Admin can delete groups (children become orphaned, not deleted)
-- [ ] Admin can add users as direct members of groups
-- [ ] Admin can remove users from groups
-- [ ] List view of all groups with member counts
-
-**Group Hierarchy:**
-
-- [ ] Admin can make one group a child of another (group-in-group)
-- [ ] Groups can have multiple parents
-- [ ] Groups can have multiple children
-- [ ] Cycle detection prevents circular relationships
-- [ ] UI shows parent/child relationships
-
-**Technical Implementation:**
-
-- Database migration:
-  - `groups`: id, tenant_id, name, description, group_type (enum: 'weftid', 'idp'), idp_id (nullable), is_valid (boolean, default true), created_at
-  - `group_memberships`: id, group_id, user_id, created_at
-  - `group_relationships`: id, parent_group_id, child_group_id, created_at (unique constraint on pair)
-- New router: `app/routers/groups.py`
-- New service: `app/services/groups.py`
-- New database module: `app/database/groups.py`
-- Cycle detection algorithm (DFS on relationship graph)
-- Admin UI pages for group management
-
-**Effort:** M
-**Value:** High (Foundation for access control)
-
----
-
 ## Group System - Phase 2: IdP Group Integration
 
 **User Story:**

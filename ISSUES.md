@@ -93,34 +93,6 @@ Split large routers by functionality:
 
 ---
 
-## [REFACTOR] Dead Code: Unused Converter Functions
-
-**Found in:** `app/routers/api/v1/users.py:45-109, 182-190`
-**Impact:** Medium
-**Category:** Dead Code
-
-**Description:**
-Four converter functions are defined but never called:
-- `_user_to_profile()` (lines 45-59)
-- `_user_to_summary()` (lines 62-75)
-- `_user_to_detail()` (lines 78-108)
-- `_email_to_info()` (lines 182-190)
-
-These functions exist because the services layer now returns Pydantic schemas directly, making router-level conversion unnecessary.
-
-**Evidence:**
-```bash
-grep -rn "_user_to_profile\|_user_to_summary\|_user_to_detail\|_email_to_info" app --include="*.py" | grep -v "def "
-# Returns nothing - functions are never called
-```
-
-**Suggested Refactoring:**
-Delete the unused functions (~60 lines total).
-
-**Files Affected:** `app/routers/api/v1/users.py`
-
----
-
 ## [REFACTOR] Architecture: Event Logging in Routers
 
 **Found in:** `app/routers/auth.py`, `app/routers/mfa.py`
@@ -153,7 +125,7 @@ Option 2: Create a thin auth service that handles session creation and logging
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 3 | 1 dependency (transitive), 2 file structure |
-| Medium | 2 | 1 long functions, 1 dead code |
+| Medium | 1 | Long functions |
 | Low | 1 | Architecture consistency |
 
 **Last dependency audit:** 2026-02-01 (all direct dependencies are at safe versions)

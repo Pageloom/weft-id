@@ -4,6 +4,25 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Dead Code: Unused Converter Functions
+
+**Status:** Resolved (2026-02-01)
+
+**Original Severity:** Medium
+
+**Original Description:** Four converter functions in `app/routers/api/v1/users.py` were defined but never called: `_user_to_profile()`, `_user_to_summary()`, `_user_to_detail()`, and `_email_to_info()`. These existed because the services layer now returns Pydantic schemas directly, making router-level conversion unnecessary.
+
+**Resolution:**
+- Deleted all four unused converter functions (~65 lines)
+- Removed unused `UserSummary` import
+
+**Files Modified:**
+- `app/routers/api/v1/users.py` - Removed dead code
+
+**Verification:** All 2174 tests pass. Linting and type checking clean.
+
+---
+
 ## [DEPS] user-agents: Unmaintained Package Replaced with ua-parser
 
 **Status:** Resolved (2026-01-31)

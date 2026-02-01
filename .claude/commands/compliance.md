@@ -80,6 +80,8 @@ Request → Router → Service → Database → PostgreSQL
 
 Any operation a user can perform in the web interface must be possible to implement using API calls. This enables third-party integrations, automation, and alternative clients.
 
+**Baseline**: API-first architecture was fully verified on 2026-02-01. When checking this principle, only review code added or modified after that date. No need to audit earlier functionality.
+
 **What to verify**:
 - RESTful API endpoints exist in `app/routers/api/v1/` for all domain operations
 - API coverage allows external developers to build equivalent functionality

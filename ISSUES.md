@@ -14,23 +14,10 @@ Dependency audit performed: 2026-01-31
 
 ---
 
-## [DEPS] python-multipart: CVE-2026-24486 - Path Traversal
+## [DEPS] python-multipart: CVE-2026-24486 - Path Traversal (Resolved)
 
 **Package:** python-multipart
-**Installed Version:** 0.0.18
-**Vulnerable Versions:** < 0.0.22
-**Fixed Version:** 0.0.22
-**Severity:** High (CVSS: 8.6)
-**Advisory:** https://github.com/advisories/GHSA-wp53-j4wj-2cfg
-
-**Description:**
-A path traversal vulnerability exists when using non-default configuration options UPLOAD_DIR and UPLOAD_KEEP_FILENAME=True. An attacker can write uploaded files to arbitrary locations on the filesystem by crafting a malicious filename that begins with `/`.
-
-**Exploitability in This Project:**
-Low - This project does not use UPLOAD_DIR or UPLOAD_KEEP_FILENAME configurations. The multipart parsing is only used for form data (CSRF tokens), not file uploads.
-
-**Remediation:**
-Update to version 0.0.22 or later: `poetry update python-multipart`
+**Status:** Resolved (2026-02-01) - Updated to version 0.0.22
 
 ---
 
@@ -200,39 +187,15 @@ Security assessment performed: 2026-01-25
 
 # Technical Debt
 
-## Service Layer Architecture: Groups Router Bypasses Service Layer
+## Service Layer Architecture: Groups Router Bypasses Service Layer (Resolved)
 
-**Found in:** `app/routers/groups.py:5,157,165-166`
-**Severity:** High
-**Principle Violated:** Service Layer Architecture
-**Description:** The groups router directly imports and uses the `database` module, bypassing the service layer. This breaks the layered architecture principle where routers should only call service functions.
+**Status:** Resolved (2026-02-01)
 
-**Evidence:**
-```python
-# Line 5
-import database
-
-# Lines 157-166 (in group detail view)
-available_users = database.users.list_users(tenant_id, page=1, page_size=100)
-available_parents = database.groups.get_groups_for_parent_select(tenant_id, group_id)
-available_children = database.groups.get_groups_for_child_select(tenant_id, group_id)
-```
-
-**Impact:**
-- Bypasses activity tracking (reads not tracked via `track_activity()`)
-- Bypasses authorization checks that would be enforced in service layer
-- Breaks architectural consistency and maintainability
-- Makes it harder to add cross-cutting concerns uniformly
-
-**Root Cause:** The group detail page needs data for dropdown menus (available users, available parent/child groups). These were added directly in the router as convenience functions rather than going through the service layer.
-
-**Suggested fix:**
-1. Add service functions in `app/services/groups.py`:
-   - `list_available_users_for_group(requesting_user, group_id)` - returns users not already members
-   - `list_available_parents(requesting_user, group_id)` - returns groups valid as parents
-   - `list_available_children(requesting_user, group_id)` - returns groups valid as children
-2. Remove `import database` from the router
-3. Call the new service functions instead
+**Resolution:**
+- Added three service functions to `app/services/groups.py`: `list_available_users_for_group()`, `list_available_parents()`, `list_available_children()`
+- Removed `import database` from the router
+- Router now calls service functions with proper authorization and activity tracking
+- Added 7 unit tests for the new service functions
 
 ---
 
@@ -243,23 +206,22 @@ available_children = database.groups.get_groups_for_child_select(tenant_id, grou
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 1 | Service Layer Architecture |
+| High | 0 | - |
 | Medium | 0 | - |
 | Low | 0 | - |
 
-## Dependency Audit Summary (2026-01-31)
+## Dependency Audit Summary (2026-02-01)
 
 | Severity | Count | Packages |
 |----------|-------|----------|
 | Critical | 0 | - |
-| High | 2 | python-multipart, ecdsa (transitive) |
+| High | 1 | ecdsa (transitive, no fix available) |
 | Medium | 0 | - |
 | Low | 0 | - |
 
 ### Packages Requiring Attention
 
-1. **python-multipart** - Update to 0.0.22 (path traversal, low exploitability in this project)
-2. **ecdsa** - Transitive via sendgrid, no fix available (timing attack, low exploitability)
+1. **ecdsa** - Transitive via sendgrid, no fix available (timing attack, low exploitability)
 
 ### Packages Confirmed Safe
 Most production dependencies are at versions that include fixes for known CVEs. Recent CVEs in the Python ecosystem (CVE-2026-21226 Azure Core, CVE-2025-68668 n8n, CVE-2025-68664 LangChain) do not affect this project.

@@ -1480,3 +1480,83 @@ Added `TestInlineEventHandlerBackstop` class to `tests/test_csp_nonce.py` with r
 **Verification:** All 1977 tests pass. Backstop test confirms 0 inline handlers remaining.
 
 ---
+
+## [DEPS] python-multipart: CVE-2026-24486 - Path Traversal
+
+**Status:** Resolved (2026-02-01)
+
+**Original Severity:** High (CVSS: 8.6)
+
+**Package:** python-multipart 0.0.18
+
+**Description:** A path traversal vulnerability exists when using non-default configuration options UPLOAD_DIR and UPLOAD_KEEP_FILENAME=True. An attacker can write uploaded files to arbitrary locations on the filesystem by crafting a malicious filename that begins with `/`.
+
+**Exploitability in This Project:** Low. This project does not use UPLOAD_DIR or UPLOAD_KEEP_FILENAME configurations. The multipart parsing is only used for form data (CSRF tokens), not file uploads.
+
+**Resolution:** Updated python-multipart from 0.0.18 to 0.0.22 via `poetry add "python-multipart@^0.0.22"`.
+
+**Files Modified:**
+- `pyproject.toml` - Updated version constraint
+- `poetry.lock` - Updated lockfile
+
+**Verification:** All 2151 tests pass.
+
+---
+
+## [TECH-DEBT] Service Layer Architecture: Groups Router Bypasses Service Layer
+
+**Status:** Resolved (2026-02-01)
+
+**Original Severity:** High
+
+**Principle Violated:** Service Layer Architecture
+
+**Original Description:** The groups router directly imported and used the `database` module, bypassing the service layer. This violated the layered architecture principle where routers should only call service functions.
+
+Lines affected:
+- Line 5: `import database`
+- Lines 157-166: Direct database calls for dropdown data
+
+**Impact:**
+- Bypassed activity tracking (reads not tracked via `track_activity()`)
+- Bypassed authorization checks that would be enforced in service layer
+- Broke architectural consistency and maintainability
+
+**Resolution:**
+1. Added new schemas in `app/schemas/groups.py`:
+   - `AvailableUserOption` - User option for dropdown selections
+   - `AvailableGroupOption` - Group option for dropdown selections
+
+2. Added new service functions in `app/services/groups.py`:
+   - `list_available_users_for_group()` - Returns users not already group members
+   - `list_available_parents()` - Returns groups valid as parents
+   - `list_available_children()` - Returns groups valid as children
+
+   All functions include proper authorization (`_require_admin()`), activity tracking (`track_activity()`), and group existence validation.
+
+3. Updated `app/routers/groups.py`:
+   - Removed `import database`
+   - Updated `group_detail()` to call new service functions
+
+4. Updated tests in `tests/test_routers_groups.py`:
+   - Changed mocks from database functions to service functions
+
+5. Added 7 unit tests in `tests/test_services_groups.py`:
+   - `test_list_available_users_for_group_success`
+   - `test_list_available_users_for_group_not_found`
+   - `test_list_available_users_for_group_forbidden`
+   - `test_list_available_parents_success`
+   - `test_list_available_parents_not_found`
+   - `test_list_available_children_success`
+   - `test_list_available_children_not_found`
+
+**Files Modified:**
+- `app/schemas/groups.py` - Added dropdown option schemas
+- `app/services/groups.py` - Added 3 service functions
+- `app/routers/groups.py` - Removed database import, use service layer
+- `tests/test_routers_groups.py` - Updated mocks
+- `tests/test_services_groups.py` - Added 7 tests
+
+**Verification:** All 2151 tests pass. Compliance check shows 0 violations.
+
+---

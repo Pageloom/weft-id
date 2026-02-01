@@ -2,7 +2,6 @@
 
 from typing import Annotated
 
-import database
 from dependencies import (
     build_requesting_user,
     get_current_user,
@@ -153,17 +152,16 @@ def group_detail(
         parents = groups_service.list_parents(requesting_user, group_id)
         children = groups_service.list_children(requesting_user, group_id)
 
-        # Get available users for member add dropdown
-        available_users = database.users.list_users(
-            tenant_id, page=1, page_size=100
+        # Get available options for dropdowns (via service layer)
+        available_users = groups_service.list_available_users_for_group(
+            requesting_user, group_id
         )
-        # Filter out existing members
-        member_ids = {m.user_id for m in members.items}
-        available_users = [u for u in available_users if str(u["id"]) not in member_ids]
-
-        # Get available groups for relationship dropdowns
-        available_parents = database.groups.get_groups_for_parent_select(tenant_id, group_id)
-        available_children = database.groups.get_groups_for_child_select(tenant_id, group_id)
+        available_parents = groups_service.list_available_parents(
+            requesting_user, group_id
+        )
+        available_children = groups_service.list_available_children(
+            requesting_user, group_id
+        )
 
     except NotFoundError:
         return render_error_page(

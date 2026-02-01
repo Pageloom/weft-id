@@ -811,3 +811,185 @@ def test_get_user_group_ids():
 
         assert len(result) == 2
         mock_db.groups.get_user_groups.assert_called_once_with(tenant_id, user_id)
+
+
+# =============================================================================
+# Dropdown/Selection Functions Tests
+# =============================================================================
+
+
+def test_list_available_users_for_group_success(make_requesting_user):
+    """Test listing available users for group membership dropdown."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    user1_id = uuid4()
+    user2_id = uuid4()
+    member_user_id = uuid4()
+
+    mock_users = [
+        {"id": user1_id, "email": "user1@test.com", "first_name": "User", "last_name": "One"},
+        {"id": user2_id, "email": "user2@test.com", "first_name": "User", "last_name": "Two"},
+        {
+            "id": member_user_id,
+            "email": "member@test.com",
+            "first_name": "Existing",
+            "last_name": "Member",
+        },
+    ]
+
+    mock_members = [{"user_id": member_user_id}]
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
+        mock_db.users.list_users.return_value = mock_users
+        mock_db.groups.get_group_members.return_value = mock_members
+
+        result = groups_service.list_available_users_for_group(requesting_user, group_id)
+
+        # Should filter out the existing member
+        assert len(result) == 2
+        result_ids = {r.id for r in result}
+        assert str(user1_id) in result_ids
+        assert str(user2_id) in result_ids
+        assert str(member_user_id) not in result_ids
+
+
+def test_list_available_users_for_group_not_found(make_requesting_user):
+    """Test listing available users for non-existent group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_available_users_for_group(requesting_user, group_id)
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_list_available_users_for_group_forbidden(make_requesting_user):
+    """Test that non-admins cannot list available users."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.list_available_users_for_group(requesting_user, group_id)
+
+
+def test_list_available_parents_success(make_requesting_user):
+    """Test listing available parent groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    parent1_id = uuid4()
+    parent2_id = uuid4()
+
+    mock_available_parents = [
+        {"id": parent1_id, "name": "Parent Group 1", "group_type": "weftid"},
+        {"id": parent2_id, "name": "Parent Group 2", "group_type": "weftid"},
+    ]
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
+        mock_db.groups.get_groups_for_parent_select.return_value = mock_available_parents
+
+        result = groups_service.list_available_parents(requesting_user, group_id)
+
+        assert len(result) == 2
+        assert result[0].id == str(parent1_id)
+        assert result[0].name == "Parent Group 1"
+        mock_db.groups.get_groups_for_parent_select.assert_called_once_with(tenant_id, group_id)
+
+
+def test_list_available_parents_not_found(make_requesting_user):
+    """Test listing available parents for non-existent group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_available_parents(requesting_user, group_id)
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_list_available_children_success(make_requesting_user):
+    """Test listing available child groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    child1_id = uuid4()
+    child2_id = uuid4()
+
+    mock_available_children = [
+        {"id": child1_id, "name": "Child Group 1", "group_type": "weftid"},
+        {"id": child2_id, "name": "Child Group 2", "group_type": "weftid"},
+    ]
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
+        mock_db.groups.get_groups_for_child_select.return_value = mock_available_children
+
+        result = groups_service.list_available_children(requesting_user, group_id)
+
+        assert len(result) == 2
+        assert result[0].id == str(child1_id)
+        assert result[0].name == "Child Group 1"
+        mock_db.groups.get_groups_for_child_select.assert_called_once_with(tenant_id, group_id)
+
+
+def test_list_available_children_not_found(make_requesting_user):
+    """Test listing available children for non-existent group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.database") as mock_db,
+        patch("services.groups.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_available_children(requesting_user, group_id)
+
+        assert exc_info.value.code == "group_not_found"

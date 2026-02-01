@@ -153,3 +153,29 @@ class GroupAncestor(BaseModel):
     group_id: str = Field(..., description="Ancestor group UUID")
     name: str = Field(..., description="Ancestor group name")
     depth: int = Field(..., description="Distance from descendant (0=self, 1=direct)")
+
+
+# ============================================================================
+# Dropdown/Selection Schemas
+# ============================================================================
+
+
+class AvailableUserOption(BaseModel):
+    """User option for dropdown selections."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="User UUID")
+    email: str | None = Field(None, description="User's primary email")
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
+
+
+class AvailableGroupOption(BaseModel):
+    """Group option for dropdown selections."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Group UUID")
+    name: str = Field(..., description="Group name")
+    group_type: str = Field(..., description="Group type (weftid or idp)")

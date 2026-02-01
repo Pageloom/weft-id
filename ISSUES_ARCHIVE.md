@@ -1561,6 +1561,60 @@ Lines affected:
 
 ---
 
+## [REFACTOR] God Module - saml.py (2,658 lines, 45 functions)
+
+**Status:** Resolved (2026-02-01)
+
+**Original Severity:** High
+
+**Category:** Code Quality / Tech Debt
+
+**Original Description:** The `app/services/saml.py` file had grown to 2,658 lines with 45+ functions, making it difficult to navigate, test, and maintain. This monolithic structure violated the Single Responsibility Principle and created a high cognitive load for developers.
+
+**Resolution:**
+Split the monolithic file into 10 focused sub-modules under `app/services/saml/`:
+
+| Module | Responsibility | ~Lines |
+|--------|---------------|--------|
+| `_converters.py` | Row-to-schema conversion helpers | ~50 |
+| `_helpers.py` | SAML attribute extraction helpers | ~50 |
+| `auth.py` | SAML AuthnRequest/Response processing | ~450 |
+| `certificates.py` | SP certificate management | ~200 |
+| `debug.py` | Debug entry storage | ~100 |
+| `domains.py` | Domain binding operations | ~500 |
+| `logout.py` | Single Logout (SLO) flows | ~200 |
+| `metadata.py` | Metadata import and refresh | ~325 |
+| `providers.py` | IdP CRUD operations | ~400 |
+| `provisioning.py` | JIT provisioning and SAML auth completion | ~240 |
+| `routing.py` | Authentication routing logic | ~100 |
+| `__init__.py` | Re-exports for backwards compatibility | ~175 |
+
+**Key Design Decisions:**
+- **Backwards Compatibility:** The `__init__.py` re-exports all public functions, so existing code using `from services import saml as saml_service` continues to work unchanged
+- **Private Helpers:** Shared utilities prefixed with underscore (`_converters.py`, `_helpers.py`) are also re-exported with underscore prefix for backwards compatibility
+- **Import Timing:** The `OneLogin_Saml2_Auth` class is imported inside functions (not at module level) to support test monkeypatching patterns
+
+**Files Created:**
+- `app/services/saml/__init__.py`
+- `app/services/saml/_converters.py`
+- `app/services/saml/_helpers.py`
+- `app/services/saml/auth.py`
+- `app/services/saml/certificates.py`
+- `app/services/saml/debug.py`
+- `app/services/saml/domains.py`
+- `app/services/saml/logout.py`
+- `app/services/saml/metadata.py`
+- `app/services/saml/providers.py`
+- `app/services/saml/provisioning.py`
+- `app/services/saml/routing.py`
+
+**Files Deleted:**
+- `app/services/saml.py` (original 2,658 line file)
+
+**Verification:** All 2167 tests pass. Ruff check and mypy pass with no issues.
+
+---
+
 ## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
 
 **Status:** Resolved (2026-02-01)

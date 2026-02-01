@@ -14,7 +14,7 @@ Principles checked:
                         or log_event()
     3. tenant         - SQL queries should filter by tenant_id
     4. api-first      - Service operations should have corresponding API endpoints
-    5. data-quality   - Event log entries have proper request context (requires DB)
+    5. authorization  - Web routes have proper auth dependencies matching pages.py
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -375,17 +375,6 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
-# Note on Event Context
-# =============================================================================
-# Event context (IP, user agent, device, session) is handled automatically by:
-# 1. RequestContextMiddleware sets contextvar for all web requests
-# 2. log_event() auto-reads from contextvar if request_metadata not passed
-# 3. RuntimeError raised if context missing and not in system_context()
-#
-# No static check needed - the data quality check below verifies it works.
-
-
-# =============================================================================
 # Principle 3: Tenant Isolation
 # =============================================================================
 
@@ -647,94 +636,300 @@ def check_api_first_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
-# Principle 5: Event Data Quality (requires database)
+# Principle 5: Authorization Pattern Verification
 # =============================================================================
 
 
-def check_event_data_quality(report: ComplianceReport) -> None:
+def check_authorization_violations(report: ComplianceReport) -> None:
     """
-    Check that event log entries have proper request context.
+    Check that web routes have proper auth dependencies matching pages.py permissions.
 
-    This is a data quality check that queries the database to find events
-    that are missing request context (IP, user agent, etc.).
+    This verifies:
+    1. Each web router has router-level auth dependencies
+    2. Auth level matches the pages.py permission for routes it serves
 
-    Requires database connectivity. Skips gracefully if unavailable.
+    Permission mapping:
+    - PagePermission.PUBLIC → no auth required
+    - PagePermission.AUTHENTICATED → require_current_user
+    - PagePermission.ADMIN → require_admin
+    - PagePermission.SUPER_ADMIN → require_super_admin
+
+    Note: Routers that use has_page_access() at route level are considered compliant
+    since they implement defense-in-depth (router-level baseline + route-level checks).
     """
-    try:
-        # Import database module (may fail if not in app context)
-        sys.path.insert(0, str(get_app_path().parent))
-        import database  # noqa: F401
-        from database._core import get_pool
-    except ImportError as e:
-        # Database not available, skip check
-        print(f"  [SKIP] Event data quality check - database not available: {e}")
-        return
-    except Exception as e:
-        print(f"  [SKIP] Event data quality check - error: {e}")
+    routers_path = get_app_path() / "routers"
+    pages_path = get_app_path() / "pages.py"
+
+    if not routers_path.exists() or not pages_path.exists():
         return
 
-    try:
-        pool = get_pool()
-    except Exception as e:
-        print(f"  [SKIP] Event data quality check - cannot connect to database: {e}")
+    # Parse pages.py to extract paths and permissions
+    page_permissions = _extract_page_permissions(pages_path)
+    if not page_permissions:
         return
 
-    # System actor UUID - events from system processes don't need request context
-    system_actor_id = "00000000-0000-0000-0000-000000000000"
+    # Define auth level hierarchy (higher number = more restrictive)
+    auth_levels = {
+        "public": 0,
+        "require_current_user": 1,
+        "require_admin": 2,
+        "require_super_admin": 3,
+    }
 
-    query = """
-        SELECT
-            event_type,
-            COUNT(*) as count
-        FROM event_log
-        WHERE actor_user_id != %s
-          AND (
-              metadata->>'remote_address' IS NULL
-              OR metadata->>'user_agent' IS NULL
-          )
-        GROUP BY event_type
-        ORDER BY count DESC
-        LIMIT 20
-    """
+    # Map page permissions to required auth
+    permission_to_auth = {
+        "PUBLIC": "public",
+        "AUTHENTICATED": "require_current_user",
+        "ADMIN": "require_admin",
+        "SUPER_ADMIN": "require_super_admin",
+    }
 
-    try:
-        with pool.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, (system_actor_id,))
-                results = cur.fetchall()
-    except Exception as e:
-        print(f"  [SKIP] Event data quality check - query failed: {e}")
-        return
+    # First pass: collect all router prefixes to handle nested routers
+    all_prefixes: set[str] = set()
+    for py_file in routers_path.glob("*.py"):
+        if py_file.name.startswith("__"):
+            continue
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+            router_info = _extract_router_info(tree, source)
+            if router_info and router_info["prefix"]:
+                all_prefixes.add(router_info["prefix"])
+        except (SyntaxError, UnicodeDecodeError):
+            continue
 
-    if not results:
-        return
+    # Scan web routers (exclude api/ subdirectory)
+    for py_file in routers_path.glob("*.py"):
+        if py_file.name.startswith("__"):
+            continue
 
-    # Report violations for each event type missing context
-    total_missing = sum(row[1] for row in results)
+        report.files_scanned += 1
 
-    for event_type, count in results:
-        report.add(
-            Violation(
-                principle="Event Data Quality",
-                severity="low",
-                file_path="database:event_log",
-                line_number=0,
-                function_name=None,
-                description=f"Events of type '{event_type}' missing request context",
-                evidence=f"{count} event(s) missing remote_address or user_agent",
-                suggested_fix=(
-                    "Ensure log_event() calls pass request_metadata. "
-                    "Run 'python scripts/compliance_check.py --check event-context' "
-                    "to find code locations."
-                ),
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Check if router uses route-level permission checks
+        # Valid patterns for defense-in-depth:
+        # 1. has_page_access() calls to check permissions dynamically
+        # 2. dependencies=[Depends(require_*)] on individual routes
+        uses_route_level_checks = (
+            "has_page_access" in source
+            or "dependencies=[Depends(require_super_admin)]" in source
+            or "dependencies=[Depends(require_admin)]" in source
+        )
+
+        # Extract router configuration
+        router_info = _extract_router_info(tree, source)
+        if not router_info:
+            continue
+
+        prefix = router_info["prefix"]
+        router_auth = router_info["auth_dependency"]
+
+        # Find more specific prefixes that handle nested routes
+        more_specific_prefixes = [
+            p for p in all_prefixes if p != prefix and p.startswith(prefix + "/")
+        ]
+
+        # Find the most restrictive permission required for any page under this prefix
+        max_required_auth = "public"
+        min_required_auth = "require_super_admin"  # Start with most restrictive
+        matching_pages = []
+
+        for page_path, permission in page_permissions.items():
+            # Check if this page is under the router's prefix
+            if page_path == prefix or page_path.startswith(prefix + "/"):
+                # Skip pages that are handled by a more specific router
+                handled_by_nested = any(
+                    page_path == nested_prefix or page_path.startswith(nested_prefix + "/")
+                    for nested_prefix in more_specific_prefixes
+                )
+                if handled_by_nested:
+                    continue
+
+                matching_pages.append((page_path, permission))
+                required_auth = permission_to_auth.get(permission, "public")
+
+                # Track max required auth (highest permission in this router's pages)
+                if auth_levels.get(required_auth, 0) > auth_levels.get(max_required_auth, 0):
+                    max_required_auth = required_auth
+
+                # Track min required auth (lowest permission in this router's pages)
+                if auth_levels.get(required_auth, 0) < auth_levels.get(min_required_auth, 0):
+                    min_required_auth = required_auth
+
+        if not matching_pages:
+            # Router has no matching pages - might be API or special purpose
+            continue
+
+        # Check if router auth is sufficient
+        if router_auth is None and max_required_auth != "public":
+            # Router has no auth but serves protected pages
+            report.add(
+                Violation(
+                    principle="Authorization",
+                    severity="high",
+                    file_path=str(py_file.relative_to(get_project_root())),
+                    line_number=1,
+                    function_name=None,
+                    description=(
+                        f"Router '{prefix}' has no auth dependency but serves protected pages"
+                    ),
+                    evidence=(
+                        f"Pages requiring auth: "
+                        f"{[p[0] for p in matching_pages if p[1] != 'PUBLIC'][:3]}"
+                    ),
+                    suggested_fix=(
+                        f"Add dependencies=[Depends({max_required_auth})] to APIRouter"
+                    ),
+                )
             )
-        )
+        elif router_auth is not None:
+            router_auth_level = auth_levels.get(router_auth, 0)
+            min_required_level = auth_levels.get(min_required_auth, 0)
 
-    if total_missing > 0:
-        print(
-            f"  [INFO] Found {total_missing} events missing request context "
-            f"across {len(results)} event types"
-        )
+            # Router auth should at least meet the minimum permission level
+            # If router uses has_page_access(), it handles mixed permission levels at route level
+            if router_auth_level < min_required_level:
+                # Router auth doesn't even meet the minimum required
+                report.add(
+                    Violation(
+                        principle="Authorization",
+                        severity="high",
+                        file_path=str(py_file.relative_to(get_project_root())),
+                        line_number=1,
+                        function_name=None,
+                        description=f"Router '{prefix}' has insufficient auth level",
+                        evidence=(
+                            f"Router uses {router_auth} but minimum required is "
+                            f"{min_required_auth}"
+                        ),
+                        suggested_fix=(
+                            f"Change router dependency to Depends({min_required_auth})"
+                        ),
+                    )
+                )
+            elif not uses_route_level_checks:
+                # Router doesn't use route-level checks and has mixed permission pages
+                required_level = auth_levels.get(max_required_auth, 0)
+                if router_auth_level < required_level:
+                    # Router has pages requiring higher auth but no route-level checks
+                    higher_perm_pages = [
+                        p[0]
+                        for p in matching_pages
+                        if auth_levels.get(permission_to_auth.get(p[1], "public"), 0)
+                        > router_auth_level
+                    ]
+                    if higher_perm_pages:
+                        report.add(
+                            Violation(
+                                principle="Authorization",
+                                severity="high",
+                                file_path=str(py_file.relative_to(get_project_root())),
+                                line_number=1,
+                                function_name=None,
+                                description=(
+                                    f"Router '{prefix}' serves pages requiring higher auth "
+                                    "without route-level checks"
+                                ),
+                                evidence=(
+                                    f"Pages needing higher auth: {higher_perm_pages[:3]}, "
+                                    f"router uses {router_auth}"
+                                ),
+                                suggested_fix=(
+                                    "Add has_page_access() checks to routes serving these pages, "
+                                    f"or change router dependency to Depends({max_required_auth})"
+                                ),
+                            )
+                        )
+
+
+def _extract_page_permissions(pages_path: Path) -> dict[str, str]:
+    """Extract page paths and their permissions from pages.py."""
+    try:
+        with open(pages_path) as f:
+            source = f.read()
+        tree = ast.parse(source)
+    except (SyntaxError, UnicodeDecodeError):
+        return {}
+
+    permissions: dict[str, str] = {}
+
+    # Find the PAGES list assignment
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "PAGES":
+                    # Extract pages from the list
+                    if isinstance(node.value, ast.List):
+                        _extract_pages_from_list(node.value, permissions)
+
+    return permissions
+
+
+def _extract_pages_from_list(list_node: ast.List, permissions: dict[str, str]) -> None:
+    """Recursively extract page paths and permissions from a list of Page() calls."""
+    for element in list_node.elts:
+        if isinstance(element, ast.Call):
+            path = None
+            permission = None
+            children = None
+
+            for keyword in element.keywords:
+                if keyword.arg == "path" and isinstance(keyword.value, ast.Constant):
+                    path = keyword.value.value
+                elif keyword.arg == "permission" and isinstance(keyword.value, ast.Attribute):
+                    permission = keyword.value.attr
+                elif keyword.arg == "children" and isinstance(keyword.value, ast.List):
+                    children = keyword.value
+
+            if path and permission:
+                permissions[path] = permission
+
+            if children:
+                _extract_pages_from_list(children, permissions)
+
+
+def _extract_router_info(tree: ast.Module, source: str) -> dict | None:
+    """Extract router prefix and auth dependencies from a router file."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "router":
+                    if isinstance(node.value, ast.Call):
+                        return _parse_api_router_call(node.value)
+    return None
+
+
+def _parse_api_router_call(call_node: ast.Call) -> dict | None:
+    """Parse an APIRouter() call to extract prefix and dependencies."""
+    result = {"prefix": "", "auth_dependency": None}
+
+    for keyword in call_node.keywords:
+        if keyword.arg == "prefix" and isinstance(keyword.value, ast.Constant):
+            result["prefix"] = keyword.value.value
+
+        elif keyword.arg == "dependencies" and isinstance(keyword.value, ast.List):
+            # Look for Depends(require_*) in the dependencies list
+            for dep in keyword.value.elts:
+                if isinstance(dep, ast.Call):
+                    # Check if it's Depends(require_*)
+                    if isinstance(dep.func, ast.Name) and dep.func.id == "Depends":
+                        if dep.args and isinstance(dep.args[0], ast.Name):
+                            auth_func = dep.args[0].id
+                            if auth_func in (
+                                "require_current_user",
+                                "require_admin",
+                                "require_super_admin",
+                            ):
+                                result["auth_dependency"] = auth_func
+
+    return result if result["prefix"] else None
 
 
 # =============================================================================
@@ -751,7 +946,7 @@ def run_compliance_check(
 
     Args:
         principles: List of principles to check, or None for all.
-                   Options: 'architecture', 'activity', 'tenant', 'api-first', 'data-quality'
+                   Options: 'architecture', 'activity', 'tenant', 'api-first', 'authorization'
         output_json: If True, print JSON output. Otherwise, human-readable.
 
     Returns:
@@ -759,7 +954,7 @@ def run_compliance_check(
     """
     report = ComplianceReport()
 
-    all_principles = ["architecture", "activity", "tenant", "api-first"]
+    all_principles = ["architecture", "activity", "tenant", "api-first", "authorization"]
     if principles is None:
         principles = all_principles
 
@@ -775,8 +970,8 @@ def run_compliance_check(
     if "api-first" in principles:
         check_api_first_violations(report)
 
-    if "data-quality" in principles:
-        check_event_data_quality(report)
+    if "authorization" in principles:
+        check_authorization_violations(report)
 
     return report
 
@@ -830,7 +1025,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--check",
-        choices=["architecture", "activity", "tenant", "api-first", "data-quality", "all"],
+        choices=["architecture", "activity", "tenant", "api-first", "authorization", "all"],
         default="all",
         help="Which principle to check (default: all)",
     )

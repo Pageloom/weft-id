@@ -375,10 +375,10 @@ def test_log_event_does_not_raise_on_failure(make_requesting_user):
 # --- Authorization Failure Logging Tests ---
 
 
-def test_mfa_require_admin_logs_authorization_denied(make_requesting_user):
-    """Test that _require_admin in MFA service logs authorization denied events."""
+def test_require_admin_logs_authorization_denied(make_requesting_user):
+    """Test that require_admin logs authorization denied events when log_failure=True."""
     import pytest
-    from services import mfa
+    from services.auth import require_admin
     from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
@@ -387,9 +387,9 @@ def test_mfa_require_admin_logs_authorization_denied(make_requesting_user):
         role="member",  # Not an admin
     )
 
-    with patch("services.mfa.log_event") as mock_log:
+    with patch("services.auth.log_event") as mock_log:
         with pytest.raises(ForbiddenError) as exc_info:
-            mfa._require_admin(member_user)
+            require_admin(member_user, log_failure=True, service_name="test_service")
 
         assert exc_info.value.code == "admin_required"
         # Verify authorization_denied was logged
@@ -398,13 +398,13 @@ def test_mfa_require_admin_logs_authorization_denied(make_requesting_user):
         assert call_kwargs["event_type"] == "authorization_denied"
         assert call_kwargs["metadata"]["required_role"] == "admin"
         assert call_kwargs["metadata"]["actual_role"] == "member"
-        assert call_kwargs["metadata"]["service"] == "mfa"
+        assert call_kwargs["metadata"]["service"] == "test_service"
 
 
-def test_saml_require_super_admin_logs_authorization_denied(make_requesting_user):
-    """Test that _require_super_admin in SAML service logs authorization denied events."""
+def test_require_super_admin_logs_authorization_denied(make_requesting_user):
+    """Test that require_super_admin logs authorization denied events when log_failure=True."""
     import pytest
-    from services import saml
+    from services.auth import require_super_admin
     from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
@@ -413,9 +413,9 @@ def test_saml_require_super_admin_logs_authorization_denied(make_requesting_user
         role="admin",  # Admin but not super_admin
     )
 
-    with patch("services.saml.log_event") as mock_log:
+    with patch("services.auth.log_event") as mock_log:
         with pytest.raises(ForbiddenError) as exc_info:
-            saml._require_super_admin(admin_user)
+            require_super_admin(admin_user, log_failure=True, service_name="test_service")
 
         assert exc_info.value.code == "super_admin_required"
         # Verify authorization_denied was logged
@@ -424,13 +424,13 @@ def test_saml_require_super_admin_logs_authorization_denied(make_requesting_user
         assert call_kwargs["event_type"] == "authorization_denied"
         assert call_kwargs["metadata"]["required_role"] == "super_admin"
         assert call_kwargs["metadata"]["actual_role"] == "admin"
-        assert call_kwargs["metadata"]["service"] == "saml"
+        assert call_kwargs["metadata"]["service"] == "test_service"
 
 
-def test_users_require_admin_logs_authorization_denied(make_requesting_user):
-    """Test that _require_admin in users service logs authorization denied events."""
+def test_require_admin_no_log_when_disabled(make_requesting_user):
+    """Test that require_admin does not log when log_failure=False (default)."""
     import pytest
-    from services import users
+    from services.auth import require_admin
     from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
@@ -439,21 +439,18 @@ def test_users_require_admin_logs_authorization_denied(make_requesting_user):
         role="member",
     )
 
-    with patch("services.users.log_event") as mock_log:
+    with patch("services.auth.log_event") as mock_log:
         with pytest.raises(ForbiddenError) as exc_info:
-            users._require_admin(member_user)
+            require_admin(member_user)  # log_failure defaults to False
 
         assert exc_info.value.code == "admin_required"
-        mock_log.assert_called_once()
-        call_kwargs = mock_log.call_args.kwargs
-        assert call_kwargs["event_type"] == "authorization_denied"
-        assert call_kwargs["metadata"]["service"] == "users"
+        mock_log.assert_not_called()
 
 
-def test_users_require_super_admin_logs_authorization_denied(make_requesting_user):
-    """Test that _require_super_admin in users service logs authorization denied events."""
+def test_require_super_admin_no_log_when_disabled(make_requesting_user):
+    """Test that require_super_admin does not log when log_failure=False (default)."""
     import pytest
-    from services import users
+    from services.auth import require_super_admin
     from services.exceptions import ForbiddenError
 
     tenant_id = str(uuid4())
@@ -462,15 +459,12 @@ def test_users_require_super_admin_logs_authorization_denied(make_requesting_use
         role="admin",
     )
 
-    with patch("services.users.log_event") as mock_log:
+    with patch("services.auth.log_event") as mock_log:
         with pytest.raises(ForbiddenError) as exc_info:
-            users._require_super_admin(admin_user)
+            require_super_admin(admin_user)  # log_failure defaults to False
 
         assert exc_info.value.code == "super_admin_required"
-        mock_log.assert_called_once()
-        call_kwargs = mock_log.call_args.kwargs
-        assert call_kwargs["event_type"] == "authorization_denied"
-        assert call_kwargs["metadata"]["required_role"] == "super_admin"
+        mock_log.assert_not_called()
 
 
 def test_users_role_change_logs_authorization_denied(make_requesting_user, make_user_dict):

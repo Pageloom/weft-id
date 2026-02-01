@@ -346,6 +346,7 @@ All checks must pass before committing.
 - Use `/compliance` to verify architectural principles are followed
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 - Use `/deps` to audit third-party dependencies for known CVEs and vulnerabilities
+- Use `/refactor` to analyze codebase for refactoring opportunities and technical debt
 - Use `/note` to quickly add items to NOTES.md
 
 ## Issue Tracking
@@ -354,5 +355,6 @@ All checks must pass before committing.
 - Architectural violations found by `/compliance` are logged in `ISSUES.md`
 - Security vulnerabilities found by `/security` are logged in `ISSUES.md`
 - Dependency vulnerabilities found by `/deps` are logged in `ISSUES.md`
+- Refactoring opportunities found by `/refactor` are logged in `ISSUES.md`
 - `/dev` checks ISSUES.md first before BACKLOG.md (bugs before features)
 - Goal: keep `ISSUES.md` empty

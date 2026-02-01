@@ -185,6 +185,183 @@ Security assessment performed: 2026-01-25
 
 ---
 
+# Refactoring Opportunities
+
+Refactoring analysis performed: 2026-02-01 (Services Layer Deep Scan)
+
+---
+
+## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
+
+**Found in:** 9 files in `app/services/`
+**Impact:** High
+**Category:** Duplication
+
+**Description:**
+The `_require_admin()` helper function is duplicated 9 times across service modules with 3 inconsistent variants. Similarly, `_require_super_admin()` is duplicated 3 times with 2 variants.
+
+**Evidence:**
+```
+_require_admin() found in:
+- settings.py:36 (with required_role)
+- bg_tasks.py:19 (simple)
+- groups.py:47 (with required_role)
+- emails.py:34 (with required_role)
+- users.py:40 (with event logging)
+- event_log.py:171 (simple)
+- exports.py:19 (simple)
+- reactivation.py:31 (with required_role)
+- mfa.py:51 (with event logging)
+
+_require_super_admin() found in:
+- settings.py:46 (with required_role)
+- saml.py:75 (with event logging)
+- users.py:63 (with event logging)
+```
+
+**Why It Matters:**
+- Bug risk: Changes to authorization logic must be made in 12 places
+- Inconsistency: Some variants log authorization failures, some don't
+- Inconsistency: Some include `required_role` kwarg, some don't
+
+**Suggested Refactoring:**
+Create centralized authorization helpers in `app/services/auth.py`:
+
+```python
+# app/services/auth.py
+from services.types import RequestingUser
+from services.exceptions import ForbiddenError
+from services.event_log import log_event
+
+def require_admin(user: RequestingUser, log_failure: bool = False) -> None:
+    """Raise ForbiddenError if user is not admin or super_admin."""
+    if user["role"] not in ("admin", "super_admin"):
+        if log_failure:
+            log_event(
+                tenant_id=user["tenant_id"],
+                actor_user_id=user["id"],
+                event_type="authorization_denied",
+                artifact_type="system",
+                artifact_id=user["tenant_id"],
+                metadata={"required_role": "admin", "actual_role": user["role"]},
+            )
+        raise ForbiddenError(
+            message="Admin access required",
+            code="admin_required",
+            required_role="admin",
+        )
+
+def require_super_admin(user: RequestingUser, log_failure: bool = False) -> None:
+    """Raise ForbiddenError if user is not super_admin."""
+    # Similar implementation
+```
+
+Then update all service files to import from `services.auth`.
+
+**Files Affected:** 9 service files (settings.py, bg_tasks.py, groups.py, emails.py, users.py, event_log.py, exports.py, reactivation.py, mfa.py, saml.py)
+
+---
+
+## [REFACTOR] Abstraction: God Module - saml.py
+
+**Found in:** `app/services/saml.py`
+**Impact:** High
+**Category:** Abstraction (God Module)
+
+**Description:**
+The `saml.py` service module has grown to 2,658 lines with 45 functions, handling many distinct responsibilities. This makes the module difficult to navigate, understand, and maintain.
+
+**Evidence:**
+```bash
+$ wc -l app/services/saml.py
+2658 app/services/saml.py
+
+$ grep -c "^def " app/services/saml.py
+45
+```
+
+The module handles:
+1. SP Certificate management (generate, rotate, get)
+2. IdP CRUD operations (create, update, delete, list)
+3. IdP metadata import/refresh from URL or XML
+4. SAML request building (AuthnRequest)
+5. SAML response processing and validation
+6. JIT user provisioning
+7. Domain-to-IdP binding management
+8. User IdP assignment
+9. SP-initiated logout
+10. IdP-initiated logout request handling
+11. Authentication routing logic
+12. Debug entry storage and retrieval
+
+**Why It Matters:**
+- Cognitive overload when working on any SAML feature
+- High risk of unintended side effects when modifying code
+- Testing is more complex due to many interdependencies
+- Difficult to onboard new developers to this area
+
+**Suggested Refactoring:**
+Split into focused sub-modules under `app/services/saml/`:
+
+```
+app/services/saml/
+├── __init__.py          # Re-exports for backwards compatibility
+├── certificates.py      # SP certificate management (~100 lines)
+├── providers.py         # IdP CRUD operations (~400 lines)
+├── metadata.py          # Metadata import/refresh (~300 lines)
+├── auth.py              # Request building, response processing (~500 lines)
+├── provisioning.py      # JIT provisioning logic (~150 lines)
+├── domains.py           # Domain binding management (~300 lines)
+├── logout.py            # Logout flows (~300 lines)
+├── routing.py           # Auth routing logic (~200 lines)
+└── debug.py             # Debug entry storage (~100 lines)
+```
+
+The `__init__.py` can re-export all public functions to maintain backwards compatibility.
+
+**Files Affected:** saml.py would become a package with ~10 sub-modules
+
+---
+
+## [REFACTOR] Complexity: Long Functions in User Management
+
+**Found in:** `app/services/users.py:587-717`, `app/services/saml.py:1235-1365`
+**Impact:** Medium
+**Category:** Complexity (Long Methods)
+
+**Description:**
+Several functions exceed 100 lines, making them harder to understand and test in isolation.
+
+**Evidence:**
+```
+- update_user() in users.py:587-717 (~130 lines)
+- process_saml_response() in saml.py:1235-1365 (~130 lines)
+- sync_user_idp_groups() in groups.py:1086-1207 (~121 lines)
+```
+
+**Why It Matters:**
+- Functions doing multiple distinct tasks are harder to test
+- Increased cognitive load when reading the code
+- Higher chance of bugs in edge cases
+
+**Suggested Refactoring:**
+Extract sub-operations into focused helper functions:
+
+For `update_user()`:
+```python
+def update_user(...) -> UserDetail:
+    _require_admin(requesting_user)
+    user = _get_user_or_raise(tenant_id, user_id)
+    _validate_role_change(requesting_user, user, user_update.role)
+    changes = _apply_user_updates(tenant_id, user_id, user, user_update)
+    _log_user_changes(tenant_id, requesting_user["id"], user_id, changes)
+    return _fetch_user_detail(tenant_id, user_id)
+```
+
+**Files Affected:** users.py, saml.py, groups.py
+
+---
+
 # Technical Debt
 
 ## Service Layer Architecture: Groups Router Bypasses Service Layer (Resolved)
@@ -206,8 +383,8 @@ Security assessment performed: 2026-01-25
 | Severity | Count | Categories |
 |----------|-------|------------|
 | Critical | 0 | - |
-| High | 0 | - |
-| Medium | 0 | - |
+| High | 2 | Refactoring (Authorization duplication, God module) |
+| Medium | 1 | Refactoring (Long functions) |
 | Low | 0 | - |
 
 ## Dependency Audit Summary (2026-02-01)

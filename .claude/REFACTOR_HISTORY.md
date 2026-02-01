@@ -40,13 +40,13 @@ Track when each area was last analyzed to identify gaps:
 
 | Area | Last Scanned | Last Deep Scan | Notes |
 |------|--------------|----------------|-------|
-| `app/services/` | 2026-02-01 | 2026-02-01 | 3 issues found |
-| `app/database/` | Never | Never | |
-| `app/routers/` | Never | Never | |
-| `app/routers/api/` | Never | Never | |
-| `app/schemas/` | Never | Never | |
-| `app/middleware/` | Never | Never | |
-| `app/jobs/` | Never | Never | |
+| `app/services/` | 2026-02-01 | 2026-02-01 | 3 issues found, 2 resolved (saml split, auth centralized) |
+| `app/database/` | 2026-02-01 | 2026-02-01 | 4 large files found |
+| `app/routers/` | 2026-02-01 | 2026-02-01 | 4 large files, 5 log_event calls in routers |
+| `app/routers/api/` | 2026-02-01 | 2026-02-01 | Dead code found (unused converters) |
+| `app/schemas/` | 2026-02-01 | 2026-02-01 | Clean - all files <500 lines |
+| `app/middleware/` | 2026-02-01 | 2026-02-01 | Clean - all files <220 lines |
+| `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
 | `tests/` | Never | Never | |
 
 ## Recurring Patterns
@@ -55,14 +55,50 @@ Track issues that keep appearing to identify systemic problems:
 
 | Pattern | Occurrences | Areas Affected | Root Cause Hypothesis |
 |---------|-------------|----------------|----------------------|
-| Authorization helpers duplicated | 12 (9 `_require_admin`, 3 `_require_super_admin`) | 9 service files | No shared auth module; each service defines its own helpers |
-| Growing god modules | 1 (saml.py at 2658 lines) | services | Feature additions without refactoring; no sub-module pattern established |
+| Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
+| Growing god modules | ~~1 (saml.py at 2658 lines)~~ → RESOLVED | services | FIXED: Split into `app/services/saml/` sub-modules |
+| Large files (>500 lines) | 8 files | database, routers | No sub-module pattern for db/routers; services pattern not yet propagated |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-01 - Full Codebase (Session 2)
+
+**Scan type:** Deep
+**Areas analyzed:** `app/database/`, `app/routers/`, `app/routers/api/`, `app/schemas/`, `app/middleware/`, `app/jobs/`
+**Categories focused:** All categories
+
+**Key findings:**
+
+1. **File structure - Large database files (High)** - 4 database modules exceed 500 lines (saml.py 1112, users.py 1003, groups.py 936, oauth2.py 842). Recommend splitting into sub-modules like services/saml/. Status: Open
+
+2. **File structure - Large router files (High)** - 4 router modules exceed 500 lines (routers/saml.py 1241, auth.py 987, users.py 747, api/v1/users.py 1025). Status: Open
+
+3. **Dead code (Medium)** - 4 unused converter functions in `app/routers/api/v1/users.py` (~60 lines). Services now return schemas directly. Status: Open
+
+4. **Architecture (Low)** - 5 direct log_event() calls in routers (auth.py, mfa.py) instead of services. May be acceptable for auth flows. Status: Open
+
+**Resolved since last scan:**
+- Authorization helper duplication: RESOLVED - centralized in `app/services/auth.py`
+- God module saml.py: RESOLVED - split into `app/services/saml/` with 10 sub-modules
+
+**What was NOT found:**
+- Duplication in schemas, middleware, jobs (all clean)
+- Tight coupling issues (layered architecture well-maintained)
+- Dead imports (ruff would catch these)
+
+**Recommendations for next scan:**
+- After database layer split, verify no new duplication introduced
+- Consider scanning `tests/` for coverage gaps
+- Monitor if large router files cause issues in practice
+
+**Issues logged:** 4 new issues added to ISSUES.md
+**Issues resolved since last scan:** 2 (auth helpers, saml god module)
+
+---
 
 ### 2026-02-01 - Services Layer
 

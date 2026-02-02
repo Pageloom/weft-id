@@ -4,6 +4,56 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Nested Patch Pyramids: test_routers_users.py
+
+**Status:** Resolved (2026-02-02)
+
+**Original Severity:** High
+
+**Original Description:**
+This file contained **218 instances** of nested `with patch()` context managers, including pyramids up to 5 levels deep. This was the worst offender in the test suite.
+
+**Resolution:**
+Converted all 218 nested `with patch()` context managers to flat `mocker.patch()` calls using pytest-mock fixture. The refactoring:
+
+1. Added module path constants at the top of the file for cleaner patch targets:
+   ```python
+   USERS_MODULE = "routers.users"
+   SERVICES_USERS = "services.users"
+   SERVICES_EMAILS = "services.emails"
+   SERVICES_SETTINGS = "services.settings"
+   SERVICES_ACTIVITY = "services.activity"
+   DATABASE_SETTINGS = "database.settings"
+   DATABASE_USERS = "database.users"
+   ```
+
+2. Converted nested patterns to flat patterns:
+   ```python
+   # Before (nested):
+   with patch("services.settings.is_privileged_domain") as mock_privileged:
+       with patch("services.users.create_user") as mock_create:
+           mock_privileged.return_value = True
+           # ... test code indented 8+ spaces
+
+   # After (flat):
+   def test_create_new_user_with_privileged_domain(test_admin_user, mocker):
+       mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+       mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
+
+       mock_privileged.return_value = True
+       # ... test code at normal indentation
+   ```
+
+3. Added `mocker` parameter to all test functions that required mocking
+4. Removed unused `from unittest.mock import patch` import
+
+**Files Modified:**
+- `tests/test_routers_users.py` (218 patch calls converted to flat mocker.patch() calls)
+
+**Verification:** All 112 tests in the file pass.
+
+---
+
 ## [REFACTOR] File Structure: Large Database Layer Files
 
 **Status:** Resolved (2026-02-02)

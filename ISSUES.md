@@ -105,57 +105,6 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 ---
 
-## [TEST] Nested Patch Pyramids: test_routers_users.py
-
-**Found in:** `tests/test_routers_users.py`
-**Impact:** High
-**Category:** Test Code / Maintainability
-
-**Description:**
-This file contains **218 instances** of nested `with patch()` context managers, including pyramids up to 5 levels deep. This is the worst offender in the test suite.
-
-**Evidence (lines 857-863):**
-```python
-with patch("services.settings.is_privileged_domain") as mock_privileged:
-    with patch("services.users.create_user") as mock_create:
-        with patch("services.users.add_verified_email_with_nonce") as mock_add_email:
-            with patch("services.users.get_tenant_name") as mock_tenant:
-                with patch("routers.users.send_new_user_privileged_domain_notification") as mock_send:
-                    # 5 levels of nesting
-```
-
-**Why It Matters:**
-- Deep nesting obscures the actual test logic
-- Each additional level adds cognitive overhead
-- Harder to identify which mocks are actually being asserted
-- Indentation pushes code far to the right, reducing readability
-- Makes tests difficult to maintain and modify
-
-**Suggested Refactoring:**
-Convert to flat `mocker.patch()` calls using pytest-mock fixture (already a project dependency).
-
-```python
-# Before (nested):
-with patch("services.settings.is_privileged_domain") as mock_privileged:
-    with patch("services.users.create_user") as mock_create:
-        mock_privileged.return_value = True
-        # ... test code indented 8+ spaces
-
-# After (flat):
-def test_create_new_user_with_privileged_domain(test_admin_user, mocker):
-    mock_privileged = mocker.patch("services.settings.is_privileged_domain")
-    mock_create = mocker.patch("services.users.create_user")
-
-    mock_privileged.return_value = True
-    # ... test code at normal indentation
-```
-
-**Reference:** `tests/test_routers_groups.py` was refactored to this pattern on 2026-02-02 and serves as the template.
-
-**Files Affected:** `tests/test_routers_users.py` (218 patch calls to convert)
-
----
-
 ## [TEST] Nested Patch Pyramids: test_routers_auth.py
 
 **Found in:** `tests/test_routers_auth.py`
@@ -486,7 +435,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 5 | 1 dependency (transitive), 1 file structure (1/4 routers done), 2 test patch pyramids (high volume), 1 test auth duplication |
+| High | 4 | 1 dependency (transitive), 1 file structure (1/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
 | Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
@@ -496,15 +445,15 @@ Patch pyramid refactoring should proceed in this order:
 
 | Priority | File | Patch Count | Notes |
 |----------|------|-------------|-------|
-| 1 | `test_routers_users.py` | 218 | Worst offender, 5-level nesting |
-| 2 | `test_routers_auth.py` | 104 | Critical path tests |
-| 3 | `test_utils_storage.py` | 67 | |
-| 4 | `test_routers_account.py` | 59 | |
-| 5 | `test_routers_integrations.py` | 59 | |
-| 6 | `test_routers_settings.py` | 51 | Review mock necessity during conversion |
-| 7 | Remaining 6 files | 20-45 each | Lower priority |
+| ~~1~~ | ~~`test_routers_users.py`~~ | ~~218~~ | ✅ Completed 2026-02-02 |
+| 1 | `test_routers_auth.py` | 104 | Critical path tests |
+| 2 | `test_utils_storage.py` | 67 | |
+| 3 | `test_routers_account.py` | 59 | |
+| 4 | `test_routers_integrations.py` | 59 | |
+| 5 | `test_routers_settings.py` | 51 | Review mock necessity during conversion |
+| 6 | Remaining 6 files | 20-45 each | Lower priority |
 
-**Reference implementation:** `tests/test_routers_groups.py` (refactored 2026-02-02)
+**Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02)
 
 **Last dependency audit:** 2026-02-01 (all direct dependencies are at safe versions)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)

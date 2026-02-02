@@ -71,7 +71,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.create_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.create_identity_provider")
 def test_create_idp_validation_error(
     mock_create, super_admin_session, test_tenant_host, test_idp_data
 ):
@@ -91,7 +91,7 @@ def test_create_idp_validation_error(
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.create_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.create_identity_provider")
 def test_create_idp_service_error(
     mock_create, super_admin_session, test_tenant_host, test_idp_data
 ):
@@ -116,7 +116,7 @@ def test_create_idp_service_error(
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.import_idp_from_metadata_url")
+@patch("routers.saml.admin.providers.saml_service.import_idp_from_metadata_url")
 def test_import_from_url_validation_error(mock_import, super_admin_session, test_tenant_host):
     """Test import from URL returns redirect with error on ValidationError."""
     mock_import.side_effect = ValidationError("Invalid metadata URL")
@@ -138,7 +138,7 @@ def test_import_from_url_validation_error(mock_import, super_admin_session, test
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.import_idp_from_metadata_url")
+@patch("routers.saml.admin.providers.saml_service.import_idp_from_metadata_url")
 def test_import_from_url_service_error(mock_import, super_admin_session, test_tenant_host):
     """Test import from URL returns redirect with error on ServiceError."""
     mock_import.side_effect = ServiceError("Failed to fetch metadata")
@@ -165,7 +165,7 @@ def test_import_from_url_service_error(mock_import, super_admin_session, test_te
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.import_idp_from_metadata_xml")
+@patch("routers.saml.admin.providers.saml_service.import_idp_from_metadata_xml")
 def test_import_from_xml_validation_error(mock_import, super_admin_session, test_tenant_host):
     """Test import from XML returns redirect with error on ValidationError."""
     mock_import.side_effect = ValidationError("Invalid XML format")
@@ -187,7 +187,7 @@ def test_import_from_xml_validation_error(mock_import, super_admin_session, test
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.import_idp_from_metadata_xml")
+@patch("routers.saml.admin.providers.saml_service.import_idp_from_metadata_xml")
 def test_import_from_xml_service_error(mock_import, super_admin_session, test_tenant_host):
     """Test import from XML returns redirect with error on ServiceError."""
     mock_import.side_effect = ServiceError("Failed to parse metadata")
@@ -214,7 +214,7 @@ def test_import_from_xml_service_error(mock_import, super_admin_session, test_te
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.get_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
 def test_edit_idp_form_not_found(mock_get, super_admin_session, test_tenant_host):
     """Test edit IdP form returns redirect on NotFoundError."""
     mock_get.side_effect = NotFoundError("IdP not found")
@@ -231,7 +231,7 @@ def test_edit_idp_form_not_found(mock_get, super_admin_session, test_tenant_host
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.get_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
 def test_edit_idp_form_service_error(mock_get, super_admin_session, test_tenant_host):
     """Test edit IdP form returns redirect on ServiceError."""
     mock_get.side_effect = ServiceError("Database error")
@@ -253,7 +253,7 @@ def test_edit_idp_form_service_error(mock_get, super_admin_session, test_tenant_
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
 def test_update_idp_not_found(mock_update, super_admin_session, test_tenant_host, test_idp_data):
     """Test update IdP returns redirect on NotFoundError."""
     mock_update.side_effect = NotFoundError("IdP not found")
@@ -271,7 +271,7 @@ def test_update_idp_not_found(mock_update, super_admin_session, test_tenant_host
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
 def test_update_idp_service_error(
     mock_update, super_admin_session, test_tenant_host, test_idp_data
 ):
@@ -296,7 +296,7 @@ def test_update_idp_service_error(
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.get_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
 def test_toggle_idp_not_found(mock_get, super_admin_session, test_tenant_host):
     """Test toggle IdP returns redirect on NotFoundError."""
     mock_get.side_effect = NotFoundError("IdP not found")
@@ -313,8 +313,8 @@ def test_toggle_idp_not_found(mock_get, super_admin_session, test_tenant_host):
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.get_identity_provider")
-@patch("routers.saml.saml_service.set_idp_enabled")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_enabled")
 def test_toggle_idp_service_error(mock_set, mock_get, super_admin_session, test_tenant_host):
     """Test toggle IdP returns redirect on ServiceError."""
     from unittest.mock import MagicMock
@@ -341,7 +341,7 @@ def test_toggle_idp_service_error(mock_set, mock_get, super_admin_session, test_
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.set_idp_default")
+@patch("routers.saml.admin.providers.saml_service.set_idp_default")
 def test_set_default_idp_not_found(mock_set, super_admin_session, test_tenant_host):
     """Test set default IdP returns redirect on NotFoundError."""
     mock_set.side_effect = NotFoundError("IdP not found")
@@ -358,7 +358,7 @@ def test_set_default_idp_not_found(mock_set, super_admin_session, test_tenant_ho
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.set_idp_default")
+@patch("routers.saml.admin.providers.saml_service.set_idp_default")
 def test_set_default_idp_service_error(mock_set, super_admin_session, test_tenant_host):
     """Test set default IdP returns redirect on ServiceError."""
     mock_set.side_effect = ServiceError("Set default failed")
@@ -380,7 +380,7 @@ def test_set_default_idp_service_error(mock_set, super_admin_session, test_tenan
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.refresh_idp_from_metadata")
+@patch("routers.saml.admin.providers.saml_service.refresh_idp_from_metadata")
 def test_refresh_metadata_not_found(mock_refresh, super_admin_session, test_tenant_host):
     """Test refresh metadata returns redirect on NotFoundError."""
     mock_refresh.side_effect = NotFoundError("IdP not found")
@@ -397,7 +397,7 @@ def test_refresh_metadata_not_found(mock_refresh, super_admin_session, test_tena
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.refresh_idp_from_metadata")
+@patch("routers.saml.admin.providers.saml_service.refresh_idp_from_metadata")
 def test_refresh_metadata_validation_error(mock_refresh, super_admin_session, test_tenant_host):
     """Test refresh metadata returns redirect on ValidationError."""
     mock_refresh.side_effect = ValidationError("No metadata URL configured")
@@ -414,7 +414,7 @@ def test_refresh_metadata_validation_error(mock_refresh, super_admin_session, te
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.refresh_idp_from_metadata")
+@patch("routers.saml.admin.providers.saml_service.refresh_idp_from_metadata")
 def test_refresh_metadata_service_error(mock_refresh, super_admin_session, test_tenant_host):
     """Test refresh metadata returns redirect on ServiceError."""
     mock_refresh.side_effect = ServiceError("Failed to fetch metadata")
@@ -436,7 +436,7 @@ def test_refresh_metadata_service_error(mock_refresh, super_admin_session, test_
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.delete_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.delete_identity_provider")
 def test_delete_idp_not_found(mock_delete, super_admin_session, test_tenant_host):
     """Test delete IdP returns redirect on NotFoundError."""
     mock_delete.side_effect = NotFoundError("IdP not found")
@@ -453,7 +453,7 @@ def test_delete_idp_not_found(mock_delete, super_admin_session, test_tenant_host
     assert "error=not_found" in location
 
 
-@patch("routers.saml.saml_service.delete_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.delete_identity_provider")
 def test_delete_idp_service_error(mock_delete, super_admin_session, test_tenant_host):
     """Test delete IdP returns redirect on ServiceError."""
     mock_delete.side_effect = ServiceError("Cannot delete IdP with active users")
@@ -475,7 +475,7 @@ def test_delete_idp_service_error(mock_delete, super_admin_session, test_tenant_
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.build_authn_request")
+@patch("routers.saml.admin.debug.saml_service.build_authn_request")
 def test_test_idp_connection_not_found(mock_build, super_admin_session, test_tenant_host):
     """Test test connection returns error template on NotFoundError."""
     mock_build.side_effect = NotFoundError("IdP not found")
@@ -490,7 +490,7 @@ def test_test_idp_connection_not_found(mock_build, super_admin_session, test_ten
     assert "idp_not_found" in response.text or "not found" in response.text.lower()
 
 
-@patch("routers.saml.saml_service.build_authn_request")
+@patch("routers.saml.admin.debug.saml_service.build_authn_request")
 def test_test_idp_connection_service_error(mock_build, super_admin_session, test_tenant_host):
     """Test test connection returns error template on ServiceError."""
     mock_build.side_effect = ServiceError("SAML configuration error")
@@ -510,7 +510,7 @@ def test_test_idp_connection_service_error(mock_build, super_admin_session, test
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.list_identity_providers")
+@patch("routers.saml.admin.providers.saml_service.list_identity_providers")
 def test_list_idps_service_error(mock_list, super_admin_session, test_tenant_host):
     """Test list IdPs returns error template on ServiceError."""
     mock_list.side_effect = ServiceError("Database connection failed")

@@ -66,9 +66,10 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
 
 def test_acs_test_mode_success(client, test_tenant_host, test_idp):
     """Test POST ACS in test mode shows assertion details."""
-    with patch("routers.saml.saml_service.process_saml_test_response") as mock_process:
-        with patch("routers.saml.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch("routers.saml.templates.TemplateResponse") as mock_template:
+    auth_module = "routers.saml.authentication"
+    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
+        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
+            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
                 # Mock successful test result
                 from schemas.saml import SAMLTestResult
 
@@ -108,9 +109,10 @@ def test_acs_test_mode_success(client, test_tenant_host, test_idp):
 
 def test_acs_test_mode_missing_test_context(client, test_tenant_host, test_idp):
     """Test POST ACS test mode when test context missing from session."""
-    with patch("routers.saml.saml_service.process_saml_test_response") as mock_process:
-        with patch("routers.saml.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch("routers.saml.templates.TemplateResponse") as mock_template:
+    auth_module = "routers.saml.authentication"
+    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
+        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
+            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
                 # Mock process being called without stored request_id (None)
                 from schemas.saml import SAMLTestResult
 
@@ -148,10 +150,11 @@ def test_acs_test_mode_missing_test_context(client, test_tenant_host, test_idp):
 def test_acs_test_mode_idp_not_found_during_processing(client, test_tenant_host):
     """Test POST ACS test mode when IdP lookup fails."""
     fake_idp_id = str(uuid4())
+    auth_module = "routers.saml.authentication"
 
-    with patch("routers.saml.saml_service.process_saml_test_response") as mock_process:
-        with patch("routers.saml.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch("routers.saml.templates.TemplateResponse") as mock_template:
+    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
+        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
+            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
                 # Mock process succeeding but IdP lookup failing
                 from schemas.saml import SAMLTestResult
                 from services.exceptions import ServiceError
@@ -187,10 +190,11 @@ def test_acs_test_mode_idp_not_found_during_processing(client, test_tenant_host)
 
 def test_acs_test_mode_doesnt_create_session(client, test_tenant_host, test_idp):
     """Test that test mode doesn't create actual user sessions."""
-    with patch("routers.saml.saml_service.process_saml_test_response") as mock_process:
-        with patch("routers.saml.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch("routers.saml.templates.TemplateResponse") as mock_template:
-                with patch("routers.saml.regenerate_session") as mock_regen:
+    auth_module = "routers.saml.authentication"
+    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
+        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
+            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
+                with patch(f"{auth_module}.regenerate_session") as mock_regen:
                     from schemas.saml import SAMLTestResult
 
                     mock_process.return_value = SAMLTestResult(

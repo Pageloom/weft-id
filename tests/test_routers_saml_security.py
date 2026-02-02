@@ -114,7 +114,7 @@ def test_saml_idp_mismatch_detection(client, test_tenant, test_tenant_host, test
     """
     # Simulate user initiating login with IdP1
     # This sets saml_idp_id in session
-    with patch("routers.saml.saml_service.build_authn_request") as mock_build:
+    with patch("routers.saml.authentication.saml_service.build_authn_request") as mock_build:
         mock_build.return_value = ("https://fake-redirect.com", "request-123")
 
         response = client.get(
@@ -127,8 +127,8 @@ def test_saml_idp_mismatch_detection(client, test_tenant, test_tenant_host, test
 
     # Now simulate receiving SAML response from IdP2 (different IdP!)
     # The system should detect the mismatch and reject it
-    with patch("routers.saml.extract_issuer_from_response") as mock_extract:
-        with patch("routers.saml.saml_service.get_idp_by_issuer") as mock_get_idp:
+    with patch("routers.saml.authentication.extract_issuer_from_response") as mock_extract:
+        with patch("routers.saml.authentication.saml_service.get_idp_by_issuer") as mock_get_idp:
             # Mock returning IdP2's entity_id as the issuer
             mock_extract.return_value = test_idp2.entity_id
 
@@ -158,7 +158,7 @@ def test_saml_session_tampering_prevention(
 ):
     """Test that session tampering (changing stored IdP ID) is detected."""
     # Initiate login with IdP1
-    with patch("routers.saml.saml_service.build_authn_request") as mock_build:
+    with patch("routers.saml.authentication.saml_service.build_authn_request") as mock_build:
         mock_build.return_value = ("https://fake-redirect.com", "request-123")
 
         response = client.get(
@@ -172,8 +172,8 @@ def test_saml_session_tampering_prevention(
     # Attacker tries to tamper with session (change stored IdP ID to IdP2)
     # This is hypothetical since TestClient doesn't expose session manipulation,
     # but the check in code prevents it
-    with patch("routers.saml.extract_issuer_from_response") as mock_extract:
-        with patch("routers.saml.saml_service.get_idp_by_issuer") as mock_get_idp:
+    with patch("routers.saml.authentication.extract_issuer_from_response") as mock_extract:
+        with patch("routers.saml.authentication.saml_service.get_idp_by_issuer") as mock_get_idp:
             # Return IdP2 (mismatch with session)
             mock_extract.return_value = test_idp2.entity_id
 
@@ -200,12 +200,12 @@ def test_saml_session_persistence_configuration_non_persistent(
 ):
     """Test that non-persistent session configuration is respected."""
     with (
-        patch("routers.saml.extract_issuer_from_response") as mock_extract,
-        patch("routers.saml.saml_service.get_idp_by_issuer") as mock_get_idp,
-        patch("routers.saml.saml_service.process_saml_response") as mock_process,
-        patch("routers.saml.saml_service.authenticate_via_saml") as mock_auth,
-        patch("routers.saml.settings_service.get_session_settings") as mock_settings,
-        patch("routers.saml.regenerate_session") as mock_regen,
+        patch("routers.saml.authentication.extract_issuer_from_response") as mock_extract,
+        patch("routers.saml.authentication.saml_service.get_idp_by_issuer") as mock_get_idp,
+        patch("routers.saml.authentication.saml_service.process_saml_response") as mock_process,
+        patch("routers.saml.authentication.saml_service.authenticate_via_saml") as mock_auth,
+        patch("routers.saml.authentication.settings_service.get_session_settings") as mock_settings,
+        patch("routers.saml.authentication.regenerate_session") as mock_regen,
     ):
         # Setup mocks
         mock_extract.return_value = test_idp.entity_id
@@ -251,12 +251,12 @@ def test_saml_session_persistence_configuration_with_timeout(
 ):
     """Test that custom session timeout is respected."""
     with (
-        patch("routers.saml.extract_issuer_from_response") as mock_extract,
-        patch("routers.saml.saml_service.get_idp_by_issuer") as mock_get_idp,
-        patch("routers.saml.saml_service.process_saml_response") as mock_process,
-        patch("routers.saml.saml_service.authenticate_via_saml") as mock_auth,
-        patch("routers.saml.settings_service.get_session_settings") as mock_settings,
-        patch("routers.saml.regenerate_session") as mock_regen,
+        patch("routers.saml.authentication.extract_issuer_from_response") as mock_extract,
+        patch("routers.saml.authentication.saml_service.get_idp_by_issuer") as mock_get_idp,
+        patch("routers.saml.authentication.saml_service.process_saml_response") as mock_process,
+        patch("routers.saml.authentication.saml_service.authenticate_via_saml") as mock_auth,
+        patch("routers.saml.authentication.settings_service.get_session_settings") as mock_settings,
+        patch("routers.saml.authentication.regenerate_session") as mock_regen,
     ):
         # Setup mocks
         mock_extract.return_value = test_idp.entity_id
@@ -299,7 +299,7 @@ def test_saml_session_persistence_configuration_with_timeout(
 
 def test_saml_test_mode_prevents_actual_login(client, test_tenant, test_tenant_host, test_idp):
     """Test that test mode (RelayState=__test__:*) doesn't create actual sessions."""
-    with patch("routers.saml._handle_saml_test_response") as mock_test_handler:
+    with patch("routers.saml.authentication._handle_saml_test_response") as mock_test_handler:
         # Mock test handler to return a simple response
         mock_test_handler.return_value = MagicMock(
             status_code=200,

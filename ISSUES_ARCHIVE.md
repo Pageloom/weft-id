@@ -4,6 +4,40 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] File Structure: Large Database Layer Files
+
+**Status:** Resolved (2026-02-02)
+
+**Original Severity:** High (Claude Traversability)
+
+**Original Description:**
+Four database modules exceeded 500 lines, making them harder for Claude to efficiently work with:
+- `app/database/saml.py` (1112 lines)
+- `app/database/users.py` (1003 lines)
+- `app/database/groups.py` (936 lines)
+- `app/database/oauth2.py` (842 lines)
+
+**Resolution:**
+Split each monolithic database module into focused sub-modules following the pattern established by `app/services/saml/`:
+
+| Original File | New Directory | Sub-modules |
+|--------------|---------------|-------------|
+| `saml.py` | `saml/` | `certificates.py`, `providers.py`, `domains.py`, `security.py`, `debug.py` |
+| `users.py` | `users/` | `core.py`, `profile.py`, `activity.py`, `lifecycle.py`, `listing.py`, `authentication.py`, `saml_assignment.py`, `_utils.py` |
+| `groups.py` | `groups/` | `core.py`, `listing.py`, `memberships.py`, `relationships.py`, `lineage.py`, `selection.py`, `idp.py` |
+| `oauth2.py` | `oauth2/` | `clients.py`, `authorization.py`, `tokens.py` |
+
+Each directory includes an `__init__.py` that re-exports all public functions for backwards compatibility. Existing code using `from database import saml` or `import database.users` continues to work unchanged.
+
+**Files Modified:**
+- Created 4 new directories under `app/database/`
+- Created 24 new sub-module files
+- Deleted 4 original monolithic files
+
+**Verification:** All 2174 tests pass.
+
+---
+
 ## [REFACTOR] Dead Code: Unused Converter Functions
 
 **Status:** Resolved (2026-02-01)

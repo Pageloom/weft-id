@@ -42,31 +42,6 @@ Extract sub-operations into focused helper functions.
 
 ---
 
-## [REFACTOR] File Structure: Large Database Layer Files
-
-**Found in:** `app/database/`
-**Impact:** High (Claude Traversability)
-**Category:** File Structure
-
-**Description:**
-Four database modules exceed 500 lines, making them harder for Claude to efficiently work with:
-- `app/database/saml.py` (1112 lines)
-- `app/database/users.py` (1003 lines)
-- `app/database/groups.py` (936 lines)
-- `app/database/oauth2.py` (842 lines)
-
-**Why It Matters:**
-Claude reads entire files into a limited context window. Files >500 lines make it harder to understand a concept without loading irrelevant code. The database layer should mirror the services layer structure.
-
-**Suggested Refactoring:**
-Follow the pattern used for `app/services/saml/` and split each large database module into focused sub-modules:
-- `app/database/saml/` with files like `providers.py`, `auth.py`, `metadata.py`
-- `app/database/users/` with files like `core.py`, `emails.py`, `lifecycle.py`
-
-**Files Affected:** 4 database modules plus any imports
-
----
-
 ## [REFACTOR] File Structure: Large Router Files
 
 **Found in:** `app/routers/`, `app/routers/api/v1/`
@@ -124,7 +99,7 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 3 | 1 dependency (transitive), 2 file structure |
+| High | 2 | 1 dependency (transitive), 1 file structure |
 | Medium | 1 | Long functions |
 | Low | 1 | Architecture consistency |
 

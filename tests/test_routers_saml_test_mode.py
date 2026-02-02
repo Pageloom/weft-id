@@ -6,7 +6,7 @@ to test SAML IdP configuration without creating actual sessions.
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -64,162 +64,165 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
     return idp
 
 
-def test_acs_test_mode_success(client, test_tenant_host, test_idp):
+# Module path constant for cleaner patch targets
+AUTH_MODULE = "routers.saml.authentication"
+
+
+def test_acs_test_mode_success(client, test_tenant_host, test_idp, mocker):
     """Test POST ACS in test mode shows assertion details."""
-    auth_module = "routers.saml.authentication"
-    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
-        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
-                # Mock successful test result
-                from schemas.saml import SAMLTestResult
+    from schemas.saml import SAMLTestResult
 
-                mock_process.return_value = SAMLTestResult(
-                    success=True,
-                    name_id="test@example.com",
-                    attributes={"email": ["test@example.com"]},
-                )
+    # Set up mocks (flat, no nesting)
+    mock_process = mocker.patch(f"{AUTH_MODULE}.saml_service.process_saml_test_response")
+    mock_get_idp = mocker.patch(f"{AUTH_MODULE}.saml_service.get_idp_for_saml_login")
+    mock_template = mocker.patch(f"{AUTH_MODULE}.templates.TemplateResponse")
 
-                # Mock IdP lookup
-                idp_mock = MagicMock()
-                idp_mock.name = "Test IdP"
-                mock_get_idp.return_value = idp_mock
+    mock_process.return_value = SAMLTestResult(
+        success=True,
+        name_id="test@example.com",
+        attributes={"email": ["test@example.com"]},
+    )
 
-                # Mock template response
-                mock_template.return_value = HTMLResponse(
-                    content="<html>Test success</html>",
-                    status_code=200,
-                )
+    idp_mock = MagicMock()
+    idp_mock.name = "Test IdP"
+    mock_get_idp.return_value = idp_mock
 
-                response = client.post(
-                    "/saml/acs",
-                    headers={"Host": test_tenant_host},
-                    data={
-                        "SAMLResponse": "fake-base64-response",
-                        "RelayState": f"__test__:{test_idp.id}",
-                    },
-                )
+    mock_template.return_value = HTMLResponse(
+        content="<html>Test success</html>",
+        status_code=200,
+    )
 
-                assert response.status_code == 200
-                assert mock_process.called
-                assert mock_template.called
-                # Should render test result template
-                call_args = mock_template.call_args[0]
-                assert "saml_test_result.html" in str(call_args)
+    response = client.post(
+        "/saml/acs",
+        headers={"Host": test_tenant_host},
+        data={
+            "SAMLResponse": "fake-base64-response",
+            "RelayState": f"__test__:{test_idp.id}",
+        },
+    )
+
+    assert response.status_code == 200
+    assert mock_process.called
+    assert mock_template.called
+    # Should render test result template
+    call_args = mock_template.call_args[0]
+    assert "saml_test_result.html" in str(call_args)
 
 
-def test_acs_test_mode_missing_test_context(client, test_tenant_host, test_idp):
+def test_acs_test_mode_missing_test_context(client, test_tenant_host, test_idp, mocker):
     """Test POST ACS test mode when test context missing from session."""
-    auth_module = "routers.saml.authentication"
-    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
-        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
-                # Mock process being called without stored request_id (None)
-                from schemas.saml import SAMLTestResult
+    from schemas.saml import SAMLTestResult
 
-                mock_process.return_value = SAMLTestResult(
-                    success=True,
-                    name_id="test@example.com",
-                )
+    # Set up mocks
+    mock_process = mocker.patch(f"{AUTH_MODULE}.saml_service.process_saml_test_response")
+    mock_get_idp = mocker.patch(f"{AUTH_MODULE}.saml_service.get_idp_for_saml_login")
+    mock_template = mocker.patch(f"{AUTH_MODULE}.templates.TemplateResponse")
 
-                idp_mock = MagicMock()
-                idp_mock.name = "Test IdP"
-                mock_get_idp.return_value = idp_mock
+    mock_process.return_value = SAMLTestResult(
+        success=True,
+        name_id="test@example.com",
+    )
 
-                mock_template.return_value = HTMLResponse(
-                    content="<html>Test result</html>",
-                    status_code=200,
-                )
+    idp_mock = MagicMock()
+    idp_mock.name = "Test IdP"
+    mock_get_idp.return_value = idp_mock
 
-                response = client.post(
-                    "/saml/acs",
-                    headers={"Host": test_tenant_host},
-                    data={
-                        "SAMLResponse": "fake-base64-response",
-                        "RelayState": f"__test__:{test_idp.id}",
-                    },
-                )
+    mock_template.return_value = HTMLResponse(
+        content="<html>Test result</html>",
+        status_code=200,
+    )
 
-                # Should still process (passes None as expected_request_id)
-                assert response.status_code == 200
-                assert mock_process.called
-                # Verify None was passed for request_id
-                call_kwargs = mock_process.call_args[1]
-                assert "request_id" in call_kwargs
+    response = client.post(
+        "/saml/acs",
+        headers={"Host": test_tenant_host},
+        data={
+            "SAMLResponse": "fake-base64-response",
+            "RelayState": f"__test__:{test_idp.id}",
+        },
+    )
+
+    # Should still process (passes None as expected_request_id)
+    assert response.status_code == 200
+    assert mock_process.called
+    # Verify None was passed for request_id
+    call_kwargs = mock_process.call_args[1]
+    assert "request_id" in call_kwargs
 
 
-def test_acs_test_mode_idp_not_found_during_processing(client, test_tenant_host):
+def test_acs_test_mode_idp_not_found_during_processing(client, test_tenant_host, mocker):
     """Test POST ACS test mode when IdP lookup fails."""
+    from schemas.saml import SAMLTestResult
+    from services.exceptions import ServiceError
+
     fake_idp_id = str(uuid4())
-    auth_module = "routers.saml.authentication"
 
-    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
-        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
-                # Mock process succeeding but IdP lookup failing
-                from schemas.saml import SAMLTestResult
-                from services.exceptions import ServiceError
+    # Set up mocks
+    mock_process = mocker.patch(f"{AUTH_MODULE}.saml_service.process_saml_test_response")
+    mock_get_idp = mocker.patch(f"{AUTH_MODULE}.saml_service.get_idp_for_saml_login")
+    mock_template = mocker.patch(f"{AUTH_MODULE}.templates.TemplateResponse")
 
-                mock_process.return_value = SAMLTestResult(
-                    success=True,
-                    name_id="test@example.com",
-                )
+    mock_process.return_value = SAMLTestResult(
+        success=True,
+        name_id="test@example.com",
+    )
 
-                mock_get_idp.side_effect = ServiceError("IdP not found")
+    mock_get_idp.side_effect = ServiceError("IdP not found")
 
-                mock_template.return_value = HTMLResponse(
-                    content="<html>Unknown IdP</html>",
-                    status_code=200,
-                )
+    mock_template.return_value = HTMLResponse(
+        content="<html>Unknown IdP</html>",
+        status_code=200,
+    )
 
-                response = client.post(
-                    "/saml/acs",
-                    headers={"Host": test_tenant_host},
-                    data={
-                        "SAMLResponse": "fake-base64-response",
-                        "RelayState": f"__test__:{fake_idp_id}",
-                    },
-                )
+    response = client.post(
+        "/saml/acs",
+        headers={"Host": test_tenant_host},
+        data={
+            "SAMLResponse": "fake-base64-response",
+            "RelayState": f"__test__:{fake_idp_id}",
+        },
+    )
 
-                assert response.status_code == 200
-                assert mock_template.called
-                # Should still render with "Unknown IdP" name
-                call_args = mock_template.call_args[0]
-                context = call_args[2]
-                assert context.get("idp_name") == "Unknown IdP"
+    assert response.status_code == 200
+    assert mock_template.called
+    # Should still render with "Unknown IdP" name
+    call_args = mock_template.call_args[0]
+    context = call_args[2]
+    assert context.get("idp_name") == "Unknown IdP"
 
 
-def test_acs_test_mode_doesnt_create_session(client, test_tenant_host, test_idp):
+def test_acs_test_mode_doesnt_create_session(client, test_tenant_host, test_idp, mocker):
     """Test that test mode doesn't create actual user sessions."""
-    auth_module = "routers.saml.authentication"
-    with patch(f"{auth_module}.saml_service.process_saml_test_response") as mock_process:
-        with patch(f"{auth_module}.saml_service.get_idp_for_saml_login") as mock_get_idp:
-            with patch(f"{auth_module}.templates.TemplateResponse") as mock_template:
-                with patch(f"{auth_module}.regenerate_session") as mock_regen:
-                    from schemas.saml import SAMLTestResult
+    from schemas.saml import SAMLTestResult
 
-                    mock_process.return_value = SAMLTestResult(
-                        success=True,
-                        name_id="test@example.com",
-                    )
+    # Set up mocks
+    mock_process = mocker.patch(f"{AUTH_MODULE}.saml_service.process_saml_test_response")
+    mock_get_idp = mocker.patch(f"{AUTH_MODULE}.saml_service.get_idp_for_saml_login")
+    mock_template = mocker.patch(f"{AUTH_MODULE}.templates.TemplateResponse")
+    mock_regen = mocker.patch(f"{AUTH_MODULE}.regenerate_session")
 
-                    idp_mock = MagicMock()
-                    idp_mock.name = "Test IdP"
-                    mock_get_idp.return_value = idp_mock
+    mock_process.return_value = SAMLTestResult(
+        success=True,
+        name_id="test@example.com",
+    )
 
-                    mock_template.return_value = HTMLResponse(
-                        content="<html>Test result</html>",
-                        status_code=200,
-                    )
+    idp_mock = MagicMock()
+    idp_mock.name = "Test IdP"
+    mock_get_idp.return_value = idp_mock
 
-                    response = client.post(
-                        "/saml/acs",
-                        headers={"Host": test_tenant_host},
-                        data={
-                            "SAMLResponse": "fake-base64-response",
-                            "RelayState": f"__test__:{test_idp.id}",
-                        },
-                    )
+    mock_template.return_value = HTMLResponse(
+        content="<html>Test result</html>",
+        status_code=200,
+    )
 
-                    assert response.status_code == 200
-                    # Critical: regenerate_session should NOT be called in test mode
-                    assert not mock_regen.called
+    response = client.post(
+        "/saml/acs",
+        headers={"Host": test_tenant_host},
+        data={
+            "SAMLResponse": "fake-base64-response",
+            "RelayState": f"__test__:{test_idp.id}",
+        },
+    )
+
+    assert response.status_code == 200
+    # Critical: regenerate_session should NOT be called in test mode
+    assert not mock_regen.called

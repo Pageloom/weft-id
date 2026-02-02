@@ -4,6 +4,7 @@ Tracks the last commit reviewed by the test agent so it can identify what change
 
 | Date | Commit | Summary |
 |------|--------|---------|
+| 2026-02-02 | 57cc663 | Quality of test code audit: Scanned all 37 test files for refactoring opportunities. Found ~940 remaining patch pyramids (worst: test_routers_users.py with 218). Logged 12 detailed issues to ISSUES.md covering: patch pyramids (7 file groups), auth duplication (200+ instances), missing docstrings (73 tests), parametrization opportunities, magic indices. Updated /refactor agent to include quality of test code as a first-class concern. |
 | 2026-02-02 | 0c5da43 | Test code quality refactor: Added pytest-mock dependency for mocker fixture. Refactored test_routers_saml_test_mode.py (4 tests) and test_routers_groups.py (52 tests) from nested `with patch()` pyramids to flat `mocker.patch()` calls. Added test code quality standards to /test agent instructions. All 2174 tests pass. |
 | 2026-02-01 | fe69283 | Archived Group System Phase 2. Added 7 tests for IdP group integration: 3 SAML→group sync integration tests (JIT user, existing user, no groups), 4 edge case tests (conflict on duplicate, no-op sync, empty invalidate, multiple parents). Updated test agent instructions to note SAML 80%+ coverage is acceptable. All 2174 tests pass. |
 | 2026-02-01 | 365296d | Fixed flaky test_claim_next_task test. Root cause: parallel tests created pending tasks claimed before the test's own task. Fix: claim in a loop until we get our specific task by ID. All 2144 tests pass. |

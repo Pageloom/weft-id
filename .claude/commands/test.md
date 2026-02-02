@@ -131,6 +131,80 @@ Note: Production code bugs should be logged in ISSUES.md, not fixed directly by 
 - **E2E tests**: Playwright
 - Tests live in `tests/` mirroring the app structure
 
+## Test Code Quality Standards
+
+### No Nested Patch Pyramids
+
+**Never write deeply nested `with patch()` blocks.** This pattern is unreadable and unmaintainable:
+
+```python
+# BAD - patch pyramid of doom
+with patch("module.a") as mock_a:
+    with patch("module.b") as mock_b:
+        with patch("module.c") as mock_c:
+            # test code buried 3+ levels deep
+```
+
+**Use `mocker.patch()` from pytest-mock instead:**
+
+```python
+# GOOD - flat structure with mocker fixture
+def test_something(mocker):
+    mock_a = mocker.patch("module.a")
+    mock_b = mocker.patch("module.b")
+    mock_c = mocker.patch("module.c")
+
+    mock_a.return_value = "value_a"
+    mock_b.return_value = "value_b"
+    mock_c.return_value = "value_c"
+
+    # test code at top level
+```
+
+The `mocker` fixture automatically cleans up patches after each test.
+
+### DRY Test Code
+
+**Create reusable mock fixtures for commonly mocked dependencies:**
+
+```python
+# tests/conftest.py
+
+@pytest.fixture
+def mock_template_response(mocker):
+    """Mock TemplateResponse for router tests."""
+    mock = mocker.patch("routers.groups.templates.TemplateResponse")
+    mock.return_value = HTMLResponse(content="<html>mocked</html>")
+    return mock
+
+@pytest.fixture
+def mock_groups_service(mocker):
+    """Mock the groups service module."""
+    return mocker.patch("routers.groups.groups_service")
+```
+
+Then use them in tests:
+
+```python
+def test_groups_list(mock_groups_service, mock_template_response, test_admin_user):
+    mock_groups_service.list_groups.return_value = _make_group_list_response()
+    # test code
+```
+
+### Test Helper Functions
+
+Use helper functions for repetitive setup (already present in many test files):
+
+```python
+def _setup_admin_overrides(admin_user):
+    """Set up dependency overrides for admin access."""
+    app.dependency_overrides[require_admin] = lambda: admin_user
+
+def _make_group_response(**kwargs):
+    """Create mock GroupResponse with sensible defaults."""
+    return GroupResponse(id=str(uuid4()), name="Test", ...)
+```
+
 ## Important Notes
 
 - Don't chase coverage numbers blindly - a test that doesn't assert meaningful behavior is worse than no test

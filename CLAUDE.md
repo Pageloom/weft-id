@@ -72,7 +72,8 @@ app/
 tests/                # Mirrors app/ structure
 db-init/              # SQL migrations (sequential numbering)
 scripts/              # Compliance and dependency checks
-.claude/commands/     # Agent skill definitions
+.claude/commands/     # Slash command definitions (/pm, /dev, /test, etc.)
+.claude/references/   # Detailed patterns and checklists for agents
 ```
 
 ## Core Types

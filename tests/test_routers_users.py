@@ -1,10 +1,17 @@
 """Tests for routers/users.py endpoints."""
 
-from unittest.mock import patch
-
 import pytest
 from fastapi.testclient import TestClient
 from main import app
+
+# Module path constants for cleaner patch targets
+USERS_MODULE = "routers.users"
+SERVICES_USERS = "services.users"
+SERVICES_EMAILS = "services.emails"
+SERVICES_SETTINGS = "services.settings"
+SERVICES_ACTIVITY = "services.activity"
+DATABASE_SETTINGS = "database.settings"
+DATABASE_USERS = "database.users"
 
 
 def override_auth(app, user):
@@ -45,137 +52,139 @@ def test_users_index_redirects_regular_user_to_list(test_user):
     assert response.headers["location"] == "/users/list"
 
 
-def test_users_list_page(test_admin_user):
+def test_users_list_page(test_admin_user, mocker):
     """Test users list page renders."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-                mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-                client = TestClient(app)
-                response = client.get("/users/list")
+    client = TestClient(app)
+    response = client.get("/users/list")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                mock_count.assert_called_once()
-                mock_list.assert_called_once()
+    assert response.status_code == 200
+    mock_count.assert_called_once()
+    mock_list.assert_called_once()
 
 
-def test_users_list_with_search(test_admin_user):
+def test_users_list_with_search(test_admin_user, mocker):
     """Test users list with search parameter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 2
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 2
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?search=john")
 
-                client = TestClient(app)
-                response = client.get("/users/list?search=john")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # count_users now takes (tenant_id, search, roles, statuses)
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[0] == test_admin_user["tenant_id"]
-                assert count_call_args[1] == "john"
-                assert count_call_args[2] is None  # No role filter
-                assert count_call_args[3] is None  # No status filter
+    assert response.status_code == 200
+    # count_users now takes (tenant_id, search, roles, statuses)
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[0] == test_admin_user["tenant_id"]
+    assert count_call_args[1] == "john"
+    assert count_call_args[2] is None  # No role filter
+    assert count_call_args[3] is None  # No status filter
 
 
-def test_users_list_with_sorting(test_admin_user):
+def test_users_list_with_sorting(test_admin_user, mocker):
     """Test users list with custom sorting."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?sort=name&order=asc")
 
-                client = TestClient(app)
-                response = client.get("/users/list?sort=name&order=asc")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # Verify sort parameters were passed
-                call_args = mock_list.call_args[0]
-                assert call_args[2] == "name"  # sort_field
-                assert call_args[3] == "asc"  # sort_order
+    assert response.status_code == 200
+    # Verify sort parameters were passed
+    call_args = mock_list.call_args[0]
+    assert call_args[2] == "name"  # sort_field
+    assert call_args[3] == "asc"  # sort_order
 
 
-def test_users_list_with_pagination(test_admin_user):
+def test_users_list_with_pagination(test_admin_user, mocker):
     """Test users list with pagination."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 100
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 100
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?page=2&size=50")
 
-                client = TestClient(app)
-                response = client.get("/users/list?page=2&size=50")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                call_args = mock_list.call_args[0]
-                assert call_args[4] == 2  # page
-                assert call_args[5] == 50  # page_size
+    assert response.status_code == 200
+    call_args = mock_list.call_args[0]
+    assert call_args[4] == 2  # page
+    assert call_args[5] == 50  # page_size
 
 
-def test_users_list_invalid_sort_field(test_admin_user):
+def test_users_list_invalid_sort_field(test_admin_user, mocker):
     """Test users list defaults invalid sort field."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?sort=invalid_field")
 
-                client = TestClient(app)
-                response = client.get("/users/list?sort=invalid_field")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # Should default to created_at
-                call_args = mock_list.call_args[0]
-                assert call_args[2] == "created_at"
+    assert response.status_code == 200
+    # Should default to created_at
+    call_args = mock_list.call_args[0]
+    assert call_args[2] == "created_at"
 
 
-def test_user_detail_page(test_admin_user):
+def test_user_detail_page(test_admin_user, mocker):
     """Test user detail page renders."""
     from datetime import UTC, datetime
 
+    from fastapi.responses import HTMLResponse
     from schemas.api import UserDetail
 
     override_auth(app, test_admin_user)
@@ -196,40 +205,39 @@ def test_user_detail_page(test_admin_user):
         is_service_user=False,
     )
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        with patch("services.users.get_user") as mock_get:
-            with patch("database.settings.list_privileged_domains") as mock_domains:
-                from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
 
-                mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
-                mock_get.return_value = target_user
-                mock_domains.return_value = []
+    mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
+    mock_get.return_value = target_user
+    mock_domains.return_value = []
 
-                client = TestClient(app)
-                response = client.get("/users/user-123")
+    client = TestClient(app)
+    response = client.get("/users/user-123")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                mock_get.assert_called_once()
+    assert response.status_code == 200
+    mock_get.assert_called_once()
 
 
-def test_user_detail_not_found(test_admin_user):
+def test_user_detail_not_found(test_admin_user, mocker):
     """Test user detail redirects when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.users.get_user") as mock_get:
-        mock_get.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mock_get.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.get("/users/user-123", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/users/user-123", follow_redirects=False)
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list" in response.headers["location"]
 
 
 def test_user_detail_regular_user_denied(test_user):
@@ -245,7 +253,7 @@ def test_user_detail_regular_user_denied(test_user):
     assert response.headers["location"] == "/dashboard"
 
 
-def test_update_user_name_success(test_admin_user):
+def test_update_user_name_success(test_admin_user, mocker):
     """Test updating user name as admin."""
     from schemas.api import UserDetail
 
@@ -268,47 +276,49 @@ def test_update_user_name_success(test_admin_user):
         is_service_user=False,
     )
 
-    with patch("services.users.update_user") as mock_update:
-        mock_update.return_value = mock_user_detail
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-name",
-            data={"first_name": "New", "last_name": "Name"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_update.return_value = mock_user_detail
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-name",
+        data={"first_name": "New", "last_name": "Name"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/users/user-123" in response.headers["location"]
-        # Verify service was called with correct parameters
-        mock_update.assert_called_once()
-        call_args = mock_update.call_args
-        assert call_args[0][1] == "user-123"  # user_id
-        assert call_args[0][2].first_name == "New"
-        assert call_args[0][2].last_name == "Name"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123" in response.headers["location"]
+    # Verify service was called with correct parameters
+    mock_update.assert_called_once()
+    call_args = mock_update.call_args
+    assert call_args[0][1] == "user-123"  # user_id
+    assert call_args[0][2].first_name == "New"
+    assert call_args[0][2].last_name == "Name"
 
 
-def test_update_user_name_empty_validation(test_admin_user):
+def test_update_user_name_empty_validation(test_admin_user, mocker):
     """Test updating user name with empty values."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.update_user_profile") as mock_update:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-name",
-            data={"first_name": "", "last_name": "Name"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{DATABASE_USERS}.update_user_profile")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-name",
+        data={"first_name": "", "last_name": "Name"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=name_required" in response.headers["location"]
-        mock_update.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=name_required" in response.headers["location"]
+    mock_update.assert_not_called()
 
 
-def test_update_user_role_success(test_super_admin_user):
+def test_update_user_role_success(test_super_admin_user, mocker):
     """Test updating user role as super_admin."""
     from schemas.api import UserDetail
 
@@ -331,84 +341,88 @@ def test_update_user_role_success(test_super_admin_user):
         is_service_user=False,
     )
 
-    with patch("services.users.update_user") as mock_update:
-        mock_update.return_value = mock_user_detail
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-role",
-            data={"role": "admin"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_update.return_value = mock_user_detail
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=role_updated" in response.headers["location"]
-        # Verify service was called with correct parameters
-        mock_update.assert_called_once()
-        call_args = mock_update.call_args
-        assert call_args[0][1] == "user-123"  # user_id
-        assert call_args[0][2].role == "admin"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "success=role_updated" in response.headers["location"]
+    # Verify service was called with correct parameters
+    mock_update.assert_called_once()
+    call_args = mock_update.call_args
+    assert call_args[0][1] == "user-123"  # user_id
+    assert call_args[0][2].role == "admin"
 
 
-def test_update_user_role_denied_for_admin(test_admin_user):
+def test_update_user_role_denied_for_admin(test_admin_user, mocker):
     """Test regular admin cannot update user roles."""
     override_auth(app, test_admin_user)
 
-    with patch("database.users.update_user_role") as mock_update:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-role",
-            data={"role": "admin"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{DATABASE_USERS}.update_user_role")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_update.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_update.assert_not_called()
 
 
-def test_update_user_role_cannot_change_own(test_super_admin_user):
+def test_update_user_role_cannot_change_own(test_super_admin_user, mocker):
     """Test super_admin cannot change their own role."""
     override_auth(app, test_super_admin_user)
 
-    with patch("database.users.update_user_role") as mock_update:
-        client = TestClient(app)
-        response = client.post(
-            f"/users/{str(test_super_admin_user['id'])}/update-role",
-            data={"role": "member"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{DATABASE_USERS}.update_user_role")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        f"/users/{str(test_super_admin_user['id'])}/update-role",
+        data={"role": "member"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=cannot_change_own_role" in response.headers["location"]
-        mock_update.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=cannot_change_own_role" in response.headers["location"]
+    mock_update.assert_not_called()
 
 
-def test_update_user_role_invalid_role(test_super_admin_user):
+def test_update_user_role_invalid_role(test_super_admin_user, mocker):
     """Test updating user with invalid role."""
     override_auth(app, test_super_admin_user)
 
-    with patch("database.users.update_user_role") as mock_update:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-role",
-            data={"role": "invalid_role"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{DATABASE_USERS}.update_user_role")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-role",
+        data={"role": "invalid_role"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=invalid_role" in response.headers["location"]
-        mock_update.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=invalid_role" in response.headers["location"]
+    mock_update.assert_not_called()
 
 
-def test_add_user_email_success(test_admin_user):
+def test_add_user_email_success(test_admin_user, mocker):
     """Test adding secondary email to user."""
     from schemas.api import EmailInfo
 
@@ -422,98 +436,99 @@ def test_add_user_email_success(test_admin_user):
         created_at="2025-01-01T00:00:00",
     )
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.emails.add_user_email") as mock_add:
-            with patch("services.emails.get_primary_email") as mock_primary:
-                with patch("routers.users.send_secondary_email_added_notification") as mock_send:
-                    mock_privileged.return_value = True
-                    mock_add.return_value = mock_email_info
-                    mock_primary.return_value = "primary@example.com"
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
+    mock_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_secondary_email_added_notification")
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/users/user-123/add-email",
-                        data={"email": "new@privileged.com"},
-                        follow_redirects=False,
-                    )
+    mock_privileged.return_value = True
+    mock_add.return_value = mock_email_info
+    mock_primary.return_value = "primary@example.com"
 
-                    app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "new@privileged.com"},
+        follow_redirects=False,
+    )
 
-                    assert response.status_code == 303
-                    assert "success=email_added" in response.headers["location"]
-                    mock_add.assert_called_once()
-                    mock_send.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "success=email_added" in response.headers["location"]
+    mock_add.assert_called_once()
+    mock_send.assert_called_once()
 
 
-def test_add_user_email_not_privileged(test_admin_user):
+def test_add_user_email_not_privileged(test_admin_user, mocker):
     """Test adding email from non-privileged domain."""
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        mock_privileged.return_value = False
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_privileged.return_value = False
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/add-email",
-            data={"email": "new@unprivileged.com"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "new@unprivileged.com"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=domain_not_privileged" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=domain_not_privileged" in response.headers["location"]
 
 
-def test_remove_user_email_success(test_admin_user):
+def test_remove_user_email_success(test_admin_user, mocker):
     """Test removing secondary email from user."""
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-        with patch("services.emails.delete_user_email") as mock_delete:
-            with patch("services.emails.get_primary_email") as mock_primary:
-                with patch("routers.users.send_secondary_email_removed_notification") as mock_send:
-                    mock_get_addr.return_value = "secondary@example.com"
-                    mock_delete.return_value = None
-                    mock_primary.return_value = "primary@example.com"
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
+    mock_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_secondary_email_removed_notification")
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/users/user-123/remove-email/email-id", follow_redirects=False
-                    )
+    mock_get_addr.return_value = "secondary@example.com"
+    mock_delete.return_value = None
+    mock_primary.return_value = "primary@example.com"
 
-                    app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
 
-                    assert response.status_code == 303
-                    assert "success=email_removed" in response.headers["location"]
-                    mock_delete.assert_called_once()
-                    mock_send.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "success=email_removed" in response.headers["location"]
+    mock_delete.assert_called_once()
+    mock_send.assert_called_once()
 
 
-def test_remove_user_email_primary_blocked(test_admin_user):
+def test_remove_user_email_primary_blocked(test_admin_user, mocker):
     """Test cannot remove primary email."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-        with patch("services.emails.delete_user_email") as mock_delete:
-            mock_get_addr.return_value = "primary@example.com"
-            mock_delete.side_effect = ValidationError(
-                message="Cannot delete primary email address",
-                code="cannot_delete_primary",
-            )
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
 
-            client = TestClient(app)
-            response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
+    mock_get_addr.return_value = "primary@example.com"
+    mock_delete.side_effect = ValidationError(
+        message="Cannot delete primary email address",
+        code="cannot_delete_primary",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
 
-            assert response.status_code == 303
-            assert "error=cannot_remove_primary" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=cannot_remove_primary" in response.headers["location"]
 
 
-def test_promote_user_email_success(test_admin_user):
+def test_promote_user_email_success(test_admin_user, mocker):
     """Test promoting secondary email to primary."""
     from schemas.api import EmailInfo
 
@@ -527,28 +542,27 @@ def test_promote_user_email_success(test_admin_user):
         created_at="2025-01-01T00:00:00",
     )
 
-    with patch("services.emails.get_primary_email") as mock_old_primary:
-        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-            with patch("services.emails.set_primary_email") as mock_set:
-                with patch("routers.users.send_primary_email_changed_notification") as mock_send:
-                    mock_old_primary.return_value = "old@example.com"
-                    mock_get_addr.return_value = "new@example.com"
-                    mock_set.return_value = mock_email_info
+    mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_primary_email_changed_notification")
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/users/user-123/promote-email/email-id", follow_redirects=False
-                    )
+    mock_old_primary.return_value = "old@example.com"
+    mock_get_addr.return_value = "new@example.com"
+    mock_set.return_value = mock_email_info
 
-                    app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/promote-email/email-id", follow_redirects=False)
 
-                    assert response.status_code == 303
-                    assert "success=email_promoted" in response.headers["location"]
-                    mock_set.assert_called_once()
-                    mock_send.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "success=email_promoted" in response.headers["location"]
+    mock_set.assert_called_once()
+    mock_send.assert_called_once()
 
 
-def test_promote_user_email_already_primary(test_admin_user):
+def test_promote_user_email_already_primary(test_admin_user, mocker):
     """Test cannot promote already primary email."""
     from schemas.api import EmailInfo
 
@@ -562,139 +576,143 @@ def test_promote_user_email_already_primary(test_admin_user):
         created_at="2025-01-01T00:00:00",
     )
 
-    with patch("services.emails.get_primary_email") as mock_old_primary:
-        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-            with patch("services.emails.set_primary_email") as mock_set:
-                # Same email - already primary
-                mock_old_primary.return_value = "already@primary.com"
-                mock_get_addr.return_value = "already@primary.com"
-                mock_set.return_value = mock_email_info
+    mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/promote-email/email-id", follow_redirects=False
-                )
+    # Same email - already primary
+    mock_old_primary.return_value = "already@primary.com"
+    mock_get_addr.return_value = "already@primary.com"
+    mock_set.return_value = mock_email_info
 
-                app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/promote-email/email-id", follow_redirects=False)
 
-                assert response.status_code == 303
-                assert "error=already_primary" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=already_primary" in response.headers["location"]
 
 
-def test_users_list_with_locale_collation(test_admin_user):
+def test_users_list_with_locale_collation(test_admin_user, mocker):
     """Test users list with locale-specific collation."""
+    from fastapi.responses import HTMLResponse
+
     user_with_locale = {**test_admin_user, "locale": "sv_SE"}
     override_auth(app, user_with_locale)
 
-    with patch("services.users.check_collation_exists") as mock_check:
-        with patch("services.users.list_users_raw") as mock_list:
-            with patch("services.users.count_users") as mock_count:
-                with patch("routers.users.templates.TemplateResponse") as mock_template:
-                    from fastapi.responses import HTMLResponse
+    mock_check = mocker.patch(f"{SERVICES_USERS}.check_collation_exists")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
 
-                    mock_check.return_value = True
-                    mock_list.return_value = []
-                    mock_count.return_value = 0
-                    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+    mock_check.return_value = True
+    mock_list.return_value = []
+    mock_count.return_value = 0
+    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
 
-                    client = TestClient(app)
-                    response = client.get("/users/list")
+    client = TestClient(app)
+    response = client.get("/users/list")
 
-                    app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                    assert response.status_code == 200
-                    # Check collation was passed to list_users_raw
-                    mock_list.assert_called_once()
-                    call_args = mock_list.call_args
-                    assert call_args[0][6] == "sv-SE-x-icu"  # collation parameter
+    assert response.status_code == 200
+    # Check collation was passed to list_users_raw
+    mock_list.assert_called_once()
+    call_args = mock_list.call_args
+    assert call_args[0][6] == "sv-SE-x-icu"  # collation parameter
 
 
-def test_users_list_with_invalid_page_param(test_admin_user):
+def test_users_list_with_invalid_page_param(test_admin_user, mocker):
     """Test users list with invalid page parameter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("services.users.list_users_raw") as mock_list:
-        with patch("services.users.count_users") as mock_count:
-            with patch("routers.users.templates.TemplateResponse") as mock_template:
-                from fastapi.responses import HTMLResponse
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
 
-                mock_list.return_value = []
-                mock_count.return_value = 0
-                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+    mock_list.return_value = []
+    mock_count.return_value = 0
+    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
 
-                client = TestClient(app)
-                response = client.get("/users/list?page=invalid")
+    client = TestClient(app)
+    response = client.get("/users/list?page=invalid")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                # Should default to page 1
+    assert response.status_code == 200
+    # Should default to page 1
 
 
-def test_users_list_with_invalid_page_size(test_admin_user):
+def test_users_list_with_invalid_page_size(test_admin_user, mocker):
     """Test users list with invalid page size parameter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("services.users.list_users_raw") as mock_list:
-        with patch("services.users.count_users") as mock_count:
-            with patch("routers.users.templates.TemplateResponse") as mock_template:
-                from fastapi.responses import HTMLResponse
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
 
-                mock_list.return_value = []
-                mock_count.return_value = 0
-                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+    mock_list.return_value = []
+    mock_count.return_value = 0
+    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
 
-                client = TestClient(app)
-                response = client.get("/users/list?size=invalid")
+    client = TestClient(app)
+    response = client.get("/users/list?size=invalid")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                # Should default to page size 25
+    assert response.status_code == 200
+    # Should default to page size 25
 
 
-def test_users_list_with_nonstandard_page_size(test_admin_user):
+def test_users_list_with_nonstandard_page_size(test_admin_user, mocker):
     """Test users list with non-standard page size."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("services.users.list_users_raw") as mock_list:
-        with patch("services.users.count_users") as mock_count:
-            with patch("routers.users.templates.TemplateResponse") as mock_template:
-                from fastapi.responses import HTMLResponse
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
 
-                mock_list.return_value = []
-                mock_count.return_value = 0
-                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+    mock_list.return_value = []
+    mock_count.return_value = 0
+    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
 
-                client = TestClient(app)
-                response = client.get("/users/list?size=35")
+    client = TestClient(app)
+    response = client.get("/users/list?size=35")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                # Should normalize to 25
+    assert response.status_code == 200
+    # Should normalize to 25
 
 
-def test_users_list_with_invalid_sort_order(test_admin_user):
+def test_users_list_with_invalid_sort_order(test_admin_user, mocker):
     """Test users list with invalid sort order."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("services.users.list_users_raw") as mock_list:
-        with patch("services.users.count_users") as mock_count:
-            with patch("routers.users.templates.TemplateResponse") as mock_template:
-                from fastapi.responses import HTMLResponse
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
 
-                mock_list.return_value = []
-                mock_count.return_value = 0
-                mock_template.return_value = HTMLResponse(content="<html>Users</html>")
+    mock_list.return_value = []
+    mock_count.return_value = 0
+    mock_template.return_value = HTMLResponse(content="<html>Users</html>")
 
-                client = TestClient(app)
-                response = client.get("/users/list?order=invalid")
+    client = TestClient(app)
+    response = client.get("/users/list?order=invalid")
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 200
-                # Should default to desc
+    assert response.status_code == 200
+    # Should default to desc
 
 
 def test_add_user_email_invalid_email(test_admin_user):
@@ -712,129 +730,130 @@ def test_add_user_email_invalid_email(test_admin_user):
     assert "error=invalid_email" in response.headers["location"]
 
 
-def test_add_user_email_already_exists(test_admin_user):
+def test_add_user_email_already_exists(test_admin_user, mocker):
     """Test adding email that already exists."""
     from services.exceptions import ConflictError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.emails.add_user_email") as mock_add:
-            mock_privileged.return_value = True
-            mock_add.side_effect = ConflictError(
-                message="Email address already exists",
-                code="email_exists",
-            )
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/add-email",
-                data={"email": "existing@example.com"},
-                follow_redirects=False,
-            )
+    mock_privileged.return_value = True
+    mock_add.side_effect = ConflictError(
+        message="Email address already exists",
+        code="email_exists",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "existing@example.com"},
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "error=email_exists" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=email_exists" in response.headers["location"]
 
 
-def test_remove_user_email_not_found(test_admin_user):
+def test_remove_user_email_not_found(test_admin_user, mocker):
     """Test removing non-existent email."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-        with patch("services.emails.delete_user_email") as mock_delete:
-            mock_get_addr.return_value = None
-            mock_delete.side_effect = NotFoundError(
-                message="Email not found",
-                code="email_not_found",
-            )
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/remove-email/invalid-id", follow_redirects=False
-            )
+    mock_get_addr.return_value = None
+    mock_delete.side_effect = NotFoundError(
+        message="Email not found",
+        code="email_not_found",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/remove-email/invalid-id", follow_redirects=False)
 
-            assert response.status_code == 303
-            assert "error=email_not_found" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=email_not_found" in response.headers["location"]
 
 
-def test_remove_user_email_must_keep_one(test_admin_user):
+def test_remove_user_email_must_keep_one(test_admin_user, mocker):
     """Test cannot remove last email."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-        with patch("services.emails.delete_user_email") as mock_delete:
-            mock_get_addr.return_value = "last@example.com"
-            mock_delete.side_effect = ValidationError(
-                message="Cannot delete last email address",
-                code="must_keep_one_email",
-            )
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
 
-            client = TestClient(app)
-            response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
+    mock_get_addr.return_value = "last@example.com"
+    mock_delete.side_effect = ValidationError(
+        message="Cannot delete last email address",
+        code="must_keep_one_email",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/remove-email/email-id", follow_redirects=False)
 
-            assert response.status_code == 303
-            assert "error=must_keep_one_email" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=must_keep_one_email" in response.headers["location"]
 
 
-def test_promote_user_email_not_found(test_admin_user):
+def test_promote_user_email_not_found(test_admin_user, mocker):
     """Test promoting non-existent email."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_primary_email") as mock_old_primary:
-        with patch("services.emails.get_email_address_by_id") as mock_get_addr:
-            with patch("services.emails.set_primary_email") as mock_set:
-                mock_old_primary.return_value = None
-                mock_get_addr.return_value = None
-                mock_set.side_effect = NotFoundError(
-                    message="Email not found",
-                    code="email_not_found",
-                )
+    mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
+    mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/promote-email/invalid-id", follow_redirects=False
-                )
+    mock_old_primary.return_value = None
+    mock_get_addr.return_value = None
+    mock_set.side_effect = NotFoundError(
+        message="Email not found",
+        code="email_not_found",
+    )
 
-                app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post("/users/user-123/promote-email/invalid-id", follow_redirects=False)
 
-                assert response.status_code == 303
-                assert "error=email_not_found" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=email_not_found" in response.headers["location"]
 
 
 # New user creation tests
 
 
-def test_new_user_page_renders(test_admin_user):
+def test_new_user_page_renders(test_admin_user, mocker):
     """Test new user page renders for admin."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        with patch("database.settings.list_privileged_domains") as mock_domains:
-            from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
 
-            mock_template.return_value = HTMLResponse(content="<html>New User</html>")
-            mock_domains.return_value = []
+    mock_template.return_value = HTMLResponse(content="<html>New User</html>")
+    mock_domains.return_value = []
 
-            client = TestClient(app)
-            response = client.get("/users/new")
+    client = TestClient(app)
+    response = client.get("/users/new")
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 200
-            mock_domains.assert_called_once()
+    assert response.status_code == 200
+    mock_domains.assert_called_once()
 
 
 def test_new_user_page_denied_for_regular_user(test_user):
@@ -850,86 +869,86 @@ def test_new_user_page_denied_for_regular_user(test_user):
     assert response.headers["location"] == "/dashboard"
 
 
-def test_create_new_user_with_privileged_domain(test_admin_user):
+def test_create_new_user_with_privileged_domain(test_admin_user, mocker):
     """Test creating new user with privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.users.create_user") as mock_create:
-            with patch("services.users.add_verified_email_with_nonce") as mock_add_email:
-                with patch("services.users.get_tenant_name") as mock_tenant:
-                    with patch(
-                        "routers.users.send_new_user_privileged_domain_notification"
-                    ) as mock_send:
-                        mock_privileged.return_value = True
-                        # Mock create_user to return a UserDetail-like object
-                        mock_user = type("obj", (object,), {"id": "new-user-123"})()
-                        mock_create.return_value = mock_user
-                        mock_add_email.return_value = {"id": "email-123"}
-                        mock_tenant.return_value = "Test Organization"
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
+    mock_add_email = mocker.patch(f"{SERVICES_USERS}.add_verified_email_with_nonce")
+    mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
 
-                        client = TestClient(app)
-                        response = client.post(
-                            "/users/new",
-                            data={
-                                "email": "newuser@privileged.com",
-                                "first_name": "New",
-                                "last_name": "User",
-                                "role": "member",
-                            },
-                            follow_redirects=False,
-                        )
+    mock_privileged.return_value = True
+    # Mock create_user to return a UserDetail-like object
+    mock_user = type("obj", (object,), {"id": "new-user-123"})()
+    mock_create.return_value = mock_user
+    mock_add_email.return_value = {"id": "email-123"}
+    mock_tenant.return_value = "Test Organization"
 
-                        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "newuser@privileged.com",
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
-                        assert response.status_code == 303
-                        assert "/users/new-user-123" in response.headers["location"]
-                        assert "success=user_created" in response.headers["location"]
-                        mock_create.assert_called_once()
-                        mock_add_email.assert_called_once()
-                        # Verify org name was passed to email
-                        assert mock_send.call_args[0][2] == "Test Organization"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/new-user-123" in response.headers["location"]
+    assert "success=user_created" in response.headers["location"]
+    mock_create.assert_called_once()
+    mock_add_email.assert_called_once()
+    # Verify org name was passed to email
+    assert mock_send.call_args[0][2] == "Test Organization"
 
 
-def test_create_new_user_with_non_privileged_domain(test_admin_user):
+def test_create_new_user_with_non_privileged_domain(test_admin_user, mocker):
     """Test creating new user with non-privileged domain email."""
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.users.create_user") as mock_create:
-            with patch("services.users.add_unverified_email_with_nonce") as mock_add_email:
-                with patch("services.users.get_tenant_name") as mock_tenant:
-                    with patch("routers.users.send_new_user_invitation") as mock_send:
-                        mock_privileged.return_value = False
-                        # Mock create_user to return a UserDetail-like object
-                        mock_user = type("obj", (object,), {"id": "new-user-123"})()
-                        mock_create.return_value = mock_user
-                        mock_add_email.return_value = {
-                            "id": "email-123",
-                            "verify_nonce": "test-nonce",
-                        }
-                        mock_tenant.return_value = "Test Organization"
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
+    mock_add_email = mocker.patch(f"{SERVICES_USERS}.add_unverified_email_with_nonce")
+    mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_invitation")
 
-                        client = TestClient(app)
-                        response = client.post(
-                            "/users/new",
-                            data={
-                                "email": "newuser@example.com",
-                                "first_name": "New",
-                                "last_name": "User",
-                                "role": "member",
-                            },
-                            follow_redirects=False,
-                        )
+    mock_privileged.return_value = False
+    # Mock create_user to return a UserDetail-like object
+    mock_user = type("obj", (object,), {"id": "new-user-123"})()
+    mock_create.return_value = mock_user
+    mock_add_email.return_value = {
+        "id": "email-123",
+        "verify_nonce": "test-nonce",
+    }
+    mock_tenant.return_value = "Test Organization"
 
-                        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "newuser@example.com",
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
-                        assert response.status_code == 303
-                        assert "/users/new-user-123" in response.headers["location"]
-                        mock_create.assert_called_once()
-                        mock_add_email.assert_called_once()
-                        # Verify org name was passed to email
-                        assert mock_send.call_args[0][2] == "Test Organization"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/new-user-123" in response.headers["location"]
+    mock_create.assert_called_once()
+    mock_add_email.assert_called_once()
+    # Verify org name was passed to email
+    assert mock_send.call_args[0][2] == "Test Organization"
 
 
 def test_create_new_user_invalid_email(test_admin_user):
@@ -1020,105 +1039,108 @@ def test_create_new_user_admin_cannot_create_admin(test_admin_user):
     assert "error=insufficient_permissions" in response.headers["location"]
 
 
-def test_create_new_user_super_admin_can_create_admin(test_super_admin_user):
+def test_create_new_user_super_admin_can_create_admin(test_super_admin_user, mocker):
     """Test super admin can create admin users."""
     override_auth(app, test_super_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.users.create_user") as mock_create:
-            with patch("services.users.add_verified_email_with_nonce"):
-                with patch("services.users.get_tenant_name") as mock_tenant:
-                    with patch("routers.users.send_new_user_privileged_domain_notification"):
-                        mock_privileged.return_value = True
-                        # Mock create_user to return a UserDetail-like object
-                        mock_user = type("obj", (object,), {"id": "new-admin-123"})()
-                        mock_create.return_value = mock_user
-                        mock_tenant.return_value = "Test Organization"
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
+    mocker.patch(f"{SERVICES_USERS}.add_verified_email_with_nonce")
+    mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
+    mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
 
-                        client = TestClient(app)
-                        response = client.post(
-                            "/users/new",
-                            data={
-                                "email": "admin@example.com",
-                                "first_name": "New",
-                                "last_name": "Admin",
-                                "role": "admin",
-                            },
-                            follow_redirects=False,
-                        )
+    mock_privileged.return_value = True
+    # Mock create_user to return a UserDetail-like object
+    mock_user = type("obj", (object,), {"id": "new-admin-123"})()
+    mock_create.return_value = mock_user
+    mock_tenant.return_value = "Test Organization"
 
-                        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "admin@example.com",
+            "first_name": "New",
+            "last_name": "Admin",
+            "role": "admin",
+        },
+        follow_redirects=False,
+    )
 
-                        assert response.status_code == 303
-                        assert "/users/new-admin-123" in response.headers["location"]
-                        # Verify create_user was called
-                        mock_create.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/new-admin-123" in response.headers["location"]
+    # Verify create_user was called
+    mock_create.assert_called_once()
 
 
-def test_create_new_user_email_already_exists(test_admin_user):
+def test_create_new_user_email_already_exists(test_admin_user, mocker):
     """Test creating user with existing email."""
     from services.exceptions import ConflictError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.users.create_user") as mock_create:
-            mock_privileged.return_value = True
-            # Mock create_user to raise ConflictError for existing email
-            mock_create.side_effect = ConflictError(
-                message="Email already exists",
-                code="email_exists",
-            )
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/new",
-                data={
-                    "email": "existing@example.com",
-                    "first_name": "Test",
-                    "last_name": "User",
-                    "role": "member",
-                },
-                follow_redirects=False,
-            )
+    mock_privileged.return_value = True
+    # Mock create_user to raise ConflictError for existing email
+    mock_create.side_effect = ConflictError(
+        message="Email already exists",
+        code="email_exists",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "existing@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "error=email_exists" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=email_exists" in response.headers["location"]
 
 
-def test_create_new_user_creation_failed(test_admin_user):
+def test_create_new_user_creation_failed(test_admin_user, mocker):
     """Test handling of user creation failure."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain") as mock_privileged:
-        with patch("services.users.create_user") as mock_create:
-            mock_privileged.return_value = True
-            # Mock create_user to raise ValidationError
-            mock_create.side_effect = ValidationError(
-                message="Failed to create user",
-                code="user_creation_failed",
-            )
+    mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
+    mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/new",
-                data={
-                    "email": "test@example.com",
-                    "first_name": "Test",
-                    "last_name": "User",
-                    "role": "member",
-                },
-                follow_redirects=False,
-            )
+    mock_privileged.return_value = True
+    # Mock create_user to raise ValidationError
+    mock_create.side_effect = ValidationError(
+        message="Failed to create user",
+        code="user_creation_failed",
+    )
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "error=creation_failed" in response.headers["location"]
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "error=creation_failed" in response.headers["location"]
 
 
 def test_create_new_user_denied_for_regular_user(test_user):
@@ -1148,389 +1170,388 @@ def test_create_new_user_denied_for_regular_user(test_user):
 # =============================================================================
 
 
-def test_users_list_with_single_role_filter(test_admin_user):
+def test_users_list_with_single_role_filter(test_admin_user, mocker):
     """Test users list with single role filter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 3
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 3
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=admin")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=admin")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # Verify roles parameter was passed to count_users
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[2] == ["admin"]  # roles parameter
-                # Verify roles parameter was passed to list_users_raw
-                list_call_args = mock_list.call_args[0]
-                assert list_call_args[7] == ["admin"]  # roles parameter
+    assert response.status_code == 200
+    # Verify roles parameter was passed to count_users
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[2] == ["admin"]  # roles parameter
+    # Verify roles parameter was passed to list_users_raw
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[7] == ["admin"]  # roles parameter
 
 
-def test_users_list_with_multiple_role_filter(test_admin_user):
+def test_users_list_with_multiple_role_filter(test_admin_user, mocker):
     """Test users list with multiple role filter (comma-separated)."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=admin,super_admin")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=admin,super_admin")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert set(count_call_args[2]) == {"admin", "super_admin"}
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert set(count_call_args[2]) == {"admin", "super_admin"}
 
 
-def test_users_list_with_invalid_role_filter(test_admin_user):
+def test_users_list_with_invalid_role_filter(test_admin_user, mocker):
     """Test users list ignores invalid role values."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 0
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 0
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=invalid_role")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=invalid_role")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # Invalid role should result in None (no filter)
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[2] is None
+    assert response.status_code == 200
+    # Invalid role should result in None (no filter)
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[2] is None
 
 
-def test_users_list_with_mixed_valid_invalid_roles(test_admin_user):
+def test_users_list_with_mixed_valid_invalid_roles(test_admin_user, mocker):
     """Test users list filters only valid roles from mixed input."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 3
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 3
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=admin,invalid,member")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=admin,invalid,member")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert set(count_call_args[2]) == {"admin", "member"}
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert set(count_call_args[2]) == {"admin", "member"}
 
 
-def test_users_list_with_single_status_filter(test_admin_user):
+def test_users_list_with_single_status_filter(test_admin_user, mocker):
     """Test users list with single status filter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 10
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 10
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?status=active")
 
-                client = TestClient(app)
-                response = client.get("/users/list?status=active")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                # Verify statuses parameter was passed
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[3] == ["active"]  # statuses parameter
-                list_call_args = mock_list.call_args[0]
-                assert list_call_args[8] == ["active"]  # statuses parameter
+    assert response.status_code == 200
+    # Verify statuses parameter was passed
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[3] == ["active"]  # statuses parameter
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[8] == ["active"]  # statuses parameter
 
 
-def test_users_list_with_multiple_status_filter(test_admin_user):
+def test_users_list_with_multiple_status_filter(test_admin_user, mocker):
     """Test users list with multiple status filter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 15
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 15
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?status=active,inactivated")
 
-                client = TestClient(app)
-                response = client.get("/users/list?status=active,inactivated")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert set(count_call_args[3]) == {"active", "inactivated"}
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert set(count_call_args[3]) == {"active", "inactivated"}
 
 
-def test_users_list_with_invalid_status_filter(test_admin_user):
+def test_users_list_with_invalid_status_filter(test_admin_user, mocker):
     """Test users list ignores invalid status values."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 0
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 0
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?status=invalid_status")
 
-                client = TestClient(app)
-                response = client.get("/users/list?status=invalid_status")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[3] is None
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[3] is None
 
 
-def test_users_list_with_role_and_status_filter(test_admin_user):
+def test_users_list_with_role_and_status_filter(test_admin_user, mocker):
     """Test users list with both role and status filters."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 2
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 2
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=member&status=active")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=member&status=active")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[2] == ["member"]
-                assert count_call_args[3] == ["active"]
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[2] == ["member"]
+    assert count_call_args[3] == ["active"]
 
 
-def test_users_list_with_search_and_filters(test_admin_user):
+def test_users_list_with_search_and_filters(test_admin_user, mocker):
     """Test users list with search, role, and status filters combined."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 1
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 1
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?search=john&role=admin&status=active")
 
-                client = TestClient(app)
-                response = client.get("/users/list?search=john&role=admin&status=active")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[0] == test_admin_user["tenant_id"]
-                assert count_call_args[1] == "john"
-                assert count_call_args[2] == ["admin"]
-                assert count_call_args[3] == ["active"]
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[0] == test_admin_user["tenant_id"]
+    assert count_call_args[1] == "john"
+    assert count_call_args[2] == ["admin"]
+    assert count_call_args[3] == ["active"]
 
 
-def test_users_list_with_status_sort(test_admin_user):
+def test_users_list_with_status_sort(test_admin_user, mocker):
     """Test users list with status sorting."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?sort=status&order=asc")
 
-                client = TestClient(app)
-                response = client.get("/users/list?sort=status&order=asc")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                list_call_args = mock_list.call_args[0]
-                assert list_call_args[2] == "status"  # sort_field
-                assert list_call_args[3] == "asc"  # sort_order
+    assert response.status_code == 200
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[2] == "status"  # sort_field
+    assert list_call_args[3] == "asc"  # sort_order
 
 
-def test_users_list_with_status_sort_desc(test_admin_user):
+def test_users_list_with_status_sort_desc(test_admin_user, mocker):
     """Test users list with status sorting descending."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 5
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 5
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?sort=status&order=desc")
 
-                client = TestClient(app)
-                response = client.get("/users/list?sort=status&order=desc")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                list_call_args = mock_list.call_args[0]
-                assert list_call_args[2] == "status"
-                assert list_call_args[3] == "desc"
+    assert response.status_code == 200
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[2] == "status"
+    assert list_call_args[3] == "desc"
 
 
-def test_users_list_empty_role_filter(test_admin_user):
+def test_users_list_empty_role_filter(test_admin_user, mocker):
     """Test users list with empty role filter is treated as no filter."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 10
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 10
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[2] is None  # No roles filter
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[2] is None  # No roles filter
 
 
-def test_users_list_filters_with_pagination(test_admin_user):
+def test_users_list_filters_with_pagination(test_admin_user, mocker):
     """Test users list filters work with pagination."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 100
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 100
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=admin&status=active&page=2&size=50")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=admin&status=active&page=2&size=50")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert count_call_args[2] == ["admin"]
-                assert count_call_args[3] == ["active"]
-                list_call_args = mock_list.call_args[0]
-                assert list_call_args[4] == 2  # page
-                assert list_call_args[5] == 50  # page_size
-                assert list_call_args[7] == ["admin"]  # roles
-                assert list_call_args[8] == ["active"]  # statuses
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[2] == ["admin"]
+    assert count_call_args[3] == ["active"]
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[4] == 2  # page
+    assert list_call_args[5] == 50  # page_size
+    assert list_call_args[7] == ["admin"]  # roles
+    assert list_call_args[8] == ["active"]  # statuses
 
 
-def test_users_list_all_three_statuses(test_admin_user):
+def test_users_list_all_three_statuses(test_admin_user, mocker):
     """Test users list with all three status values."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 20
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 20
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?status=active,inactivated,anonymized")
 
-                client = TestClient(app)
-                response = client.get("/users/list?status=active,inactivated,anonymized")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert set(count_call_args[3]) == {"active", "inactivated", "anonymized"}
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert set(count_call_args[3]) == {"active", "inactivated", "anonymized"}
 
 
-def test_users_list_all_three_roles(test_admin_user):
+def test_users_list_all_three_roles(test_admin_user, mocker):
     """Test users list with all three role values."""
+    from fastapi.responses import HTMLResponse
+
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.templates.TemplateResponse") as mock_template:
-        from fastapi.responses import HTMLResponse
+    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
-        mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 20
+    mock_list.return_value = []
 
-        with patch("services.users.count_users") as mock_count:
-            with patch("services.users.list_users_raw") as mock_list:
-                mock_count.return_value = 20
-                mock_list.return_value = []
+    client = TestClient(app)
+    response = client.get("/users/list?role=member,admin,super_admin")
 
-                client = TestClient(app)
-                response = client.get("/users/list?role=member,admin,super_admin")
+    app.dependency_overrides.clear()
 
-                app.dependency_overrides.clear()
-
-                assert response.status_code == 200
-                count_call_args = mock_count.call_args[0]
-                assert set(count_call_args[2]) == {"member", "admin", "super_admin"}
+    assert response.status_code == 200
+    count_call_args = mock_count.call_args[0]
+    assert set(count_call_args[2]) == {"member", "admin", "super_admin"}
 
 
-def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_tenant):
+def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_tenant, mocker):
     """Verify event log created when creating user via HTML router with privileged domain."""
-    from unittest.mock import patch
     from uuid import uuid4
 
     import database
@@ -1555,20 +1576,21 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     new_email = f"newuser-{unique_suffix}@{domain}"
 
     # Mock email sending and cache to avoid warnings
-    with patch("routers.users.send_new_user_privileged_domain_notification"):
-        with patch("services.activity.cache.get", return_value=None):
-            with patch("services.activity.cache.set", return_value=True):
-                client = TestClient(app)
-                response = client.post(
-                    "/users/new",
-                    data={
-                        "email": new_email,
-                        "first_name": "New",
-                        "last_name": "User",
-                        "role": "member",
-                    },
-                    follow_redirects=False,
-                )
+    mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
+    mocker.patch(f"{SERVICES_ACTIVITY}.cache.get", return_value=None)
+    mocker.patch(f"{SERVICES_ACTIVITY}.cache.set", return_value=True)
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": new_email,
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
     app.dependency_overrides.clear()
 
@@ -1616,9 +1638,8 @@ def test_create_user_privileged_domain_creates_event_log(test_admin_user, test_t
     assert metadata["metadata"]["email"] == new_email
 
 
-def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, test_tenant):
+def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, test_tenant, mocker):
     """Verify event log created when creating user via HTML router with non-privileged domain."""
-    from unittest.mock import patch
     from uuid import uuid4
 
     import database
@@ -1633,20 +1654,21 @@ def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, te
     new_email = f"newuser-{unique_suffix}@{domain}"
 
     # Mock email sending and cache to avoid warnings
-    with patch("routers.users.send_new_user_invitation"):
-        with patch("services.activity.cache.get", return_value=None):
-            with patch("services.activity.cache.set", return_value=True):
-                client = TestClient(app)
-                response = client.post(
-                    "/users/new",
-                    data={
-                        "email": new_email,
-                        "first_name": "New",
-                        "last_name": "User",
-                        "role": "member",
-                    },
-                    follow_redirects=False,
-                )
+    mocker.patch(f"{USERS_MODULE}.send_new_user_invitation")
+    mocker.patch(f"{SERVICES_ACTIVITY}.cache.get", return_value=None)
+    mocker.patch(f"{SERVICES_ACTIVITY}.cache.set", return_value=True)
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": new_email,
+            "first_name": "New",
+            "last_name": "User",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
     app.dependency_overrides.clear()
 
@@ -1694,7 +1716,7 @@ def test_create_user_non_privileged_domain_creates_event_log(test_admin_user, te
     assert metadata["metadata"]["email"] == new_email
 
 
-def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant):
+def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant, mocker):
     """Test password set URL format for privileged domain users."""
     from uuid import UUID, uuid4
 
@@ -1716,45 +1738,46 @@ def test_password_set_link_format_privileged_domain(test_admin_user, test_tenant
     )
 
     # Patch the email sending function to capture the password_set_url
-    with patch("routers.users.send_new_user_privileged_domain_notification") as mock_send:
-        # Create user via HTML router
-        unique_suffix = str(uuid4())[:8]
-        new_email = f"pwdtest-{unique_suffix}@{domain}"
+    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/new",
-            data={
-                "email": new_email,
-                "first_name": "Password",
-                "last_name": "Test",
-                "role": "member",
-            },
-            follow_redirects=False,
-        )
+    # Create user via HTML router
+    unique_suffix = str(uuid4())[:8]
+    new_email = f"pwdtest-{unique_suffix}@{domain}"
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/new",
+        data={
+            "email": new_email,
+            "first_name": "Password",
+            "last_name": "Test",
+            "role": "member",
+        },
+        follow_redirects=False,
+    )
 
-        # Verify redirect indicates success
-        assert response.status_code == 303
-        assert "success=user_created" in response.headers["location"]
+    app.dependency_overrides.clear()
 
-        # Verify email was sent with password set link
-        assert mock_send.called
-        call_args = mock_send.call_args[0]
-        password_set_url = call_args[3]  # 4th argument is password_set_url
+    # Verify redirect indicates success
+    assert response.status_code == 303
+    assert "success=user_created" in response.headers["location"]
 
-        # Verify URL format: should contain /set-password?email_id={uuid}
-        assert "/set-password?email_id=" in password_set_url
+    # Verify email was sent with password set link
+    assert mock_send.called
+    call_args = mock_send.call_args[0]
+    password_set_url = call_args[3]  # 4th argument is password_set_url
 
-        # Extract email_id from URL
-        email_id = password_set_url.split("email_id=")[1]
+    # Verify URL format: should contain /set-password?email_id={uuid}
+    assert "/set-password?email_id=" in password_set_url
 
-        # Verify email_id is a valid UUID
-        try:
-            UUID(email_id)  # Will raise ValueError if not a valid UUID
-        except ValueError:
-            pytest.fail(f"email_id '{email_id}' is not a valid UUID")
+    # Extract email_id from URL
+    email_id = password_set_url.split("email_id=")[1]
+
+    # Verify email_id is a valid UUID
+    try:
+        UUID(email_id)  # Will raise ValueError if not a valid UUID
+    except ValueError:
+        pytest.fail(f"email_id '{email_id}' is not a valid UUID")
 
 
 def test_set_password_with_invalid_email_id_returns_error(test_tenant):
@@ -1784,179 +1807,183 @@ def test_set_password_with_invalid_email_id_returns_error(test_tenant):
 # =============================================================================
 
 
-def test_update_user_idp_success(test_super_admin_user):
+def test_update_user_idp_success(test_super_admin_user, mocker):
     """Test super_admin can assign user to an IdP."""
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/users/user-123?success=idp_updated" in response.headers["location"]
-        mock_assign.assert_called_once()
-        call_args = mock_assign.call_args
-        assert call_args[1]["user_id"] == "user-123"
-        assert call_args[1]["saml_idp_id"] == "idp-456"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=idp_updated" in response.headers["location"]
+    mock_assign.assert_called_once()
+    call_args = mock_assign.call_args
+    assert call_args[1]["user_id"] == "user-123"
+    assert call_args[1]["saml_idp_id"] == "idp-456"
 
 
-def test_update_user_idp_remove_idp(test_super_admin_user):
+def test_update_user_idp_remove_idp(test_super_admin_user, mocker):
     """Test super_admin can remove user from IdP (set to password-only)."""
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": ""},  # Empty = password-only
-            follow_redirects=False,
-        )
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": ""},  # Empty = password-only
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=idp_updated" in response.headers["location"]
-        mock_assign.assert_called_once()
-        # Empty string should be converted to None
-        assert mock_assign.call_args[1]["saml_idp_id"] is None
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "success=idp_updated" in response.headers["location"]
+    mock_assign.assert_called_once()
+    # Empty string should be converted to None
+    assert mock_assign.call_args[1]["saml_idp_id"] is None
 
 
-def test_update_user_idp_denied_for_admin(test_admin_user):
+def test_update_user_idp_denied_for_admin(test_admin_user, mocker):
     """Test admin cannot assign user to IdP (super_admin only)."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_assign.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_assign.assert_not_called()
 
 
-def test_update_user_idp_denied_for_member(test_user):
+def test_update_user_idp_denied_for_member(test_user, mocker):
     """Test member cannot assign user to IdP."""
     override_auth(app, test_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_assign.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_assign.assert_not_called()
 
 
-def test_update_user_idp_user_not_found(test_super_admin_user):
+def test_update_user_idp_user_not_found(test_super_admin_user, mocker):
     """Test update IdP returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        mock_assign.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=user_not_found" in response.headers["location"]
 
 
-def test_update_user_idp_idp_not_found(test_super_admin_user):
+def test_update_user_idp_idp_not_found(test_super_admin_user, mocker):
     """Test update IdP returns error when IdP not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        mock_assign.side_effect = NotFoundError(message="IdP not found", code="idp_not_found")
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign.side_effect = NotFoundError(message="IdP not found", code="idp_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=idp_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=idp_not_found" in response.headers["location"]
 
 
-def test_update_user_idp_validation_error(test_super_admin_user):
+def test_update_user_idp_validation_error(test_super_admin_user, mocker):
     """Test update IdP returns error on validation failure."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        mock_assign.side_effect = ValidationError(
-            message="Cannot assign to disabled IdP", code="idp_disabled"
-        )
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign.side_effect = ValidationError(
+        message="Cannot assign to disabled IdP", code="idp_disabled"
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-idp",
-            data={"saml_idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=idp_disabled" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=idp_disabled" in response.headers["location"]
 
 
-def test_update_user_idp_service_error(test_super_admin_user):
+def test_update_user_idp_service_error(test_super_admin_user, mocker):
     """Test update IdP renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.saml_service.assign_user_idp") as mock_assign:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_assign.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_assign.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/update-idp",
-                data={"saml_idp_id": "idp-456"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-idp",
+        data={"saml_idp_id": "idp-456"},
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -1964,109 +1991,111 @@ def test_update_user_idp_service_error(test_super_admin_user):
 # =============================================================================
 
 
-def test_inactivate_user_success(test_admin_user):
+def test_inactivate_user_success(test_admin_user, mocker):
     """Test admin can inactivate a user."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/inactivate",
-            follow_redirects=False,
-        )
+    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/inactivate",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/users/user-123?success=user_inactivated" in response.headers["location"]
-        mock_inactivate.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=user_inactivated" in response.headers["location"]
+    mock_inactivate.assert_called_once()
 
 
-def test_inactivate_user_denied_for_member(test_user):
+def test_inactivate_user_denied_for_member(test_user, mocker):
     """Test member cannot inactivate a user."""
     override_auth(app, test_user)
 
-    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/inactivate",
-            follow_redirects=False,
-        )
+    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/inactivate",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_inactivate.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_inactivate.assert_not_called()
 
 
-def test_inactivate_user_not_found(test_admin_user):
+def test_inactivate_user_not_found(test_admin_user, mocker):
     """Test inactivate returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        mock_inactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/inactivate",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/inactivate",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_inactivate_user_validation_error(test_admin_user):
+def test_inactivate_user_validation_error(test_admin_user, mocker):
     """Test inactivate returns error on validation failure (e.g., already inactivated)."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        mock_inactivate.side_effect = ValidationError(
-            message="User already inactivated", code="already_inactivated"
-        )
+    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate.side_effect = ValidationError(
+        message="User already inactivated", code="already_inactivated"
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/inactivate",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/inactivate",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=already_inactivated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=already_inactivated" in response.headers["location"]
 
 
-def test_inactivate_user_service_error(test_admin_user):
+def test_inactivate_user_service_error(test_admin_user, mocker):
     """Test inactivate renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.inactivate_user") as mock_inactivate:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_inactivate.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_inactivate.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/inactivate",
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/inactivate",
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2074,109 +2103,111 @@ def test_inactivate_user_service_error(test_admin_user):
 # =============================================================================
 
 
-def test_reactivate_user_success(test_admin_user):
+def test_reactivate_user_success(test_admin_user, mocker):
     """Test admin can reactivate a user."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reactivate",
-            follow_redirects=False,
-        )
+    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reactivate",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/users/user-123?success=user_reactivated" in response.headers["location"]
-        mock_reactivate.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=user_reactivated" in response.headers["location"]
+    mock_reactivate.assert_called_once()
 
 
-def test_reactivate_user_denied_for_member(test_user):
+def test_reactivate_user_denied_for_member(test_user, mocker):
     """Test member cannot reactivate a user."""
     override_auth(app, test_user)
 
-    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reactivate",
-            follow_redirects=False,
-        )
+    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reactivate",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_reactivate.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_reactivate.assert_not_called()
 
 
-def test_reactivate_user_not_found(test_admin_user):
+def test_reactivate_user_not_found(test_admin_user, mocker):
     """Test reactivate returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        mock_reactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reactivate",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reactivate",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_reactivate_user_validation_error(test_admin_user):
+def test_reactivate_user_validation_error(test_admin_user, mocker):
     """Test reactivate returns error on validation failure (e.g., already active)."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        mock_reactivate.side_effect = ValidationError(
-            message="User is already active", code="already_active"
-        )
+    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate.side_effect = ValidationError(
+        message="User is already active", code="already_active"
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reactivate",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reactivate",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=already_active" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=already_active" in response.headers["location"]
 
 
-def test_reactivate_user_service_error(test_admin_user):
+def test_reactivate_user_service_error(test_admin_user, mocker):
     """Test reactivate renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.reactivate_user") as mock_reactivate:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_reactivate.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_reactivate.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/reactivate",
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reactivate",
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2184,127 +2215,130 @@ def test_reactivate_user_service_error(test_admin_user):
 # =============================================================================
 
 
-def test_anonymize_user_success(test_super_admin_user):
+def test_anonymize_user_success(test_super_admin_user, mocker):
     """Test super_admin can anonymize a user."""
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/anonymize",
-            follow_redirects=False,
-        )
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/users/user-123?success=user_anonymized" in response.headers["location"]
-        mock_anonymize.assert_called_once()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=user_anonymized" in response.headers["location"]
+    mock_anonymize.assert_called_once()
 
 
-def test_anonymize_user_denied_for_admin(test_admin_user):
+def test_anonymize_user_denied_for_admin(test_admin_user, mocker):
     """Test admin cannot anonymize a user (super_admin only)."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/anonymize",
-            follow_redirects=False,
-        )
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_anonymize.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_anonymize.assert_not_called()
 
 
-def test_anonymize_user_denied_for_member(test_user):
+def test_anonymize_user_denied_for_member(test_user, mocker):
     """Test member cannot anonymize a user."""
     override_auth(app, test_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/anonymize",
-            follow_redirects=False,
-        )
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_anonymize.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_anonymize.assert_not_called()
 
 
-def test_anonymize_user_not_found(test_super_admin_user):
+def test_anonymize_user_not_found(test_super_admin_user, mocker):
     """Test anonymize returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        mock_anonymize.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/anonymize",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_anonymize_user_validation_error(test_super_admin_user):
+def test_anonymize_user_validation_error(test_super_admin_user, mocker):
     """Test anonymize returns error on validation failure (e.g., cannot anonymize self)."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        mock_anonymize.side_effect = ValidationError(
-            message="Cannot anonymize your own account", code="cannot_anonymize_self"
-        )
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize.side_effect = ValidationError(
+        message="Cannot anonymize your own account", code="cannot_anonymize_self"
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/anonymize",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=cannot_anonymize_self" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=cannot_anonymize_self" in response.headers["location"]
 
 
-def test_anonymize_user_service_error(test_super_admin_user):
+def test_anonymize_user_service_error(test_super_admin_user, mocker):
     """Test anonymize renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("routers.users.users_service.anonymize_user") as mock_anonymize:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_anonymize.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_anonymize.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/anonymize",
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/anonymize",
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2312,165 +2346,167 @@ def test_anonymize_user_service_error(test_super_admin_user):
 # =============================================================================
 
 
-def test_reset_mfa_success(test_admin_user):
+def test_reset_mfa_success(test_admin_user, mocker):
     """Test admin can reset MFA for a user."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        with patch(
-            "routers.users.emails_service.get_primary_email",
-            return_value="user@example.com",
-        ):
-            with patch("routers.users.send_mfa_reset_notification") as mock_email:
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/reset-mfa",
-                    follow_redirects=False,
-                )
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mocker.patch(
+        f"{USERS_MODULE}.emails_service.get_primary_email", return_value="user@example.com"
+    )
+    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
 
-                app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-                assert response.status_code == 303
-                assert "/users/user-123?success=mfa_reset" in response.headers["location"]
-                mock_reset.assert_called_once()
-                mock_email.assert_called_once()
-                # Verify email args
-                call_args = mock_email.call_args
-                assert call_args[0][0] == "user@example.com"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+    mock_reset.assert_called_once()
+    mock_email.assert_called_once()
+    # Verify email args
+    call_args = mock_email.call_args
+    assert call_args[0][0] == "user@example.com"
 
 
-def test_reset_mfa_denied_for_member(test_user):
+def test_reset_mfa_denied_for_member(test_user, mocker):
     """Test member cannot reset MFA for a user."""
     override_auth(app, test_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reset-mfa",
-            follow_redirects=False,
-        )
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_reset.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_reset.assert_not_called()
 
 
-def test_reset_mfa_user_not_found(test_admin_user):
+def test_reset_mfa_user_not_found(test_admin_user, mocker):
     """Test reset MFA returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        mock_reset.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reset-mfa",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_reset_mfa_validation_error(test_admin_user):
+def test_reset_mfa_validation_error(test_admin_user, mocker):
     """Test reset MFA returns error on validation failure."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        mock_reset.side_effect = ValidationError(message="MFA not enabled", code="mfa_not_enabled")
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset.side_effect = ValidationError(message="MFA not enabled", code="mfa_not_enabled")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/reset-mfa",
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/user-123?error=mfa_not_enabled" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/user-123?error=mfa_not_enabled" in response.headers["location"]
 
 
-def test_reset_mfa_service_error(test_admin_user):
+def test_reset_mfa_service_error(test_admin_user, mocker):
     """Test reset MFA renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_reset.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_reset.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/reset-mfa",
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
-def test_reset_mfa_email_includes_admin_name_and_timestamp(test_admin_user):
+def test_reset_mfa_email_includes_admin_name_and_timestamp(test_admin_user, mocker):
     """Test email notification includes admin name and formatted timestamp."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa"):
-        with patch(
-            "routers.users.emails_service.get_primary_email",
-            return_value="user@example.com",
-        ):
-            with patch("routers.users.send_mfa_reset_notification") as mock_email:
-                client = TestClient(app)
-                client.post("/users/user-123/reset-mfa", follow_redirects=False)
+    mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mocker.patch(
+        f"{USERS_MODULE}.emails_service.get_primary_email", return_value="user@example.com"
+    )
+    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
 
-                app.dependency_overrides.clear()
+    client = TestClient(app)
+    client.post("/users/user-123/reset-mfa", follow_redirects=False)
 
-                mock_email.assert_called_once()
-                call_args = mock_email.call_args[0]
-                # arg 0: email address
-                assert call_args[0] == "user@example.com"
-                # arg 1: admin name (first_name + last_name from fixture)
-                admin_name = call_args[1]
-                assert isinstance(admin_name, str)
-                assert len(admin_name) > 0
-                # arg 2: timestamp string in expected format
-                reset_time = call_args[2]
-                assert "UTC" in reset_time
+    app.dependency_overrides.clear()
+
+    mock_email.assert_called_once()
+    call_args = mock_email.call_args[0]
+    # arg 0: email address
+    assert call_args[0] == "user@example.com"
+    # arg 1: admin name (first_name + last_name from fixture)
+    admin_name = call_args[1]
+    assert isinstance(admin_name, str)
+    assert len(admin_name) > 0
+    # arg 2: timestamp string in expected format
+    reset_time = call_args[2]
+    assert "UTC" in reset_time
 
 
-def test_reset_mfa_no_email_notification_when_no_primary_email(test_admin_user):
+def test_reset_mfa_no_email_notification_when_no_primary_email(test_admin_user, mocker):
     """Test no email notification sent when user has no primary email."""
     override_auth(app, test_admin_user)
 
-    with patch("routers.users.mfa_service.reset_user_mfa") as mock_reset:
-        with patch("routers.users.emails_service.get_primary_email", return_value=None):
-            with patch("routers.users.send_mfa_reset_notification") as mock_email:
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/reset-mfa",
-                    follow_redirects=False,
-                )
+    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mocker.patch(f"{USERS_MODULE}.emails_service.get_primary_email", return_value=None)
+    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
 
-                app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/reset-mfa",
+        follow_redirects=False,
+    )
 
-                assert response.status_code == 303
-                assert "/users/user-123?success=mfa_reset" in response.headers["location"]
-                mock_reset.assert_called_once()
-                mock_email.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+    mock_reset.assert_called_once()
+    mock_email.assert_not_called()
 
 
 # =============================================================================
@@ -2478,34 +2514,36 @@ def test_reset_mfa_no_email_notification_when_no_primary_email(test_admin_user):
 # =============================================================================
 
 
-def test_users_index_no_permission_redirects_to_account(test_user):
+def test_users_index_no_permission_redirects_to_account(test_user, mocker):
     """Test users index redirects to /account when user has no /users access."""
     override_auth(app, test_user)
 
     # Mock has_page_access to return False for /users
-    with patch("routers.users.has_page_access", return_value=False):
-        client = TestClient(app)
-        response = client.get("/users/", follow_redirects=False)
+    mocker.patch(f"{USERS_MODULE}.has_page_access", return_value=False)
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.get("/users/", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/account"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account"
 
 
-def test_users_index_fallback_to_account(test_user):
+def test_users_index_fallback_to_account(test_user, mocker):
     """Test users index falls back to /account when no children are accessible."""
     override_auth(app, test_user)
 
-    with patch("routers.users.has_page_access", return_value=True):
-        with patch("routers.users.get_first_accessible_child", return_value=None):
-            client = TestClient(app)
-            response = client.get("/users/", follow_redirects=False)
+    mocker.patch(f"{USERS_MODULE}.has_page_access", return_value=True)
+    mocker.patch(f"{USERS_MODULE}.get_first_accessible_child", return_value=None)
 
-            app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.get("/users/", follow_redirects=False)
 
-            assert response.status_code == 303
-            assert response.headers["location"] == "/account"
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account"
 
 
 # =============================================================================
@@ -2513,71 +2551,72 @@ def test_users_index_fallback_to_account(test_user):
 # =============================================================================
 
 
-def test_update_user_name_not_found(test_admin_user):
+def test_update_user_name_not_found(test_admin_user, mocker):
     """Test update name returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-name",
-            data={"first_name": "New", "last_name": "Name"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-name",
+        data={"first_name": "New", "last_name": "Name"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_update_user_name_service_error(test_admin_user):
+def test_update_user_name_service_error(test_admin_user, mocker):
     """Test update name renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_update.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/update-name",
-                data={"first_name": "New", "last_name": "Name"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-name",
+        data={"first_name": "New", "last_name": "Name"},
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
-def test_update_user_name_denied_for_member(test_user):
+def test_update_user_name_denied_for_member(test_user, mocker):
     """Test member cannot update user name."""
     override_auth(app, test_user)
 
-    with patch("services.users.update_user") as mock_update:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-name",
-            data={"first_name": "New", "last_name": "Name"},
-            follow_redirects=False,
-        )
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-name",
+        data={"first_name": "New", "last_name": "Name"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_update.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_update.assert_not_called()
 
 
 # =============================================================================
@@ -2585,104 +2624,102 @@ def test_update_user_name_denied_for_member(test_user):
 # =============================================================================
 
 
-def test_update_user_role_not_found(test_super_admin_user):
+def test_update_user_role_not_found(test_super_admin_user, mocker):
     """Test update role returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_update.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/update-role",
-            data={"role": "admin"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/update-role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_update_user_role_last_super_admin(test_super_admin_user):
+def test_update_user_role_last_super_admin(test_super_admin_user, mocker):
     """Test update role prevents demoting last super_admin."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        mock_update.side_effect = ValidationError(
-            message="Cannot demote last super admin", code="last_super_admin"
-        )
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_update.side_effect = ValidationError(
+        message="Cannot demote last super admin", code="last_super_admin"
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/users/other-user/update-role",
-            data={"role": "member"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/users/other-user/update-role",
+        data={"role": "member"},
+        follow_redirects=False,
+    )
 
-        app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-        assert response.status_code == 303
-        assert "error=cannot_demote_last_super_admin" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=cannot_demote_last_super_admin" in response.headers["location"]
 
 
-def test_update_user_role_validation_error(test_super_admin_user):
+def test_update_user_role_validation_error(test_super_admin_user, mocker):
     """Test update role renders error page on other validation errors."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ValidationError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_update.side_effect = ValidationError(
-                message="Some other error", code="other_error"
-            )
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
+    mock_update.side_effect = ValidationError(message="Some other error", code="other_error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/other-user/update-role",
-                data={"role": "admin"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/other-user/update-role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 400
-            mock_error_page.assert_called_once()
+    assert response.status_code == 400
+    mock_error_page.assert_called_once()
 
 
-def test_update_user_role_service_error(test_super_admin_user):
+def test_update_user_role_service_error(test_super_admin_user, mocker):
     """Test update role renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_super_admin_user)
 
-    with patch("services.users.update_user") as mock_update:
-        with patch("routers.users.render_error_page") as mock_error_page:
-            from fastapi.responses import HTMLResponse
+    mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-            mock_update.side_effect = ServiceError(message="Database error")
-            mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/other-user/update-role",
-                data={"role": "admin"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/other-user/update-role",
+        data={"role": "admin"},
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 500
-            mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2690,73 +2727,74 @@ def test_update_user_role_service_error(test_super_admin_user):
 # =============================================================================
 
 
-def test_add_user_email_denied_for_member(test_user):
+def test_add_user_email_denied_for_member(test_user, mocker):
     """Test member cannot add email to other users."""
     override_auth(app, test_user)
 
-    with patch("services.emails.add_user_email") as mock_add:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/add-email",
-            data={"email": "new@example.com"},
-            follow_redirects=False,
-        )
+    mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "new@example.com"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_add.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_add.assert_not_called()
 
 
-def test_add_user_email_not_found(test_admin_user):
+def test_add_user_email_not_found(test_admin_user, mocker):
     """Test add email returns error when user not found."""
     from services.exceptions import NotFoundError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain", return_value=True):
-        with patch("services.emails.add_user_email") as mock_add:
-            mock_add.side_effect = NotFoundError(message="User not found", code="user_not_found")
+    mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
+    mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
+    mock_add.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
-            client = TestClient(app)
-            response = client.post(
-                "/users/user-123/add-email",
-                data={"email": "new@privileged.com"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "new@privileged.com"},
+        follow_redirects=False,
+    )
 
-            app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-            assert response.status_code == 303
-            assert "/users/list?error=user_not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/users/list?error=user_not_found" in response.headers["location"]
 
 
-def test_add_user_email_service_error(test_admin_user):
+def test_add_user_email_service_error(test_admin_user, mocker):
     """Test add email renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.settings.is_privileged_domain", return_value=True):
-        with patch("services.emails.add_user_email") as mock_add:
-            with patch("routers.users.render_error_page") as mock_error_page:
-                from fastapi.responses import HTMLResponse
+    mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
+    mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-                mock_add.side_effect = ServiceError(message="Database error")
-                mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_add.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/add-email",
-                    data={"email": "new@privileged.com"},
-                    follow_redirects=False,
-                )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/add-email",
+        data={"email": "new@privileged.com"},
+        follow_redirects=False,
+    )
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 500
-                mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2764,48 +2802,49 @@ def test_add_user_email_service_error(test_admin_user):
 # =============================================================================
 
 
-def test_remove_user_email_denied_for_member(test_user):
+def test_remove_user_email_denied_for_member(test_user, mocker):
     """Test member cannot remove emails from other users."""
     override_auth(app, test_user)
 
-    with patch("services.emails.delete_user_email") as mock_delete:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/remove-email/email-456",
-            follow_redirects=False,
-        )
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/remove-email/email-456",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_delete.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_delete.assert_not_called()
 
 
-def test_remove_user_email_service_error(test_admin_user):
+def test_remove_user_email_service_error(test_admin_user, mocker):
     """Test remove email renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_email_address_by_id", return_value="old@example.com"):
-        with patch("services.emails.delete_user_email") as mock_delete:
-            with patch("routers.users.render_error_page") as mock_error_page:
-                from fastapi.responses import HTMLResponse
+    mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="old@example.com")
+    mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-                mock_delete.side_effect = ServiceError(message="Database error")
-                mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_delete.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/remove-email/email-456",
-                    follow_redirects=False,
-                )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/remove-email/email-456",
+        follow_redirects=False,
+    )
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 500
-                mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()
 
 
 # =============================================================================
@@ -2813,100 +2852,99 @@ def test_remove_user_email_service_error(test_admin_user):
 # =============================================================================
 
 
-def test_promote_user_email_denied_for_member(test_user):
+def test_promote_user_email_denied_for_member(test_user, mocker):
     """Test member cannot promote emails for other users."""
     override_auth(app, test_user)
 
-    with patch("services.emails.set_primary_email") as mock_promote:
-        client = TestClient(app)
-        response = client.post(
-            "/users/user-123/promote-email/email-456",
-            follow_redirects=False,
-        )
+    mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
 
-        app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/promote-email/email-456",
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-        mock_promote.assert_not_called()
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_promote.assert_not_called()
 
 
-def test_promote_user_email_not_verified(test_admin_user):
+def test_promote_user_email_not_verified(test_admin_user, mocker):
     """Test promote email returns error when email not verified."""
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_primary_email", return_value="old@example.com"):
-        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
-            with patch("services.emails.set_primary_email") as mock_promote:
-                mock_promote.side_effect = ValidationError(
-                    message="Email not verified", code="email_not_verified"
-                )
+    mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
+    mock_promote.side_effect = ValidationError(
+        message="Email not verified", code="email_not_verified"
+    )
 
-                client = TestClient(app)
-                response = client.post(
-                    "/users/user-123/promote-email/email-456",
-                    follow_redirects=False,
-                )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/promote-email/email-456",
+        follow_redirects=False,
+    )
 
-                app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                assert response.status_code == 303
-                assert "error=email_not_verified" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=email_not_verified" in response.headers["location"]
 
 
-def test_promote_user_email_validation_error(test_admin_user):
+def test_promote_user_email_validation_error(test_admin_user, mocker):
     """Test promote email renders error page on other validation errors."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ValidationError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_primary_email", return_value="old@example.com"):
-        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
-            with patch("services.emails.set_primary_email") as mock_promote:
-                with patch("routers.users.render_error_page") as mock_error_page:
-                    from fastapi.responses import HTMLResponse
+    mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-                    mock_promote.side_effect = ValidationError(
-                        message="Other error", code="other_error"
-                    )
-                    mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
+    mock_promote.side_effect = ValidationError(message="Other error", code="other_error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/users/user-123/promote-email/email-456",
-                        follow_redirects=False,
-                    )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/promote-email/email-456",
+        follow_redirects=False,
+    )
 
-                    app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                    assert response.status_code == 400
-                    mock_error_page.assert_called_once()
+    assert response.status_code == 400
+    mock_error_page.assert_called_once()
 
 
-def test_promote_user_email_service_error(test_admin_user):
+def test_promote_user_email_service_error(test_admin_user, mocker):
     """Test promote email renders error page on service error."""
+    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(app, test_admin_user)
 
-    with patch("services.emails.get_primary_email", return_value="old@example.com"):
-        with patch("services.emails.get_email_address_by_id", return_value="new@example.com"):
-            with patch("services.emails.set_primary_email") as mock_promote:
-                with patch("routers.users.render_error_page") as mock_error_page:
-                    from fastapi.responses import HTMLResponse
+    mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
+    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
 
-                    mock_promote.side_effect = ServiceError(message="Database error")
-                    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_promote.side_effect = ServiceError(message="Database error")
+    mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
 
-                    client = TestClient(app)
-                    response = client.post(
-                        "/users/user-123/promote-email/email-456",
-                        follow_redirects=False,
-                    )
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/promote-email/email-456",
+        follow_redirects=False,
+    )
 
-                    app.dependency_overrides.clear()
+    app.dependency_overrides.clear()
 
-                    assert response.status_code == 500
-                    mock_error_page.assert_called_once()
+    assert response.status_code == 500
+    mock_error_page.assert_called_once()

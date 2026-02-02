@@ -6,26 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [DEPS] ecdsa: CVE-2024-23342 - Minerva Timing Attack (Transitive)
-
-**Package:** ecdsa (transitive via sendgrid)
-**Installed Version:** 0.19.1
-**Severity:** High (CVSS: 7.4)
-**Advisory:** https://github.com/advisories/GHSA-wj6h-64fc-37mp
-
-**Description:**
-The python-ecdsa library is vulnerable to the Minerva timing attack on P-256 curve operations. The maintainers consider side-channel attacks out of scope because implementing side-channel-free code in pure Python is impossible.
-
-**Exploitability in This Project:**
-Low. This is a transitive dependency of sendgrid used for internal token signing. Exploitation requires controlling timing measurements of sendgrid API calls and gathering hundreds of samples.
-
-**Remediation Options:**
-1. Accept the risk (sendgrid's internal use is not directly exploitable)
-2. Replace sendgrid with resend (this project already has resend as primary email backend)
-3. Monitor for sendgrid updates that switch to pyca/cryptography
-
----
-
 ## [REFACTOR] Long Functions in User Management
 
 **Found in:** `app/services/users.py`, `app/services/saml/auth.py`, `app/services/groups.py`
@@ -435,7 +415,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 4 | 1 dependency (transitive), 1 file structure (1/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
+| High | 3 | 1 file structure (1/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
 | Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
@@ -455,7 +435,7 @@ Patch pyramid refactoring should proceed in this order:
 
 **Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02)
 
-**Last dependency audit:** 2026-02-01 (all direct dependencies are at safe versions)
+**Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
 **Last router refactor:** 2026-02-02 (saml.py split into focused modules)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

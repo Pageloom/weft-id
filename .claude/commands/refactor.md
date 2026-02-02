@@ -206,7 +206,61 @@ class UserService:
 - Multiple layers of indirection without clear benefit
 - "Future-proofing" that hasn't been needed
 
-### 9. File Structure (Claude Traversability)
+### 9. Quality of Test Code
+
+**The Problem**: Poor test code is as harmful as poor production code. Tests that are hard to read, maintain, or understand undermine confidence in the test suite.
+
+**What to look for**:
+
+**Nested Patch Pyramids** (High Priority):
+```python
+# RED FLAG - deeply nested context managers
+with patch("module.func1") as mock1:
+    with patch("module.func2") as mock2:
+        with patch("module.func3") as mock3:
+            # Test code buried 3+ levels deep
+```
+Convert to flat `mocker.patch()` calls.
+
+**Duplicated Setup Code**:
+```python
+# RED FLAG - same override pattern in every test
+app.dependency_overrides[get_tenant_id_from_request] = lambda: user["tenant_id"]
+app.dependency_overrides[get_current_user] = lambda: user
+# Repeated 200+ times across test files
+```
+Extract to shared fixtures in `conftest.py`.
+
+**Missing Test Docstrings**:
+- Complex test scenarios without explanation
+- Test names that don't fully describe the scenario
+
+**Underutilized Parametrization**:
+```python
+# RED FLAG - separate tests for each case
+def test_endpoint_as_admin(): ...
+def test_endpoint_as_member(): ...
+def test_endpoint_as_guest(): ...
+
+# Better - one parametrized test
+@pytest.mark.parametrize("role,expected_status", [...])
+def test_endpoint_access_control(role, expected_status): ...
+```
+
+**Excessive Mocking with Minimal Assertions**:
+- Tests that set up 5+ mocks but only check status code
+- May indicate testing implementation rather than behavior
+
+**Magic Indices in Assertions**:
+```python
+# RED FLAG - unclear what index 2 represents
+assert mock.call_args[0][2] == "value"
+
+# Better - named access
+assert mock.call_args.kwargs["param_name"] == "value"
+```
+
+### 10. File Structure (Claude Traversability)
 
 **The Problem**: Poor file structure makes it hard for Claude to efficiently navigate and understand the codebase
 
@@ -264,8 +318,9 @@ When presenting options to the user, include context from history:
 When invoked, ask the user:
 
 1. **Scan scope**: Full codebase scan or specific area?
-   - Full codebase
+   - Full codebase (includes tests)
    - Specific module (services, routers, database)
+   - Test code only (`tests/`)
    - Specific feature area
    - Recently changed files
 
@@ -274,6 +329,7 @@ When invoked, ask the user:
    - Code duplication only
    - Complexity reduction
    - Consistency improvements
+   - Quality of test code
    - Specific concern
 
 3. **Depth**: How deep should analysis go?
@@ -328,6 +384,14 @@ Based on user's answers, systematically scan:
 2. Check for circular dependencies
 3. Identify hardcoded values
 4. Look for infrastructure mixed with business logic
+
+**For Quality of Test Code**:
+1. Count nested `with patch()` context managers (grep for `^\s+with patch\(`)
+2. Identify duplicated setup patterns across test files
+3. Check for tests without docstrings in complex test files
+4. Look for repeated test structures that could use `@pytest.mark.parametrize`
+5. Find tests with many mocks but few assertions
+6. Check for magic indices in mock assertions (e.g., `call_args[0][2]`)
 
 ### Step 3: Evidence Collection
 
@@ -409,7 +473,7 @@ When logging refactoring opportunities to `ISSUES.md`, use this exact format:
 
 **Found in:** [File path:line number(s)]
 **Impact:** High/Medium/Low
-**Category:** [Duplication | Complexity | Inconsistency | Dead Code | Abstraction | Coupling | Naming | Over-Engineering]
+**Category:** [Duplication | Complexity | Inconsistency | Dead Code | Abstraction | Coupling | Naming | Over-Engineering | Test Code]
 **Description:** [Clear explanation of the issue]
 **Evidence:** [Code snippet showing the problem]
 **Why It Matters:** [Concrete impact on maintainability, bugs, or development speed]
@@ -521,6 +585,11 @@ def send_notification(user, notifier: Notifier):
 | Coupling | Hardcoded deps | Dependency Injection |
 | Naming | Unclear names | Rename Variable/Method |
 | Over-Engineering | Unnecessary abstraction | Inline, Simplify |
+| **Test Code** | Nested patch pyramids | Convert to flat `mocker.patch()` |
+| **Test Code** | Duplicated setup | Extract to fixtures in `conftest.py` |
+| **Test Code** | Missing docstrings | Add docstrings explaining intent |
+| **Test Code** | Repeated test structures | Use `@pytest.mark.parametrize` |
+| **Test Code** | Magic indices | Use named kwargs or constants |
 
 ## Systematic Verification Checklist
 
@@ -569,6 +638,14 @@ Use this checklist when scanning a module:
 - [ ] Find hardcoded strings/values
 - [ ] Identify mixed concerns
 
+**Quality of Test Code Check**:
+- [ ] Count nested `with patch()` pyramids per file
+- [ ] Identify files with >50 patch statements (high priority)
+- [ ] Look for duplicated auth/setup patterns across tests
+- [ ] Check for missing docstrings in complex test files
+- [ ] Find opportunities for `@pytest.mark.parametrize`
+- [ ] Review mock-heavy tests for assertion quality
+
 ## Start Here
 
 When invoked:
@@ -581,10 +658,11 @@ When invoked:
 **Then**, ask the user with history-informed recommendations:
 
 1. **What area should I analyze?**
-   - Full codebase scan
+   - Full codebase scan (includes tests)
    - Services layer (`app/services/`) - [include last scan date from history]
    - Database layer (`app/database/`) - [include last scan date from history]
    - Routers (`app/routers/`) - [include last scan date from history]
+   - Test code (`tests/`) - [include last scan date from history]
    - Specific module or feature
    - Recently changed files (git diff)
 
@@ -597,6 +675,7 @@ When invoked:
    - Complexity reduction
    - Consistency improvements
    - Dead code cleanup
+   - Quality of test code - *recommended when scanning tests/*
    - Specific concern
 
    *If history shows recurring patterns in a category, recommend focusing there.*

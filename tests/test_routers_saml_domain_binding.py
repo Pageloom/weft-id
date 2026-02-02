@@ -45,7 +45,7 @@ def super_admin_session(client, test_tenant_host, test_super_admin_user):
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.bind_domain_to_idp")
+@patch("routers.saml.admin.domains.saml_service.bind_domain_to_idp")
 def test_bind_domain_success(mock_bind, super_admin_session, test_tenant_host):
     """Test bind domain returns redirect with success on successful binding."""
     mock_bind.return_value = None  # Success returns nothing
@@ -64,7 +64,7 @@ def test_bind_domain_success(mock_bind, super_admin_session, test_tenant_host):
     mock_bind.assert_called_once()
 
 
-@patch("routers.saml.saml_service.bind_domain_to_idp")
+@patch("routers.saml.admin.domains.saml_service.bind_domain_to_idp")
 def test_bind_domain_not_found(mock_bind, super_admin_session, test_tenant_host):
     """Test bind domain returns redirect with error on NotFoundError."""
     mock_bind.side_effect = NotFoundError("IdP or domain not found")
@@ -82,7 +82,7 @@ def test_bind_domain_not_found(mock_bind, super_admin_session, test_tenant_host)
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.bind_domain_to_idp")
+@patch("routers.saml.admin.domains.saml_service.bind_domain_to_idp")
 def test_bind_domain_service_error(mock_bind, super_admin_session, test_tenant_host):
     """Test bind domain returns redirect with error on ServiceError."""
     mock_bind.side_effect = ServiceError("Domain already bound to another IdP")
@@ -105,7 +105,7 @@ def test_bind_domain_service_error(mock_bind, super_admin_session, test_tenant_h
 # =============================================================================
 
 
-@patch("routers.saml.saml_service.unbind_domain_from_idp")
+@patch("routers.saml.admin.domains.saml_service.unbind_domain_from_idp")
 def test_unbind_domain_success(mock_unbind, super_admin_session, test_tenant_host):
     """Test unbind domain returns redirect with success on successful unbinding."""
     mock_unbind.return_value = None  # Success returns nothing
@@ -123,7 +123,7 @@ def test_unbind_domain_success(mock_unbind, super_admin_session, test_tenant_hos
     mock_unbind.assert_called_once()
 
 
-@patch("routers.saml.saml_service.unbind_domain_from_idp")
+@patch("routers.saml.admin.domains.saml_service.unbind_domain_from_idp")
 def test_unbind_domain_not_found(mock_unbind, super_admin_session, test_tenant_host):
     """Test unbind domain returns redirect with error on NotFoundError."""
     mock_unbind.side_effect = NotFoundError("Domain binding not found")
@@ -140,7 +140,7 @@ def test_unbind_domain_not_found(mock_unbind, super_admin_session, test_tenant_h
     assert "error=" in location
 
 
-@patch("routers.saml.saml_service.unbind_domain_from_idp")
+@patch("routers.saml.admin.domains.saml_service.unbind_domain_from_idp")
 def test_unbind_domain_service_error(mock_unbind, super_admin_session, test_tenant_host):
     """Test unbind domain returns redirect with error on ServiceError."""
     mock_unbind.side_effect = ServiceError("Cannot unbind domain with active users")

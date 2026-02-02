@@ -647,7 +647,7 @@ def acs_test_setup(
 
 def test_saml_acs_missing_issuer(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles missing issuer in SAML response."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
 
     # Mock extract_issuer_from_response to return None
     monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: None)
@@ -669,7 +669,7 @@ def test_saml_acs_missing_issuer(acs_test_setup, test_tenant_host, monkeypatch):
 
 def test_saml_acs_idp_not_found(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles unknown IdP issuer."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
 
     # Mock extract_issuer_from_response to return unknown issuer
     monkeypatch.setattr(
@@ -694,7 +694,7 @@ def test_saml_acs_idp_not_found(acs_test_setup, test_tenant_host, monkeypatch):
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_idp_disabled_error(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles disabled IdP error."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from services import saml as saml_service
     from services.exceptions import ForbiddenError
 
@@ -731,7 +731,7 @@ def test_saml_acs_idp_disabled_error(acs_test_setup, test_tenant_host, monkeypat
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_validation_error_signature(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles signature validation failure."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from services import saml as saml_service
     from services.exceptions import ValidationError
 
@@ -769,7 +769,7 @@ def test_saml_acs_validation_error_signature(acs_test_setup, test_tenant_host, m
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_validation_error_expired(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles expired assertion."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from services import saml as saml_service
     from services.exceptions import ValidationError
 
@@ -805,7 +805,7 @@ def test_saml_acs_validation_error_expired(acs_test_setup, test_tenant_host, mon
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_user_not_found(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint handles user not found in database."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
     from services.exceptions import NotFoundError
@@ -857,7 +857,7 @@ def test_saml_acs_user_not_found(acs_test_setup, test_tenant_host, monkeypatch):
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_success_redirects_to_dashboard(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint successful auth redirects to dashboard."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
 
@@ -919,7 +919,7 @@ def test_saml_acs_session_regenerated_after_auth(acs_test_setup, test_tenant_hos
     By regenerating the session after SAML authentication, we ensure the
     pre-auth session data (cookie) is different from post-auth session.
     """
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
 
@@ -988,7 +988,7 @@ def test_saml_acs_session_regenerated_after_auth(acs_test_setup, test_tenant_hos
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_success_with_relay_state(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint respects RelayState for redirect."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
 
@@ -1040,7 +1040,7 @@ def test_saml_acs_success_with_relay_state(acs_test_setup, test_tenant_host, mon
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_host, monkeypatch):
     """Test ACS endpoint redirects to MFA verify when required."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
 
@@ -1799,7 +1799,7 @@ def test_debug_detail_shows_saml_xml(
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_error_creates_debug_entry(acs_test_setup, test_tenant_host, monkeypatch):
     """Test that SAML ACS errors create debug entries for troubleshooting."""
-    from routers import saml as saml_router
+    from routers.saml import authentication as saml_router
     from services import saml as saml_service
     from services.exceptions import ValidationError
 

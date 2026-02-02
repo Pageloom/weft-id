@@ -50,21 +50,31 @@ Extract sub-operations into focused helper functions.
 
 **Description:**
 Four router modules exceed 500 lines:
-- `app/routers/saml.py` (1241 lines)
+- ~~`app/routers/saml.py` (1241 lines)~~ ✅ Refactored (2026-02-02)
 - `app/routers/auth.py` (987 lines)
 - `app/routers/users.py` (747 lines)
 - `app/routers/api/v1/users.py` (1025 lines)
 
+**Progress:**
+- **saml.py**: Split into `app/routers/saml/` package with 9 focused modules:
+  - `authentication.py` (core auth flow: metadata, login, ACS)
+  - `logout.py` (SLO endpoints)
+  - `selection.py` (IdP selection page)
+  - `admin/providers.py` (IdP CRUD)
+  - `admin/debug.py` (debugging and testing)
+  - `admin/domains.py` (domain binding)
+  - `_helpers.py` (shared utilities)
+  - `__init__.py` files for backwards compatibility
+
 **Why It Matters:**
 Routers that are too large contain many unrelated endpoints in one file. When Claude needs to modify one endpoint, it must load many irrelevant endpoints.
 
-**Suggested Refactoring:**
-Split large routers by functionality:
-- `app/routers/saml.py` → `saml/login.py`, `saml/logout.py`, `saml/acs.py`, `saml/metadata.py`
+**Remaining Refactoring:**
 - `app/routers/auth.py` → `auth/login.py`, `auth/password.py`, `auth/verification.py`
+- `app/routers/users.py` → split by functionality
 - `app/routers/api/v1/users.py` → `users/profile.py`, `users/emails.py`, `users/mfa.py`, `users/admin.py`
 
-**Files Affected:** 4 router modules plus any imports
+**Files Affected:** 3 remaining router modules plus any imports
 
 ---
 
@@ -99,9 +109,10 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 2 | 1 dependency (transitive), 1 file structure |
+| High | 2 | 1 dependency (transitive), 1 file structure (1/4 routers done) |
 | Medium | 1 | Long functions |
 | Low | 1 | Architecture consistency |
 
 **Last dependency audit:** 2026-02-01 (all direct dependencies are at safe versions)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
+**Last router refactor:** 2026-02-02 (saml.py split into focused modules)

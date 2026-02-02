@@ -1718,6 +1718,37 @@ Split the monolithic file into 10 focused sub-modules under `app/services/saml/`
 
 ---
 
+## [DEPS] ecdsa: CVE-2024-23342 - Minerva Timing Attack (Transitive)
+
+**Status:** Resolved (2026-02-02)
+
+**Original Severity:** High (CVSS: 7.4)
+
+**Package:** ecdsa 0.19.1 (transitive via sendgrid 6.12.4)
+
+**Advisory:** https://github.com/advisories/GHSA-wj6h-64fc-37mp
+
+**Original Description:**
+The python-ecdsa library was vulnerable to the Minerva timing attack on P-256 curve operations. The maintainers stated they had no plans to fix it because implementing side-channel-free code in pure Python is impossible. This was a transitive dependency of the sendgrid package.
+
+**Exploitability in This Project:**
+Low. The ecdsa package was only used internally by sendgrid for token signing. Exploitation would have required measuring timing of hundreds of signing operations.
+
+**Resolution:**
+Updated sendgrid from 6.12.4 to 6.12.5. The new version replaced the ecdsa dependency with pyca/cryptography (PR #1114), eliminating the vulnerability entirely.
+
+```bash
+poetry update sendgrid
+```
+
+**Files Modified:**
+- `pyproject.toml` - Updated via poetry
+- `poetry.lock` - Updated lockfile
+
+**Verification:** `poetry run python -m pip_audit` shows no known vulnerabilities.
+
+---
+
 ## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
 
 **Status:** Resolved (2026-02-01)

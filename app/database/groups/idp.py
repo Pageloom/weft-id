@@ -18,9 +18,7 @@ def get_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> list[dict]:
     )
 
 
-def get_group_by_idp_and_name(
-    tenant_id: TenantArg, idp_id: str, name: str
-) -> dict | None:
+def get_group_by_idp_and_name(tenant_id: TenantArg, idp_id: str, name: str) -> dict | None:
     """Get a specific IdP group by name."""
     return fetchone(
         tenant_id,
@@ -102,9 +100,7 @@ def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
     )
 
 
-def get_user_idp_group_ids(
-    tenant_id: TenantArg, user_id: str, idp_id: str
-) -> list[str]:
+def get_user_idp_group_ids(tenant_id: TenantArg, user_id: str, idp_id: str) -> list[str]:
     """
     Get all IdP group IDs a user belongs to for a specific IdP.
 
@@ -144,9 +140,7 @@ def bulk_add_user_to_groups(
 
     with session(tenant_id=tenant_id) as cur:
         # Build values for bulk insert
-        values = ", ".join(
-            f"('{tenant_id_value}', '{gid}', '{user_id}')" for gid in group_ids
-        )
+        values = ", ".join(f"('{tenant_id_value}', '{gid}', '{user_id}')" for gid in group_ids)
         cur.execute(
             f"""
             insert into group_memberships (tenant_id, group_id, user_id)

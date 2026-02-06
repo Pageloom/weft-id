@@ -23,7 +23,6 @@ from services.auth import require_admin, require_super_admin
 from services.event_log import log_event
 from services.exceptions import (
     ConflictError,
-    ForbiddenError,
     NotFoundError,
     ValidationError,
 )

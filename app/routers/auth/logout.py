@@ -1,4 +1,10 @@
-"""Logout endpoint with SAML SLO support."""
+"""Logout endpoint with SAML SLO support.
+
+Architectural Note: This module contains direct log_event() calls for the user_signed_out
+event. This is an accepted exception to the "event logging in services" pattern because
+logout is fundamentally a session termination operation at the HTTP boundary, not a
+business logic mutation.
+"""
 
 from typing import Annotated
 

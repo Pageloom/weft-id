@@ -126,9 +126,8 @@ def delete_old_debug_entries(hours: int = 24) -> int:
     Returns:
         Number of entries deleted
     """
-    from psycopg.rows import dict_row
-
     from database._core import get_pool
+    from psycopg.rows import dict_row
 
     pool = get_pool()
     with pool.connection() as conn:

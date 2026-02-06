@@ -1,4 +1,11 @@
-"""Login and email verification endpoints."""
+"""Login and email verification endpoints.
+
+Architectural Note: This module contains direct log_event() calls for authentication
+events (login_failed). This is an accepted exception to the "event logging in services"
+pattern because authentication events are fundamentally tied to session management
+which occurs at the router level. These events track security-relevant authentication
+state changes, not business logic mutations.
+"""
 
 from typing import Annotated
 

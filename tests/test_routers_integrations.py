@@ -64,7 +64,8 @@ def test_apps_list_renders(test_admin_user, override_auth, mocker):
     assert response.status_code == 200
     mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="normal")
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "integrations_apps.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "integrations_apps.html"
 
 
 def test_apps_list_with_clients(test_admin_user, override_auth, mocker):
@@ -393,7 +394,8 @@ def test_b2b_list_renders(test_admin_user, override_auth, mocker):
     assert response.status_code == 200
     mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="b2b")
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "integrations_b2b.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "integrations_b2b.html"
 
 
 def test_b2b_list_non_admin_redirects(test_user, override_auth):
@@ -661,7 +663,8 @@ def test_app_detail_renders(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "integrations_app_detail.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "integrations_app_detail.html"
     ctx_kwargs = mock_ctx.call_args[1]
     assert ctx_kwargs["client"] == mock_client
 
@@ -942,7 +945,8 @@ def test_b2b_detail_renders(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "integrations_b2b_detail.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "integrations_b2b_detail.html"
 
 
 def test_b2b_detail_not_found_redirects(test_admin_user, override_auth, mocker):

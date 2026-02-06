@@ -1,4 +1,10 @@
-"""Multi-factor authentication routes for setup and verification."""
+"""Multi-factor authentication routes for setup and verification.
+
+Architectural Note: This module contains a direct log_event() call for the user_signed_in
+event after successful MFA verification. This is an accepted exception to the "event
+logging in services" pattern because MFA verification completes the authentication flow
+and session establishment, which occurs at the router level.
+"""
 
 from typing import Annotated
 

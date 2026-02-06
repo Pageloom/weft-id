@@ -106,11 +106,11 @@ class TestResendBackend:
 
             assert result is True
             mock_send.assert_called_once()
-            call_args = mock_send.call_args[0][0]
-            assert call_args["to"] == "test@example.com"
-            assert call_args["subject"] == "Test Subject"
-            assert call_args["html"] == "<p>Test HTML</p>"
-            assert call_args["text"] == "Test Text"
+            email_params = mock_send.call_args[0][0]
+            assert email_params["to"] == "test@example.com"
+            assert email_params["subject"] == "Test Subject"
+            assert email_params["html"] == "<p>Test HTML</p>"
+            assert email_params["text"] == "Test Text"
 
     def test_send_without_text_body(self):
         """Test sending via Resend without text body."""
@@ -127,8 +127,8 @@ class TestResendBackend:
             )
 
             assert result is True
-            call_args = mock_send.call_args[0][0]
-            assert "text" not in call_args
+            email_params = mock_send.call_args[0][0]
+            assert "text" not in email_params
 
     def test_send_failure(self):
         """Test Resend sending failure handling."""

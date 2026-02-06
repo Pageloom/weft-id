@@ -177,9 +177,7 @@ def _require_admin(user: RequestingUser) -> None:
         )
 
 
-def _get_actor_name(
-    tenant_id: str, user_id: str, metadata: dict[str, Any] | None = None
-) -> str:
+def _get_actor_name(tenant_id: str, user_id: str, metadata: dict[str, Any] | None = None) -> str:
     """Get display name for an actor.
 
     For system actors (SYSTEM_ACTOR_ID), checks metadata for IdP attribution.

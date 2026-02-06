@@ -26,7 +26,6 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import (
-    ForbiddenError,
     NotFoundError,
     ValidationError,
 )

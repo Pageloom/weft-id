@@ -1,4 +1,10 @@
-"""Email verification link and set-password endpoints for new users."""
+"""Email verification link and set-password endpoints for new users.
+
+Architectural Note: This module contains a direct log_event() call for the password_set
+event during onboarding. This is an accepted exception to the "event logging in services"
+pattern because initial password setup during onboarding is part of the authentication
+flow (tied to session establishment), not a regular user profile mutation.
+"""
 
 from typing import Annotated
 

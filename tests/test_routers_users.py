@@ -266,9 +266,10 @@ def test_update_user_name_success(test_admin_user, mocker, override_auth):
     # Verify service was called with correct parameters
     mock_update.assert_called_once()
     call_args = mock_update.call_args
-    assert call_args[0][1] == "user-123"  # user_id
-    assert call_args[0][2].first_name == "New"
-    assert call_args[0][2].last_name == "Name"
+    _, user_id, profile_update = call_args[0]
+    assert user_id == "user-123"
+    assert profile_update.first_name == "New"
+    assert profile_update.last_name == "Name"
 
 
 def test_update_user_name_empty_validation(test_admin_user, mocker, override_auth):
@@ -327,8 +328,9 @@ def test_update_user_role_success(test_super_admin_user, mocker, override_auth):
     # Verify service was called with correct parameters
     mock_update.assert_called_once()
     call_args = mock_update.call_args
-    assert call_args[0][1] == "user-123"  # user_id
-    assert call_args[0][2].role == "admin"
+    _, user_id, role_update = call_args[0]
+    assert user_id == "user-123"
+    assert role_update.role == "admin"
 
 
 def test_update_user_role_denied_for_admin(test_admin_user, mocker, override_auth):
@@ -566,10 +568,11 @@ def test_users_list_with_locale_collation(test_admin_user, mocker, override_auth
     response = client.get("/users/list")
 
     assert response.status_code == 200
-    # Check collation was passed to list_users_raw
+    # Check collation was passed to list_users_raw (7th positional arg)
     mock_list.assert_called_once()
     call_args = mock_list.call_args
-    assert call_args[0][6] == "sv-SE-x-icu"  # collation parameter
+    collation = call_args[0][6]
+    assert collation == "sv-SE-x-icu"
 
 
 def test_users_list_with_invalid_page_param(test_admin_user, mocker, override_auth):
@@ -830,8 +833,9 @@ def test_create_new_user_with_privileged_domain(test_admin_user, mocker, overrid
     assert "success=user_created" in response.headers["location"]
     mock_create.assert_called_once()
     mock_add_email.assert_called_once()
-    # Verify org name was passed to email
-    assert mock_send.call_args[0][2] == "Test Organization"
+    # Verify org name was passed to email (3rd positional arg)
+    _, _, org_name, *_ = mock_send.call_args[0]
+    assert org_name == "Test Organization"
 
 
 def test_create_new_user_with_non_privileged_domain(test_admin_user, mocker, override_auth):
@@ -870,8 +874,9 @@ def test_create_new_user_with_non_privileged_domain(test_admin_user, mocker, ove
     assert "/users/new-user-123" in response.headers["location"]
     mock_create.assert_called_once()
     mock_add_email.assert_called_once()
-    # Verify org name was passed to email
-    assert mock_send.call_args[0][2] == "Test Organization"
+    # Verify org name was passed to email (3rd positional arg)
+    _, _, org_name, *_ = mock_send.call_args[0]
+    assert org_name == "Test Organization"
 
 
 def test_create_new_user_invalid_email(test_admin_user, override_auth):
@@ -2195,9 +2200,9 @@ def test_reset_mfa_success(test_admin_user, mocker, override_auth):
     assert "/users/user-123?success=mfa_reset" in response.headers["location"]
     mock_reset.assert_called_once()
     mock_email.assert_called_once()
-    # Verify email args
-    call_args = mock_email.call_args
-    assert call_args[0][0] == "user@example.com"
+    # Verify email recipient (1st positional arg)
+    email_recipient = mock_email.call_args[0][0]
+    assert email_recipient == "user@example.com"
 
 
 def test_reset_mfa_denied_for_member(test_user, mocker, override_auth):

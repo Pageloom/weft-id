@@ -46,8 +46,7 @@ def test_update_profile_success(test_user, override_auth, mocker):
     assert response.headers["location"] == "/account/profile"
     mock_update.assert_called_once()
     # Verify the profile update contains correct names
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]  # Third positional arg is UserProfileUpdate
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.first_name == "NewFirst"
     assert profile_update.last_name == "NewLast"
 
@@ -89,8 +88,7 @@ def test_update_timezone_success(test_user, override_auth, mocker):
     assert response.headers["location"] == "/account/profile"
     mock_update.assert_called_once()
     # Verify timezone in profile update
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone == "America/Los_Angeles"
 
 
@@ -128,8 +126,7 @@ def test_update_regional_both_valid(test_user, override_auth, mocker):
     assert response.status_code == 303
     mock_update.assert_called_once()
     # Verify both timezone and locale in profile update
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone == "America/New_York"
     assert profile_update.locale == "en"
 
@@ -149,8 +146,7 @@ def test_update_regional_timezone_only(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone == "Europe/London"
     assert profile_update.locale is None
 
@@ -170,8 +166,7 @@ def test_update_regional_locale_only(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone is None
     assert profile_update.locale == "fr"
 
@@ -191,8 +186,7 @@ def test_update_regional_full_locale_format(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone == "America/New_York"
     assert profile_update.locale == "en_US"
 
@@ -212,8 +206,7 @@ def test_update_regional_swedish_locale(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.timezone == "Europe/Stockholm"
     assert profile_update.locale == "sv_SE"
 
@@ -234,8 +227,7 @@ def test_update_theme_dark(test_user, override_auth, mocker):
     assert response.status_code == 303
     assert response.headers["location"] == "/account/profile"
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.theme == "dark"
 
 
@@ -255,8 +247,7 @@ def test_update_theme_light(test_user, override_auth, mocker):
     assert response.status_code == 303
     assert response.headers["location"] == "/account/profile"
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.theme == "light"
 
 
@@ -276,8 +267,7 @@ def test_update_theme_system(test_user, override_auth, mocker):
     assert response.status_code == 303
     assert response.headers["location"] == "/account/profile"
     mock_update.assert_called_once()
-    call_args = mock_update.call_args
-    profile_update = call_args[0][2]
+    _, _, profile_update = mock_update.call_args[0]
     assert profile_update.theme == "system"
 
 
@@ -824,9 +814,9 @@ def test_delete_background_jobs_success(test_user, override_auth, mocker):
     assert response.status_code == 303
     assert response.headers["location"] == "/account/background-jobs?success=deleted_2"
     mock_delete.assert_called_once()
-    # Verify job IDs were passed correctly
-    call_args = mock_delete.call_args
-    assert call_args[0][1] == ["job1", "job2"]
+    # Verify job IDs were passed correctly (2nd positional arg)
+    _, job_ids = mock_delete.call_args[0]
+    assert job_ids == ["job1", "job2"]
 
 
 def test_delete_background_jobs_no_selection(test_user, override_auth):

@@ -263,8 +263,9 @@ def test_spaces_storage_save_success(spaces_env):
     mock_client = spaces_env["client"]
     mock_client.upload_fileobj.assert_called_once()
     call_args = mock_client.upload_fileobj.call_args
-    assert call_args[0][1] == "mybucket"
-    assert call_args[0][2] == "test/file.txt"
+    _, bucket_name, object_key = call_args[0]
+    assert bucket_name == "mybucket"
+    assert object_key == "test/file.txt"
     assert call_args[1]["ExtraArgs"]["ContentType"] == "text/plain"
 
 

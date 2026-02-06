@@ -127,7 +127,8 @@ def test_groups_list_renders(test_admin_user, override_auth, mocker):
     assert response.status_code == 200
     mock_list.assert_called_once()
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "groups_list.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "groups_list.html"
 
 
 def test_groups_list_with_search(test_admin_user, override_auth, mocker):
@@ -273,7 +274,8 @@ def test_new_group_form_renders(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
-    assert mock_tmpl.call_args[0][0] == "groups_new.html"
+    template_name = mock_tmpl.call_args[0][0]
+    assert template_name == "groups_new.html"
 
 
 def test_new_group_form_preserves_values_on_error(test_admin_user, override_auth, mocker):
@@ -466,7 +468,8 @@ def test_group_detail_renders(test_admin_user, override_auth, mock_group_detail_
 
     assert response.status_code == 200
     mock_group_detail_deps["template"].assert_called_once()
-    assert mock_group_detail_deps["template"].call_args[0][0] == "groups_detail.html"
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail.html"
 
 
 def test_group_detail_not_found(test_admin_user, override_auth, mocker):

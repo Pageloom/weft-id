@@ -2021,3 +2021,93 @@ mock_c = mocker.patch("c")
 - 8 service files (settings.py, bg_tasks.py, groups.py, emails.py, users.py, exports.py, reactivation.py, mfa.py, saml.py)
 
 ---
+
+## [REFACTOR] Architecture: Event Logging in Routers
+
+**Status:** Resolved (2026-02-06) - Accepted as Architectural Exception
+
+**Original Severity:** Low
+
+**Category:** Coupling / Consistency
+
+**Original Description:**
+5 direct `log_event()` calls existed in routers:
+- `auth/login.py` - login_failed (invalid credentials)
+- `auth/login.py` - login_failed (inactivated user)
+- `auth/logout.py` - user_signed_out
+- `auth/onboarding.py` - password_set
+- `mfa.py:132` - user_signed_in
+
+Per the architectural pattern ("all writes go through service layer"), event logging should occur in services, not routers.
+
+**Resolution:**
+Accepted as an architectural exception for authentication flows. Authentication events (login_failed, user_signed_out, password_set, user_signed_in) are fundamentally tied to session management which occurs at the router level. These are not business logic mutations but security-relevant authentication state changes.
+
+Added documentation comments to each affected file explaining the exception:
+- `app/routers/auth/login.py`
+- `app/routers/auth/logout.py`
+- `app/routers/auth/onboarding.py`
+- `app/routers/mfa.py`
+
+Creating a thin auth service wrapper would add unnecessary indirection without architectural benefit.
+
+---
+
+## [TEST] Magic Indices in Assertions
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** Low
+
+**Category:** Test Code / Readability
+
+**Original Description:**
+Tests used positional indices to access mock call arguments without clarifying what each index represents (e.g., `call_args[0][2]` instead of named destructuring).
+
+**Resolution:**
+Refactored ~50 instances across test files to use clearer patterns:
+- Destructuring: `task_id, error_message = call_args[0]`
+- Named extraction: `template_name = mock_tmpl.call_args[0][0]`
+- Inline comments where destructuring wasn't practical
+
+**Files Modified:**
+- `tests/test_worker.py`
+- `tests/test_routers_integrations.py`
+- `tests/test_routers_users.py`
+- `tests/test_routers_account.py`
+- `tests/test_services_activity.py`
+- `tests/test_email_backends.py`
+- `tests/test_utils_storage.py`
+- `tests/test_routers_saml_security.py`
+- `tests/test_jobs_export_events.py`
+- `tests/test_api_reactivation.py`
+- `tests/test_routers_groups.py`
+- `tests/test_utils_service_errors.py`
+- `tests/test_routers_auth_rate_limiting.py`
+
+**Verification:** All 2174 tests pass.
+
+---
+
+## [DEPS] pip: CVE-2026-1703
+
+**Status:** Resolved (2026-02-06) - Accepted as Low Risk
+
+**Original Severity:** Unrated (path traversal)
+
+**Package:** pip 25.3
+**Fixed Version:** pip 26.0
+
+**Original Description:**
+Limited path traversal vulnerability when pip installs a maliciously crafted wheel archive. Files may be extracted outside the installation directory, though traversal is limited to prefixes of the installation directory.
+
+**Resolution:**
+Accepted as low risk for the following reasons:
+1. pip is a development tool, not a runtime dependency
+2. Exploitation requires installing a maliciously crafted wheel
+3. This project uses poetry lock files with pinned versions from PyPI
+4. Risk only arises if a compromised package was published to PyPI with the exact name and version specified in dependencies
+
+**Remediation for developers:** Run `pip install --upgrade pip` in local environments when pip 26.0+ becomes available.
+
+---

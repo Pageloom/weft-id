@@ -13,17 +13,13 @@ class GroupCreate(BaseModel):
     """Request to create a new group."""
 
     name: str = Field(..., min_length=1, max_length=200, description="Group name")
-    description: str | None = Field(
-        None, max_length=2000, description="Optional group description"
-    )
+    description: str | None = Field(None, max_length=2000, description="Optional group description")
 
 
 class GroupUpdate(BaseModel):
     """Request to update a group."""
 
-    name: str | None = Field(
-        None, min_length=1, max_length=200, description="Group name"
-    )
+    name: str | None = Field(None, min_length=1, max_length=200, description="Group name")
     description: str | None = Field(
         None, max_length=2000, description="Group description (empty string to clear)"
     )

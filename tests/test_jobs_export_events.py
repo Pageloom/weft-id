@@ -140,8 +140,7 @@ def test_handle_export_events_success(test_tenant, test_admin_user):
 
         # Verify storage was called
         assert mock_backend.save.called
-        save_call_args = mock_backend.save.call_args
-        storage_key = save_call_args[0][0]
+        storage_key = mock_backend.save.call_args[0][0]
         assert storage_key.startswith(f"exports/{test_tenant['id']}/event-export-")
         assert storage_key.endswith(".json.gz")
 
@@ -489,11 +488,7 @@ def test_send_export_notification_success(test_tenant, test_admin_user):
 
         # Verify email was sent
         assert mock_send_email.called
-        call_args = mock_send_email.call_args
-        to_email = call_args[0][0]
-        subject = call_args[0][1]
-        _html_body = call_args[0][2]  # noqa: F841
-        text_body = call_args[0][3]
+        to_email, subject, _html_body, text_body = mock_send_email.call_args[0]
 
         assert to_email == primary_email["email"]
         assert "Event Log Export" in subject

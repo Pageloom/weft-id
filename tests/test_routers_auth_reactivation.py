@@ -138,7 +138,7 @@ def test_super_admin_reactivate_get_success(client, test_tenant_host, inactivate
     """Test GET reactivation page shows form for inactivated super admin."""
     from starlette.responses import HTMLResponse
 
-    with patch("routers.auth.templates.TemplateResponse") as mock_template:
+    with patch("routers.auth.reactivation.templates.TemplateResponse") as mock_template:
         # Mock template response
         mock_template.return_value = HTMLResponse(
             content="<html>Super Admin Reactivation Form</html>",
@@ -279,7 +279,9 @@ def test_super_admin_reactivate_post_exception_handling(
     client, test_tenant_host, inactivated_super_admin
 ):
     """Test POST reactivation handles exceptions gracefully."""
-    with patch("routers.auth.users_service.self_reactivate_super_admin") as mock_reactivate:
+    with patch(
+        "routers.auth.reactivation.users_service.self_reactivate_super_admin"
+    ) as mock_reactivate:
         # Mock service raising an exception
         mock_reactivate.side_effect = Exception("Database error")
 
@@ -301,8 +303,10 @@ def test_request_reactivation_success(client, test_tenant_host, inactivated_user
     """Test successful reactivation request creates request and emails admins."""
     from starlette.responses import HTMLResponse
 
-    with patch("routers.auth.send_reactivation_request_admin_notification") as mock_email:
-        with patch("routers.auth.templates.TemplateResponse") as mock_template:
+    with patch(
+        "routers.auth.reactivation.send_reactivation_request_admin_notification"
+    ) as mock_email:
+        with patch("routers.auth.reactivation.templates.TemplateResponse") as mock_template:
             # Mock template response for success page
             mock_template.return_value = HTMLResponse(
                 content="<html>Reactivation requested</html>",
@@ -376,7 +380,7 @@ def test_request_reactivation_previously_denied(client, test_tenant_host, test_t
     # Deny the request (need a decider user ID - use same user for simplicity)
     reactivation_db.deny_request(test_tenant["id"], request_dict["id"], user_id)
 
-    with patch("routers.auth.templates.TemplateResponse") as mock_template:
+    with patch("routers.auth.reactivation.templates.TemplateResponse") as mock_template:
         # Mock template response for denied status page
         mock_template.return_value = HTMLResponse(
             content="<html>Request denied</html>",
@@ -444,7 +448,7 @@ def test_request_reactivation_pending_request_exists(client, test_tenant_host, t
 
     reactivation_db.create_request(test_tenant["id"], test_tenant["id"], user_id)
 
-    with patch("routers.auth.templates.TemplateResponse") as mock_template:
+    with patch("routers.auth.reactivation.templates.TemplateResponse") as mock_template:
         # Mock template response for pending status page
         mock_template.return_value = HTMLResponse(
             content="<html>Request pending</html>",

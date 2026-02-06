@@ -81,19 +81,7 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 ---
 
-## [TEST] Nested Patch Pyramids: test_routers_account.py
-
-**Found in:** `tests/test_routers_account.py`
-**Impact:** Medium
-**Category:** Test Code / Maintainability
-
-**Description:**
-This file contains **59 instances** of nested `with patch()` context managers, typically 2-3 levels deep.
-
-**Suggested Refactoring:**
-Convert to flat `mocker.patch()` calls.
-
-**Files Affected:** `tests/test_routers_account.py` (59 patch calls to convert)
+## ~~[TEST] Nested Patch Pyramids: test_routers_account.py~~ ✅ Resolved (2026-02-06)
 
 ---
 
@@ -319,7 +307,7 @@ Patch pyramid refactoring should proceed in this order:
 | ~~1~~ | ~~`test_routers_users.py`~~ | ~~218~~ | ✅ Completed 2026-02-02 |
 | ~~1~~ | ~~`test_routers_auth.py`~~ | ~~104~~ | ✅ Completed 2026-02-06 (moved to archive) |
 | ~~2~~ | ~~`test_utils_storage.py`~~ | ~~67~~ | ✅ Completed 2026-02-06 |
-| 3 | `test_routers_account.py` | 59 | |
+| ~~3~~ | ~~`test_routers_account.py`~~ | ~~59~~ | ✅ Completed 2026-02-06 |
 | 4 | `test_routers_integrations.py` | 59 | |
 | 5 | `test_routers_settings.py` | 51 | Review mock necessity during conversion |
 | 6 | Remaining 6 files | 20-45 each | Lower priority |

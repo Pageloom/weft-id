@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Duplicated Auth Override Pattern
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** High
+
+**Original Description:**
+The same 3-line auth dependency override pattern was duplicated 200+ times across 12+ router and API test files. Three files had local helpers, but these were file-local and still duplicated across files. A change to the auth dependency structure would require updating hundreds of locations.
+
+**Resolution:**
+Added two shared fixtures to `tests/conftest.py` and converted all test files to use them:
+
+1. `override_auth(user, level="user")` for frontend router tests, with hierarchical level support (user < admin < super_admin)
+2. `override_api_auth(user, level="admin")` for API tests
+
+Converted 12 test files, removed redundant local helpers (`_setup_admin_overrides`, `_setup_member_overrides`, local `override_auth`), and removed all manual `app.dependency_overrides.clear()` calls (autouse fixture handles cleanup).
+
+**Files Modified:**
+- `tests/conftest.py` (added 2 fixtures)
+- `tests/test_routers_account.py`, `test_routers_admin.py`, `test_routers_settings.py`, `test_routers_groups.py`, `test_routers_integrations.py`, `test_routers_users.py`, `test_routers_saml.py`, `test_routers_saml_crud_errors.py`, `test_routers_saml_domain_binding.py`, `test_routers_oauth2.py`, `test_api_users.py`, `test_api_groups.py`
+
+**Net result:** 882 insertions, 2,278 deletions across 15 files. All 2,174 tests pass.
+
+---
+
 ## [TEST] Nested Patch Pyramids: test_routers_auth.py
 
 **Status:** Resolved (2026-02-06)

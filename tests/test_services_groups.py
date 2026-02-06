@@ -208,9 +208,7 @@ def test_create_group_success(make_requesting_user):
     tenant_id = str(uuid4())
     user_id = str(uuid4())
     group_id = str(uuid4())
-    requesting_user = make_requesting_user(
-        user_id=user_id, tenant_id=tenant_id, role="admin"
-    )
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="admin")
 
     group_data = GroupCreate(name="Engineering", description="Eng team")
 
@@ -1156,8 +1154,8 @@ def test_sync_user_idp_groups_creates_discovered_groups():
 
 def test_sync_logs_with_idp_attribution():
     """Test that sync logs use SYSTEM_ACTOR_ID with IdP metadata."""
-    from services.event_log import SYSTEM_ACTOR_ID
     from services import groups as groups_service
+    from services.event_log import SYSTEM_ACTOR_ID
 
     tenant_id = str(uuid4())
     user_id = str(uuid4())
@@ -1410,8 +1408,8 @@ def test_add_idp_group_as_parent_forbidden(make_requesting_user):
 
 def test_invalidate_idp_groups_on_deletion():
     """Test that IdP groups are invalidated when IdP is deleted."""
-    from services.event_log import SYSTEM_ACTOR_ID
     from services import groups as groups_service
+    from services.event_log import SYSTEM_ACTOR_ID
 
     tenant_id = str(uuid4())
     idp_id = str(uuid4())

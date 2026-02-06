@@ -8,26 +8,16 @@ import pytest
 
 
 @pytest.fixture
-def authenticated_client(client, test_tenant, test_user):
+def authenticated_client(client, test_tenant, test_user, override_auth):
     """Create a test client with an authenticated session."""
-    from dependencies import get_tenant_id_from_request, require_current_user
-    from main import app
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_tenant["id"]
-    app.dependency_overrides[require_current_user] = lambda: test_user
-
+    override_auth(test_user)
     yield client
-
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def authenticated_client_with_host(client, test_tenant, test_tenant_host, test_user):
+def authenticated_client_with_host(client, test_tenant, test_tenant_host, test_user, override_auth):
     """Create a test client with authenticated session and proper host header."""
-    from dependencies import require_current_user
-    from main import app
-
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     # Return a wrapper that adds the host header
     class ClientWrapper:
@@ -46,8 +36,6 @@ def authenticated_client_with_host(client, test_tenant, test_tenant_host, test_u
             return self._client.post(url, headers=headers, **kwargs)
 
     yield ClientWrapper(client, test_tenant_host)
-
-    app.dependency_overrides.clear()
 
 
 # ============================================================================

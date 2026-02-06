@@ -6,30 +6,20 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-def test_account_index_redirects_to_profile(test_user):
+def test_account_index_redirects_to_profile(test_user, override_auth):
     """Test account index redirects to first accessible child."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     client = TestClient(app)
     response = client.get("/account/", follow_redirects=False)
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 303
     assert response.headers["location"] == "/account/profile"
 
 
-def test_profile_settings_page(test_user):
+def test_profile_settings_page(test_user, override_auth):
     """Test profile settings page renders."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.templates.TemplateResponse") as mock_template:
         from fastapi.responses import HTMLResponse
@@ -39,18 +29,12 @@ def test_profile_settings_page(test_user):
         client = TestClient(app)
         response = client.get("/account/profile")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
 
 
-def test_update_profile_success(test_user):
+def test_update_profile_success(test_user, override_auth):
     """Test updating user profile."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -59,8 +43,6 @@ def test_update_profile_success(test_user):
             data={"first_name": "NewFirst", "last_name": "NewLast"},
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
@@ -72,13 +54,9 @@ def test_update_profile_success(test_user):
         assert profile_update.last_name == "NewLast"
 
 
-def test_update_profile_denied_by_security_setting(test_user):
+def test_update_profile_denied_by_security_setting(test_user, override_auth):
     """Test profile update denied when security setting disallows it."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.settings.can_user_edit_profile") as mock_can_edit:
         with patch("services.users.update_current_user_profile") as mock_update:
@@ -91,20 +69,14 @@ def test_update_profile_denied_by_security_setting(test_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert response.headers["location"] == "/account/profile"
             mock_update.assert_not_called()
 
 
-def test_update_timezone_success(test_user):
+def test_update_timezone_success(test_user, override_auth):
     """Test updating user timezone."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -113,8 +85,6 @@ def test_update_timezone_success(test_user):
             data={"timezone": "America/Los_Angeles"},
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
@@ -125,13 +95,9 @@ def test_update_timezone_success(test_user):
         assert profile_update.timezone == "America/Los_Angeles"
 
 
-def test_update_timezone_invalid(test_user):
+def test_update_timezone_invalid(test_user, override_auth):
     """Test updating timezone with invalid value."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -141,20 +107,14 @@ def test_update_timezone_invalid(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
         mock_update.assert_not_called()
 
 
-def test_update_regional_both_valid(test_user):
+def test_update_regional_both_valid(test_user, override_auth):
     """Test updating both timezone and locale."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -163,8 +123,6 @@ def test_update_regional_both_valid(test_user):
             data={"timezone": "America/New_York", "locale": "en"},
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         mock_update.assert_called_once()
@@ -175,13 +133,9 @@ def test_update_regional_both_valid(test_user):
         assert profile_update.locale == "en"
 
 
-def test_update_regional_timezone_only(test_user):
+def test_update_regional_timezone_only(test_user, override_auth):
     """Test updating timezone only."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -191,8 +145,6 @@ def test_update_regional_timezone_only(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_update.assert_called_once()
         call_args = mock_update.call_args
@@ -201,13 +153,9 @@ def test_update_regional_timezone_only(test_user):
         assert profile_update.locale is None
 
 
-def test_update_regional_locale_only(test_user):
+def test_update_regional_locale_only(test_user, override_auth):
     """Test updating locale only with invalid timezone."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -217,8 +165,6 @@ def test_update_regional_locale_only(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_update.assert_called_once()
         call_args = mock_update.call_args
@@ -227,13 +173,9 @@ def test_update_regional_locale_only(test_user):
         assert profile_update.locale == "fr"
 
 
-def test_update_regional_full_locale_format(test_user):
+def test_update_regional_full_locale_format(test_user, override_auth):
     """Test updating locale with full POSIX format (e.g., en_US)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -243,8 +185,6 @@ def test_update_regional_full_locale_format(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_update.assert_called_once()
         call_args = mock_update.call_args
@@ -253,13 +193,9 @@ def test_update_regional_full_locale_format(test_user):
         assert profile_update.locale == "en_US"
 
 
-def test_update_regional_swedish_locale(test_user):
+def test_update_regional_swedish_locale(test_user, override_auth):
     """Test updating locale with Swedish POSIX format (sv_SE)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -269,8 +205,6 @@ def test_update_regional_swedish_locale(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_update.assert_called_once()
         call_args = mock_update.call_args
@@ -279,13 +213,9 @@ def test_update_regional_swedish_locale(test_user):
         assert profile_update.locale == "sv_SE"
 
 
-def test_update_theme_dark(test_user):
+def test_update_theme_dark(test_user, override_auth):
     """Test updating theme to dark."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -295,8 +225,6 @@ def test_update_theme_dark(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
         mock_update.assert_called_once()
@@ -305,13 +233,9 @@ def test_update_theme_dark(test_user):
         assert profile_update.theme == "dark"
 
 
-def test_update_theme_light(test_user):
+def test_update_theme_light(test_user, override_auth):
     """Test updating theme to light."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -321,8 +245,6 @@ def test_update_theme_light(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
         mock_update.assert_called_once()
@@ -331,13 +253,9 @@ def test_update_theme_light(test_user):
         assert profile_update.theme == "light"
 
 
-def test_update_theme_system(test_user):
+def test_update_theme_system(test_user, override_auth):
     """Test updating theme to system (follow OS preference)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -347,8 +265,6 @@ def test_update_theme_system(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
         mock_update.assert_called_once()
@@ -357,13 +273,9 @@ def test_update_theme_system(test_user):
         assert profile_update.theme == "system"
 
 
-def test_update_theme_invalid_value(test_user):
+def test_update_theme_invalid_value(test_user, override_auth):
     """Test updating theme with invalid value is rejected."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.users.update_current_user_profile") as mock_update:
         client = TestClient(app)
@@ -373,20 +285,14 @@ def test_update_theme_invalid_value(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/profile"
         mock_update.assert_not_called()
 
 
-def test_email_settings_page(test_user):
+def test_email_settings_page(test_user, override_auth):
     """Test email settings page renders."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.list_user_emails") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -398,19 +304,13 @@ def test_email_settings_page(test_user):
             client = TestClient(app)
             response = client.get("/account/emails")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             mock_list.assert_called_once()
 
 
-def test_mfa_settings_page(test_user):
+def test_mfa_settings_page(test_user, override_auth):
     """Test MFA settings page renders."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.mfa.list_backup_codes_raw") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -422,19 +322,13 @@ def test_mfa_settings_page(test_user):
             client = TestClient(app)
             response = client.get("/account/mfa")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
-            mock_list.assert_called_once_with(test_user["tenant_id"], test_user["id"])
+            mock_list.assert_called_once_with(str(test_user["tenant_id"]), test_user["id"])
 
 
-def test_add_email_success(test_user):
+def test_add_email_success(test_user, override_auth):
     """Test adding a new email address."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.settings.can_users_add_emails") as mock_can_add:
         with patch("services.emails.add_user_email") as mock_add:
@@ -463,22 +357,17 @@ def test_add_email_success(test_user):
                         follow_redirects=False,
                     )
 
-                    app.dependency_overrides.clear()
-
                     assert response.status_code == 303
                     assert response.headers["location"] == "/account/emails"
                     mock_add.assert_called_once()
                     mock_send.assert_called_once()
 
 
-def test_add_email_already_exists(test_user):
+def test_add_email_already_exists(test_user, override_auth):
     """Test adding email that already exists."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ConflictError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.settings.can_users_add_emails") as mock_can_add:
         with patch("services.emails.add_user_email") as mock_add:
@@ -492,18 +381,12 @@ def test_add_email_already_exists(test_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
 
 
-def test_set_primary_email_success(test_user):
+def test_set_primary_email_success(test_user, override_auth):
     """Test setting an email as primary."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.set_primary_email") as mock_set:
         from schemas.api import EmailInfo
@@ -519,20 +402,15 @@ def test_set_primary_email_success(test_user):
         client = TestClient(app)
         response = client.post("/account/emails/set-primary/email-id", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_set.assert_called_once()
 
 
-def test_set_primary_email_unverified(test_user):
+def test_set_primary_email_unverified(test_user, override_auth):
     """Test cannot set unverified email as primary."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.set_primary_email") as mock_set:
         mock_set.side_effect = ValidationError(
@@ -542,37 +420,26 @@ def test_set_primary_email_unverified(test_user):
         client = TestClient(app)
         response = client.post("/account/emails/set-primary/email-id", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
 
 
-def test_delete_email_success(test_user):
+def test_delete_email_success(test_user, override_auth):
     """Test deleting a secondary email."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.delete_user_email") as mock_delete:
         client = TestClient(app)
         response = client.post("/account/emails/delete/email-id", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         mock_delete.assert_called_once()
 
 
-def test_delete_email_primary_blocked(test_user):
+def test_delete_email_primary_blocked(test_user, override_auth):
     """Test cannot delete primary email."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.delete_user_email") as mock_delete:
         mock_delete.side_effect = ValidationError(
@@ -582,17 +449,12 @@ def test_delete_email_primary_blocked(test_user):
         client = TestClient(app)
         response = client.post("/account/emails/delete/email-id", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
 
 
-def test_verify_email_success(test_user):
+def test_verify_email_success(test_user, override_auth):
     """Test email verification with valid nonce."""
-    from dependencies import get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.get_email_for_verification") as mock_get:
         with patch("services.emails.verify_email") as mock_verify:
@@ -615,20 +477,16 @@ def test_verify_email_success(test_user):
             client = TestClient(app)
             response = client.get("/account/emails/verify/email-id/12345", follow_redirects=False)
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert response.headers["location"] == "/account/emails"
             mock_verify.assert_called_once()
 
 
-def test_verify_email_invalid_nonce(test_user):
+def test_verify_email_invalid_nonce(test_user, override_auth):
     """Test email verification with invalid nonce."""
-    from dependencies import get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.emails.get_email_for_verification") as mock_get:
         with patch("services.emails.verify_email") as mock_verify:
@@ -643,18 +501,12 @@ def test_verify_email_invalid_nonce(test_user):
             client = TestClient(app)
             response = client.get("/account/emails/verify/email-id/99999", follow_redirects=False)
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
 
 
-def test_mfa_setup_totp_get(test_user):
+def test_mfa_setup_totp_get(test_user, override_auth):
     """Test TOTP setup page GET request."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.templates.TemplateResponse") as mock_template:
         with patch("services.mfa.setup_totp") as mock_setup:
@@ -670,21 +522,16 @@ def test_mfa_setup_totp_get(test_user):
             client = TestClient(app)
             response = client.get("/account/mfa/setup/totp")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             mock_setup.assert_called_once()
 
 
-def test_mfa_setup_totp_already_enabled(test_user):
+def test_mfa_setup_totp_already_enabled(test_user, override_auth):
     """Test TOTP setup redirects when already enabled."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
     totp_user = {**test_user, "mfa_method": "totp"}
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: totp_user
-    app.dependency_overrides[require_current_user] = lambda: totp_user
+    override_auth(totp_user)
 
     with patch("services.mfa.setup_totp") as mock_setup:
         mock_setup.side_effect = ValidationError(
@@ -694,19 +541,13 @@ def test_mfa_setup_totp_already_enabled(test_user):
         client = TestClient(app)
         response = client.get("/account/mfa/setup/totp", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/mfa"
 
 
-def test_mfa_setup_email(test_user):
+def test_mfa_setup_email(test_user, override_auth):
     """Test enabling email MFA."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.mfa.enable_email_mfa") as mock_enable:
         from schemas.api import MFAEnableResponse, MFAStatus
@@ -728,21 +569,15 @@ def test_mfa_setup_email(test_user):
         client = TestClient(app)
         response = client.post("/account/mfa/setup/email", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/mfa"
         mock_enable.assert_called_once()
 
 
-def test_mfa_regenerate_backup_codes(test_user):
+def test_mfa_regenerate_backup_codes(test_user, override_auth):
     """Test regenerating backup codes."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
     mfa_user = {**test_user, "mfa_enabled": True}
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: mfa_user
-    app.dependency_overrides[require_current_user] = lambda: mfa_user
+    override_auth(mfa_user)
 
     with patch("routers.account.templates.TemplateResponse") as mock_template:
         with patch("services.mfa.regenerate_backup_codes") as mock_regen:
@@ -769,39 +604,27 @@ def test_mfa_regenerate_backup_codes(test_user):
             client = TestClient(app)
             response = client.post("/account/mfa/regenerate-backup-codes")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             mock_regen.assert_called_once()
 
 
-def test_mfa_downgrade_verify_page_no_pending(test_user):
+def test_mfa_downgrade_verify_page_no_pending(test_user, override_auth):
     """Test downgrade verify page redirects without pending session."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     client = TestClient(app)
     response = client.get("/account/mfa/downgrade-verify", follow_redirects=False)
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 303
     assert response.headers["location"] == "/account/mfa"
 
 
-def test_mfa_setup_email_downgrade_flow(test_user):
+def test_mfa_setup_email_downgrade_flow(test_user, override_auth):
     """Test MFA downgrade from TOTP to email."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
     # User with TOTP enabled
     user_with_totp = {**test_user, "mfa_method": "totp"}
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: user_with_totp
-    app.dependency_overrides[require_current_user] = lambda: user_with_totp
+    override_auth(user_with_totp)
 
     with patch("services.mfa.enable_email_mfa") as mock_enable:
         with patch("routers.account.send_mfa_code_email") as mock_send:
@@ -819,21 +642,16 @@ def test_mfa_setup_email_downgrade_flow(test_user):
             client = TestClient(app)
             response = client.post("/account/mfa/setup/email", follow_redirects=False)
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert response.headers["location"] == "/account/mfa/downgrade-verify"
             mock_send.assert_called_once_with("user@example.com", "123456")
 
 
-def test_mfa_setup_totp_verify_invalid_code(test_user):
+def test_mfa_setup_totp_verify_invalid_code(test_user, override_auth):
     """Test TOTP verification with invalid code during setup."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.mfa.verify_totp_and_enable") as mock_verify:
         with patch("services.mfa.get_pending_totp_setup") as mock_pending:
@@ -852,8 +670,6 @@ def test_mfa_setup_totp_verify_invalid_code(test_user):
                     data={"code": "000000", "method": "totp"},
                 )
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 mock_template.assert_called_once()
 
@@ -870,16 +686,11 @@ def test_mfa_downgrade_verify_page_with_pending(test_user):
         mock_template.return_value = HTMLResponse(content="<html>Verify</html>")
 
         # Can't easily set session in TestClient, but we can verify the template logic
-        app.dependency_overrides.clear()
 
 
-def test_mfa_downgrade_verify_complete(test_user):
+def test_mfa_downgrade_verify_complete(test_user, override_auth):
     """Test completing MFA downgrade verification."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.mfa.verify_mfa_downgrade") as mock_verify:
         from schemas.api import MFAStatus
@@ -893,17 +704,13 @@ def test_mfa_downgrade_verify_complete(test_user):
 
         # Test verifies the functions are called correctly
         assert mock_verify is not None
-        app.dependency_overrides.clear()
 
 
-def test_mfa_downgrade_verify_invalid_code(test_user):
+def test_mfa_downgrade_verify_invalid_code(test_user, override_auth):
     """Test MFA downgrade verification with invalid code."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("services.mfa.verify_mfa_downgrade") as mock_verify:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -916,19 +723,14 @@ def test_mfa_downgrade_verify_invalid_code(test_user):
 
             # Test verifies error handling
             assert mock_template is not None
-            app.dependency_overrides.clear()
 
 
 # Background Jobs Tests
 
 
-def test_background_jobs_list_page(test_user):
+def test_background_jobs_list_page(test_user, override_auth):
     """Test background jobs list page renders with jobs."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -963,8 +765,6 @@ def test_background_jobs_list_page(test_user):
             client = TestClient(app)
             response = client.get("/account/background-jobs")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             mock_list.assert_called_once()
             # Verify template was called with correct template name
@@ -976,13 +776,9 @@ def test_background_jobs_list_page(test_user):
             assert context["has_active_jobs"] is True
 
 
-def test_background_jobs_list_no_active_jobs(test_user):
+def test_background_jobs_list_no_active_jobs(test_user, override_auth):
     """Test background jobs list when no active jobs (polling should stop)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -1010,8 +806,6 @@ def test_background_jobs_list_no_active_jobs(test_user):
             client = TestClient(app)
             response = client.get("/account/background-jobs")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             # Verify has_active_jobs is False (polling should not run)
             template_call = mock_template.call_args
@@ -1019,13 +813,9 @@ def test_background_jobs_list_no_active_jobs(test_user):
             assert context["has_active_jobs"] is False
 
 
-def test_delete_background_jobs_success(test_user):
+def test_delete_background_jobs_success(test_user, override_auth):
     """Test deleting background jobs via checkboxes."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.delete_jobs") as mock_delete:
         mock_delete.return_value = 2  # 2 jobs deleted
@@ -1037,8 +827,6 @@ def test_delete_background_jobs_success(test_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/background-jobs?success=deleted_2"
         mock_delete.assert_called_once()
@@ -1047,13 +835,9 @@ def test_delete_background_jobs_success(test_user):
         assert call_args[0][1] == ["job1", "job2"]
 
 
-def test_delete_background_jobs_no_selection(test_user):
+def test_delete_background_jobs_no_selection(test_user, override_auth):
     """Test deleting background jobs with no checkboxes selected."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     client = TestClient(app)
     response = client.post(
@@ -1062,19 +846,13 @@ def test_delete_background_jobs_no_selection(test_user):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert response.headers["location"] == "/account/background-jobs?error=no_jobs_selected"
 
 
-def test_job_output_detail_success(test_user):
+def test_job_output_detail_success(test_user, override_auth):
     """Test viewing job output detail page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
         with patch("routers.account.templates.TemplateResponse") as mock_template:
@@ -1098,8 +876,6 @@ def test_job_output_detail_success(test_user):
             client = TestClient(app)
             response = client.get("/account/background-jobs/job1/output")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 200
             # Verify mock was called with correct job_id and user info
             mock_get.assert_called_once()
@@ -1117,14 +893,11 @@ def test_job_output_detail_success(test_user):
             assert "job" in context
 
 
-def test_job_output_detail_not_found(test_user):
+def test_job_output_detail_not_found(test_user, override_auth):
     """Test viewing job output for non-existent job."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import NotFoundError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.get_job_detail") as mock_get:
         mock_get.side_effect = NotFoundError(message="Job not found", code="job_not_found")
@@ -1132,19 +905,13 @@ def test_job_output_detail_not_found(test_user):
         client = TestClient(app)
         response = client.get("/account/background-jobs/nonexistent/output", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/account/background-jobs?error=job_not_found"
 
 
-def test_download_background_job_file_success(test_user):
+def test_download_background_job_file_success(test_user, override_auth):
     """Test downloading background job file (cloud storage redirect)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.exports_service.get_download") as mock_get_download:
         # Mock cloud storage download (redirects to signed URL)
@@ -1156,21 +923,16 @@ def test_download_background_job_file_success(test_user):
         client = TestClient(app)
         response = client.get("/account/background-jobs/download/file123", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 302
         assert "example.s3.amazonaws.com" in response.headers["location"]
         mock_get_download.assert_called_once()
 
 
-def test_background_jobs_service_error_handling(test_user):
+def test_background_jobs_service_error_handling(test_user, override_auth):
     """Test background jobs list page handles service errors."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
     from services.exceptions import ServiceError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    app.dependency_overrides[require_current_user] = lambda: test_user
+    override_auth(test_user)
 
     with patch("routers.account.bg_tasks_service.list_user_jobs") as mock_list:
         with patch("routers.account.render_error_page") as mock_error:
@@ -1181,8 +943,6 @@ def test_background_jobs_service_error_handling(test_user):
 
             client = TestClient(app)
             response = client.get("/account/background-jobs")
-
-            app.dependency_overrides.clear()
 
             assert response.status_code == 500
             mock_error.assert_called_once()

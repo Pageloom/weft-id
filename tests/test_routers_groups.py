@@ -10,24 +10,6 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-def _setup_admin_overrides(admin_user):
-    """Set up dependency overrides for admin access."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: admin_user
-    app.dependency_overrides[get_current_user] = lambda: admin_user
-
-
-def _setup_member_overrides(member_user):
-    """Set up dependency overrides for non-admin access (should be blocked)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(member_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: member_user
-    app.dependency_overrides[get_current_user] = lambda: member_user
-
-
 def _make_group_list_response(items=None, total=0, page=1, limit=25):
     """Create a mock GroupListResponse."""
     from schemas.groups import GroupListResponse
@@ -97,30 +79,26 @@ GROUPS_MODULE = "routers.groups"
 # =============================================================================
 
 
-def test_groups_index_redirects_to_list(test_admin_user):
+def test_groups_index_redirects_to_list(test_admin_user, override_auth):
     """Test groups index redirects to list page."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     client = TestClient(app)
     response = client.get("/admin/groups/", follow_redirects=False)
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/groups/list"
 
 
-def test_groups_index_fallback_when_no_children(test_admin_user, mocker):
+def test_groups_index_fallback_when_no_children(test_admin_user, override_auth, mocker):
     """Test groups index falls back to /admin when no accessible children."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_first = mocker.patch(f"{GROUPS_MODULE}.get_first_accessible_child")
     mock_first.return_value = None
 
     client = TestClient(app)
     response = client.get("/admin/groups/", follow_redirects=False)
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 303
     assert response.headers["location"] == "/admin"
@@ -131,9 +109,9 @@ def test_groups_index_fallback_when_no_children(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_groups_list_renders(test_admin_user, mocker):
+def test_groups_list_renders(test_admin_user, override_auth, mocker):
     """Test groups list page renders successfully."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
@@ -146,17 +124,15 @@ def test_groups_list_renders(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     mock_list.assert_called_once()
     mock_tmpl.assert_called_once()
     assert mock_tmpl.call_args[0][0] == "groups_list.html"
 
 
-def test_groups_list_with_search(test_admin_user, mocker):
+def test_groups_list_with_search(test_admin_user, override_auth, mocker):
     """Test groups list page with search parameter."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
@@ -169,16 +145,14 @@ def test_groups_list_with_search(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list?search=engineering")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     call_kwargs = mock_list.call_args[1]
     assert call_kwargs["search"] == "engineering"
 
 
-def test_groups_list_with_pagination(test_admin_user, mocker):
+def test_groups_list_with_pagination(test_admin_user, override_auth, mocker):
     """Test groups list page with pagination parameters."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
@@ -191,17 +165,15 @@ def test_groups_list_with_pagination(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list?page=2&size=50")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     call_kwargs = mock_list.call_args[1]
     assert call_kwargs["page"] == 2
     assert call_kwargs["page_size"] == 50
 
 
-def test_groups_list_with_groups(test_admin_user, mocker):
+def test_groups_list_with_groups(test_admin_user, override_auth, mocker):
     """Test groups list page renders with group data."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_groups = [
         _make_group_summary(name="Engineering"),
@@ -219,16 +191,14 @@ def test_groups_list_with_groups(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
     assert ctx_kwargs["groups"] == mock_groups
 
 
-def test_groups_list_shows_success_message(test_admin_user, mocker):
+def test_groups_list_shows_success_message(test_admin_user, override_auth, mocker):
     """Test groups list page shows success query param."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
@@ -241,18 +211,16 @@ def test_groups_list_shows_success_message(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list?success=deleted")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
     assert ctx_kwargs["success"] == "deleted"
 
 
-def test_groups_list_service_error(test_admin_user, mocker):
+def test_groups_list_service_error(test_admin_user, override_auth, mocker):
     """Test groups list handles service errors gracefully."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
     mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
@@ -263,29 +231,22 @@ def test_groups_list_service_error(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/list")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_groups_list_non_admin_redirects(test_user):
+def test_groups_list_non_admin_redirects(test_user, override_auth):
     """Test non-admin user gets redirected from groups list.
 
-    Note: We don't override require_admin, so the router-level check blocks the request.
+    Note: We use level="user" so require_admin is NOT overridden,
+    letting the router-level check block the request.
     The require_admin dependency redirects unauthenticated/unauthorized users to /login.
     """
-    from dependencies import get_current_user, get_tenant_id_from_request
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_user["tenant_id"])
-    app.dependency_overrides[get_current_user] = lambda: test_user
-    # Don't override require_admin - let it actually check
+    override_auth(test_user)
 
     client = TestClient(app)
     response = client.get("/admin/groups/list", follow_redirects=False)
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 303
     # require_admin redirects to /login when user is not admin
@@ -297,9 +258,9 @@ def test_groups_list_non_admin_redirects(test_user):
 # =============================================================================
 
 
-def test_new_group_form_renders(test_admin_user, mocker):
+def test_new_group_form_renders(test_admin_user, override_auth, mocker):
     """Test new group form renders successfully."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
     mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
@@ -310,16 +271,14 @@ def test_new_group_form_renders(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get("/admin/groups/new")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
     assert mock_tmpl.call_args[0][0] == "groups_new.html"
 
 
-def test_new_group_form_preserves_values_on_error(test_admin_user, mocker):
+def test_new_group_form_preserves_values_on_error(test_admin_user, override_auth, mocker):
     """Test new group form preserves values when redirected with error."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
     mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
@@ -331,8 +290,6 @@ def test_new_group_form_preserves_values_on_error(test_admin_user, mocker):
     response = client.get(
         "/admin/groups/new?error=duplicate_name&name=Engineering&description=Team"
     )
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -346,9 +303,9 @@ def test_new_group_form_preserves_values_on_error(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_create_group_success(test_admin_user, mocker):
+def test_create_group_success(test_admin_user, override_auth, mocker):
     """Test creating a group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
@@ -363,17 +320,15 @@ def test_create_group_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=created" in response.headers["location"]
     mock_create.assert_called_once()
 
 
-def test_create_group_without_description(test_admin_user, mocker):
+def test_create_group_without_description(test_admin_user, override_auth, mocker):
     """Test creating a group without description."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Sales")
@@ -388,17 +343,15 @@ def test_create_group_without_description(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "success=created" in response.headers["location"]
 
 
-def test_create_group_validation_error(test_admin_user, mocker):
+def test_create_group_validation_error(test_admin_user, override_auth, mocker):
     """Test creating a group with validation error redirects back to form."""
     from services.exceptions import ValidationError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
     mock_create.side_effect = ValidationError("Name too short", code="name_too_short")
@@ -410,18 +363,16 @@ def test_create_group_validation_error(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=name_too_short" in response.headers["location"]
     assert "name=E" in response.headers["location"]
 
 
-def test_create_group_conflict_error(test_admin_user, mocker):
+def test_create_group_conflict_error(test_admin_user, override_auth, mocker):
     """Test creating a group with duplicate name redirects with error."""
     from services.exceptions import ConflictError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
     mock_create.side_effect = ConflictError("Group already exists", code="duplicate_name")
@@ -433,17 +384,15 @@ def test_create_group_conflict_error(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=duplicate_name" in response.headers["location"]
 
 
-def test_create_group_service_error(test_admin_user, mocker):
+def test_create_group_service_error(test_admin_user, override_auth, mocker):
     """Test creating a group with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
     mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
@@ -457,8 +406,6 @@ def test_create_group_service_error(test_admin_user, mocker):
         data={"name": "Engineering", "description": ""},
         follow_redirects=False,
     )
-
-    app.dependency_overrides.clear()
 
     # Should render error page
     assert response.status_code == 200
@@ -493,17 +440,21 @@ def mock_group_detail_deps(mocker):
     return mocks
 
 
-def test_group_detail_renders(test_admin_user, mock_group_detail_deps):
+def test_group_detail_renders(test_admin_user, override_auth, mock_group_detail_deps):
     """Test group detail page renders successfully."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
 
     mock_group_detail_deps["get_group"].return_value = mock_group
     mock_group_detail_deps["list_members"].return_value = _make_member_list()
-    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(list_type="parents")
-    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(list_type="children")
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
     mock_group_detail_deps["list_available_users"].return_value = []
     mock_group_detail_deps["list_available_parents"].return_value = []
     mock_group_detail_deps["list_available_children"].return_value = []
@@ -513,18 +464,16 @@ def test_group_detail_renders(test_admin_user, mock_group_detail_deps):
     client = TestClient(app)
     response = client.get(f"/admin/groups/{group_id}")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 200
     mock_group_detail_deps["template"].assert_called_once()
     assert mock_group_detail_deps["template"].call_args[0][0] == "groups_detail.html"
 
 
-def test_group_detail_not_found(test_admin_user, mocker):
+def test_group_detail_not_found(test_admin_user, override_auth, mocker):
     """Test group detail page handles not found error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -537,18 +486,16 @@ def test_group_detail_not_found(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get(f"/admin/groups/{group_id}")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_group_detail_service_error(test_admin_user, mocker):
+def test_group_detail_service_error(test_admin_user, override_auth, mocker):
     """Test group detail page handles generic service errors."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
@@ -565,24 +512,26 @@ def test_group_detail_service_error(test_admin_user, mocker):
     client = TestClient(app)
     response = client.get(f"/admin/groups/{group_id}")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_group_detail_shows_success_message(test_admin_user, mock_group_detail_deps):
+def test_group_detail_shows_success_message(test_admin_user, override_auth, mock_group_detail_deps):
     """Test group detail page shows success query param."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
 
     mock_group_detail_deps["get_group"].return_value = mock_group
     mock_group_detail_deps["list_members"].return_value = _make_member_list()
-    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(list_type="parents")
-    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(list_type="children")
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
     mock_group_detail_deps["list_available_users"].return_value = []
     mock_group_detail_deps["list_available_parents"].return_value = []
     mock_group_detail_deps["list_available_children"].return_value = []
@@ -591,8 +540,6 @@ def test_group_detail_shows_success_message(test_admin_user, mock_group_detail_d
 
     client = TestClient(app)
     response = client.get(f"/admin/groups/{group_id}?success=updated")
-
-    app.dependency_overrides.clear()
 
     assert response.status_code == 200
     ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
@@ -604,9 +551,9 @@ def test_group_detail_shows_success_message(test_admin_user, mock_group_detail_d
 # =============================================================================
 
 
-def test_update_group_success(test_admin_user, mocker):
+def test_update_group_success(test_admin_user, override_auth, mocker):
     """Test updating a group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -620,18 +567,16 @@ def test_update_group_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=updated" in response.headers["location"]
 
 
-def test_update_group_validation_error(test_admin_user, mocker):
+def test_update_group_validation_error(test_admin_user, override_auth, mocker):
     """Test updating a group with validation error redirects with error."""
     from services.exceptions import ValidationError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -646,17 +591,15 @@ def test_update_group_validation_error(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=invalid_name" in response.headers["location"]
 
 
-def test_update_group_not_found(test_admin_user, mocker):
+def test_update_group_not_found(test_admin_user, override_auth, mocker):
     """Test updating a non-existent group redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -670,17 +613,15 @@ def test_update_group_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=group_not_found" in response.headers["location"]
 
 
-def test_update_group_conflict_error(test_admin_user, mocker):
+def test_update_group_conflict_error(test_admin_user, override_auth, mocker):
     """Test updating a group to duplicate name redirects with error."""
     from services.exceptions import ConflictError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -694,17 +635,15 @@ def test_update_group_conflict_error(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=duplicate_name" in response.headers["location"]
 
 
-def test_update_group_service_error(test_admin_user, mocker):
+def test_update_group_service_error(test_admin_user, override_auth, mocker):
     """Test updating a group with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -720,8 +659,6 @@ def test_update_group_service_error(test_admin_user, mocker):
         data={"name": "New Name", "description": ""},
     )
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -732,9 +669,9 @@ def test_update_group_service_error(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_delete_group_success(test_admin_user, mocker):
+def test_delete_group_success(test_admin_user, override_auth, mocker):
     """Test deleting a group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -747,18 +684,16 @@ def test_delete_group_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "/admin/groups/list" in response.headers["location"]
     assert "success=deleted" in response.headers["location"]
 
 
-def test_delete_group_not_found(test_admin_user, mocker):
+def test_delete_group_not_found(test_admin_user, override_auth, mocker):
     """Test deleting a non-existent group redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -771,18 +706,16 @@ def test_delete_group_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "/admin/groups/list" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
-def test_delete_group_service_error(test_admin_user, mocker):
+def test_delete_group_service_error(test_admin_user, override_auth, mocker):
     """Test deleting a group with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
@@ -795,8 +728,6 @@ def test_delete_group_service_error(test_admin_user, mocker):
     client = TestClient(app)
     response = client.post(f"/admin/groups/{group_id}/delete")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -807,9 +738,9 @@ def test_delete_group_service_error(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_add_member_success(test_admin_user, mocker):
+def test_add_member_success(test_admin_user, override_auth, mocker):
     """Test adding a member to a group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -824,19 +755,17 @@ def test_add_member_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=member_added" in response.headers["location"]
     mock_add.assert_called_once()
 
 
-def test_add_member_not_found(test_admin_user, mocker):
+def test_add_member_not_found(test_admin_user, override_auth, mocker):
     """Test adding a member to non-existent group redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -851,17 +780,15 @@ def test_add_member_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=group_not_found" in response.headers["location"]
 
 
-def test_add_member_user_not_found(test_admin_user, mocker):
+def test_add_member_user_not_found(test_admin_user, override_auth, mocker):
     """Test adding a non-existent user redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -876,17 +803,15 @@ def test_add_member_user_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=user_not_found" in response.headers["location"]
 
 
-def test_add_member_already_member(test_admin_user, mocker):
+def test_add_member_already_member(test_admin_user, override_auth, mocker):
     """Test adding an existing member redirects with error."""
     from services.exceptions import ConflictError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -901,17 +826,15 @@ def test_add_member_already_member(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=already_member" in response.headers["location"]
 
 
-def test_add_member_service_error(test_admin_user, mocker):
+def test_add_member_service_error(test_admin_user, override_auth, mocker):
     """Test adding a member with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -928,16 +851,14 @@ def test_add_member_service_error(test_admin_user, mocker):
         data={"user_id": user_id},
     )
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_remove_member_success(test_admin_user, mocker):
+def test_remove_member_success(test_admin_user, override_auth, mocker):
     """Test removing a member from a group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -951,18 +872,16 @@ def test_remove_member_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=member_removed" in response.headers["location"]
 
 
-def test_remove_member_not_found(test_admin_user, mocker):
+def test_remove_member_not_found(test_admin_user, override_auth, mocker):
     """Test removing a non-member redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -976,17 +895,15 @@ def test_remove_member_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=not_a_member" in response.headers["location"]
 
 
-def test_remove_member_service_error(test_admin_user, mocker):
+def test_remove_member_service_error(test_admin_user, override_auth, mocker):
     """Test removing a member with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     user_id = str(uuid4())
@@ -1000,8 +917,6 @@ def test_remove_member_service_error(test_admin_user, mocker):
     client = TestClient(app)
     response = client.post(f"/admin/groups/{group_id}/members/{user_id}/remove")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -1012,9 +927,9 @@ def test_remove_member_service_error(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_add_child_success(test_admin_user, mocker):
+def test_add_child_success(test_admin_user, override_auth, mocker):
     """Test adding a child group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1029,19 +944,17 @@ def test_add_child_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=child_added" in response.headers["location"]
     mock_add.assert_called_once()
 
 
-def test_add_child_not_found(test_admin_user, mocker):
+def test_add_child_not_found(test_admin_user, override_auth, mocker):
     """Test adding a non-existent child redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1056,17 +969,15 @@ def test_add_child_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=child_not_found" in response.headers["location"]
 
 
-def test_add_child_would_create_cycle(test_admin_user, mocker):
+def test_add_child_would_create_cycle(test_admin_user, override_auth, mocker):
     """Test adding a child that would create a cycle redirects with error."""
     from services.exceptions import ValidationError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1081,17 +992,15 @@ def test_add_child_would_create_cycle(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=would_create_cycle" in response.headers["location"]
 
 
-def test_add_child_already_exists(test_admin_user, mocker):
+def test_add_child_already_exists(test_admin_user, override_auth, mocker):
     """Test adding an existing child redirects with error."""
     from services.exceptions import ConflictError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1106,17 +1015,15 @@ def test_add_child_already_exists(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=relationship_exists" in response.headers["location"]
 
 
-def test_add_child_service_error(test_admin_user, mocker):
+def test_add_child_service_error(test_admin_user, override_auth, mocker):
     """Test adding a child with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1133,16 +1040,14 @@ def test_add_child_service_error(test_admin_user, mocker):
         data={"child_group_id": child_group_id},
     )
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_remove_child_success(test_admin_user, mocker):
+def test_remove_child_success(test_admin_user, override_auth, mocker):
     """Test removing a child group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1156,26 +1061,22 @@ def test_remove_child_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=child_removed" in response.headers["location"]
 
 
-def test_remove_child_not_found(test_admin_user, mocker):
+def test_remove_child_not_found(test_admin_user, override_auth, mocker):
     """Test removing a non-existent child redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
     mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
-    mock_remove.side_effect = NotFoundError(
-        "Relationship not found", code="relationship_not_found"
-    )
+    mock_remove.side_effect = NotFoundError("Relationship not found", code="relationship_not_found")
 
     client = TestClient(app)
     response = client.post(
@@ -1183,17 +1084,15 @@ def test_remove_child_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=relationship_not_found" in response.headers["location"]
 
 
-def test_remove_child_service_error(test_admin_user, mocker):
+def test_remove_child_service_error(test_admin_user, override_auth, mocker):
     """Test removing a child with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     child_group_id = str(uuid4())
@@ -1207,8 +1106,6 @@ def test_remove_child_service_error(test_admin_user, mocker):
     client = TestClient(app)
     response = client.post(f"/admin/groups/{group_id}/children/{child_group_id}/remove")
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
@@ -1219,9 +1116,9 @@ def test_remove_child_service_error(test_admin_user, mocker):
 # =============================================================================
 
 
-def test_add_parent_success(test_admin_user, mocker):
+def test_add_parent_success(test_admin_user, override_auth, mocker):
     """Test adding a parent group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1236,8 +1133,6 @@ def test_add_parent_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=parent_added" in response.headers["location"]
@@ -1245,11 +1140,11 @@ def test_add_parent_success(test_admin_user, mocker):
     mock_add.assert_called_once()
 
 
-def test_add_parent_not_found(test_admin_user, mocker):
+def test_add_parent_not_found(test_admin_user, override_auth, mocker):
     """Test adding a non-existent parent redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1264,17 +1159,15 @@ def test_add_parent_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=parent_not_found" in response.headers["location"]
 
 
-def test_add_parent_would_create_cycle(test_admin_user, mocker):
+def test_add_parent_would_create_cycle(test_admin_user, override_auth, mocker):
     """Test adding a parent that would create a cycle redirects with error."""
     from services.exceptions import ValidationError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1289,17 +1182,15 @@ def test_add_parent_would_create_cycle(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=would_create_cycle" in response.headers["location"]
 
 
-def test_add_parent_already_exists(test_admin_user, mocker):
+def test_add_parent_already_exists(test_admin_user, override_auth, mocker):
     """Test adding an existing parent redirects with error."""
     from services.exceptions import ConflictError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1314,17 +1205,15 @@ def test_add_parent_already_exists(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=relationship_exists" in response.headers["location"]
 
 
-def test_add_parent_service_error(test_admin_user, mocker):
+def test_add_parent_service_error(test_admin_user, override_auth, mocker):
     """Test adding a parent with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1341,16 +1230,14 @@ def test_add_parent_service_error(test_admin_user, mocker):
         data={"parent_group_id": parent_group_id},
     )
 
-    app.dependency_overrides.clear()
-
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_remove_parent_success(test_admin_user, mocker):
+def test_remove_parent_success(test_admin_user, override_auth, mocker):
     """Test removing a parent group succeeds."""
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1364,26 +1251,22 @@ def test_remove_parent_success(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert f"/admin/groups/{group_id}" in response.headers["location"]
     assert "success=parent_removed" in response.headers["location"]
 
 
-def test_remove_parent_not_found(test_admin_user, mocker):
+def test_remove_parent_not_found(test_admin_user, override_auth, mocker):
     """Test removing a non-existent parent redirects with error."""
     from services.exceptions import NotFoundError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
     mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
-    mock_remove.side_effect = NotFoundError(
-        "Relationship not found", code="relationship_not_found"
-    )
+    mock_remove.side_effect = NotFoundError("Relationship not found", code="relationship_not_found")
 
     client = TestClient(app)
     response = client.post(
@@ -1391,17 +1274,15 @@ def test_remove_parent_not_found(test_admin_user, mocker):
         follow_redirects=False,
     )
 
-    app.dependency_overrides.clear()
-
     assert response.status_code == 303
     assert "error=relationship_not_found" in response.headers["location"]
 
 
-def test_remove_parent_service_error(test_admin_user, mocker):
+def test_remove_parent_service_error(test_admin_user, override_auth, mocker):
     """Test removing a parent with service error renders error page."""
     from services.exceptions import ServiceError
 
-    _setup_admin_overrides(test_admin_user)
+    override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
@@ -1414,8 +1295,6 @@ def test_remove_parent_service_error(test_admin_user, mocker):
 
     client = TestClient(app)
     response = client.post(f"/admin/groups/{group_id}/parents/{parent_group_id}/remove")
-
-    app.dependency_overrides.clear()
 
     # Should render error page
     assert response.status_code == 200

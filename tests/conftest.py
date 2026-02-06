@@ -86,6 +86,72 @@ def clear_dependency_overrides():
     app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def override_auth():
+    """Set up auth dependency overrides for router tests.
+
+    Usage:
+        override_auth(user)                        # require_current_user
+        override_auth(user, level="admin")         # require_admin
+        override_auth(user, level="super_admin")   # require_super_admin
+    """
+    from dependencies import (
+        get_current_user,
+        get_tenant_id_from_request,
+        require_admin,
+        require_current_user,
+        require_super_admin,
+    )
+    from main import app
+
+    _deps = {
+        "user": require_current_user,
+        "admin": require_admin,
+        "super_admin": require_super_admin,
+    }
+
+    # Higher levels imply lower levels (super_admin → admin → user)
+    _hierarchy = {
+        "user": [require_current_user],
+        "admin": [require_current_user, require_admin],
+        "super_admin": [require_current_user, require_admin, require_super_admin],
+    }
+
+    def _override(user, *, level="user"):
+        app.dependency_overrides[get_tenant_id_from_request] = lambda: str(user["tenant_id"])
+        app.dependency_overrides[get_current_user] = lambda: user
+        for dep in _hierarchy[level]:
+            app.dependency_overrides[dep] = lambda: user
+
+    return _override
+
+
+@pytest.fixture
+def override_api_auth():
+    """Set up auth dependency overrides for API tests.
+
+    Usage:
+        override_api_auth(user)                        # require_admin_api
+        override_api_auth(user, level="user")          # get_current_user_api
+        override_api_auth(user, level="super_admin")   # require_super_admin_api
+    """
+    from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    _deps = {
+        "user": get_current_user_api,
+        "admin": require_admin_api,
+        "super_admin": require_super_admin_api,
+    }
+
+    def _override(user, *, level="admin"):
+        app.dependency_overrides[get_tenant_id_from_request] = lambda: str(user["tenant_id"])
+        app.dependency_overrides[_deps[level]] = lambda: user
+
+    return _override
+
+
 @pytest.fixture(autouse=True)
 def test_system_context():
     """

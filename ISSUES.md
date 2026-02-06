@@ -191,61 +191,6 @@ Convert to flat `mocker.patch()` calls after completing higher-priority files.
 
 ---
 
-## [TEST] Duplicated Auth Override Pattern
-
-**Found in:** All router test files
-**Impact:** High
-**Category:** Test Code / Duplication
-
-**Description:**
-The same 3-line auth dependency override pattern is repeated **200+ times** across test files:
-
-```python
-app.dependency_overrides[get_tenant_id_from_request] = lambda: test_user["tenant_id"]
-app.dependency_overrides[get_current_user] = lambda: test_user
-app.dependency_overrides[require_current_user] = lambda: test_user
-```
-
-**Evidence:**
-- `test_routers_account.py`: 43 instances
-- `test_routers_auth.py`: ~30 instances
-- Pattern repeated in every router test file
-
-**Why It Matters:**
-- Violates DRY principle severely
-- If auth dependency structure changes, 200+ places need updating
-- Obscures actual test setup with boilerplate
-
-**Suggested Refactoring:**
-Extract to shared fixtures in `conftest.py`:
-
-```python
-# tests/conftest.py
-@pytest.fixture
-def override_auth(request):
-    """Fixture that returns a function to set up auth overrides."""
-    def _override(user):
-        from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
-        app.dependency_overrides[get_tenant_id_from_request] = lambda: str(user["tenant_id"])
-        app.dependency_overrides[get_current_user] = lambda: user
-        app.dependency_overrides[require_current_user] = lambda: user
-    return _override
-
-@pytest.fixture
-def authenticated_client(test_user, override_auth):
-    """Returns a TestClient with auth already configured."""
-    override_auth(test_user)
-    client = TestClient(app)
-    yield client
-    app.dependency_overrides.clear()
-```
-
-**Reference:** `test_routers_groups.py` already uses helper functions `_setup_admin_overrides()` and `_setup_member_overrides()`. This pattern should be promoted to shared fixtures.
-
-**Files Affected:** All router test files (~15 files, 200+ instances total)
-
----
-
 ## [TEST] Missing Test Docstrings: test_services_saml.py
 
 **Found in:** `tests/test_services_saml.py`
@@ -393,7 +338,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 2 | 1 file structure (2/4 routers done), 1 test auth duplication |
+| High | 1 | 1 file structure (2/4 routers done) |
 | Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 

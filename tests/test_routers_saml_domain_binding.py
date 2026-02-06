@@ -24,20 +24,10 @@ def setup_app_directory():
 
 
 @pytest.fixture
-def super_admin_session(client, test_tenant_host, test_super_admin_user):
+def super_admin_session(client, test_tenant_host, test_super_admin_user, override_auth):
     """Create a client with super_admin session."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_super_admin
-    from main import app
-
-    tenant_id = str(test_super_admin_user["tenant_id"])
-
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-
+    override_auth(test_super_admin_user, level="super_admin")
     yield client
-
-    app.dependency_overrides.clear()
 
 
 # =============================================================================

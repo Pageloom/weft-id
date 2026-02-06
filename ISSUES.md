@@ -91,34 +91,6 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 ---
 
-## [TEST] Nested Patch Pyramids: test_routers_auth.py
-
-**Found in:** `tests/test_routers_auth.py`
-**Impact:** High
-**Category:** Test Code / Maintainability
-
-**Description:**
-This file contains **104 instances** of nested `with patch()` context managers, typically 2-3 levels deep.
-
-**Evidence (lines 23-26):**
-```python
-with patch("routers.auth.get_current_user") as mock_user:
-    with patch("routers.auth.get_tenant_id_from_request") as mock_tenant:
-        with patch("routers.auth.templates.TemplateResponse") as mock_template:
-            mock_user.return_value = None
-            # ... deeply nested test logic
-```
-
-**Why It Matters:**
-- Same issues as test_routers_users.py
-- Auth tests are critical path tests that need to be easy to read and modify
-- 3-level nesting is common throughout the file
-
-**Suggested Refactoring:**
-Same pattern as test_routers_users.py. Convert to flat `mocker.patch()` calls.
-
-**Files Affected:** `tests/test_routers_auth.py` (104 patch calls to convert)
-
 ---
 
 ## [TEST] Nested Patch Pyramids: test_utils_storage.py
@@ -421,7 +393,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 3 | 1 file structure (2/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
+| High | 2 | 1 file structure (2/4 routers done), 1 test auth duplication |
 | Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
@@ -432,14 +404,14 @@ Patch pyramid refactoring should proceed in this order:
 | Priority | File | Patch Count | Notes |
 |----------|------|-------------|-------|
 | ~~1~~ | ~~`test_routers_users.py`~~ | ~~218~~ | ✅ Completed 2026-02-02 |
-| 1 | `test_routers_auth.py` | 104 | Critical path tests |
+| ~~1~~ | ~~`test_routers_auth.py`~~ | ~~104~~ | ✅ Completed 2026-02-06 (moved to archive) |
 | 2 | `test_utils_storage.py` | 67 | |
 | 3 | `test_routers_account.py` | 59 | |
 | 4 | `test_routers_integrations.py` | 59 | |
 | 5 | `test_routers_settings.py` | 51 | Review mock necessity during conversion |
 | 6 | Remaining 6 files | 20-45 each | Lower priority |
 
-**Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02)
+**Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02), `tests/test_routers_auth.py` (2026-02-06)
 
 **Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)

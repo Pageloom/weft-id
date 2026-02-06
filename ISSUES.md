@@ -17,7 +17,7 @@ Four router modules exceed 500 lines:
 - ~~`app/routers/saml.py` (1241 lines)~~ ✅ Refactored (2026-02-02)
 - ~~`app/routers/auth.py` (987 lines)~~ ✅ Refactored (2026-02-06)
 - `app/routers/users.py` (747 lines)
-- `app/routers/api/v1/users.py` (1025 lines)
+- ~~`app/routers/api/v1/users.py` (1025 lines)~~ ✅ Refactored (2026-02-06)
 
 **Progress:**
 - **saml.py**: Split into `app/routers/saml/` package with 9 focused modules:
@@ -36,15 +36,19 @@ Four router modules exceed 500 lines:
   - `reactivation.py` (super admin self-reactivation, reactivation requests)
   - `dashboard.py` (dashboard endpoint)
   - `_helpers.py` (shared utilities: `_get_client_ip`, `_route_after_email_verification`)
+- **api/v1/users.py**: Split into `app/routers/api/v1/users/` package with 4 focused modules:
+  - `profile.py` (/roles, /me GET/PATCH)
+  - `emails.py` (/me/emails/*, /{user_id}/emails/*)
+  - `mfa.py` (/me/mfa/*, /{user_id}/mfa/reset)
+  - `admin.py` (user CRUD, state management: inactivate/reactivate/anonymize)
 
 **Why It Matters:**
 Routers that are too large contain many unrelated endpoints in one file. When Claude needs to modify one endpoint, it must load many irrelevant endpoints.
 
 **Remaining Refactoring:**
 - `app/routers/users.py` → split by functionality
-- `app/routers/api/v1/users.py` → `users/profile.py`, `users/emails.py`, `users/mfa.py`, `users/admin.py`
 
-**Files Affected:** 2 remaining router modules plus any imports
+**Files Affected:** 1 remaining router module plus any imports
 
 ---
 
@@ -262,7 +266,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | 1 file structure (2/4 routers done) |
+| High | 1 | 1 file structure (3/4 routers done) |
 | Medium | 7 | 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
@@ -284,5 +288,5 @@ Patch pyramid refactoring should proceed in this order:
 
 **Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
-**Last router refactor:** 2026-02-06 (auth.py split into focused modules)
+**Last router refactor:** 2026-02-06 (api/v1/users.py split into focused modules)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

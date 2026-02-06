@@ -4,6 +4,36 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] File Structure: Split app/routers/api/v1/users.py
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** High
+
+**Original Description:**
+`app/routers/api/v1/users.py` was 1025 lines with 29 endpoints across multiple functional areas (profile, emails, MFA, admin CRUD, state management). Too large for efficient Claude traversability.
+
+**Resolution:**
+Split into `app/routers/api/v1/users/` package with 4 focused modules:
+- `profile.py` (82 lines) - /roles, /me GET/PATCH (3 endpoints)
+- `emails.py` (376 lines) - /me/emails/*, /{user_id}/emails/* (10 endpoints)
+- `mfa.py` (246 lines) - /me/mfa/*, /{user_id}/mfa/reset (9 endpoints)
+- `admin.py` (279 lines) - User CRUD + state management (8 endpoints)
+
+Sub-modules access services via package import (`import routers.api.v1.users as _pkg`) to maintain test mock compatibility. The `__init__.py` re-exports services and email utilities for backwards compatibility with existing tests (no test changes required).
+
+**Files Modified:**
+- `app/routers/api/v1/users.py` - Deleted
+- `app/routers/api/v1/users/__init__.py` - Created (combined router + re-exports)
+- `app/routers/api/v1/users/profile.py` - Created
+- `app/routers/api/v1/users/emails.py` - Created
+- `app/routers/api/v1/users/mfa.py` - Created
+- `app/routers/api/v1/users/admin.py` - Created
+
+**Verification:** All 2174 tests pass with no test file changes.
+
+---
+
 ## [TEST] Nested Patch Pyramids: test_utils_storage.py
 
 **Status:** Resolved (2026-02-06)

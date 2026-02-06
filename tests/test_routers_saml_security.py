@@ -241,8 +241,11 @@ def test_saml_session_persistence_configuration_non_persistent(
 
         # Verify regenerate_session was called with max_age=None (non-persistent)
         assert mock_regen.called
+        # max_age can be passed as 3rd positional arg or as keyword arg
         call_args = mock_regen.call_args
-        max_age = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("max_age")
+        max_age = (
+            call_args.kwargs.get("max_age") if "max_age" in call_args.kwargs else call_args[0][2]
+        )
         assert max_age is None
 
 
@@ -292,8 +295,11 @@ def test_saml_session_persistence_configuration_with_timeout(
 
         # Verify regenerate_session was called with correct timeout
         assert mock_regen.called
+        # max_age can be passed as 3rd positional arg or as keyword arg
         call_args = mock_regen.call_args
-        max_age = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("max_age")
+        max_age = (
+            call_args.kwargs.get("max_age") if "max_age" in call_args.kwargs else call_args[0][2]
+        )
         assert max_age == 7200
 
 

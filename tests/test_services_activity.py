@@ -34,9 +34,10 @@ def test_track_activity_force_sets_cache(test_tenant, test_user):
         # Verify cache.set was called with correct key and TTL
         mock_set.assert_called_once()
         call_args = mock_set.call_args
-        assert call_args[0][0] == cache_key  # First arg is the key
-        assert call_args[0][1] == b"1"  # Second arg is the value
-        # Third arg (ttl) should be the configured TTL
+        cache_key_arg, value = call_args[0]
+        assert cache_key_arg == cache_key
+        assert value == b"1"
+        # TTL is passed as keyword arg
         import settings
 
         assert call_args[1]["ttl"] == settings.ACTIVITY_CACHE_TTL_SECONDS
@@ -255,8 +256,8 @@ def test_track_activity_no_force_sets_cache_on_miss(test_tenant, test_user):
 
             # Verify cache.set was called after DB update
             mock_set.assert_called_once()
-            call_args = mock_set.call_args
-            assert call_args[0][0] == cache_key
+            cache_key_arg = mock_set.call_args[0][0]
+            assert cache_key_arg == cache_key
 
 
 def test_activity_cache_ttl_is_3_hours():

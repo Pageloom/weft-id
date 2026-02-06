@@ -195,8 +195,9 @@ def test_approve_request_sends_email(
 
     assert response.status_code == 200
     mock_send.assert_called_once()
-    # First arg is the email
-    assert mock_send.call_args[0][0] == test_user["email"]
+    # Verify email recipient (1st positional arg)
+    email_recipient = mock_send.call_args[0][0]
+    assert email_recipient == test_user["email"]
 
 
 def test_approve_request_as_member_forbidden(

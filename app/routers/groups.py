@@ -153,15 +153,9 @@ def group_detail(
         children = groups_service.list_children(requesting_user, group_id)
 
         # Get available options for dropdowns (via service layer)
-        available_users = groups_service.list_available_users_for_group(
-            requesting_user, group_id
-        )
-        available_parents = groups_service.list_available_parents(
-            requesting_user, group_id
-        )
-        available_children = groups_service.list_available_children(
-            requesting_user, group_id
-        )
+        available_users = groups_service.list_available_users_for_group(requesting_user, group_id)
+        available_parents = groups_service.list_available_parents(requesting_user, group_id)
+        available_children = groups_service.list_available_children(requesting_user, group_id)
 
     except NotFoundError:
         return render_error_page(

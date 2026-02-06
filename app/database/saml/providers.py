@@ -472,9 +472,8 @@ def get_idps_with_metadata_url() -> list[dict]:
     Returns:
         List of IdP dicts with tenant_id for scoping
     """
-    from psycopg.rows import dict_row
-
     from database._core import get_pool
+    from psycopg.rows import dict_row
 
     pool = get_pool()
     with pool.connection() as conn:

@@ -183,10 +183,9 @@ def test_hard_login_block_rate_limit_renders_template(client, test_tenant_host, 
                     assert response.status_code == 200
                     # Verify template was called with login.html and error message
                     assert mock_template.called
-                    call_args = mock_template.call_args[0]
-                    assert "login.html" in str(call_args)
+                    _, template_name, template_context = mock_template.call_args[0]
+                    assert template_name == "login.html"
                     # Verify error message is passed to template
-                    template_context = mock_template.call_args[0][2]
                     assert "error" in template_context
                     assert "Too many login attempts" in template_context["error"]
 

@@ -35,9 +35,7 @@ def list_groups(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     search: Annotated[str | None, Query(description="Search term")] = None,
-    group_type: Annotated[
-        str | None, Query(description="Filter by type: weftid or idp")
-    ] = None,
+    group_type: Annotated[str | None, Query(description="Filter by type: weftid or idp")] = None,
     sort_field: Annotated[
         str, Query(description="Sort by: name, created_at, member_count")
     ] = "created_at",
@@ -300,9 +298,7 @@ def add_child(
     requesting_user = build_requesting_user(admin, tenant_id, request)
 
     try:
-        groups_service.add_child(
-            requesting_user, group_id, relationship_data.child_group_id
-        )
+        groups_service.add_child(requesting_user, group_id, relationship_data.child_group_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

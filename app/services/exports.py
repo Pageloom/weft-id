@@ -10,7 +10,7 @@ import database
 from schemas.event_log import ExportFileItem, ExportListResponse
 from services.activity import track_activity
 from services.auth import require_admin
-from services.exceptions import ForbiddenError, NotFoundError
+from services.exceptions import NotFoundError
 from services.types import RequestingUser
 from utils import storage
 

@@ -11,7 +11,7 @@ from schemas.bg_tasks import JobDetail, JobListItem, JobListResponse, JobStatus
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
-from services.exceptions import ForbiddenError, NotFoundError
+from services.exceptions import NotFoundError
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)

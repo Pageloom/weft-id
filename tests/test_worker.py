@@ -254,8 +254,9 @@ def test_process_task_unknown_handler(mock_database, mock_get_handler):
     mock_get_handler.assert_called_once_with("unknown_job_type")
     mock_database.bg_tasks.fail_task.assert_called_once()
     call_args = mock_database.bg_tasks.fail_task.call_args
-    assert call_args[0][0] == str(task["id"])
-    assert "Unknown job type" in call_args[0][1]
+    task_id, error_message = call_args[0]
+    assert task_id == str(task["id"])
+    assert "Unknown job type" in error_message
     mock_database.bg_tasks.complete_task.assert_not_called()
 
 
@@ -279,8 +280,9 @@ def test_process_task_handler_exception(mock_database, mock_get_handler, mock_se
 
     mock_database.bg_tasks.fail_task.assert_called_once()
     call_args = mock_database.bg_tasks.fail_task.call_args
-    assert call_args[0][0] == str(task["id"])
-    assert "Handler exploded" in call_args[0][1]
+    task_id, error_message = call_args[0]
+    assert task_id == str(task["id"])
+    assert "Handler exploded" in error_message
     mock_database.bg_tasks.complete_task.assert_not_called()
 
 
@@ -664,4 +666,5 @@ def test_main_handles_import_failure(mock_logger, mock_signal, mock_worker_class
     mock_worker.run.assert_called_once()
     # Logger should have warned about import failure
     mock_logger.warning.assert_called_once()
-    assert "Could not import job handlers" in mock_logger.warning.call_args[0][0]
+    warning_message = mock_logger.warning.call_args[0][0]
+    assert "Could not import job handlers" in warning_message

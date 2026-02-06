@@ -40,10 +40,10 @@ Track when each area was last analyzed to identify gaps:
 
 | Area | Last Scanned | Last Deep Scan | Notes |
 |------|--------------|----------------|-------|
-| `app/services/` | 2026-02-01 | 2026-02-01 | 3 issues found, 2 resolved (saml split, auth centralized) |
-| `app/database/` | 2026-02-01 | 2026-02-01 | 4 large files found |
-| `app/routers/` | 2026-02-01 | 2026-02-01 | 4 large files, 5 log_event calls in routers |
-| `app/routers/api/` | 2026-02-01 | 2026-02-01 | Dead code found (unused converters) |
+| `app/services/` | 2026-02-06 | 2026-02-01 | 2 critical files >1000 lines (users.py, groups.py) |
+| `app/database/` | 2026-02-06 | 2026-02-01 | RESOLVED - all files now <360 lines (split into packages) |
+| `app/routers/` | 2026-02-06 | 2026-02-01 | RESOLVED - 4 large files split into packages; log_event calls documented as intentional |
+| `app/routers/api/` | 2026-02-06 | 2026-02-01 | RESOLVED - dead code removed in router split |
 | `app/schemas/` | 2026-02-01 | 2026-02-01 | Clean - all files <500 lines |
 | `app/middleware/` | 2026-02-01 | 2026-02-01 | Clean - all files <220 lines |
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
@@ -57,13 +57,41 @@ Track issues that keep appearing to identify systemic problems:
 |---------|-------------|----------------|----------------------|
 | Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
 | Growing god modules | ~~1 (saml.py at 2658 lines)~~ → RESOLVED | services | FIXED: Split into `app/services/saml/` sub-modules |
-| Large files (>500 lines) | 8 files | database, routers | No sub-module pattern for db/routers; services pattern not yet propagated |
+| Large files (>500 lines) | ~~8 files~~ → 14 files | services, routers | Database/router splits complete; services layer now has 2 critical files (users.py, groups.py >1000 lines) |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-06 - Verification Scan
+
+**Scan type:** Quick
+**Areas analyzed:** Full codebase file size verification
+**Categories focused:** File Structure
+
+**Key findings:**
+
+1. **Large database files** - Status: RESOLVED. All files now <360 lines (largest: mfa.py at 360).
+
+2. **Large router files** - Status: RESOLVED. All 4 large routers split into packages (saml/, auth/, users/, api/v1/users/).
+
+3. **Dead code (unused converters)** - Status: RESOLVED. File deleted as part of router split.
+
+4. **log_event in routers** - Status: ACCEPTED. Each call has "Architectural Note" comment documenting intent for auth flows.
+
+5. **New critical files found (High)** - 2 service files exceed 1000 lines:
+   - `app/services/users.py`: 1334 lines
+   - `app/services/groups.py`: 1295 lines
+   Status: Open (logged to ISSUES.md)
+
+**Current large file count:** 14 files >500 lines (2 critical >1000)
+
+**Issues logged:** 1 new issue (2 critical service files)
+**Issues resolved since last scan:** 4 (database files, router files, dead code, log_event accepted)
+
+---
 
 ### 2026-02-06 - Test Suite
 
@@ -99,13 +127,13 @@ Track issues that keep appearing to identify systemic problems:
 
 **Key findings:**
 
-1. **File structure - Large database files (High)** - 4 database modules exceed 500 lines (saml.py 1112, users.py 1003, groups.py 936, oauth2.py 842). Recommend splitting into sub-modules like services/saml/. Status: Open
+1. **File structure - Large database files (High)** - 4 database modules exceed 500 lines (saml.py 1112, users.py 1003, groups.py 936, oauth2.py 842). Recommend splitting into sub-modules like services/saml/. Status: RESOLVED (all files now <360 lines)
 
-2. **File structure - Large router files (High)** - 4 router modules exceed 500 lines (routers/saml.py 1241, auth.py 987, users.py 747, api/v1/users.py 1025). Status: Open
+2. **File structure - Large router files (High)** - 4 router modules exceed 500 lines (routers/saml.py 1241, auth.py 987, users.py 747, api/v1/users.py 1025). Status: RESOLVED (split into packages, archived 2026-02-06)
 
-3. **Dead code (Medium)** - 4 unused converter functions in `app/routers/api/v1/users.py` (~60 lines). Services now return schemas directly. Status: Open
+3. **Dead code (Medium)** - 4 unused converter functions in `app/routers/api/v1/users.py` (~60 lines). Services now return schemas directly. Status: RESOLVED (file deleted in router split)
 
-4. **Architecture (Low)** - 5 direct log_event() calls in routers (auth.py, mfa.py) instead of services. May be acceptable for auth flows. Status: Open
+4. **Architecture (Low)** - 5 direct log_event() calls in routers (auth.py, mfa.py) instead of services. May be acceptable for auth flows. Status: ACCEPTED (each has Architectural Note documenting intent)
 
 **Resolved since last scan:**
 - Authorization helper duplication: RESOLVED - centralized in `app/services/auth.py`

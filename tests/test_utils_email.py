@@ -45,37 +45,36 @@ def test_send_email_without_text_body():
         mock_server.send_message.assert_called_once()
 
 
-def test_send_email_with_authentication():
+def test_send_email_with_authentication(mocker):
     """Test email sending with SMTP authentication."""
     # Reset the cached backend to pick up new settings
     import utils.email_backends
 
     utils.email_backends._backend_instance = None
 
-    with patch("settings.SMTP_HOST", "smtp.example.com"):
-        with patch("settings.SMTP_PORT", 587):
-            with patch("settings.SMTP_USER", "user@example.com"):
-                with patch("settings.SMTP_PASS", "password123"):
-                    with patch("settings.SMTP_TLS", True):
-                        with patch("smtplib.SMTP") as mock_smtp:
-                            mock_server = MagicMock()
-                            mock_smtp.return_value.__enter__.return_value = mock_server
+    mocker.patch("settings.SMTP_HOST", "smtp.example.com")
+    mocker.patch("settings.SMTP_PORT", 587)
+    mocker.patch("settings.SMTP_USER", "user@example.com")
+    mocker.patch("settings.SMTP_PASS", "password123")
+    mocker.patch("settings.SMTP_TLS", True)
+    mock_smtp = mocker.patch("smtplib.SMTP")
 
-                            from utils.email import send_email
+    mock_server = MagicMock()
+    mock_smtp.return_value.__enter__.return_value = mock_server
 
-                            result = send_email(
-                                to_email="test@example.com",
-                                subject="Test Subject",
-                                html_body="<p>Test HTML</p>",
-                                text_body="Test Text",
-                            )
+    from utils.email import send_email
 
-                            assert result is True
-                            # Verify STARTTLS and login were called
-                            mock_server.starttls.assert_called_once()
-                            mock_server.login.assert_called_once_with(
-                                "user@example.com", "password123"
-                            )
+    result = send_email(
+        to_email="test@example.com",
+        subject="Test Subject",
+        html_body="<p>Test HTML</p>",
+        text_body="Test Text",
+    )
+
+    assert result is True
+    # Verify STARTTLS and login were called
+    mock_server.starttls.assert_called_once()
+    mock_server.login.assert_called_once_with("user@example.com", "password123")
 
     # Clean up
     utils.email_backends._backend_instance = None
@@ -188,7 +187,7 @@ def test_send_email_verification_failure():
         assert result is False
 
 
-def test_send_email_uses_settings():
+def test_send_email_uses_settings(mocker):
     """Test that send_email uses settings for configuration."""
     # Reset the cached backend to pick up new settings
     import utils.email_backends
@@ -198,18 +197,19 @@ def test_send_email_uses_settings():
     custom_host = "custom.smtp.com"
     custom_port = 2525
 
-    with patch("settings.SMTP_HOST", custom_host):
-        with patch("settings.SMTP_PORT", custom_port):
-            with patch("smtplib.SMTP") as mock_smtp:
-                mock_server = MagicMock()
-                mock_smtp.return_value.__enter__.return_value = mock_server
+    mocker.patch("settings.SMTP_HOST", custom_host)
+    mocker.patch("settings.SMTP_PORT", custom_port)
+    mock_smtp = mocker.patch("smtplib.SMTP")
 
-                from utils.email import send_email
+    mock_server = MagicMock()
+    mock_smtp.return_value.__enter__.return_value = mock_server
 
-                send_email(to_email="test@example.com", subject="Test", html_body="<p>Test</p>")
+    from utils.email import send_email
 
-                # Verify SMTP was created with custom host and port
-                mock_smtp.assert_called_once_with(custom_host, custom_port, timeout=10)
+    send_email(to_email="test@example.com", subject="Test", html_body="<p>Test</p>")
+
+    # Verify SMTP was created with custom host and port
+    mock_smtp.assert_called_once_with(custom_host, custom_port, timeout=10)
 
     # Clean up
     utils.email_backends._backend_instance = None

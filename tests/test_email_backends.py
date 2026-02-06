@@ -44,27 +44,28 @@ class TestSMTPBackend:
             assert result is True
             mock_server.send_message.assert_called_once()
 
-    def test_send_with_tls(self):
+    def test_send_with_tls(self, mocker):
         """Test SMTP sending with TLS enabled."""
         from utils.email_backends.smtp import SMTPBackend
 
-        with patch("settings.SMTP_TLS", True):
-            with patch("settings.SMTP_USER", "user@example.com"):
-                with patch("settings.SMTP_PASS", "password"):
-                    with patch("smtplib.SMTP") as mock_smtp:
-                        mock_server = MagicMock()
-                        mock_smtp.return_value.__enter__.return_value = mock_server
+        mocker.patch("settings.SMTP_TLS", True)
+        mocker.patch("settings.SMTP_USER", "user@example.com")
+        mocker.patch("settings.SMTP_PASS", "password")
+        mock_smtp = mocker.patch("smtplib.SMTP")
 
-                        backend = SMTPBackend()
-                        result = backend.send(
-                            to_email="test@example.com",
-                            subject="Test",
-                            html_body="<p>Test</p>",
-                        )
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = mock_server
 
-                        assert result is True
-                        mock_server.starttls.assert_called_once()
-                        mock_server.login.assert_called_once()
+        backend = SMTPBackend()
+        result = backend.send(
+            to_email="test@example.com",
+            subject="Test",
+            html_body="<p>Test</p>",
+        )
+
+        assert result is True
+        mock_server.starttls.assert_called_once()
+        mock_server.login.assert_called_once()
 
     def test_send_failure(self):
         """Test SMTP sending failure handling."""
@@ -227,41 +228,43 @@ class TestBackendSelection:
             # Clean up
             utils.email_backends._backend_instance = None
 
-    def test_resend_backend_selection(self):
+    def test_resend_backend_selection(self, mocker):
         """Test Resend backend selection."""
-        with patch("settings.EMAIL_BACKEND", "resend"):
-            with patch("resend.api_key", "test-key"):
-                # Reset the cached backend
-                import utils.email_backends
+        mocker.patch("settings.EMAIL_BACKEND", "resend")
+        mocker.patch("resend.api_key", "test-key")
 
-                utils.email_backends._backend_instance = None
+        # Reset the cached backend
+        import utils.email_backends
 
-                from utils.email_backends import get_backend
-                from utils.email_backends.resend_backend import ResendBackend
+        utils.email_backends._backend_instance = None
 
-                backend = get_backend()
-                assert isinstance(backend, ResendBackend)
+        from utils.email_backends import get_backend
+        from utils.email_backends.resend_backend import ResendBackend
 
-                # Clean up
-                utils.email_backends._backend_instance = None
+        backend = get_backend()
+        assert isinstance(backend, ResendBackend)
 
-    def test_sendgrid_backend_selection(self):
+        # Clean up
+        utils.email_backends._backend_instance = None
+
+    def test_sendgrid_backend_selection(self, mocker):
         """Test SendGrid backend selection."""
-        with patch("settings.EMAIL_BACKEND", "sendgrid"):
-            with patch("sendgrid.SendGridAPIClient"):
-                # Reset the cached backend
-                import utils.email_backends
+        mocker.patch("settings.EMAIL_BACKEND", "sendgrid")
+        mocker.patch("sendgrid.SendGridAPIClient")
 
-                utils.email_backends._backend_instance = None
+        # Reset the cached backend
+        import utils.email_backends
 
-                from utils.email_backends import get_backend
-                from utils.email_backends.sendgrid_backend import SendGridBackend
+        utils.email_backends._backend_instance = None
 
-                backend = get_backend()
-                assert isinstance(backend, SendGridBackend)
+        from utils.email_backends import get_backend
+        from utils.email_backends.sendgrid_backend import SendGridBackend
 
-                # Clean up
-                utils.email_backends._backend_instance = None
+        backend = get_backend()
+        assert isinstance(backend, SendGridBackend)
+
+        # Clean up
+        utils.email_backends._backend_instance = None
 
     def test_unknown_backend_defaults_to_smtp(self):
         """Test that unknown backend type defaults to SMTP."""

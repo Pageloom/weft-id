@@ -177,15 +177,35 @@ assert org_name == "Test Organization"
 
 ---
 
+## [DEPS] pip: CVE-2026-1703
+
+**Package:** pip
+**Installed Version:** 25.3
+**Fixed Version:** 26.0
+**Severity:** Unrated (path traversal)
+**Advisory:** [NVD CVE-2026-1703](https://nvd.nist.gov/vuln/detail/CVE-2026-1703)
+
+**Description:** Limited path traversal vulnerability when pip installs a maliciously crafted wheel archive. Files may be extracted outside the installation directory, though traversal is limited to prefixes of the installation directory.
+
+**Exploitability in This Project:** Low
+This vulnerability requires installing a maliciously crafted wheel. This project uses poetry lock files with pinned versions from PyPI. Risk would only arise if a compromised package was published to PyPI with the exact name and version specified in our dependencies.
+
+**Remediation:**
+- pip is a development tool, not a runtime dependency
+- Update pip in your virtual environment: `pip install --upgrade pip`
+- Consider updating when Python 3.x ships with pip 26.0+
+
+---
+
 # Summary
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 0 | - |
+| High | 1 | 1 dependency (ecdsa via sendgrid) |
 | Medium | 2 | 1 test docstrings, 1 test parametrization |
-| Low | 2 | 1 architecture consistency, 1 test magic indices |
+| Low | 3 | 1 architecture consistency, 1 test magic indices, 1 dependency (pip) |
 
-**Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
+**Last dependency audit:** 2026-02-06 (see CVE issues below)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

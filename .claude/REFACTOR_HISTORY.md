@@ -47,7 +47,7 @@ Track when each area was last analyzed to identify gaps:
 | `app/schemas/` | 2026-02-01 | 2026-02-01 | Clean - all files <500 lines |
 | `app/middleware/` | 2026-02-01 | 2026-02-01 | Clean - all files <220 lines |
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
-| `tests/` | Never | Never | |
+| `tests/` | 2026-02-06 | 2026-02-06 | Parametrization opportunities (4 files), large files mirror app structure (accepted) |
 
 ## Recurring Patterns
 
@@ -64,6 +64,32 @@ Track issues that keep appearing to identify systemic problems:
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-06 - Test Suite
+
+**Scan type:** Standard
+**Areas analyzed:** `tests/` (97 test files, 51,477 total lines)
+**Categories focused:** All categories
+
+**Key findings:**
+
+1. **Parametrization opportunities (Medium)** - 4 groups of similar tests could use `pytest.mark.parametrize` to reduce duplication by 50-70%. Status: Open
+
+2. **Large test files (Accepted)** - 38 files exceed 500 lines (largest: test_services_saml.py at 5,380 lines). These mirror correspondingly large/complex production modules. Splitting would create artificial separation. Status: Accepted
+
+**What was NOT found:**
+- Nested patch pyramids (prior cleanup in commit 618aa2c resolved these)
+- Missing docstrings (100% coverage in sampled files)
+- Duplicated setup code (well-factored into fixtures and factory functions)
+
+**Recommendations for next scan:**
+- After parametrization is applied, verify test count and coverage unchanged
+- Monitor if any new large test files emerge that don't mirror app structure
+
+**Issues logged:** 1 new issue added to ISSUES.md
+**Issues resolved since last scan:** 0
+
+---
 
 ### 2026-02-01 - Full Codebase (Session 2)
 

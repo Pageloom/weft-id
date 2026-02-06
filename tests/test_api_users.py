@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
-from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
-from dependencies import get_tenant_id_from_request
 from main import app
 from schemas.api import (
     BackupCodesResponse,
@@ -34,21 +32,17 @@ from starlette.testclient import TestClient
 # =============================================================================
 
 
-def test_list_roles_as_admin(make_user_dict):
+def test_list_roles_as_admin(make_user_dict, override_api_auth):
     """Admin can list available roles."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_available_roles.return_value = ["member", "admin", "super_admin"]
 
         client = TestClient(app)
         response = client.get("/api/v1/users/roles")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         assert response.json() == ["member", "admin", "super_admin"]
@@ -62,10 +56,9 @@ def test_list_roles_as_admin(make_user_dict):
 # =============================================================================
 
 
-def test_list_users_as_admin(make_user_dict):
+def test_list_users_as_admin(make_user_dict, override_api_auth):
     """Test listing users as admin."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
 
     mock_response = UserListResponse(
         items=[
@@ -87,16 +80,13 @@ def test_list_users_as_admin(make_user_dict):
         limit=25,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.list_users.return_value = mock_response
 
         client = TestClient(app)
         response = client.get("/api/v1/users")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -109,23 +99,19 @@ def test_list_users_as_admin(make_user_dict):
         assert data["total"] == 1
 
 
-def test_list_users_with_pagination(make_user_dict):
+def test_list_users_with_pagination(make_user_dict, override_api_auth):
     """Test listing users with pagination parameters."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
 
     mock_response = UserListResponse(items=[], total=0, page=1, limit=5)
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.list_users.return_value = mock_response
 
         client = TestClient(app)
         response = client.get("/api/v1/users?page=1&limit=5")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -136,10 +122,9 @@ def test_list_users_with_pagination(make_user_dict):
 # Note: test_list_users_unauthorized is covered in integration tests
 
 
-def test_get_user_as_admin(make_user_dict):
+def test_get_user_as_admin(make_user_dict, override_api_auth):
     """Test getting a user's details as admin."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     target_user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -170,16 +155,13 @@ def test_get_user_as_admin(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_user.return_value = mock_detail
 
         client = TestClient(app)
         response = client.get(f"/api/v1/users/{target_user_id}")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -190,14 +172,12 @@ def test_get_user_as_admin(make_user_dict):
         assert "is_service_user" in data
 
 
-def test_get_user_not_found(make_user_dict):
+def test_get_user_not_found(make_user_dict, override_api_auth):
     """Test getting a non-existent user."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     fake_id = "00000000-0000-0000-0000-000000000000"
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_user.side_effect = NotFoundError(
@@ -207,15 +187,12 @@ def test_get_user_not_found(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.get(f"/api/v1/users/{fake_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 404
 
 
-def test_create_user_as_admin(make_user_dict):
+def test_create_user_as_admin(make_user_dict, override_api_auth):
     """Test creating a new user as admin."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     new_user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -246,8 +223,7 @@ def test_create_user_as_admin(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.create_user.return_value = mock_detail
@@ -263,8 +239,6 @@ def test_create_user_as_admin(make_user_dict):
             },
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 201
         data = response.json()
         assert data["first_name"] == "New"
@@ -275,13 +249,11 @@ def test_create_user_as_admin(make_user_dict):
         assert data["emails"][0]["is_primary"] is True
 
 
-def test_create_user_duplicate_email(make_user_dict):
+def test_create_user_duplicate_email(make_user_dict, override_api_auth):
     """Test creating a user with duplicate email."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.create_user.side_effect = ConflictError(
@@ -299,16 +271,13 @@ def test_create_user_duplicate_email(make_user_dict):
             },
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 409
         assert "already exists" in response.json()["detail"]
 
 
-def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
+def test_create_user_as_super_admin_with_super_admin_role(make_user_dict, override_api_auth):
     """Test that super_admin can create users with super_admin role."""
     super_admin = make_user_dict(role="super_admin")
-    tenant_id = super_admin["tenant_id"]
     new_user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -339,8 +308,7 @@ def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: super_admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(super_admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.create_user.return_value = mock_detail
@@ -356,20 +324,16 @@ def test_create_user_as_super_admin_with_super_admin_role(make_user_dict):
             },
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 201
         data = response.json()
         assert data["role"] == "super_admin"
 
 
-def test_create_user_admin_cannot_create_super_admin(make_user_dict):
+def test_create_user_admin_cannot_create_super_admin(make_user_dict, override_api_auth):
     """Test that regular admin cannot create users with super_admin role."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.create_user.side_effect = ForbiddenError(
@@ -388,16 +352,13 @@ def test_create_user_admin_cannot_create_super_admin(make_user_dict):
             },
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 403
         assert "Only super_admin" in response.json()["detail"]
 
 
-def test_update_user_name(make_user_dict):
+def test_update_user_name(make_user_dict, override_api_auth):
     """Test updating a user's name."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -420,8 +381,7 @@ def test_update_user_name(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.update_user.return_value = mock_detail
@@ -432,22 +392,18 @@ def test_update_user_name(make_user_dict):
             json={"first_name": "Updated", "last_name": "Name"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["first_name"] == "Updated"
         assert data["last_name"] == "Name"
 
 
-def test_update_user_role_as_admin(make_user_dict):
+def test_update_user_role_as_admin(make_user_dict, override_api_auth):
     """Test that promoting to admin requires super_admin (not just admin)."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.update_user.side_effect = ForbiddenError(
@@ -461,20 +417,16 @@ def test_update_user_role_as_admin(make_user_dict):
             json={"role": "admin"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 403
         assert "admin" in response.json()["detail"]
 
 
-def test_update_user_role_to_super_admin_requires_super_admin(make_user_dict):
+def test_update_user_role_to_super_admin_requires_super_admin(make_user_dict, override_api_auth):
     """Test that promoting to super_admin requires super_admin."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.update_user.side_effect = ForbiddenError(
@@ -488,20 +440,16 @@ def test_update_user_role_to_super_admin_requires_super_admin(make_user_dict):
             json={"role": "super_admin"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 403
         assert "super_admin" in response.json()["detail"]
 
 
-def test_delete_user(make_user_dict):
+def test_delete_user(make_user_dict, override_api_auth):
     """Test deleting a user."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.delete_user.return_value = None
@@ -509,20 +457,16 @@ def test_delete_user(make_user_dict):
         client = TestClient(app)
         response = client.delete(f"/api/v1/users/{user_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 204
         mock_svc.delete_user.assert_called_once()
 
 
-def test_delete_user_not_found(make_user_dict):
+def test_delete_user_not_found(make_user_dict, override_api_auth):
     """Test deleting a non-existent user."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     fake_id = "00000000-0000-0000-0000-000000000000"
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.delete_user.side_effect = NotFoundError(
@@ -532,19 +476,15 @@ def test_delete_user_not_found(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.delete(f"/api/v1/users/{fake_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 404
 
 
-def test_delete_service_user_fails(make_user_dict):
+def test_delete_service_user_fails(make_user_dict, override_api_auth):
     """Test that deleting a service user fails."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     service_user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.delete_user.side_effect = ValidationError(
@@ -555,20 +495,16 @@ def test_delete_service_user_fails(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.delete(f"/api/v1/users/{service_user_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
         assert "service user" in response.json()["detail"].lower()
 
 
-def test_delete_self_fails(make_user_dict):
+def test_delete_self_fails(make_user_dict, override_api_auth):
     """Test that deleting yourself fails."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     admin_id = admin["id"]
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.delete_user.side_effect = ValidationError(
@@ -579,8 +515,6 @@ def test_delete_self_fails(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.delete(f"/api/v1/users/{admin_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
         assert "own account" in response.json()["detail"]
 
@@ -590,10 +524,9 @@ def test_delete_self_fails(make_user_dict):
 # =============================================================================
 
 
-def test_list_current_user_emails(make_user_dict):
+def test_list_current_user_emails(make_user_dict, override_api_auth):
     """Test listing current user's emails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
     # Return a list of EmailInfo (router wraps it in EmailList)
     mock_emails = [
@@ -606,8 +539,7 @@ def test_list_current_user_emails(make_user_dict):
         )
     ]
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.list_user_emails.return_value = mock_emails
@@ -615,18 +547,15 @@ def test_list_current_user_emails(make_user_dict):
         client = TestClient(app)
         response = client.get("/api/v1/users/me/emails")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
         assert len(data["items"]) >= 1
 
 
-def test_add_email_to_current_user(make_user_dict):
+def test_add_email_to_current_user(make_user_dict, override_api_auth):
     """Test adding an email to current user's account."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
     mock_email = EmailInfo(
         id=str(uuid4()),
@@ -636,8 +565,7 @@ def test_add_email_to_current_user(make_user_dict):
         created_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with (
         patch("routers.api.v1.users.emails_service") as mock_svc,
@@ -651,8 +579,6 @@ def test_add_email_to_current_user(make_user_dict):
             json={"email": "newemail@test.example.com"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 201
         data = response.json()
         assert data["email"] == "newemail@test.example.com"
@@ -660,13 +586,11 @@ def test_add_email_to_current_user(make_user_dict):
         assert data["verified_at"] is None
 
 
-def test_add_duplicate_email_fails(make_user_dict):
+def test_add_duplicate_email_fails(make_user_dict, override_api_auth):
     """Test adding a duplicate email fails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.add_user_email.side_effect = ConflictError(
@@ -679,19 +603,15 @@ def test_add_duplicate_email_fails(make_user_dict):
             json={"email": "existing@example.com"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 409
 
 
-def test_delete_email_from_current_user(make_user_dict):
+def test_delete_email_from_current_user(make_user_dict, override_api_auth):
     """Test deleting a secondary email from current user's account."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with (
         patch("routers.api.v1.users.emails_service") as mock_svc,
@@ -702,19 +622,15 @@ def test_delete_email_from_current_user(make_user_dict):
         client = TestClient(app)
         response = client.delete(f"/api/v1/users/me/emails/{email_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 204
 
 
-def test_cannot_delete_primary_email(make_user_dict):
+def test_cannot_delete_primary_email(make_user_dict, override_api_auth):
     """Test that deleting primary email fails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.delete_user_email.side_effect = ValidationError(
@@ -725,16 +641,13 @@ def test_cannot_delete_primary_email(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.delete(f"/api/v1/users/me/emails/{email_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
         assert "primary" in response.json()["detail"].lower()
 
 
-def test_set_primary_email(make_user_dict):
+def test_set_primary_email(make_user_dict, override_api_auth):
     """Test setting a verified email as primary."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
     mock_email = EmailInfo(
@@ -745,8 +658,7 @@ def test_set_primary_email(make_user_dict):
         created_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with (
         patch("routers.api.v1.users.emails_service") as mock_svc,
@@ -757,21 +669,17 @@ def test_set_primary_email(make_user_dict):
         client = TestClient(app)
         response = client.post(f"/api/v1/users/me/emails/{email_id}/set-primary")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["is_primary"] is True
 
 
-def test_cannot_set_unverified_email_as_primary(make_user_dict):
+def test_cannot_set_unverified_email_as_primary(make_user_dict, override_api_auth):
     """Test that setting an unverified email as primary fails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.set_primary_email.side_effect = ValidationError(
@@ -782,16 +690,13 @@ def test_cannot_set_unverified_email_as_primary(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/me/emails/{email_id}/set-primary")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
         assert "unverified" in response.json()["detail"].lower()
 
 
-def test_resend_email_verification(make_user_dict):
+def test_resend_email_verification(make_user_dict, override_api_auth):
     """Test resending verification email."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
     mock_email_data = {
         "email_id": email_id,
@@ -799,8 +704,7 @@ def test_resend_email_verification(make_user_dict):
         "verify_nonce": 12345,
     }
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with (
         patch("routers.api.v1.users.emails_service") as mock_svc,
@@ -811,16 +715,13 @@ def test_resend_email_verification(make_user_dict):
         client = TestClient(app)
         response = client.post(f"/api/v1/users/me/emails/{email_id}/resend-verification")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         assert "sent" in response.json()["message"].lower()
 
 
-def test_verify_email(make_user_dict):
+def test_verify_email(make_user_dict, override_api_auth):
     """Test verifying an email address."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
     mock_email = EmailInfo(
@@ -831,8 +732,7 @@ def test_verify_email(make_user_dict):
         created_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.verify_email.return_value = mock_email
@@ -843,21 +743,17 @@ def test_verify_email(make_user_dict):
             json={"nonce": 12345},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["verified_at"] is not None
 
 
-def test_verify_email_invalid_nonce(make_user_dict):
+def test_verify_email_invalid_nonce(make_user_dict, override_api_auth):
     """Test verifying with invalid nonce fails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
     email_id = str(uuid4())
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.verify_email.side_effect = ValidationError(
@@ -871,8 +767,6 @@ def test_verify_email_invalid_nonce(make_user_dict):
             json={"nonce": 99999},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
 
 
@@ -881,10 +775,9 @@ def test_verify_email_invalid_nonce(make_user_dict):
 # =============================================================================
 
 
-def test_admin_list_user_emails(make_user_dict):
+def test_admin_list_user_emails(make_user_dict, override_api_auth):
     """Test admin listing a user's emails."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_emails = [
@@ -897,8 +790,7 @@ def test_admin_list_user_emails(make_user_dict):
         )
     ]
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.list_user_emails.return_value = mock_emails
@@ -906,17 +798,14 @@ def test_admin_list_user_emails(make_user_dict):
         client = TestClient(app)
         response = client.get(f"/api/v1/users/{user_id}/emails")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
 
 
-def test_admin_add_email_to_user(make_user_dict):
+def test_admin_add_email_to_user(make_user_dict, override_api_auth):
     """Test admin adding an email to a user (pre-verified)."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_email = EmailInfo(
@@ -927,8 +816,7 @@ def test_admin_add_email_to_user(make_user_dict):
         created_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.add_user_email.return_value = mock_email
@@ -939,23 +827,19 @@ def test_admin_add_email_to_user(make_user_dict):
             json={"email": "adminadded@test.example.com"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 201
         data = response.json()
         assert data["email"] == "adminadded@test.example.com"
         assert data["verified_at"] is not None
 
 
-def test_admin_delete_user_email(make_user_dict):
+def test_admin_delete_user_email(make_user_dict, override_api_auth):
     """Test admin deleting a user's secondary email."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
     email_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.delete_user_email.return_value = None
@@ -963,15 +847,12 @@ def test_admin_delete_user_email(make_user_dict):
         client = TestClient(app)
         response = client.delete(f"/api/v1/users/{user_id}/emails/{email_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 204
 
 
-def test_admin_set_user_primary_email(make_user_dict):
+def test_admin_set_user_primary_email(make_user_dict, override_api_auth):
     """Test admin setting a user's primary email."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
     email_id = str(uuid4())
 
@@ -983,16 +864,13 @@ def test_admin_set_user_primary_email(make_user_dict):
         created_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
         mock_svc.set_primary_email.return_value = mock_email
 
         client = TestClient(app)
         response = client.post(f"/api/v1/users/{user_id}/emails/{email_id}/set-primary")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1004,10 +882,9 @@ def test_admin_set_user_primary_email(make_user_dict):
 # =============================================================================
 
 
-def test_get_mfa_status(make_user_dict):
+def test_get_mfa_status(make_user_dict, override_api_auth):
     """Test getting current user's MFA status."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
     mock_status = MFAStatus(
         enabled=False,
@@ -1015,16 +892,13 @@ def test_get_mfa_status(make_user_dict):
         has_backup_codes=False,
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.get_mfa_status.return_value = mock_status
 
         client = TestClient(app)
         response = client.get("/api/v1/users/me/mfa")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1033,26 +907,22 @@ def test_get_mfa_status(make_user_dict):
         assert "has_backup_codes" in data
 
 
-def test_setup_totp(make_user_dict):
+def test_setup_totp(make_user_dict, override_api_auth):
     """Test initiating TOTP setup."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
     mock_setup = TOTPSetupResponse(
         secret="TESTSECRET123456",
         uri="otpauth://totp/Test:user@example.com?secret=TESTSECRET123456&issuer=Test",
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.setup_totp.return_value = mock_setup
 
         client = TestClient(app)
         response = client.post("/api/v1/users/me/mfa/totp/setup")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1061,13 +931,11 @@ def test_setup_totp(make_user_dict):
         assert "otpauth://" in data["uri"]
 
 
-def test_verify_totp_invalid_code(make_user_dict):
+def test_verify_totp_invalid_code(make_user_dict, override_api_auth):
     """Test verifying TOTP with invalid code fails."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.verify_totp_and_enable.side_effect = ValidationError(
@@ -1081,22 +949,18 @@ def test_verify_totp_invalid_code(make_user_dict):
             json={"code": "000000"},
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
 
 
-def test_enable_email_mfa(make_user_dict):
+def test_enable_email_mfa(make_user_dict, override_api_auth):
     """Test enabling email MFA."""
     user = make_user_dict(role="member")
-    tenant_id = user["tenant_id"]
 
     # Service returns tuple: (response, notification_info)
     # notification_info is None when MFA is enabled directly
     mock_response = MFAStatus(enabled=True, method="email", has_backup_codes=False)
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.enable_email_mfa.return_value = (mock_response, None)
@@ -1104,20 +968,16 @@ def test_enable_email_mfa(make_user_dict):
         client = TestClient(app)
         response = client.post("/api/v1/users/me/mfa/email/enable")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
 
 
-def test_disable_mfa(make_user_dict):
+def test_disable_mfa(make_user_dict, override_api_auth):
     """Test disabling MFA."""
     user = make_user_dict(role="member", mfa_enabled=True, mfa_method="email")
-    tenant_id = user["tenant_id"]
 
     mock_status = MFAStatus(enabled=False, method=None, has_backup_codes=False)
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.disable_mfa.return_value = mock_status
@@ -1125,30 +985,24 @@ def test_disable_mfa(make_user_dict):
         client = TestClient(app)
         response = client.post("/api/v1/users/me/mfa/disable")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is False
 
 
-def test_get_backup_codes_status(make_user_dict):
+def test_get_backup_codes_status(make_user_dict, override_api_auth):
     """Test getting backup codes status."""
     user = make_user_dict(role="member", mfa_enabled=True)
-    tenant_id = user["tenant_id"]
 
     mock_status = BackupCodesStatusResponse(total=5, used=0, remaining=5)
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.get_backup_codes_status.return_value = mock_status
 
         client = TestClient(app)
         response = client.get("/api/v1/users/me/mfa/backup-codes")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1157,10 +1011,9 @@ def test_get_backup_codes_status(make_user_dict):
         assert data["remaining"] == 5
 
 
-def test_regenerate_backup_codes(make_user_dict):
+def test_regenerate_backup_codes(make_user_dict, override_api_auth):
     """Test regenerating backup codes."""
     user = make_user_dict(role="member", mfa_enabled=True, mfa_method="email")
-    tenant_id = user["tenant_id"]
 
     mock_codes = BackupCodesResponse(
         codes=[
@@ -1178,8 +1031,7 @@ def test_regenerate_backup_codes(make_user_dict):
         count=10,
     )
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.regenerate_backup_codes.return_value = mock_codes
@@ -1187,21 +1039,17 @@ def test_regenerate_backup_codes(make_user_dict):
         client = TestClient(app)
         response = client.post("/api/v1/users/me/mfa/backup-codes/regenerate")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert "codes" in data
         assert len(data["codes"]) == 10
 
 
-def test_regenerate_backup_codes_requires_mfa(make_user_dict):
+def test_regenerate_backup_codes_requires_mfa(make_user_dict, override_api_auth):
     """Test that regenerating backup codes requires MFA enabled."""
     user = make_user_dict(role="member", mfa_enabled=False)
-    tenant_id = user["tenant_id"]
 
-    app.dependency_overrides[get_current_user_api] = lambda: user
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(user, level="user")
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.regenerate_backup_codes.side_effect = ValidationError(
@@ -1212,8 +1060,6 @@ def test_regenerate_backup_codes_requires_mfa(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post("/api/v1/users/me/mfa/backup-codes/regenerate")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
 
 
@@ -1222,16 +1068,14 @@ def test_regenerate_backup_codes_requires_mfa(make_user_dict):
 # =============================================================================
 
 
-def test_admin_reset_user_mfa(make_user_dict):
+def test_admin_reset_user_mfa(make_user_dict, override_api_auth):
     """Test admin resetting a user's MFA."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_status = MFAStatus(enabled=False, method=None, has_backup_codes=False)
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.reset_user_mfa.return_value = mock_status
@@ -1239,21 +1083,17 @@ def test_admin_reset_user_mfa(make_user_dict):
         client = TestClient(app)
         response = client.post(f"/api/v1/users/{user_id}/mfa/reset")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["enabled"] is False
 
 
-def test_reset_user_mfa_not_found_api(make_user_dict):
+def test_reset_user_mfa_not_found_api(make_user_dict, override_api_auth):
     """Test resetting MFA for non-existent user returns 404."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     fake_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.reset_user_mfa.side_effect = NotFoundError(
@@ -1263,19 +1103,15 @@ def test_reset_user_mfa_not_found_api(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/{fake_id}/mfa/reset")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 404
 
 
-def test_reset_user_mfa_forbidden_api(make_user_dict):
+def test_reset_user_mfa_forbidden_api(make_user_dict, override_api_auth):
     """Test resetting MFA when service raises ForbiddenError returns 403."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.mfa_service") as mock_svc:
         mock_svc.reset_user_mfa.side_effect = ForbiddenError(
@@ -1285,8 +1121,6 @@ def test_reset_user_mfa_forbidden_api(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/{user_id}/mfa/reset")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 403
 
 
@@ -1295,10 +1129,9 @@ def test_reset_user_mfa_forbidden_api(make_user_dict):
 # =============================================================================
 
 
-def test_inactivate_user_as_admin(make_user_dict):
+def test_inactivate_user_as_admin(make_user_dict, override_api_auth):
     """Test admin inactivating a user."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -1321,16 +1154,13 @@ def test_inactivate_user_as_admin(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.inactivate_user.return_value = mock_detail
 
         client = TestClient(app)
         response = client.post(f"/api/v1/users/{user_id}/inactivate")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1341,14 +1171,12 @@ def test_inactivate_user_as_admin(make_user_dict):
 # Note: test_inactivate_user_as_member_forbidden covered in integration tests
 
 
-def test_inactivate_user_not_found(make_user_dict):
+def test_inactivate_user_not_found(make_user_dict, override_api_auth):
     """Test inactivating non-existent user returns 404."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     fake_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.inactivate_user.side_effect = NotFoundError(
@@ -1358,15 +1186,12 @@ def test_inactivate_user_not_found(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/{fake_id}/inactivate")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 404
 
 
-def test_reactivate_user_as_admin(make_user_dict):
+def test_reactivate_user_as_admin(make_user_dict, override_api_auth):
     """Test admin reactivating a user."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -1389,8 +1214,7 @@ def test_reactivate_user_as_admin(make_user_dict):
         anonymized_at=None,
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.reactivate_user.return_value = mock_detail
@@ -1398,21 +1222,17 @@ def test_reactivate_user_as_admin(make_user_dict):
         client = TestClient(app)
         response = client.post(f"/api/v1/users/{user_id}/reactivate")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert data["is_inactivated"] is False
 
 
-def test_reactivate_user_not_inactivated(make_user_dict):
+def test_reactivate_user_not_inactivated(make_user_dict, override_api_auth):
     """Test reactivating a user that isn't inactivated returns 400."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     user_id = str(uuid4())
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.reactivate_user.side_effect = ValidationError(
@@ -1423,8 +1243,6 @@ def test_reactivate_user_not_inactivated(make_user_dict):
         client = TestClient(app, raise_server_exceptions=False)
         response = client.post(f"/api/v1/users/{user_id}/reactivate")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
         assert "not inactivated" in response.json()["detail"]
 
@@ -1432,10 +1250,9 @@ def test_reactivate_user_not_inactivated(make_user_dict):
 # Note: test_reactivate_user_as_member_forbidden covered in integration tests
 
 
-def test_anonymize_user_as_super_admin(make_user_dict):
+def test_anonymize_user_as_super_admin(make_user_dict, override_api_auth):
     """Test super_admin anonymizing a user."""
     super_admin = make_user_dict(role="super_admin")
-    tenant_id = super_admin["tenant_id"]
     user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -1458,16 +1275,13 @@ def test_anonymize_user_as_super_admin(make_user_dict):
         anonymized_at=datetime.now(UTC),
     )
 
-    app.dependency_overrides[require_super_admin_api] = lambda: super_admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(super_admin, level="super_admin")
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.anonymize_user.return_value = mock_detail
 
         client = TestClient(app)
         response = client.post(f"/api/v1/users/{user_id}/anonymize")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()
@@ -1485,10 +1299,9 @@ def test_anonymize_user_as_super_admin(make_user_dict):
 # =============================================================================
 
 
-def test_get_user_includes_has_password_true(make_user_dict):
+def test_get_user_includes_has_password_true(make_user_dict, override_api_auth):
     """Test that GET /api/v1/users/{id} returns has_password=True for users with passwords."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     target_user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -1520,8 +1333,7 @@ def test_get_user_includes_has_password_true(make_user_dict):
         has_password=True,  # User has a password set
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_user.return_value = mock_detail
@@ -1529,18 +1341,15 @@ def test_get_user_includes_has_password_true(make_user_dict):
         client = TestClient(app)
         response = client.get(f"/api/v1/users/{target_user_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert "has_password" in data
         assert data["has_password"] is True
 
 
-def test_get_user_includes_has_password_false(make_user_dict):
+def test_get_user_includes_has_password_false(make_user_dict, override_api_auth):
     """Test that GET /api/v1/users/{id} returns has_password=False for passwordless users."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     target_user_id = str(uuid4())
 
     mock_detail = UserDetail(
@@ -1572,8 +1381,7 @@ def test_get_user_includes_has_password_false(make_user_dict):
         has_password=False,  # JIT-provisioned user without password
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_user.return_value = mock_detail
@@ -1581,18 +1389,15 @@ def test_get_user_includes_has_password_false(make_user_dict):
         client = TestClient(app)
         response = client.get(f"/api/v1/users/{target_user_id}")
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 200
         data = response.json()
         assert "has_password" in data
         assert data["has_password"] is False
 
 
-def test_get_user_includes_saml_idp_info(make_user_dict):
+def test_get_user_includes_saml_idp_info(make_user_dict, override_api_auth):
     """Test that GET /api/v1/users/{id} returns SAML IdP assignment info."""
     admin = make_user_dict(role="admin")
-    tenant_id = admin["tenant_id"]
     target_user_id = str(uuid4())
     idp_id = str(uuid4())
 
@@ -1627,16 +1432,13 @@ def test_get_user_includes_saml_idp_info(make_user_dict):
         saml_idp_name="Okta Corporate",
     )
 
-    app.dependency_overrides[require_admin_api] = lambda: admin
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+    override_api_auth(admin)
 
     with patch("routers.api.v1.users.users_service") as mock_svc:
         mock_svc.get_user.return_value = mock_detail
 
         client = TestClient(app)
         response = client.get(f"/api/v1/users/{target_user_id}")
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 200
         data = response.json()

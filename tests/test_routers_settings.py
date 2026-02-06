@@ -6,13 +6,9 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-def test_settings_index_redirects_to_first_child(test_admin_user):
+def test_settings_index_redirects_to_first_child(test_admin_user, override_auth):
     """Test settings index redirects to first accessible child page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.settings.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/settings/privileged-domains"
@@ -20,22 +16,17 @@ def test_settings_index_redirects_to_first_child(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/settings/", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/settings/privileged-domains"
 
 
-def test_privileged_domains_list(test_admin_user):
+def test_privileged_domains_list(test_admin_user, override_auth):
     """Test privileged domains page displays list."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     # Mock at database level - service layer will process the data
     with patch("database.settings.list_privileged_domains") as mock_list:
@@ -63,21 +54,15 @@ def test_privileged_domains_list(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/settings/privileged-domains")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
-                mock_list.assert_called_once_with(test_admin_user["tenant_id"])
+                mock_list.assert_called_once_with(str(test_admin_user["tenant_id"]))
 
 
-def test_privileged_domains_with_error_param(test_admin_user):
+def test_privileged_domains_with_error_param(test_admin_user, override_auth):
     """Test privileged domains page with error parameter."""
-
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.list_privileged_domains") as mock_list:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -93,20 +78,14 @@ def test_privileged_domains_with_error_param(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/settings/privileged-domains?error=invalid_domain")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
 
 
-def test_add_privileged_domain_success(test_admin_user):
+def test_add_privileged_domain_success(test_admin_user, override_auth):
     """Test adding a valid privileged domain."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.privileged_domain_exists") as mock_exists:
         with patch("database.settings.add_privileged_domain") as mock_add:
@@ -130,22 +109,16 @@ def test_add_privileged_domain_success(test_admin_user):
                     follow_redirects=False,
                 )
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 303
                 assert response.headers["location"] == "/admin/settings/privileged-domains"
                 mock_add.assert_called_once()
 
 
-def test_add_privileged_domain_with_at_prefix(test_admin_user):
+def test_add_privileged_domain_with_at_prefix(test_admin_user, override_auth):
     """Test adding domain with @ prefix (should be stripped)."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.privileged_domain_exists") as mock_exists:
         with patch("database.settings.add_privileged_domain") as mock_add:
@@ -168,8 +141,6 @@ def test_add_privileged_domain_with_at_prefix(test_admin_user):
                     follow_redirects=False,
                 )
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 303
                 # @ should be stripped - check add was called with example.com
                 mock_add.assert_called_once()
@@ -177,14 +148,11 @@ def test_add_privileged_domain_with_at_prefix(test_admin_user):
                 assert call_kwargs["domain"] == "example.com"
 
 
-def test_add_privileged_domain_invalid_shows_error_page(test_admin_user):
+def test_add_privileged_domain_invalid_shows_error_page(test_admin_user, override_auth):
     """Test adding invalid domain shows error page (service layer behavior)."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     # Mock the error page template
     with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
@@ -200,21 +168,16 @@ def test_add_privileged_domain_invalid_shows_error_page(test_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         # Service layer returns error pages for validation errors
         assert response.status_code == 400
         mock_template.assert_called_once()
 
 
-def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user):
+def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user, override_auth):
     """Test adding domain without dot shows error page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
         mock_template.return_value = HTMLResponse(
@@ -228,21 +191,16 @@ def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         # Service layer returns error page for validation errors
         assert response.status_code == 400
         mock_template.assert_called_once()
 
 
-def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user):
+def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user, override_auth):
     """Test adding duplicate domain shows error page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.privileged_domain_exists") as mock_exists:
         with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
@@ -258,22 +216,16 @@ def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             # Service layer returns error page for conflict errors
             assert response.status_code == 409
             mock_template.assert_called_once()
 
 
-def test_delete_privileged_domain(test_admin_user):
+def test_delete_privileged_domain(test_admin_user, override_auth):
     """Test deleting a privileged domain."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.list_privileged_domains") as mock_list:
         with patch("database.settings.delete_privileged_domain") as mock_delete:
@@ -293,21 +245,16 @@ def test_delete_privileged_domain(test_admin_user):
                 "/admin/settings/privileged-domains/delete/domain-id-123", follow_redirects=False
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert response.headers["location"] == "/admin/settings/privileged-domains"
             mock_delete.assert_called_once()
 
 
-def test_delete_privileged_domain_not_found_shows_error(test_admin_user):
+def test_delete_privileged_domain_not_found_shows_error(test_admin_user, override_auth):
     """Test deleting non-existent domain shows error page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.list_privileged_domains") as mock_list:
         with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
@@ -321,28 +268,15 @@ def test_delete_privileged_domain_not_found_shows_error(test_admin_user):
                 "/admin/settings/privileged-domains/delete/nonexistent-id", follow_redirects=False
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 404
             mock_template.assert_called_once()
 
 
-def test_tenant_security_page(test_super_admin_user):
+def test_tenant_security_page(test_super_admin_user, override_auth):
     """Test tenant security settings page."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("database.security.get_security_settings") as mock_get:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -359,28 +293,15 @@ def test_tenant_security_page(test_super_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/settings/security")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
-                mock_get.assert_called_once_with(test_super_admin_user["tenant_id"])
+                mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]))
 
 
-def test_tenant_security_page_no_settings(test_super_admin_user):
+def test_tenant_security_page_no_settings(test_super_admin_user, override_auth):
     """Test tenant security page when no settings exist (defaults)."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("database.security.get_security_settings") as mock_get:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -392,26 +313,12 @@ def test_tenant_security_page_no_settings(test_super_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/settings/security")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
 
 
-def test_update_tenant_security(test_super_admin_user):
+def test_update_tenant_security(test_super_admin_user, override_auth):
     """Test updating tenant security settings."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("database.security.get_security_settings") as mock_get:
         with patch("database.security.update_security_settings") as mock_update:
@@ -429,28 +336,14 @@ def test_update_tenant_security(test_super_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert "success=1" in response.headers["location"]
             mock_update.assert_called_once()
 
 
-def test_update_tenant_security_no_timeout(test_super_admin_user):
+def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth):
     """Test updating security with no timeout (indefinite)."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("database.security.get_security_settings") as mock_get:
         with patch("database.security.update_security_settings") as mock_update:
@@ -468,8 +361,6 @@ def test_update_tenant_security_no_timeout(test_super_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             # timeout_seconds should be None
             mock_update.assert_called_once()
@@ -477,22 +368,13 @@ def test_update_tenant_security_no_timeout(test_super_admin_user):
             assert call_kwargs["timeout_seconds"] is None
 
 
-def test_update_tenant_security_invalid_timeout_shows_error_page(test_super_admin_user):
+def test_update_tenant_security_invalid_timeout_shows_error_page(
+    test_super_admin_user, override_auth
+):
     """Test updating security with invalid timeout shows error page."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
         mock_template.return_value = HTMLResponse(
@@ -510,8 +392,6 @@ def test_update_tenant_security_invalid_timeout_shows_error_page(test_super_admi
             },
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         # Route validates timeout and returns error page
         assert response.status_code == 400
@@ -547,21 +427,9 @@ def test_tenant_security_form_action_url_is_correct():
 # =============================================================================
 
 
-def test_bind_domain_to_idp_success(test_super_admin_user):
+def test_bind_domain_to_idp_success(test_super_admin_user, override_auth):
     """Test binding a domain to an IdP redirects with success."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
         client = TestClient(app)
@@ -570,8 +438,6 @@ def test_bind_domain_to_idp_success(test_super_admin_user):
             data={"idp_id": "idp-456"},
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert (
@@ -584,23 +450,12 @@ def test_bind_domain_to_idp_success(test_super_admin_user):
         assert call_kwargs["idp_id"] == "idp-456"
 
 
-def test_bind_domain_to_idp_service_error(test_super_admin_user):
+def test_bind_domain_to_idp_service_error(test_super_admin_user, override_auth):
     """Test binding domain with service error renders error page."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
         with patch("routers.settings.render_error_page") as mock_error:
@@ -614,27 +469,13 @@ def test_bind_domain_to_idp_service_error(test_super_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 500
             mock_error.assert_called_once()
 
 
-def test_unbind_domain_from_idp_success(test_super_admin_user):
+def test_unbind_domain_from_idp_success(test_super_admin_user, override_auth):
     """Test unbinding a domain from IdP redirects with success."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
         client = TestClient(app)
@@ -642,8 +483,6 @@ def test_unbind_domain_from_idp_success(test_super_admin_user):
             "/admin/settings/privileged-domains/domain-123/unbind",
             follow_redirects=False,
         )
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert (
@@ -655,23 +494,12 @@ def test_unbind_domain_from_idp_success(test_super_admin_user):
         assert call_kwargs["domain_id"] == "domain-123"
 
 
-def test_unbind_domain_from_idp_service_error(test_super_admin_user):
+def test_unbind_domain_from_idp_service_error(test_super_admin_user, override_auth):
     """Test unbinding domain with service error renders error page."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
         with patch("routers.settings.render_error_page") as mock_error:
@@ -684,8 +512,6 @@ def test_unbind_domain_from_idp_service_error(test_super_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 500
             mock_error.assert_called_once()
 
@@ -695,14 +521,12 @@ def test_unbind_domain_from_idp_service_error(test_super_admin_user):
 # =============================================================================
 
 
-def test_settings_index_fallback_to_dashboard():
+def test_settings_index_fallback_to_dashboard(override_auth):
     """Test settings index falls back to dashboard when no children are accessible.
 
     This tests the fallback path (line 47) when get_first_accessible_child returns None.
     We need a user with a role that has NO accessible admin children.
     """
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
     # Create a mock user with a role that has no accessible admin pages
     mock_user = {
         "id": "test-id",
@@ -712,16 +536,12 @@ def test_settings_index_fallback_to_dashboard():
         "last_name": "User",
     }
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: mock_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: mock_user
-    app.dependency_overrides[get_current_user] = lambda: mock_user
+    override_auth(mock_user, level="admin")
 
     # Mock the function where it's imported into the module
     with patch("routers.settings.get_first_accessible_child", return_value=None):
         client = TestClient(app)
         response = client.get("/admin/settings/", follow_redirects=False)
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
@@ -732,21 +552,11 @@ def test_settings_index_fallback_to_dashboard():
 # =============================================================================
 
 
-def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user):
+def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user, override_auth):
     """Test super_admin user fetches IdPs for domain binding dropdown."""
-
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="admin")
 
     with patch("database.settings.list_privileged_domains") as mock_domains:
         with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
@@ -758,25 +568,16 @@ def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/settings/privileged-domains")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 # Verify IdPs were fetched for super_admin
                 mock_idps.assert_called_once()
 
 
-def test_privileged_domains_regular_admin_no_idps(test_admin_user):
+def test_privileged_domains_regular_admin_no_idps(test_admin_user, override_auth):
     """Test regular admin user does not fetch IdPs (not super_admin)."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_admin_user["tenant_id"]
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("database.settings.list_privileged_domains") as mock_domains:
         with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
@@ -786,8 +587,6 @@ def test_privileged_domains_regular_admin_no_idps(test_admin_user):
 
                 client = TestClient(app)
                 response = client.get("/admin/settings/privileged-domains")
-
-                app.dependency_overrides.clear()
 
                 assert response.status_code == 200
                 # Verify IdPs were NOT fetched for regular admin
@@ -799,23 +598,12 @@ def test_privileged_domains_regular_admin_no_idps(test_admin_user):
 # =============================================================================
 
 
-def test_admin_security_service_error(test_super_admin_user):
+def test_admin_security_service_error(test_super_admin_user, override_auth):
     """Test security settings page shows error when service fails."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.settings_service.get_security_settings") as mock_get:
         with patch("routers.settings.render_error_page") as mock_error:
@@ -825,28 +613,15 @@ def test_admin_security_service_error(test_super_admin_user):
             client = TestClient(app)
             response = client.get("/admin/settings/security")
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 500
             mock_error.assert_called_once()
 
 
-def test_update_security_non_numeric_timeout_error(test_super_admin_user):
+def test_update_security_non_numeric_timeout_error(test_super_admin_user, override_auth):
     """Test updating security with non-numeric timeout shows error."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
         mock_template.return_value = HTMLResponse(content="Error", status_code=400)
@@ -863,27 +638,14 @@ def test_update_security_non_numeric_timeout_error(test_super_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
 
 
-def test_update_security_non_numeric_inactivity_error(test_super_admin_user):
+def test_update_security_non_numeric_inactivity_error(test_super_admin_user, override_auth):
     """Test updating security with non-numeric inactivity threshold shows error."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
         mock_template.return_value = HTMLResponse(content="Error", status_code=400)
@@ -901,28 +663,15 @@ def test_update_security_non_numeric_inactivity_error(test_super_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 400
 
 
-def test_update_security_service_error(test_super_admin_user):
+def test_update_security_service_error(test_super_admin_user, override_auth):
     """Test updating security with service error shows error page."""
-    from dependencies import (
-        get_current_user,
-        get_tenant_id_from_request,
-        require_admin,
-        require_super_admin,
-    )
     from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: test_super_admin_user[
-        "tenant_id"
-    ]
-    app.dependency_overrides[require_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[require_super_admin] = lambda: test_super_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_super_admin_user
+    override_auth(test_super_admin_user, level="super_admin")
 
     with patch("routers.settings.settings_service.update_security_settings") as mock_update:
         with patch("routers.settings.render_error_page") as mock_error:
@@ -940,8 +689,6 @@ def test_update_security_service_error(test_super_admin_user):
                 },
                 follow_redirects=False,
             )
-
-            app.dependency_overrides.clear()
 
             assert response.status_code == 500
             mock_error.assert_called_once()

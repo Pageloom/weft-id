@@ -272,9 +272,7 @@ def test_is_group_member(test_tenant, test_user):
     )
 
     # Now is a member
-    assert database.groups.is_group_member(
-        test_tenant["id"], result["id"], str(test_user["id"])
-    )
+    assert database.groups.is_group_member(test_tenant["id"], result["id"], str(test_user["id"]))
 
 
 def test_remove_group_member(test_tenant, test_user):
@@ -513,9 +511,7 @@ def test_would_create_cycle(test_tenant):
     )
 
     # C -> A would create a cycle
-    assert database.groups.would_create_cycle(
-        test_tenant["id"], group_c["id"], group_a["id"]
-    )
+    assert database.groups.would_create_cycle(test_tenant["id"], group_c["id"], group_a["id"])
 
     # A -> D (new group) would not create a cycle
     group_d = database.groups.create_group(
@@ -523,9 +519,7 @@ def test_would_create_cycle(test_tenant):
         tenant_id_value=str(test_tenant["id"]),
         name="Cycle D",
     )
-    assert not database.groups.would_create_cycle(
-        test_tenant["id"], group_a["id"], group_d["id"]
-    )
+    assert not database.groups.would_create_cycle(test_tenant["id"], group_a["id"], group_d["id"])
 
 
 def test_relationship_exists(test_tenant):
@@ -543,17 +537,13 @@ def test_relationship_exists(test_tenant):
         name="Exists Child",
     )
 
-    assert not database.groups.relationship_exists(
-        test_tenant["id"], parent["id"], child["id"]
-    )
+    assert not database.groups.relationship_exists(test_tenant["id"], parent["id"], child["id"])
 
     database.groups.add_group_relationship(
         test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
     )
 
-    assert database.groups.relationship_exists(
-        test_tenant["id"], parent["id"], child["id"]
-    )
+    assert database.groups.relationship_exists(test_tenant["id"], parent["id"], child["id"])
 
 
 def test_remove_group_relationship(test_tenant):
@@ -575,14 +565,10 @@ def test_remove_group_relationship(test_tenant):
         test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
     )
 
-    rows = database.groups.remove_group_relationship(
-        test_tenant["id"], parent["id"], child["id"]
-    )
+    rows = database.groups.remove_group_relationship(test_tenant["id"], parent["id"], child["id"])
 
     assert rows == 1
-    assert not database.groups.relationship_exists(
-        test_tenant["id"], parent["id"], child["id"]
-    )
+    assert not database.groups.relationship_exists(test_tenant["id"], parent["id"], child["id"])
 
 
 def test_get_group_parents(test_tenant):
@@ -839,9 +825,7 @@ def test_dag_allows_shared_descendants(test_tenant):
     )
 
     # A -> B is allowed (B already has C as child)
-    assert not database.groups.would_create_cycle(
-        test_tenant["id"], group_a["id"], group_b["id"]
-    )
+    assert not database.groups.would_create_cycle(test_tenant["id"], group_a["id"], group_b["id"])
 
     database.groups.add_group_relationship(
         test_tenant["id"], str(test_tenant["id"]), group_a["id"], group_b["id"]
@@ -881,9 +865,7 @@ def test_get_groups_for_child_select(test_tenant):
         test_tenant["id"], str(test_tenant["id"]), parent["id"], existing_child["id"]
     )
 
-    available = database.groups.get_groups_for_child_select(
-        test_tenant["id"], parent["id"]
-    )
+    available = database.groups.get_groups_for_child_select(test_tenant["id"], parent["id"])
 
     names = [g["name"] for g in available]
     # Should not include parent itself or existing child
@@ -917,9 +899,7 @@ def test_get_groups_for_parent_select(test_tenant):
         test_tenant["id"], str(test_tenant["id"]), existing_parent["id"], child["id"]
     )
 
-    available = database.groups.get_groups_for_parent_select(
-        test_tenant["id"], child["id"]
-    )
+    available = database.groups.get_groups_for_parent_select(test_tenant["id"], child["id"])
 
     names = [g["name"] for g in available]
     # Should not include child itself or existing parent

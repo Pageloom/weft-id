@@ -6,52 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [REFACTOR] File Structure: Large Router Files
-
-**Found in:** `app/routers/`, `app/routers/api/v1/`
-**Impact:** High (Claude Traversability)
-**Category:** File Structure
-
-**Description:**
-Four router modules exceed 500 lines:
-- ~~`app/routers/saml.py` (1241 lines)~~ ✅ Refactored (2026-02-02)
-- ~~`app/routers/auth.py` (987 lines)~~ ✅ Refactored (2026-02-06)
-- `app/routers/users.py` (747 lines)
-- ~~`app/routers/api/v1/users.py` (1025 lines)~~ ✅ Refactored (2026-02-06)
-
-**Progress:**
-- **saml.py**: Split into `app/routers/saml/` package with 9 focused modules:
-  - `authentication.py` (core auth flow: metadata, login, ACS)
-  - `logout.py` (SLO endpoints)
-  - `selection.py` (IdP selection page)
-  - `admin/providers.py` (IdP CRUD)
-  - `admin/debug.py` (debugging and testing)
-  - `admin/domains.py` (domain binding)
-  - `_helpers.py` (shared utilities)
-  - `__init__.py` files for backwards compatibility
-- **auth.py**: Split into `app/routers/auth/` package with 6 focused modules:
-  - `login.py` (login page, password login, email verification flow)
-  - `logout.py` (logout with SAML SLO)
-  - `onboarding.py` (email verification link, set-password)
-  - `reactivation.py` (super admin self-reactivation, reactivation requests)
-  - `dashboard.py` (dashboard endpoint)
-  - `_helpers.py` (shared utilities: `_get_client_ip`, `_route_after_email_verification`)
-- **api/v1/users.py**: Split into `app/routers/api/v1/users/` package with 4 focused modules:
-  - `profile.py` (/roles, /me GET/PATCH)
-  - `emails.py` (/me/emails/*, /{user_id}/emails/*)
-  - `mfa.py` (/me/mfa/*, /{user_id}/mfa/reset)
-  - `admin.py` (user CRUD, state management: inactivate/reactivate/anonymize)
-
-**Why It Matters:**
-Routers that are too large contain many unrelated endpoints in one file. When Claude needs to modify one endpoint, it must load many irrelevant endpoints.
-
-**Remaining Refactoring:**
-- `app/routers/users.py` → split by functionality
-
-**Files Affected:** 1 remaining router module plus any imports
-
----
-
 ## [REFACTOR] Architecture: Event Logging in Routers
 
 **Found in:** `app/routers/auth/login.py`, `app/routers/auth/logout.py`, `app/routers/auth/onboarding.py`, `app/routers/mfa.py`
@@ -76,24 +30,6 @@ Option 1: Accept as special case for auth flows (login/logout are fundamentally 
 Option 2: Create a thin auth service that handles session creation and logging
 
 **Files Affected:** `app/routers/auth/login.py`, `app/routers/auth/logout.py`, `app/routers/auth/onboarding.py`, `app/routers/mfa.py`
-
----
-
----
-
-## ~~[TEST] Nested Patch Pyramids: test_utils_storage.py~~ ✅ Resolved (2026-02-06)
-
----
-
-## ~~[TEST] Nested Patch Pyramids: test_routers_account.py~~ ✅ Resolved (2026-02-06)
-
----
-
-## ~~[TEST] Nested Patch Pyramids: test_routers_integrations.py~~ ✅ Resolved (2026-02-06)
-
----
-
-## ~~[TEST] Nested Patch Pyramids: test_routers_settings.py~~ ✅ Resolved (2026-02-06)
 
 ---
 
@@ -266,27 +202,11 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | 1 file structure (3/4 routers done) |
-| Medium | 7 | 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
+| High | 0 | - |
+| Medium | 3 | 1 test patch pyramids (6 files), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
-
-## Test Code Refactoring Priority
-
-Patch pyramid refactoring should proceed in this order:
-
-| Priority | File | Patch Count | Notes |
-|----------|------|-------------|-------|
-| ~~1~~ | ~~`test_routers_users.py`~~ | ~~218~~ | ✅ Completed 2026-02-02 |
-| ~~1~~ | ~~`test_routers_auth.py`~~ | ~~104~~ | ✅ Completed 2026-02-06 (moved to archive) |
-| ~~2~~ | ~~`test_utils_storage.py`~~ | ~~67~~ | ✅ Completed 2026-02-06 |
-| ~~3~~ | ~~`test_routers_account.py`~~ | ~~59~~ | ✅ Completed 2026-02-06 |
-| ~~4~~ | ~~`test_routers_integrations.py`~~ | ~~59~~ | ✅ Completed 2026-02-06 |
-| ~~5~~ | ~~`test_routers_settings.py`~~ | ~~51~~ | ✅ Completed 2026-02-06 |
-| 6 | Remaining 6 files | 20-45 each | Lower priority |
-
-**Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02), `tests/test_routers_auth.py` (2026-02-06)
 
 **Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
-**Last router refactor:** 2026-02-06 (api/v1/users.py split into focused modules)
+**Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

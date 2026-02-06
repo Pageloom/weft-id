@@ -358,4 +358,5 @@ All checks must pass before committing.
 - Dependency vulnerabilities found by `/deps` are logged in `ISSUES.md`
 - Refactoring opportunities found by `/refactor` are logged in `ISSUES.md`
 - `/dev` checks ISSUES.md first before BACKLOG.md (bugs before features)
+- **When resolved:** Move issues from `ISSUES.md` to `ISSUES_ARCHIVE.md` (don't keep resolved items in ISSUES.md)
 - Goal: keep `ISSUES.md` empty

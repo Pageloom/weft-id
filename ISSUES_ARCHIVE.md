@@ -4,6 +4,31 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] File Structure: Large Router Files (All 4 Routers)
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** High (Claude Traversability)
+
+**Original Description:**
+Four router modules exceeded 500 lines:
+- `app/routers/saml.py` (1241 lines)
+- `app/routers/auth.py` (987 lines)
+- `app/routers/users.py` (747 lines)
+- `app/routers/api/v1/users.py` (1025 lines)
+
+**Resolution:**
+All four routers split into focused package modules:
+
+- **saml.py** → `app/routers/saml/` (9 modules): authentication.py, logout.py, selection.py, admin/providers.py, admin/debug.py, admin/domains.py, _helpers.py
+- **auth.py** → `app/routers/auth/` (6 modules): login.py, logout.py, onboarding.py, reactivation.py, dashboard.py, _helpers.py
+- **api/v1/users.py** → `app/routers/api/v1/users/` (4 modules): profile.py, emails.py, mfa.py, admin.py
+- **users.py** → `app/routers/users/` (5 modules): listing.py, creation.py, detail.py, emails.py, lifecycle.py
+
+**Verification:** All 2174 tests pass. Test mock paths updated to target specific sub-modules.
+
+---
+
 ## [REFACTOR] File Structure: Split app/routers/api/v1/users.py
 
 **Status:** Resolved (2026-02-06)

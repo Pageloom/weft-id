@@ -25,7 +25,7 @@ def test_email_send_rate_limit_by_ip(client, test_tenant_host):
     """Test email send rate limit by IP (10/hour)."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.ratelimit.prevent") as mock_prevent:
+    with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
         # Mock rate limiter raising RateLimitError
         mock_prevent.side_effect = RateLimitError(
             message="Too many requests",
@@ -49,7 +49,7 @@ def test_email_send_rate_limit_by_email(client, test_tenant_host):
     """Test email send rate limit by email address (5/10min)."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.ratelimit.prevent") as mock_prevent:
+    with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
         # Mock the second prevent() call raising error (email-based limit)
         def prevent_side_effect(*args, **kwargs):
             # First call (IP limit) passes, second call (email limit) fails
@@ -79,8 +79,8 @@ def test_code_verification_rate_limit(client, test_tenant_host):
     from services.exceptions import RateLimitError
 
     # Mock getting email from verification cookie
-    with patch("routers.auth.get_verification_cookie_email") as mock_get_email:
-        with patch("routers.auth.ratelimit.prevent") as mock_prevent:
+    with patch("routers.auth.login.get_verification_cookie_email") as mock_get_email:
+        with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
             # Mock cookie containing email
             mock_get_email.return_value = "test@example.com"
 
@@ -110,9 +110,9 @@ def test_code_resend_rate_limit(client, test_tenant_host):
     """Test code resend rate limit (5/10min by IP)."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.get_verification_cookie_email") as mock_get_email:
-        with patch("routers.auth.ratelimit.prevent") as mock_prevent:
-            with patch("routers.auth.send_email_possession_code"):
+    with patch("routers.auth.login.get_verification_cookie_email") as mock_get_email:
+        with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
+            with patch("routers.auth.login.send_email_possession_code"):
                 # Mock email from cookie
                 mock_get_email.return_value = "test@example.com"
 
@@ -142,10 +142,10 @@ def test_hard_login_block_rate_limit_renders_template(client, test_tenant_host, 
     """Test hard login block rate limit (20 attempts/15min)."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.verify_login_with_status") as mock_verify:
-        with patch("routers.auth.ratelimit.prevent") as mock_prevent:
-            with patch("routers.auth.saml_service.get_enabled_idps_for_login") as mock_idps:
-                with patch("routers.auth.templates.TemplateResponse") as mock_template:
+    with patch("routers.auth.login.verify_login_with_status") as mock_verify:
+        with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
+            with patch("routers.auth.login.saml_service.get_enabled_idps_for_login") as mock_idps:
+                with patch("routers.auth.login.templates.TemplateResponse") as mock_template:
                     # Mock login verification (user found with password)
                     mock_verify.return_value = {
                         "status": "password_required",
@@ -195,7 +195,7 @@ def test_rate_limit_cooldown_shown_to_user(client, test_tenant_host):
     """Test that rate limit errors show cooldown period to user."""
     from services.exceptions import RateLimitError
 
-    with patch("routers.auth.ratelimit.prevent") as mock_prevent:
+    with patch("routers.auth.login.ratelimit.prevent") as mock_prevent:
         # Mock rate limiter with specific cooldown
         mock_prevent.side_effect = RateLimitError(
             message="Rate limit exceeded",

@@ -1,11 +1,15 @@
 """Tests for routers/integrations.py endpoints."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
+
+# Module path constants for cleaner patch targets
+ROUTERS_INTEGRATIONS = "routers.integrations"
+SERVICES_OAUTH2 = "services.oauth2"
 
 # =============================================================================
 # Index Redirect Tests
@@ -23,18 +27,18 @@ def test_integrations_index_redirects_to_apps(test_admin_user, override_auth):
     assert response.headers["location"] == "/admin/integrations/apps"
 
 
-def test_integrations_index_fallback_to_dashboard(test_admin_user, override_auth):
+def test_integrations_index_fallback_to_dashboard(test_admin_user, override_auth, mocker):
     """Test integrations index falls back to dashboard when no accessible children."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("routers.integrations.get_first_accessible_child") as mock_first:
-        mock_first.return_value = None
+    mock_first = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_first_accessible_child")
+    mock_first.return_value = None
 
-        client = TestClient(app)
-        response = client.get("/admin/integrations/", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/admin/integrations/", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
 
 
 # =============================================================================
@@ -42,29 +46,28 @@ def test_integrations_index_fallback_to_dashboard(test_admin_user, override_auth
 # =============================================================================
 
 
-def test_apps_list_renders(test_admin_user, override_auth):
+def test_apps_list_renders(test_admin_user, override_auth, mocker):
     """Test apps list page renders successfully."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_all_clients") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = []
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/apps")
+    mock_get.return_value = []
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
 
-                assert response.status_code == 200
-                mock_get.assert_called_once_with(
-                    str(test_admin_user["tenant_id"]), client_type="normal"
-                )
-                mock_tmpl.assert_called_once()
-                assert mock_tmpl.call_args[0][0] == "integrations_apps.html"
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps")
+
+    assert response.status_code == 200
+    mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="normal")
+    mock_tmpl.assert_called_once()
+    assert mock_tmpl.call_args[0][0] == "integrations_apps.html"
 
 
-def test_apps_list_with_clients(test_admin_user, override_auth):
+def test_apps_list_with_clients(test_admin_user, override_auth, mocker):
     """Test apps list page renders with client data."""
     override_auth(test_admin_user, level="admin")
 
@@ -83,20 +86,21 @@ def test_apps_list_with_clients(test_admin_user, override_auth):
         }
     ]
 
-    with patch("services.oauth2.get_all_clients") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = mock_clients
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/apps")
+    mock_get.return_value = mock_clients
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
 
-                assert response.status_code == 200
-                # Verify clients passed to template context
-                ctx_call = mock_ctx.call_args
-                assert ctx_call[1]["clients"] == mock_clients
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps")
+
+    assert response.status_code == 200
+    # Verify clients passed to template context
+    ctx_call = mock_ctx.call_args
+    assert ctx_call[1]["clients"] == mock_clients
 
 
 def test_apps_list_non_admin_redirects(test_user, override_auth):
@@ -115,7 +119,7 @@ def test_apps_list_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_apps_create_success(test_admin_user, override_auth):
+def test_apps_create_success(test_admin_user, override_auth, mocker):
     """Test creating a normal OAuth2 client succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -132,35 +136,35 @@ def test_apps_create_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_normal_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/create",
-            data={
-                "name": "New App",
-                "redirect_uris": "https://example.com/callback",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/create",
+        data={
+            "name": "New App",
+            "redirect_uris": "https://example.com/callback",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/admin/integrations/apps" in response.headers["location"]
-        assert "success=created" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/admin/integrations/apps" in response.headers["location"]
+    assert "success=created" in response.headers["location"]
 
-        mock_create.assert_called_once_with(
-            tenant_id=str(test_admin_user["tenant_id"]),
-            name="New App",
-            redirect_uris=["https://example.com/callback"],
-            created_by=str(test_admin_user["id"]),
-            description=None,
-        )
+    mock_create.assert_called_once_with(
+        tenant_id=str(test_admin_user["tenant_id"]),
+        name="New App",
+        redirect_uris=["https://example.com/callback"],
+        created_by=str(test_admin_user["id"]),
+        description=None,
+    )
 
 
-def test_apps_create_with_description(test_admin_user, override_auth):
+def test_apps_create_with_description(test_admin_user, override_auth, mocker):
     """Test creating a client with description passes it through."""
     override_auth(test_admin_user, level="admin")
 
@@ -177,27 +181,27 @@ def test_apps_create_with_description(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_normal_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/create",
-            data={
-                "name": "Described App",
-                "redirect_uris": "https://example.com/callback",
-                "description": "My custom description",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/create",
+        data={
+            "name": "Described App",
+            "redirect_uris": "https://example.com/callback",
+            "description": "My custom description",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        mock_create.assert_called_once()
-        assert mock_create.call_args[1]["description"] == "My custom description"
+    assert response.status_code == 303
+    mock_create.assert_called_once()
+    assert mock_create.call_args[1]["description"] == "My custom description"
 
 
-def test_apps_create_stores_credentials_in_session(test_admin_user, override_auth):
+def test_apps_create_stores_credentials_in_session(test_admin_user, override_auth, mocker):
     """Test that created client credentials are stored in the session."""
     override_auth(test_admin_user, level="admin")
 
@@ -214,31 +218,30 @@ def test_apps_create_stores_credentials_in_session(test_admin_user, override_aut
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_normal_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.return_value = mock_client
 
-        with patch("starlette.requests.Request.session", new_callable=dict) as mock_session:
-            client = TestClient(app)
-            response = client.post(
-                "/admin/integrations/apps/create",
-                data={
-                    "name": "Session Test App",
-                    "redirect_uris": "https://example.com/callback",
-                    "description": "",
-                    "csrf_token": "test-token",
-                },
-                follow_redirects=False,
-            )
+    mocker.patch("starlette.requests.Request.session", new_callable=dict)
 
-            assert response.status_code == 303
-            # Verify credentials were stored in session
-            assert mock_session.get("pending_credentials") is not None or True
-            # The session store happens through the actual middleware,
-            # we verify the redirect indicates success
-            assert "success=created" in response.headers["location"]
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/create",
+        data={
+            "name": "Session Test App",
+            "redirect_uris": "https://example.com/callback",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    # The session store happens through the actual middleware,
+    # we verify the redirect indicates success
+    assert "success=created" in response.headers["location"]
 
 
-def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth):
+def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth, mocker):
     """Test creating an app with multiple redirect URIs parses them correctly."""
     override_auth(test_admin_user, level="admin")
 
@@ -258,28 +261,28 @@ def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_normal_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/create",
-            data={
-                "name": "Multi URI App",
-                "redirect_uris": "https://example.com/callback\nhttps://example.com/auth/redirect",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/create",
+        data={
+            "name": "Multi URI App",
+            "redirect_uris": "https://example.com/callback\nhttps://example.com/auth/redirect",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        mock_create.assert_called_once()
-        call_kwargs = mock_create.call_args[1]
-        assert call_kwargs["redirect_uris"] == [
-            "https://example.com/callback",
-            "https://example.com/auth/redirect",
-        ]
+    assert response.status_code == 303
+    mock_create.assert_called_once()
+    call_kwargs = mock_create.call_args[1]
+    assert call_kwargs["redirect_uris"] == [
+        "https://example.com/callback",
+        "https://example.com/auth/redirect",
+    ]
 
 
 def test_apps_create_empty_name_redirects_with_error(test_admin_user, override_auth):
@@ -322,29 +325,29 @@ def test_apps_create_empty_redirect_uris_redirects_with_error(test_admin_user, o
     assert "error=redirect_uris_required" in response.headers["location"]
 
 
-def test_apps_create_service_error(test_admin_user, override_auth):
+def test_apps_create_service_error(test_admin_user, override_auth, mocker):
     """Test that service errors during creation are handled gracefully."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.create_normal_client") as mock_create:
-        from services.exceptions import ValidationError
+    from services.exceptions import ValidationError
 
-        mock_create.side_effect = ValidationError("failed", code="test")
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_normal_client")
+    mock_create.side_effect = ValidationError("failed", code="test")
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/create",
-            data={
-                "name": "Fail App",
-                "redirect_uris": "https://example.com/callback",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/create",
+        data={
+            "name": "Fail App",
+            "redirect_uris": "https://example.com/callback",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=creation_failed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=creation_failed" in response.headers["location"]
 
 
 def test_apps_create_non_admin_redirects(test_user, override_auth):
@@ -372,26 +375,25 @@ def test_apps_create_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_list_renders(test_admin_user, override_auth):
+def test_b2b_list_renders(test_admin_user, override_auth, mocker):
     """Test B2B list page renders successfully."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_all_clients") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = []
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/b2b")
+    mock_get.return_value = []
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
 
-                assert response.status_code == 200
-                mock_get.assert_called_once_with(
-                    str(test_admin_user["tenant_id"]), client_type="b2b"
-                )
-                mock_tmpl.assert_called_once()
-                assert mock_tmpl.call_args[0][0] == "integrations_b2b.html"
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b")
+
+    assert response.status_code == 200
+    mock_get.assert_called_once_with(str(test_admin_user["tenant_id"]), client_type="b2b")
+    mock_tmpl.assert_called_once()
+    assert mock_tmpl.call_args[0][0] == "integrations_b2b.html"
 
 
 def test_b2b_list_non_admin_redirects(test_user, override_auth):
@@ -410,7 +412,7 @@ def test_b2b_list_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_create_success(test_admin_user, override_auth):
+def test_b2b_create_success(test_admin_user, override_auth, mocker):
     """Test creating a B2B client succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -427,35 +429,35 @@ def test_b2b_create_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_b2b_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_b2b_client")
+    mock_create.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/create",
-            data={
-                "name": "New B2B Client",
-                "role": "admin",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/create",
+        data={
+            "name": "New B2B Client",
+            "role": "admin",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "/admin/integrations/b2b" in response.headers["location"]
-        assert "success=created" in response.headers["location"]
+    assert response.status_code == 303
+    assert "/admin/integrations/b2b" in response.headers["location"]
+    assert "success=created" in response.headers["location"]
 
-        mock_create.assert_called_once_with(
-            tenant_id=str(test_admin_user["tenant_id"]),
-            name="New B2B Client",
-            role="admin",
-            created_by=str(test_admin_user["id"]),
-            description=None,
-        )
+    mock_create.assert_called_once_with(
+        tenant_id=str(test_admin_user["tenant_id"]),
+        name="New B2B Client",
+        role="admin",
+        created_by=str(test_admin_user["id"]),
+        description=None,
+    )
 
 
-def test_b2b_create_with_description(test_admin_user, override_auth):
+def test_b2b_create_with_description(test_admin_user, override_auth, mocker):
     """Test creating a B2B client with description passes it through."""
     override_auth(test_admin_user, level="admin")
 
@@ -472,24 +474,24 @@ def test_b2b_create_with_description(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.create_b2b_client") as mock_create:
-        mock_create.return_value = mock_client
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_b2b_client")
+    mock_create.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/create",
-            data={
-                "name": "Described B2B",
-                "role": "member",
-                "description": "Service for syncing",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/create",
+        data={
+            "name": "Described B2B",
+            "role": "member",
+            "description": "Service for syncing",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        mock_create.assert_called_once()
-        assert mock_create.call_args[1]["description"] == "Service for syncing"
+    assert response.status_code == 303
+    mock_create.assert_called_once()
+    assert mock_create.call_args[1]["description"] == "Service for syncing"
 
 
 def test_b2b_create_empty_name_redirects_with_error(test_admin_user, override_auth):
@@ -532,29 +534,29 @@ def test_b2b_create_invalid_role_redirects_with_error(test_admin_user, override_
     assert "error=invalid_role" in response.headers["location"]
 
 
-def test_b2b_create_service_error(test_admin_user, override_auth):
+def test_b2b_create_service_error(test_admin_user, override_auth, mocker):
     """Test that service errors during B2B creation are handled gracefully."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.create_b2b_client") as mock_create:
-        from services.exceptions import ValidationError
+    from services.exceptions import ValidationError
 
-        mock_create.side_effect = ValidationError("failed", code="test")
+    mock_create = mocker.patch(f"{SERVICES_OAUTH2}.create_b2b_client")
+    mock_create.side_effect = ValidationError("failed", code="test")
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/create",
-            data={
-                "name": "Fail B2B",
-                "role": "member",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/create",
+        data={
+            "name": "Fail B2B",
+            "role": "member",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=creation_failed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=creation_failed" in response.headers["location"]
 
 
 def test_b2b_create_non_admin_redirects(test_user, override_auth):
@@ -582,45 +584,47 @@ def test_b2b_create_non_admin_redirects(test_user, override_auth):
 # =============================================================================
 
 
-def test_apps_list_pops_pending_credentials(test_admin_user, override_auth):
+def test_apps_list_pops_pending_credentials(test_admin_user, override_auth, mocker):
     """Test that apps list page pops pending credentials from session."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_all_clients") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = []
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                # Verify template context is called with pending_credentials
-                client = TestClient(app)
-                response = client.get("/admin/integrations/apps?success=created")
+    mock_get.return_value = []
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>apps</html>")
 
-                assert response.status_code == 200
-                # The pending_credentials should be passed to template context
-                ctx_kwargs = mock_ctx.call_args[1]
-                # It will be None since session is empty in test
-                assert "pending_credentials" in ctx_kwargs
+    # Verify template context is called with pending_credentials
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps?success=created")
+
+    assert response.status_code == 200
+    # The pending_credentials should be passed to template context
+    ctx_kwargs = mock_ctx.call_args[1]
+    # It will be None since session is empty in test
+    assert "pending_credentials" in ctx_kwargs
 
 
-def test_b2b_list_pops_pending_credentials(test_admin_user, override_auth):
+def test_b2b_list_pops_pending_credentials(test_admin_user, override_auth, mocker):
     """Test that B2B list page pops pending credentials from session."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_all_clients") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = []
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_all_clients")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/b2b?success=created")
+    mock_get.return_value = []
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>b2b</html>")
 
-                assert response.status_code == 200
-                ctx_kwargs = mock_ctx.call_args[1]
-                assert "pending_credentials" in ctx_kwargs
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b?success=created")
+
+    assert response.status_code == 200
+    ctx_kwargs = mock_ctx.call_args[1]
+    assert "pending_credentials" in ctx_kwargs
 
 
 # =============================================================================
@@ -628,7 +632,7 @@ def test_b2b_list_pops_pending_credentials(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_app_detail_renders(test_admin_user, override_auth):
+def test_app_detail_renders(test_admin_user, override_auth, mocker):
     """Test app detail page renders successfully."""
     override_auth(test_admin_user, level="admin")
 
@@ -644,38 +648,39 @@ def test_app_detail_renders(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = mock_client
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/apps/weft-id_client_detail123")
+    mock_get.return_value = mock_client
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>detail</html>")
 
-                assert response.status_code == 200
-                mock_tmpl.assert_called_once()
-                assert mock_tmpl.call_args[0][0] == "integrations_app_detail.html"
-                ctx_kwargs = mock_ctx.call_args[1]
-                assert ctx_kwargs["client"] == mock_client
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps/weft-id_client_detail123")
+
+    assert response.status_code == 200
+    mock_tmpl.assert_called_once()
+    assert mock_tmpl.call_args[0][0] == "integrations_app_detail.html"
+    ctx_kwargs = mock_ctx.call_args[1]
+    assert ctx_kwargs["client"] == mock_client
 
 
-def test_app_detail_not_found_redirects(test_admin_user, override_auth):
+def test_app_detail_not_found_redirects(test_admin_user, override_auth, mocker):
     """Test app detail page redirects when client not found."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = None
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
 
-        client = TestClient(app)
-        response = client.get("/admin/integrations/apps/nonexistent", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps/nonexistent", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_app_detail_wrong_type_redirects(test_admin_user, override_auth):
+def test_app_detail_wrong_type_redirects(test_admin_user, override_auth, mocker):
     """Test app detail page redirects when client is B2B type."""
     override_auth(test_admin_user, level="admin")
 
@@ -691,14 +696,14 @@ def test_app_detail_wrong_type_redirects(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = mock_client
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.get("/admin/integrations/apps/weft-id_b2b_wrong", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/admin/integrations/apps/weft-id_b2b_wrong", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
 # =============================================================================
@@ -706,7 +711,7 @@ def test_app_detail_wrong_type_redirects(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_app_edit_success(test_admin_user, override_auth):
+def test_app_edit_success(test_admin_user, override_auth, mocker):
     """Test editing an app succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -722,24 +727,24 @@ def test_app_edit_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.update_client") as mock_update:
-        mock_update.return_value = mock_updated_client
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.return_value = mock_updated_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/weft-id_client_edit123/edit",
-            data={
-                "name": "Updated Name",
-                "description": "Updated desc",
-                "redirect_uris": "https://new.example.com/callback",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        data={
+            "name": "Updated Name",
+            "description": "Updated desc",
+            "redirect_uris": "https://new.example.com/callback",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=updated" in response.headers["location"]
-        mock_update.assert_called_once()
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
+    mock_update.assert_called_once()
 
 
 def test_app_edit_empty_name_returns_error(test_admin_user, override_auth):
@@ -787,7 +792,7 @@ def test_app_edit_empty_uris_returns_error(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_app_regenerate_secret_success(test_admin_user, override_auth):
+def test_app_regenerate_secret_success(test_admin_user, override_auth, mocker):
     """Test regenerating app secret succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -803,38 +808,38 @@ def test_app_regenerate_secret_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        with patch("services.oauth2.regenerate_client_secret") as mock_regen:
-            mock_get.return_value = mock_client
-            mock_regen.return_value = "new_secret_xyz"
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_regen = mocker.patch(f"{SERVICES_OAUTH2}.regenerate_client_secret")
+    mock_get.return_value = mock_client
+    mock_regen.return_value = "new_secret_xyz"
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/integrations/apps/weft-id_client_regen123/regenerate-secret",
-                data={"csrf_token": "test-token"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_regen123/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "success=secret_regenerated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=secret_regenerated" in response.headers["location"]
 
 
-def test_app_regenerate_secret_not_found(test_admin_user, override_auth):
+def test_app_regenerate_secret_not_found(test_admin_user, override_auth, mocker):
     """Test regenerating secret for non-existent app redirects with error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = None
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/nonexistent/regenerate-secret",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/nonexistent/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
 # =============================================================================
@@ -842,7 +847,7 @@ def test_app_regenerate_secret_not_found(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_app_deactivate_success(test_admin_user, override_auth):
+def test_app_deactivate_success(test_admin_user, override_auth, mocker):
     """Test deactivating an app succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -858,21 +863,21 @@ def test_app_deactivate_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.deactivate_client") as mock_deact:
-        mock_deact.return_value = mock_deactivated
+    mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
+    mock_deact.return_value = mock_deactivated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/weft-id_client_deact123/deactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_deact123/deactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=deactivated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=deactivated" in response.headers["location"]
 
 
-def test_app_reactivate_success(test_admin_user, override_auth):
+def test_app_reactivate_success(test_admin_user, override_auth, mocker):
     """Test reactivating an app succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -888,18 +893,18 @@ def test_app_reactivate_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.reactivate_client") as mock_react:
-        mock_react.return_value = mock_reactivated
+    mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
+    mock_react.return_value = mock_reactivated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/weft-id_client_react123/reactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_react123/reactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=reactivated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=reactivated" in response.headers["location"]
 
 
 # =============================================================================
@@ -907,7 +912,7 @@ def test_app_reactivate_success(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_detail_renders(test_admin_user, override_auth):
+def test_b2b_detail_renders(test_admin_user, override_auth, mocker):
     """Test B2B detail page renders successfully."""
     override_auth(test_admin_user, level="admin")
 
@@ -924,33 +929,34 @@ def test_b2b_detail_renders(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        with patch("routers.integrations.get_template_context") as mock_ctx:
-            with patch("routers.integrations.templates.TemplateResponse") as mock_tmpl:
-                mock_get.return_value = mock_client
-                mock_ctx.return_value = {"request": MagicMock()}
-                mock_tmpl.return_value = HTMLResponse(content="<html>b2b detail</html>")
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_ctx = mocker.patch(f"{ROUTERS_INTEGRATIONS}.get_template_context")
+    mock_tmpl = mocker.patch(f"{ROUTERS_INTEGRATIONS}.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/integrations/b2b/weft-id_b2b_detail123")
+    mock_get.return_value = mock_client
+    mock_ctx.return_value = {"request": MagicMock()}
+    mock_tmpl.return_value = HTMLResponse(content="<html>b2b detail</html>")
 
-                assert response.status_code == 200
-                mock_tmpl.assert_called_once()
-                assert mock_tmpl.call_args[0][0] == "integrations_b2b_detail.html"
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b/weft-id_b2b_detail123")
+
+    assert response.status_code == 200
+    mock_tmpl.assert_called_once()
+    assert mock_tmpl.call_args[0][0] == "integrations_b2b_detail.html"
 
 
-def test_b2b_detail_not_found_redirects(test_admin_user, override_auth):
+def test_b2b_detail_not_found_redirects(test_admin_user, override_auth, mocker):
     """Test B2B detail page redirects when client not found."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = None
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
 
-        client = TestClient(app)
-        response = client.get("/admin/integrations/b2b/nonexistent", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b/nonexistent", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
 # =============================================================================
@@ -958,7 +964,7 @@ def test_b2b_detail_not_found_redirects(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_edit_success(test_admin_user, override_auth):
+def test_b2b_edit_success(test_admin_user, override_auth, mocker):
     """Test editing a B2B client succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -974,22 +980,22 @@ def test_b2b_edit_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.update_client") as mock_update:
-        mock_update.return_value = mock_updated
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.return_value = mock_updated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
-            data={
-                "name": "Updated B2B Name",
-                "description": "Updated desc",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        data={
+            "name": "Updated B2B Name",
+            "description": "Updated desc",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=updated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=updated" in response.headers["location"]
 
 
 # =============================================================================
@@ -997,7 +1003,7 @@ def test_b2b_edit_success(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_role_change_success(test_admin_user, override_auth):
+def test_b2b_role_change_success(test_admin_user, override_auth, mocker):
     """Test changing B2B client role succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -1014,21 +1020,21 @@ def test_b2b_role_change_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.update_b2b_client_role") as mock_update:
-        mock_update.return_value = mock_updated
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_b2b_client_role")
+    mock_update.return_value = mock_updated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_role123/role",
-            data={
-                "role": "super_admin",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        data={
+            "role": "super_admin",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=role_changed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=role_changed" in response.headers["location"]
 
 
 def test_b2b_role_change_invalid_role(test_admin_user, override_auth):
@@ -1054,7 +1060,7 @@ def test_b2b_role_change_invalid_role(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_b2b_regenerate_secret_success(test_admin_user, override_auth):
+def test_b2b_regenerate_secret_success(test_admin_user, override_auth, mocker):
     """Test regenerating B2B client secret succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -1070,23 +1076,23 @@ def test_b2b_regenerate_secret_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        with patch("services.oauth2.regenerate_client_secret") as mock_regen:
-            mock_get.return_value = mock_client
-            mock_regen.return_value = "new_b2b_secret"
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_regen = mocker.patch(f"{SERVICES_OAUTH2}.regenerate_client_secret")
+    mock_get.return_value = mock_client
+    mock_regen.return_value = "new_b2b_secret"
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/integrations/b2b/weft-id_b2b_regen123/regenerate-secret",
-                data={"csrf_token": "test-token"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_regen123/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "success=secret_regenerated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=secret_regenerated" in response.headers["location"]
 
 
-def test_b2b_deactivate_success(test_admin_user, override_auth):
+def test_b2b_deactivate_success(test_admin_user, override_auth, mocker):
     """Test deactivating a B2B client succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -1099,21 +1105,21 @@ def test_b2b_deactivate_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.deactivate_client") as mock_deact:
-        mock_deact.return_value = mock_deactivated
+    mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
+    mock_deact.return_value = mock_deactivated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_deact123/deactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_deact123/deactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=deactivated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=deactivated" in response.headers["location"]
 
 
-def test_b2b_reactivate_success(test_admin_user, override_auth):
+def test_b2b_reactivate_success(test_admin_user, override_auth, mocker):
     """Test reactivating a B2B client succeeds."""
     override_auth(test_admin_user, level="admin")
 
@@ -1126,18 +1132,18 @@ def test_b2b_reactivate_success(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.reactivate_client") as mock_react:
-        mock_react.return_value = mock_reactivated
+    mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
+    mock_react.return_value = mock_reactivated
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_react123/reactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_react123/reactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "success=reactivated" in response.headers["location"]
+    assert response.status_code == 303
+    assert "success=reactivated" in response.headers["location"]
 
 
 # =============================================================================
@@ -1145,88 +1151,88 @@ def test_b2b_reactivate_success(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_app_edit_not_found(test_admin_user, override_auth):
+def test_app_edit_not_found(test_admin_user, override_auth, mocker):
     """Test editing an app that returns None redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_client") as mock_update:
-        mock_update.return_value = None
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/weft-id_client_missing/edit",
-            data={
-                "name": "Updated Name",
-                "description": "",
-                "redirect_uris": "https://example.com/callback",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_missing/edit",
+        data={
+            "name": "Updated Name",
+            "description": "",
+            "redirect_uris": "https://example.com/callback",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_app_edit_service_error(test_admin_user, override_auth):
+def test_app_edit_service_error(test_admin_user, override_auth, mocker):
     """Test editing an app when service raises error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_client") as mock_update:
-        from services.exceptions import ServiceError
+    from services.exceptions import ServiceError
 
-        mock_update.side_effect = ServiceError("update failed")
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.side_effect = ServiceError("update failed")
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/weft-id_client_edit123/edit",
-            data={
-                "name": "Updated Name",
-                "description": "",
-                "redirect_uris": "https://example.com/callback",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/weft-id_client_edit123/edit",
+        data={
+            "name": "Updated Name",
+            "description": "",
+            "redirect_uris": "https://example.com/callback",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=update_failed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=update_failed" in response.headers["location"]
 
 
-def test_app_deactivate_not_found(test_admin_user, override_auth):
+def test_app_deactivate_not_found(test_admin_user, override_auth, mocker):
     """Test deactivating non-existent app redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.deactivate_client") as mock_deact:
-        mock_deact.return_value = None
+    mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
+    mock_deact.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/nonexistent/deactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/nonexistent/deactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_app_reactivate_not_found(test_admin_user, override_auth):
+def test_app_reactivate_not_found(test_admin_user, override_auth, mocker):
     """Test reactivating non-existent app redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.reactivate_client") as mock_react:
-        mock_react.return_value = None
+    mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
+    mock_react.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/apps/nonexistent/reactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/apps/nonexistent/reactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
 def test_b2b_edit_empty_name(test_admin_user, override_auth):
@@ -1248,97 +1254,97 @@ def test_b2b_edit_empty_name(test_admin_user, override_auth):
     assert "error=name_required" in response.headers["location"]
 
 
-def test_b2b_edit_not_found(test_admin_user, override_auth):
+def test_b2b_edit_not_found(test_admin_user, override_auth, mocker):
     """Test editing B2B client that returns None redirects with not_found error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_client") as mock_update:
-        mock_update.return_value = None
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_missing/edit",
-            data={
-                "name": "Updated Name",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_missing/edit",
+        data={
+            "name": "Updated Name",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_edit_service_error(test_admin_user, override_auth):
+def test_b2b_edit_service_error(test_admin_user, override_auth, mocker):
     """Test editing B2B client when service raises error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_client") as mock_update:
-        from services.exceptions import ServiceError
+    from services.exceptions import ServiceError
 
-        mock_update.side_effect = ServiceError("update failed")
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_client")
+    mock_update.side_effect = ServiceError("update failed")
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
-            data={
-                "name": "Updated Name",
-                "description": "",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_edit123/edit",
+        data={
+            "name": "Updated Name",
+            "description": "",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=update_failed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=update_failed" in response.headers["location"]
 
 
-def test_b2b_role_change_not_found(test_admin_user, override_auth):
+def test_b2b_role_change_not_found(test_admin_user, override_auth, mocker):
     """Test role change for B2B client that returns None."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_b2b_client_role") as mock_update:
-        mock_update.return_value = None
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_b2b_client_role")
+    mock_update.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_role123/role",
-            data={
-                "role": "admin",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        data={
+            "role": "admin",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_role_change_service_error(test_admin_user, override_auth):
+def test_b2b_role_change_service_error(test_admin_user, override_auth, mocker):
     """Test role change when service raises error."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.update_b2b_client_role") as mock_update:
-        from services.exceptions import ServiceError
+    from services.exceptions import ServiceError
 
-        mock_update.side_effect = ServiceError("role change failed")
+    mock_update = mocker.patch(f"{SERVICES_OAUTH2}.update_b2b_client_role")
+    mock_update.side_effect = ServiceError("role change failed")
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_b2b_role123/role",
-            data={
-                "role": "admin",
-                "csrf_token": "test-token",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_b2b_role123/role",
+        data={
+            "role": "admin",
+            "csrf_token": "test-token",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=role_change_failed" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=role_change_failed" in response.headers["location"]
 
 
-def test_b2b_regenerate_secret_wrong_type(test_admin_user, override_auth):
+def test_b2b_regenerate_secret_wrong_type(test_admin_user, override_auth, mocker):
     """Test regenerating secret for B2B client that's actually normal type."""
     override_auth(test_admin_user, level="admin")
 
@@ -1354,75 +1360,75 @@ def test_b2b_regenerate_secret_wrong_type(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = mock_client
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/weft-id_client_normal/regenerate-secret",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/weft-id_client_normal/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_regenerate_secret_not_found(test_admin_user, override_auth):
+def test_b2b_regenerate_secret_not_found(test_admin_user, override_auth, mocker):
     """Test regenerating secret for non-existent B2B client."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = None
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/nonexistent/regenerate-secret",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/nonexistent/regenerate-secret",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_deactivate_not_found(test_admin_user, override_auth):
+def test_b2b_deactivate_not_found(test_admin_user, override_auth, mocker):
     """Test deactivating non-existent B2B client."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.deactivate_client") as mock_deact:
-        mock_deact.return_value = None
+    mock_deact = mocker.patch(f"{SERVICES_OAUTH2}.deactivate_client")
+    mock_deact.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/nonexistent/deactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/nonexistent/deactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_reactivate_not_found(test_admin_user, override_auth):
+def test_b2b_reactivate_not_found(test_admin_user, override_auth, mocker):
     """Test reactivating non-existent B2B client."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.oauth2.reactivate_client") as mock_react:
-        mock_react.return_value = None
+    mock_react = mocker.patch(f"{SERVICES_OAUTH2}.reactivate_client")
+    mock_react.return_value = None
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/integrations/b2b/nonexistent/reactivate",
-            data={"csrf_token": "test-token"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/integrations/b2b/nonexistent/reactivate",
+        data={"csrf_token": "test-token"},
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]
 
 
-def test_b2b_detail_wrong_type(test_admin_user, override_auth):
+def test_b2b_detail_wrong_type(test_admin_user, override_auth, mocker):
     """Test B2B detail page redirects when client is normal type."""
     override_auth(test_admin_user, level="admin")
 
@@ -1438,13 +1444,11 @@ def test_b2b_detail_wrong_type(test_admin_user, override_auth):
         "created_at": "2026-01-01T00:00:00",
     }
 
-    with patch("services.oauth2.get_client_by_client_id") as mock_get:
-        mock_get.return_value = mock_client
+    mock_get = mocker.patch(f"{SERVICES_OAUTH2}.get_client_by_client_id")
+    mock_get.return_value = mock_client
 
-        client = TestClient(app)
-        response = client.get(
-            "/admin/integrations/b2b/weft-id_client_normal", follow_redirects=False
-        )
+    client = TestClient(app)
+    response = client.get("/admin/integrations/b2b/weft-id_client_normal", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert "error=not_found" in response.headers["location"]
+    assert response.status_code == 303
+    assert "error=not_found" in response.headers["location"]

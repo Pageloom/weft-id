@@ -31,7 +31,7 @@ Extract sub-operations into focused helper functions.
 **Description:**
 Four router modules exceed 500 lines:
 - ~~`app/routers/saml.py` (1241 lines)~~ ✅ Refactored (2026-02-02)
-- `app/routers/auth.py` (987 lines)
+- ~~`app/routers/auth.py` (987 lines)~~ ✅ Refactored (2026-02-06)
 - `app/routers/users.py` (747 lines)
 - `app/routers/api/v1/users.py` (1025 lines)
 
@@ -45,31 +45,37 @@ Four router modules exceed 500 lines:
   - `admin/domains.py` (domain binding)
   - `_helpers.py` (shared utilities)
   - `__init__.py` files for backwards compatibility
+- **auth.py**: Split into `app/routers/auth/` package with 6 focused modules:
+  - `login.py` (login page, password login, email verification flow)
+  - `logout.py` (logout with SAML SLO)
+  - `onboarding.py` (email verification link, set-password)
+  - `reactivation.py` (super admin self-reactivation, reactivation requests)
+  - `dashboard.py` (dashboard endpoint)
+  - `_helpers.py` (shared utilities: `_get_client_ip`, `_route_after_email_verification`)
 
 **Why It Matters:**
 Routers that are too large contain many unrelated endpoints in one file. When Claude needs to modify one endpoint, it must load many irrelevant endpoints.
 
 **Remaining Refactoring:**
-- `app/routers/auth.py` → `auth/login.py`, `auth/password.py`, `auth/verification.py`
 - `app/routers/users.py` → split by functionality
 - `app/routers/api/v1/users.py` → `users/profile.py`, `users/emails.py`, `users/mfa.py`, `users/admin.py`
 
-**Files Affected:** 3 remaining router modules plus any imports
+**Files Affected:** 2 remaining router modules plus any imports
 
 ---
 
 ## [REFACTOR] Architecture: Event Logging in Routers
 
-**Found in:** `app/routers/auth.py`, `app/routers/mfa.py`
+**Found in:** `app/routers/auth/login.py`, `app/routers/auth/logout.py`, `app/routers/auth/onboarding.py`, `app/routers/mfa.py`
 **Impact:** Low
 **Category:** Coupling / Consistency
 
 **Description:**
 5 direct `log_event()` calls exist in routers:
-- `auth.py:571` - login_failed (invalid credentials)
-- `auth.py:603` - login_failed (inactivated user)
-- `auth.py:676` - user_signed_out
-- `auth.py:943` - password_set
+- `auth/login.py` - login_failed (invalid credentials)
+- `auth/login.py` - login_failed (inactivated user)
+- `auth/logout.py` - user_signed_out
+- `auth/onboarding.py` - password_set
 - `mfa.py:132` - user_signed_in
 
 Per the architectural pattern ("all writes go through service layer"), event logging should occur in services, not routers.
@@ -81,7 +87,7 @@ These are authentication-related events that occur during login/logout flows. Th
 Option 1: Accept as special case for auth flows (login/logout are fundamentally router operations)
 Option 2: Create a thin auth service that handles session creation and logging
 
-**Files Affected:** `app/routers/auth.py`, `app/routers/mfa.py`
+**Files Affected:** `app/routers/auth/login.py`, `app/routers/auth/logout.py`, `app/routers/auth/onboarding.py`, `app/routers/mfa.py`
 
 ---
 
@@ -415,7 +421,7 @@ assert org_name == "Test Organization"
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 3 | 1 file structure (1/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
+| High | 3 | 1 file structure (2/4 routers done), 1 test patch pyramid (high volume), 1 test auth duplication |
 | Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
@@ -437,5 +443,5 @@ Patch pyramid refactoring should proceed in this order:
 
 **Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
-**Last router refactor:** 2026-02-02 (saml.py split into focused modules)
+**Last router refactor:** 2026-02-06 (auth.py split into focused modules)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

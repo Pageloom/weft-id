@@ -33,27 +33,6 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 ---
 
-## [TEST] Nested Patch Pyramids: Remaining Files (6 files, 45 or fewer each)
-
-**Found in:** Multiple test files
-**Impact:** Low-Medium
-**Category:** Test Code / Maintainability
-
-**Description:**
-The following files have 20-45 instances each of nested `with patch()`:
-- `tests/test_api_users.py` (45)
-- `tests/test_routers_admin.py` (42)
-- `tests/test_services_users.py` (42)
-- `tests/test_utils_email.py` (31)
-- `tests/test_api_groups.py` (22)
-- `tests/test_email_backends.py` (20)
-
-**Suggested Refactoring:**
-Convert to flat `mocker.patch()` calls after completing higher-priority files.
-
-**Files Affected:** 6 files listed above
-
----
 
 ## [TEST] Missing Test Docstrings: test_services_saml.py
 
@@ -203,7 +182,7 @@ assert org_name == "Test Organization"
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | - |
-| Medium | 3 | 1 test patch pyramids (6 files), 1 test docstrings, 1 test parametrization |
+| Medium | 2 | 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
 **Last dependency audit:** 2026-02-02 (ecdsa CVE fix available via sendgrid 6.12.5)

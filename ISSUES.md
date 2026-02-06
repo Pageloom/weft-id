@@ -201,11 +201,11 @@ This vulnerability requires installing a maliciously crafted wheel. This project
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | 1 dependency (ecdsa via sendgrid) |
+| High | 0 | - |
 | Medium | 2 | 1 test docstrings, 1 test parametrization |
 | Low | 3 | 1 architecture consistency, 1 test magic indices, 1 dependency (pip) |
 
-**Last dependency audit:** 2026-02-06 (see CVE issues below)
+**Last dependency audit:** 2026-02-06 (ecdsa fixed via sendgrid 6.12.5; pip CVE-2026-1703 low priority)
 **Last refactor scan:** 2026-02-01 (full codebase deep scan)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last test code audit:** 2026-02-02 (found ~940 patch pyramids across 37 files)

@@ -606,7 +606,8 @@ def check_api_first_violations(report: ComplianceReport) -> None:
         # Check if this service maps to a different API router
         mapped_router = service_to_api_router.get(module, module)
         api_router_file = api_path / f"{mapped_router}.py"
-        if not api_router_file.exists():
+        api_router_pkg = api_path / mapped_router / "__init__.py"
+        if not api_router_file.exists() and not api_router_pkg.exists():
             # Check if there's a similar file (e.g., singular vs plural)
             found_similar = False
             for api_file in api_path.glob("*.py"):

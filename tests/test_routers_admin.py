@@ -137,63 +137,65 @@ def test_todo_index_fallback_to_dashboard(test_admin_user, override_auth):
 # =============================================================================
 
 
-def test_event_log_list_renders(test_admin_user, override_auth):
+def test_event_log_list_renders(test_admin_user, override_auth, mocker):
     """Test event log list page renders successfully."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.event_log.list_events") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                # Create a mock response object
-                mock_result = MagicMock()
-                mock_result.items = []
-                mock_result.total = 0
-                mock_result.page = 1
-                mock_result.limit = 50
-                mock_list.return_value = mock_result
+    mock_list = mocker.patch("services.event_log.list_events")
+    mock_context = mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>events</html>")
+    # Create a mock response object
+    mock_result = MagicMock()
+    mock_result.items = []
+    mock_result.total = 0
+    mock_result.page = 1
+    mock_result.limit = 50
+    mock_list.return_value = mock_result
 
-                client = TestClient(app)
-                response = client.get("/admin/audit/events")
+    mock_context.return_value = {"request": MagicMock()}
+    mock_template.return_value = HTMLResponse(content="<html>events</html>")
 
-                assert response.status_code == 200
-                mock_list.assert_called_once()
+    client = TestClient(app)
+    response = client.get("/admin/audit/events")
+
+    assert response.status_code == 200
+    mock_list.assert_called_once()
 
 
-def test_event_log_list_with_pagination(test_admin_user, override_auth):
+def test_event_log_list_with_pagination(test_admin_user, override_auth, mocker):
     """Test event log list page with pagination parameters."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.event_log.list_events") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_result = MagicMock()
-                mock_result.items = []
-                mock_result.total = 100
-                mock_result.page = 2
-                mock_result.limit = 25
-                mock_list.return_value = mock_result
+    mock_list = mocker.patch("services.event_log.list_events")
+    mock_context = mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>events</html>")
+    mock_result = MagicMock()
+    mock_result.items = []
+    mock_result.total = 100
+    mock_result.page = 2
+    mock_result.limit = 25
+    mock_list.return_value = mock_result
 
-                client = TestClient(app)
-                response = client.get("/admin/audit/events?page=2&size=25")
+    mock_context.return_value = {"request": MagicMock()}
+    mock_template.return_value = HTMLResponse(content="<html>events</html>")
 
-                assert response.status_code == 200
-                # Verify pagination was passed correctly
-                call_args = mock_list.call_args
-                assert call_args[1]["page"] == 2
-                assert call_args[1]["limit"] == 25
+    client = TestClient(app)
+    response = client.get("/admin/audit/events?page=2&size=25")
+
+    assert response.status_code == 200
+    # Verify pagination was passed correctly
+    call_args = mock_list.call_args
+    assert call_args[1]["page"] == 2
+    assert call_args[1]["limit"] == 25
 
 
-def test_event_log_detail_renders(test_admin_user, override_auth):
+def test_event_log_detail_renders(test_admin_user, override_auth, mocker):
     """Test event log detail page renders successfully."""
     from fastapi.responses import HTMLResponse
     from schemas.event_log import EventLogItem
@@ -202,27 +204,28 @@ def test_event_log_detail_renders(test_admin_user, override_auth):
 
     event_id = str(uuid4())
 
-    with patch("services.event_log.get_event") as mock_get:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_get.return_value = EventLogItem(
-                    id=event_id,
-                    actor_user_id=str(uuid4()),
-                    actor_name="Test User",
-                    artifact_type="user",
-                    artifact_id=str(uuid4()),
-                    event_type="user_created",
-                    metadata={"key": "value"},
-                    created_at=datetime.now(UTC),
-                )
+    mock_get = mocker.patch("services.event_log.get_event")
+    mock_context = mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>event</html>")
+    mock_get.return_value = EventLogItem(
+        id=event_id,
+        actor_user_id=str(uuid4()),
+        actor_name="Test User",
+        artifact_type="user",
+        artifact_id=str(uuid4()),
+        event_type="user_created",
+        metadata={"key": "value"},
+        created_at=datetime.now(UTC),
+    )
 
-                client = TestClient(app)
-                response = client.get(f"/admin/audit/events/{event_id}")
+    mock_context.return_value = {"request": MagicMock()}
+    mock_template.return_value = HTMLResponse(content="<html>event</html>")
 
-                assert response.status_code == 200
+    client = TestClient(app)
+    response = client.get(f"/admin/audit/events/{event_id}")
+
+    assert response.status_code == 200
 
 
 def test_event_log_detail_not_found_redirects(test_admin_user, override_auth):
@@ -287,24 +290,25 @@ def test_admin_routes_require_admin_role(test_user):
 # =============================================================================
 
 
-def test_reactivation_requests_list_admin(test_admin_user, override_auth):
+def test_reactivation_requests_list_admin(test_admin_user, override_auth, mocker):
     """Test admin can access reactivation requests list page."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.reactivation.list_pending_requests") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = []
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+    mock_list = mocker.patch("services.reactivation.list_pending_requests")
+    mock_context = mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/todo/reactivation")
+    mock_list.return_value = []
+    mock_context.return_value = {"request": MagicMock()}
+    mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
-                assert response.status_code == 200
-                mock_list.assert_called_once()
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation")
+
+    assert response.status_code == 200
+    mock_list.assert_called_once()
 
 
 def test_reactivation_requests_list_member_forbidden(test_user):
@@ -326,70 +330,73 @@ def test_reactivation_requests_list_member_forbidden(test_user):
     assert response.status_code in [403, 500]
 
 
-def test_reactivation_requests_list_success_message(test_admin_user, override_auth):
+def test_reactivation_requests_list_success_message(test_admin_user, override_auth, mocker):
     """Test success query param is passed to template."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.reactivation.list_pending_requests") as mock_list:
-        with patch("routers.admin.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = []
-                mock_context.return_value = {"request": MagicMock(), "success": "approved"}
-                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+    mock_list = mocker.patch("services.reactivation.list_pending_requests")
+    mock_context = mocker.patch("routers.admin.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/todo/reactivation?success=approved")
+    mock_list.return_value = []
+    mock_context.return_value = {"request": MagicMock(), "success": "approved"}
+    mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
-                assert response.status_code == 200
-                # Check get_template_context was called with success param
-                mock_context.assert_called_once()
-                _, call_kwargs = mock_context.call_args
-                assert call_kwargs.get("success") == "approved"
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation?success=approved")
+
+    assert response.status_code == 200
+    # Check get_template_context was called with success param
+    mock_context.assert_called_once()
+    _, call_kwargs = mock_context.call_args
+    assert call_kwargs.get("success") == "approved"
 
 
-def test_reactivation_requests_list_error_message(test_admin_user, override_auth):
+def test_reactivation_requests_list_error_message(test_admin_user, override_auth, mocker):
     """Test error query param is passed to template."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.reactivation.list_pending_requests") as mock_list:
-        with patch("routers.admin.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = []
-                mock_context.return_value = {"request": MagicMock(), "error": "request_not_found"}
-                mock_template.return_value = HTMLResponse(content="<html>requests</html>")
+    mock_list = mocker.patch("services.reactivation.list_pending_requests")
+    mock_context = mocker.patch("routers.admin.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/todo/reactivation?error=request_not_found")
+    mock_list.return_value = []
+    mock_context.return_value = {"request": MagicMock(), "error": "request_not_found"}
+    mock_template.return_value = HTMLResponse(content="<html>requests</html>")
 
-                assert response.status_code == 200
-                # Check get_template_context was called with error param
-                mock_context.assert_called_once()
-                _, call_kwargs = mock_context.call_args
-                assert call_kwargs.get("error") == "request_not_found"
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation?error=request_not_found")
+
+    assert response.status_code == 200
+    # Check get_template_context was called with error param
+    mock_context.assert_called_once()
+    _, call_kwargs = mock_context.call_args
+    assert call_kwargs.get("error") == "request_not_found"
 
 
-def test_reactivation_history_admin(test_admin_user, override_auth):
+def test_reactivation_history_admin(test_admin_user, override_auth, mocker):
     """Test admin can access reactivation history page."""
     from fastapi.responses import HTMLResponse
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("services.reactivation.list_previous_requests") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.admin.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = []
-                mock_context.return_value = {"request": MagicMock()}
-                mock_template.return_value = HTMLResponse(content="<html>history</html>")
+    mock_list = mocker.patch("services.reactivation.list_previous_requests")
+    mock_context = mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
 
-                client = TestClient(app)
-                response = client.get("/admin/todo/reactivation/history")
+    mock_list.return_value = []
+    mock_context.return_value = {"request": MagicMock()}
+    mock_template.return_value = HTMLResponse(content="<html>history</html>")
 
-                assert response.status_code == 200
-                mock_list.assert_called_once()
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation/history")
+
+    assert response.status_code == 200
+    mock_list.assert_called_once()
 
 
 def test_reactivation_history_member_forbidden(test_user):
@@ -411,7 +418,7 @@ def test_reactivation_history_member_forbidden(test_user):
     assert response.status_code in [403, 500]
 
 
-def test_approve_request_success(test_admin_user, override_auth):
+def test_approve_request_success(test_admin_user, override_auth, mocker):
     """Test approving a reactivation request redirects with success."""
     from datetime import UTC, datetime
 
@@ -421,28 +428,29 @@ def test_approve_request_success(test_admin_user, override_auth):
 
     request_id = str(uuid4())
 
-    with patch("services.reactivation.approve_request") as mock_approve:
-        with patch("routers.admin.send_account_reactivated_notification"):
-            mock_approve.return_value = ReactivationRequest(
-                id=request_id,
-                user_id=str(uuid4()),
-                email="user@example.com",
-                first_name="Test",
-                last_name="User",
-                requested_at=datetime.now(UTC),
-                decision="approved",
-                decided_at=datetime.now(UTC),
-                decided_by_name="Admin User",
-            )
+    mock_approve = mocker.patch("services.reactivation.approve_request")
+    mocker.patch("routers.admin.send_account_reactivated_notification")
 
-            client = TestClient(app)
-            response = client.post(
-                f"/admin/todo/reactivation/{request_id}/approve",
-                follow_redirects=False,
-            )
+    mock_approve.return_value = ReactivationRequest(
+        id=request_id,
+        user_id=str(uuid4()),
+        email="user@example.com",
+        first_name="Test",
+        last_name="User",
+        requested_at=datetime.now(UTC),
+        decision="approved",
+        decided_at=datetime.now(UTC),
+        decided_by_name="Admin User",
+    )
 
-            assert response.status_code == 303
-            assert "success=approved" in response.headers["location"]
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/todo/reactivation/{request_id}/approve",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=approved" in response.headers["location"]
 
 
 def test_approve_request_not_found(test_admin_user, override_auth):
@@ -491,7 +499,7 @@ def test_approve_request_already_decided(test_admin_user, override_auth):
         assert "error=already_decided" in response.headers["location"]
 
 
-def test_approve_request_sends_email(test_admin_user, override_auth):
+def test_approve_request_sends_email(test_admin_user, override_auth, mocker):
     """Test approving request sends notification email."""
     from datetime import UTC, datetime
 
@@ -502,32 +510,33 @@ def test_approve_request_sends_email(test_admin_user, override_auth):
     request_id = str(uuid4())
     user_email = "reactivated@example.com"
 
-    with patch("services.reactivation.approve_request") as mock_approve:
-        with patch("routers.admin.send_account_reactivated_notification") as mock_send_email:
-            mock_approve.return_value = ReactivationRequest(
-                id=request_id,
-                user_id=str(uuid4()),
-                email=user_email,
-                first_name="Test",
-                last_name="User",
-                requested_at=datetime.now(UTC),
-                decision="approved",
-                decided_at=datetime.now(UTC),
-                decided_by_name="Admin User",
-            )
+    mock_approve = mocker.patch("services.reactivation.approve_request")
+    mock_send_email = mocker.patch("routers.admin.send_account_reactivated_notification")
 
-            client = TestClient(app)
-            client.post(
-                f"/admin/todo/reactivation/{request_id}/approve",
-                follow_redirects=False,
-            )
+    mock_approve.return_value = ReactivationRequest(
+        id=request_id,
+        user_id=str(uuid4()),
+        email=user_email,
+        first_name="Test",
+        last_name="User",
+        requested_at=datetime.now(UTC),
+        decision="approved",
+        decided_at=datetime.now(UTC),
+        decided_by_name="Admin User",
+    )
 
-            mock_send_email.assert_called_once()
-            call_args = mock_send_email.call_args[0]
-            assert call_args[0] == user_email
+    client = TestClient(app)
+    client.post(
+        f"/admin/todo/reactivation/{request_id}/approve",
+        follow_redirects=False,
+    )
+
+    mock_send_email.assert_called_once()
+    call_args = mock_send_email.call_args[0]
+    assert call_args[0] == user_email
 
 
-def test_deny_request_success(test_admin_user, override_auth):
+def test_deny_request_success(test_admin_user, override_auth, mocker):
     """Test denying a reactivation request redirects with success."""
     from datetime import UTC, datetime
 
@@ -537,28 +546,29 @@ def test_deny_request_success(test_admin_user, override_auth):
 
     request_id = str(uuid4())
 
-    with patch("services.reactivation.deny_request") as mock_deny:
-        with patch("routers.admin.send_reactivation_denied_notification"):
-            mock_deny.return_value = ReactivationRequest(
-                id=request_id,
-                user_id=str(uuid4()),
-                email="user@example.com",
-                first_name="Test",
-                last_name="User",
-                requested_at=datetime.now(UTC),
-                decision="denied",
-                decided_at=datetime.now(UTC),
-                decided_by_name="Admin User",
-            )
+    mock_deny = mocker.patch("services.reactivation.deny_request")
+    mocker.patch("routers.admin.send_reactivation_denied_notification")
 
-            client = TestClient(app)
-            response = client.post(
-                f"/admin/todo/reactivation/{request_id}/deny",
-                follow_redirects=False,
-            )
+    mock_deny.return_value = ReactivationRequest(
+        id=request_id,
+        user_id=str(uuid4()),
+        email="user@example.com",
+        first_name="Test",
+        last_name="User",
+        requested_at=datetime.now(UTC),
+        decision="denied",
+        decided_at=datetime.now(UTC),
+        decided_by_name="Admin User",
+    )
 
-            assert response.status_code == 303
-            assert "success=denied" in response.headers["location"]
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/todo/reactivation/{request_id}/deny",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=denied" in response.headers["location"]
 
 
 def test_deny_request_not_found(test_admin_user, override_auth):
@@ -582,7 +592,7 @@ def test_deny_request_not_found(test_admin_user, override_auth):
         assert "error=request_not_found" in response.headers["location"]
 
 
-def test_deny_request_sends_email(test_admin_user, override_auth):
+def test_deny_request_sends_email(test_admin_user, override_auth, mocker):
     """Test denying request sends notification email."""
     from datetime import UTC, datetime
 
@@ -593,26 +603,27 @@ def test_deny_request_sends_email(test_admin_user, override_auth):
     request_id = str(uuid4())
     user_email = "denied@example.com"
 
-    with patch("services.reactivation.deny_request") as mock_deny:
-        with patch("routers.admin.send_reactivation_denied_notification") as mock_send_email:
-            mock_deny.return_value = ReactivationRequest(
-                id=request_id,
-                user_id=str(uuid4()),
-                email=user_email,
-                first_name="Test",
-                last_name="User",
-                requested_at=datetime.now(UTC),
-                decision="denied",
-                decided_at=datetime.now(UTC),
-                decided_by_name="Admin User",
-            )
+    mock_deny = mocker.patch("services.reactivation.deny_request")
+    mock_send_email = mocker.patch("routers.admin.send_reactivation_denied_notification")
 
-            client = TestClient(app)
-            client.post(
-                f"/admin/todo/reactivation/{request_id}/deny",
-                follow_redirects=False,
-            )
+    mock_deny.return_value = ReactivationRequest(
+        id=request_id,
+        user_id=str(uuid4()),
+        email=user_email,
+        first_name="Test",
+        last_name="User",
+        requested_at=datetime.now(UTC),
+        decision="denied",
+        decided_at=datetime.now(UTC),
+        decided_by_name="Admin User",
+    )
 
-            mock_send_email.assert_called_once()
-            call_args = mock_send_email.call_args[0]
-            assert call_args[0] == user_email
+    client = TestClient(app)
+    client.post(
+        f"/admin/todo/reactivation/{request_id}/deny",
+        follow_redirects=False,
+    )
+
+    mock_send_email.assert_called_once()
+    call_args = mock_send_email.call_args[0]
+    assert call_args[0] == user_email

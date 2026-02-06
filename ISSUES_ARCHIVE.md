@@ -1917,6 +1917,49 @@ poetry update sendgrid
 
 ---
 
+## [TEST] Nested Patch Pyramids: Remaining Files
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** Low-Medium
+
+**Category:** Test Code / Maintainability
+
+**Original Description:**
+The following files had deeply nested `with patch()` blocks (2-6 levels deep):
+- `tests/test_routers_admin.py` (11 tests with nested patches)
+- `tests/test_utils_email.py` (2 tests with 3-6 level nesting)
+- `tests/test_email_backends.py` (3 tests with 2-4 level nesting)
+
+Note: `tests/test_api_users.py`, `tests/test_services_users.py`, and `tests/test_api_groups.py` were found to already use flat patterns (comma-separated context managers or single-level patches).
+
+**Resolution:**
+Converted all deeply nested `with patch():` blocks to flat `mocker.patch()` calls using the pytest-mock fixture.
+
+**Pattern Applied:**
+```python
+# Before (nested):
+with patch("a") as mock_a:
+    with patch("b") as mock_b:
+        with patch("c") as mock_c:
+            # test code
+
+# After (flat):
+mock_a = mocker.patch("a")
+mock_b = mocker.patch("b")
+mock_c = mocker.patch("c")
+# test code
+```
+
+**Files Modified:**
+- `tests/test_routers_admin.py` - Flattened 11 tests
+- `tests/test_utils_email.py` - Flattened 2 tests
+- `tests/test_email_backends.py` - Flattened 3 tests
+
+**Verification:** All 66 tests across the 3 modified files pass. Ruff check passes.
+
+---
+
 ## [REFACTOR] Duplication: Authorization Helpers Repeated Across Services
 
 **Status:** Resolved (2026-02-01)

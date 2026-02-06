@@ -24,6 +24,92 @@ from utils.saml import build_saml_settings, decrypt_private_key
 logger = logging.getLogger(__name__)
 
 
+def _prepare_saml_auth(
+    tenant_id: str,
+    idp_id: str,
+    saml_response: str | None = None,
+    request_data: dict | None = None,
+) -> tuple:
+    """Build a OneLogin_Saml2_Auth instance for the given IdP.
+
+    Loads IdP config, SP certificate, decrypts the private key, and
+    constructs the SAML auth object.
+
+    Returns:
+        Tuple of (auth, idp) where auth is OneLogin_Saml2_Auth and idp is IdPConfig.
+    """
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
+
+    idp = get_idp_for_saml_login(tenant_id, idp_id)
+    sp_cert = database.saml.get_sp_certificate(tenant_id)
+
+    if sp_cert is None:
+        raise NotFoundError(
+            message="SP certificate not configured",
+            code="sp_certificate_not_found",
+        )
+
+    sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
+    sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
+
+    settings = build_saml_settings(
+        sp_entity_id=idp.sp_entity_id,
+        sp_acs_url=sp_acs_url,
+        sp_certificate_pem=sp_cert["certificate_pem"],
+        sp_private_key_pem=sp_private_key,
+        idp_entity_id=idp.entity_id,
+        idp_sso_url=idp.sso_url,
+        idp_certificate_pem=idp.certificate_pem,
+        idp_slo_url=idp.slo_url,
+    )
+
+    if request_data is None:
+        request_data = {
+            "https": "on",
+            "http_host": "",
+            "script_name": "",
+            "get_data": {},
+            "post_data": {},
+        }
+
+    if saml_response is not None:
+        request_data["post_data"] = {"SAMLResponse": saml_response}
+
+    auth = OneLogin_Saml2_Auth(request_data, settings)
+    return auth, idp
+
+
+def _extract_mapped_attributes(
+    auth: object,
+    idp: IdPConfig,
+) -> dict:
+    """Extract and map SAML attributes from a processed auth response.
+
+    Returns:
+        Dict with keys: email, first_name, last_name, groups, name_id,
+        name_id_format, raw_attributes.
+    """
+    raw_attributes = auth.get_attributes()
+    name_id = auth.get_nameid()
+    name_id_format = auth.get_nameid_format()
+
+    mapping = idp.attribute_mapping
+    email = get_saml_attribute(raw_attributes, mapping.get("email", "email"))
+    first_name = get_saml_attribute(raw_attributes, mapping.get("first_name", "firstName"))
+    last_name = get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
+    groups = get_saml_group_attributes(raw_attributes, mapping.get("groups", "groups"))
+
+    return {
+        "email": email,
+        "first_name": first_name,
+        "last_name": last_name,
+        "groups": groups,
+        "name_id": name_id,
+        "name_id_format": name_id_format,
+        "raw_attributes": raw_attributes,
+    }
+
+
 def get_enabled_idps_for_login(tenant_id: str) -> list[IdPForLogin]:
     """
     Get enabled IdPs for login page display.
@@ -133,53 +219,10 @@ def build_authn_request(
         Tuple of (redirect_url, request_id)
         request_id should be stored in session for response validation
     """
-    # Get IdP and SP certificate
-    idp = get_idp_for_saml_login(tenant_id, idp_id)
-    sp_cert = database.saml.get_sp_certificate(tenant_id)
-
-    if sp_cert is None:
-        raise NotFoundError(
-            message="SP certificate not configured",
-            code="sp_certificate_not_found",
-        )
-
-    # Decrypt SP private key
-    sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-
-    # Derive ACS URL from SP entity ID (standard: single ACS for all IdPs)
-    # sp_entity_id is "{base_url}/saml/metadata", so we derive ACS as "{base_url}/saml/acs"
-    sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
-
-    # Build settings
-    settings = build_saml_settings(
-        sp_entity_id=idp.sp_entity_id,
-        sp_acs_url=sp_acs_url,
-        sp_certificate_pem=sp_cert["certificate_pem"],
-        sp_private_key_pem=sp_private_key,
-        idp_entity_id=idp.entity_id,
-        idp_sso_url=idp.sso_url,
-        idp_certificate_pem=idp.certificate_pem,
-        idp_slo_url=idp.slo_url,
-    )
-
-    # Create mock request dict for python3-saml
-    # We need to provide the expected format for the library
-    request_data = {
-        "https": "on",
-        "http_host": "",  # Will be set from actual request
-        "script_name": "",
-        "get_data": {},
-        "post_data": {},
-    }
-
-    from onelogin.saml2.auth import OneLogin_Saml2_Auth
-
-    auth = OneLogin_Saml2_Auth(request_data, settings)
+    auth, _idp = _prepare_saml_auth(tenant_id, idp_id)
 
     # Generate AuthnRequest
     redirect_url = auth.login(relay_state or "")
-
-    # Get the request ID for validation
     request_id = auth.get_last_request_id()
 
     return redirect_url, request_id
@@ -215,49 +258,7 @@ def process_saml_response(
     Raises:
         ValidationError for invalid signatures, expired assertions, etc.
     """
-    # Get IdP and SP certificate
-    idp = get_idp_for_saml_login(tenant_id, idp_id)
-    sp_cert = database.saml.get_sp_certificate(tenant_id)
-
-    if sp_cert is None:
-        raise NotFoundError(
-            message="SP certificate not configured",
-            code="sp_certificate_not_found",
-        )
-
-    # Decrypt SP private key
-    sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-
-    # Derive ACS URL from SP entity ID (standard: single ACS for all IdPs)
-    sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
-
-    # Build settings
-    settings = build_saml_settings(
-        sp_entity_id=idp.sp_entity_id,
-        sp_acs_url=sp_acs_url,
-        sp_certificate_pem=sp_cert["certificate_pem"],
-        sp_private_key_pem=sp_private_key,
-        idp_entity_id=idp.entity_id,
-        idp_sso_url=idp.sso_url,
-        idp_certificate_pem=idp.certificate_pem,
-        idp_slo_url=idp.slo_url,
-    )
-
-    # Create request data for python3-saml
-    if request_data is None:
-        request_data = {
-            "https": "on",
-            "http_host": "",
-            "script_name": "",
-            "get_data": {},
-            "post_data": {"SAMLResponse": saml_response},
-        }
-    else:
-        request_data["post_data"] = {"SAMLResponse": saml_response}
-
-    from onelogin.saml2.auth import OneLogin_Saml2_Auth
-
-    auth = OneLogin_Saml2_Auth(request_data, settings)
+    auth, idp = _prepare_saml_auth(tenant_id, idp_id, saml_response, request_data)
 
     # Process the response
     auth.process_response(request_id=request_id)
@@ -272,28 +273,16 @@ def process_saml_response(
             details={"errors": errors},
         )
 
-    # Verify the response was authenticated
     if not auth.is_authenticated():
         raise ValidationError(
             message="SAML authentication failed",
             code="saml_auth_failed",
         )
 
-    # Extract attributes using IdP's attribute mapping
-    raw_attributes = auth.get_attributes()
-    name_id = auth.get_nameid()
-    name_id_format = auth.get_nameid_format()
+    # Extract and map attributes
+    attrs = _extract_mapped_attributes(auth, idp)
 
-    # Map attributes using IdP configuration
-    mapping = idp.attribute_mapping
-    email = get_saml_attribute(raw_attributes, mapping.get("email", "email"))
-    first_name = get_saml_attribute(raw_attributes, mapping.get("first_name", "firstName"))
-    last_name = get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
-
-    # Extract group claims (Phase 2: IdP Group Integration)
-    groups = get_saml_group_attributes(raw_attributes, mapping.get("groups", "groups"))
-
-    if not email:
+    if not attrs["email"]:
         raise ValidationError(
             message="SAML response missing email attribute",
             code="saml_missing_email",
@@ -301,18 +290,18 @@ def process_saml_response(
 
     return SAMLAuthResult(
         attributes=SAMLAttributes(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            name_id=name_id,
-            groups=groups,
+            email=attrs["email"],
+            first_name=attrs["first_name"],
+            last_name=attrs["last_name"],
+            name_id=attrs["name_id"],
+            groups=attrs["groups"],
         ),
         session_index=auth.get_session_index(),
-        name_id_format=name_id_format,
+        name_id_format=attrs["name_id_format"],
         idp_id=idp_id,
         idp_name=idp.name,
         requires_mfa=idp.require_platform_mfa,
-        groups=groups,
+        groups=attrs["groups"],
     )
 
 
@@ -344,47 +333,7 @@ def process_saml_test_response(
         SAMLTestResult with success status and assertion details or error info
     """
     try:
-        # Get IdP and SP certificate
-        idp = get_idp_for_saml_login(tenant_id, idp_id)
-        sp_cert = database.saml.get_sp_certificate(tenant_id)
-
-        if sp_cert is None:
-            return SAMLTestResult(
-                success=False,
-                error_type="configuration_error",
-                error_detail="SP certificate not configured",
-            )
-
-        # Decrypt SP private key and build settings
-        sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-        sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
-
-        settings = build_saml_settings(
-            sp_entity_id=idp.sp_entity_id,
-            sp_acs_url=sp_acs_url,
-            sp_certificate_pem=sp_cert["certificate_pem"],
-            sp_private_key_pem=sp_private_key,
-            idp_entity_id=idp.entity_id,
-            idp_sso_url=idp.sso_url,
-            idp_certificate_pem=idp.certificate_pem,
-            idp_slo_url=idp.slo_url,
-        )
-
-        # Create request data for python3-saml
-        if request_data is None:
-            request_data = {
-                "https": "on",
-                "http_host": "",
-                "script_name": "",
-                "get_data": {},
-                "post_data": {"SAMLResponse": saml_response},
-            }
-        else:
-            request_data["post_data"] = {"SAMLResponse": saml_response}
-
-        from onelogin.saml2.auth import OneLogin_Saml2_Auth
-
-        auth = OneLogin_Saml2_Auth(request_data, settings)
+        auth, idp = _prepare_saml_auth(tenant_id, idp_id, saml_response, request_data)
         auth.process_response(request_id=request_id)
 
         # Check for errors
@@ -414,29 +363,18 @@ def process_saml_test_response(
                 error_detail="SAML authentication failed",
             )
 
-        # Extract all attributes for display
-        raw_attributes = auth.get_attributes()
-        name_id = auth.get_nameid()
-        name_id_format = auth.get_nameid_format()
-        session_index = auth.get_session_index()
-
-        # Parse using IdP mapping
-        mapping = idp.attribute_mapping
-        parsed_email = get_saml_attribute(raw_attributes, mapping.get("email", "email"))
-        parsed_first_name = get_saml_attribute(
-            raw_attributes, mapping.get("first_name", "firstName")
-        )
-        parsed_last_name = get_saml_attribute(raw_attributes, mapping.get("last_name", "lastName"))
+        # Extract and map attributes
+        attrs = _extract_mapped_attributes(auth, idp)
 
         return SAMLTestResult(
             success=True,
-            name_id=name_id,
-            name_id_format=name_id_format,
-            session_index=session_index,
-            attributes=raw_attributes,
-            parsed_email=parsed_email,
-            parsed_first_name=parsed_first_name,
-            parsed_last_name=parsed_last_name,
+            name_id=attrs["name_id"],
+            name_id_format=attrs["name_id_format"],
+            session_index=auth.get_session_index(),
+            attributes=attrs["raw_attributes"],
+            parsed_email=attrs["email"],
+            parsed_first_name=attrs["first_name"],
+            parsed_last_name=attrs["last_name"],
         )
 
     except NotFoundError as e:

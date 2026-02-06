@@ -327,6 +327,83 @@ def _user_row_to_detail(user: dict, emails: list[dict], is_service: bool) -> Use
     )
 
 
+def _fetch_user_detail(tenant_id: str, user_id: str) -> UserDetail:
+    """Fetch a user by ID with emails and service status, returning UserDetail."""
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+            details={"user_id": user_id},
+        )
+
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    if primary_email:
+        user["email"] = primary_email["email"]
+
+    emails = database.user_emails.list_user_emails(tenant_id, user_id)
+    is_service = database.users.is_service_user(tenant_id, user_id)
+
+    return _user_row_to_detail(user, emails, is_service)
+
+
+def _validate_role_change(
+    tenant_id: str,
+    user: dict,
+    user_update: UserUpdate,
+    requesting_user: RequestingUser,
+) -> None:
+    """Validate role change restrictions on user update.
+
+    Checks that only super_admin can change to/from admin/super_admin,
+    and prevents demoting the last super_admin.
+    """
+    current_role = user["role"]
+    new_role = user_update.role
+
+    # Only super_admin can change to/from super_admin or admin
+    if (new_role in ("admin", "super_admin") or current_role == "super_admin") and requesting_user[
+        "role"
+    ] != "super_admin":
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="user",
+            artifact_id=str(user["id"]),
+            event_type="authorization_denied",
+            metadata={
+                "required_role": "super_admin",
+                "actual_role": requesting_user["role"],
+                "action": "role_change",
+                "target_user_id": str(user["id"]),
+                "current_role": current_role,
+                "attempted_role": new_role,
+            },
+        )
+        raise ForbiddenError(
+            message="Only super_admin can change admin or super_admin roles",
+            code="super_admin_role_change_denied",
+            required_role="super_admin",
+        )
+
+    # Prevent demoting the last super_admin
+    if current_role == "super_admin" and new_role != "super_admin":
+        super_admins = database.users.list_users(
+            tenant_id=tenant_id,
+            search=None,
+            sort_field="created_at",
+            sort_order="asc",
+            page=1,
+            page_size=100,
+        )
+        super_admin_count = sum(1 for u in super_admins if u["role"] == "super_admin")
+        if super_admin_count <= 1:
+            raise ValidationError(
+                message="Cannot demote the last super_admin",
+                code="last_super_admin",
+            )
+
+
 # =============================================================================
 # User CRUD (Admin operations)
 # =============================================================================
@@ -408,29 +485,7 @@ def get_user(
     require_admin(requesting_user, log_failure=True, service_name="users")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
-    tenant_id = requesting_user["tenant_id"]
-
-    # Get user
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        raise NotFoundError(
-            message="User not found",
-            code="user_not_found",
-            details={"user_id": user_id},
-        )
-
-    # Get primary email
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email:
-        user["email"] = primary_email["email"]
-
-    # Get all emails
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-
-    # Check if service user
-    is_service = database.users.is_service_user(tenant_id, user_id)
-
-    return _user_row_to_detail(user, emails, is_service)
+    return _fetch_user_detail(requesting_user["tenant_id"], user_id)
 
 
 def create_user(
@@ -573,51 +628,7 @@ def update_user(
 
     # Check role change restrictions
     if user_update.role:
-        current_role = user["role"]
-        new_role = user_update.role
-
-        # Only super_admin can change to/from super_admin or admin
-        if (
-            new_role in ("admin", "super_admin") or current_role == "super_admin"
-        ) and requesting_user["role"] != "super_admin":
-            # Log authorization failure for role change attempt
-            log_event(
-                tenant_id=tenant_id,
-                actor_user_id=requesting_user["id"],
-                artifact_type="user",
-                artifact_id=user_id,
-                event_type="authorization_denied",
-                metadata={
-                    "required_role": "super_admin",
-                    "actual_role": requesting_user["role"],
-                    "action": "role_change",
-                    "target_user_id": user_id,
-                    "current_role": current_role,
-                    "attempted_role": new_role,
-                },
-            )
-            raise ForbiddenError(
-                message="Only super_admin can change admin or super_admin roles",
-                code="super_admin_role_change_denied",
-                required_role="super_admin",
-            )
-
-        # Prevent demoting the last super_admin
-        if current_role == "super_admin" and new_role != "super_admin":
-            super_admins = database.users.list_users(
-                tenant_id=tenant_id,
-                search=None,
-                sort_field="created_at",
-                sort_order="asc",
-                page=1,
-                page_size=100,
-            )
-            super_admin_count = sum(1 for u in super_admins if u["role"] == "super_admin")
-            if super_admin_count <= 1:
-                raise ValidationError(
-                    message="Cannot demote the last super_admin",
-                    code="last_super_admin",
-                )
+        _validate_role_change(tenant_id, user, user_update, requesting_user)
 
     # Track changes for logging
     changes: dict = {}
@@ -638,21 +649,6 @@ def update_user(
             changes["role"] = {"old": user["role"], "new": user_update.role}
         database.users.update_user_role(tenant_id, user_id, user_update.role)
 
-    # Fetch updated user
-    updated_user = database.users.get_user_by_id(tenant_id, user_id)
-    if not updated_user:
-        raise ValidationError(
-            message="Failed to retrieve updated user",
-            code="user_retrieval_failed",
-        )
-
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if primary_email:
-        updated_user["email"] = primary_email["email"]
-
-    emails = database.user_emails.list_user_emails(tenant_id, user_id)
-    is_service = database.users.is_service_user(tenant_id, user_id)
-
     # Log the event if there were actual changes
     if changes:
         log_event(
@@ -664,7 +660,7 @@ def update_user(
             metadata={"changes": changes},
         )
 
-    return _user_row_to_detail(updated_user, emails, is_service)
+    return _fetch_user_detail(tenant_id, user_id)
 
 
 def delete_user(

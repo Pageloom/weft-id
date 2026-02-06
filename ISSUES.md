@@ -89,27 +89,7 @@ Option 2: Create a thin auth service that handles session creation and logging
 
 ---
 
-## [TEST] Nested Patch Pyramids: test_routers_settings.py
-
-**Found in:** `tests/test_routers_settings.py`
-**Impact:** Medium
-**Category:** Test Code / Maintainability
-
-**Description:**
-This file contains **51 instances** of nested `with patch()` context managers, with some tests setting up 6+ mocks but only asserting 1-2 things.
-
-**Evidence:**
-- `test_privileged_domains_with_error_param` (line 72): 6 mocks, 1 assertion
-- `test_tenant_security_page_no_settings` (line 368): 6 mocks, 1 assertion
-
-**Why It Matters:**
-- Excessive mocking may indicate tests are testing implementation rather than behavior
-- Review mock usage as part of conversion
-
-**Suggested Refactoring:**
-Convert to flat `mocker.patch()` calls. During conversion, evaluate whether all mocks are necessary.
-
-**Files Affected:** `tests/test_routers_settings.py` (51 patch calls to convert)
+## ~~[TEST] Nested Patch Pyramids: test_routers_settings.py~~ ✅ Resolved (2026-02-06)
 
 ---
 
@@ -297,7 +277,7 @@ Patch pyramid refactoring should proceed in this order:
 | ~~2~~ | ~~`test_utils_storage.py`~~ | ~~67~~ | ✅ Completed 2026-02-06 |
 | ~~3~~ | ~~`test_routers_account.py`~~ | ~~59~~ | ✅ Completed 2026-02-06 |
 | ~~4~~ | ~~`test_routers_integrations.py`~~ | ~~59~~ | ✅ Completed 2026-02-06 |
-| 5 | `test_routers_settings.py` | 51 | Review mock necessity during conversion |
+| ~~5~~ | ~~`test_routers_settings.py`~~ | ~~51~~ | ✅ Completed 2026-02-06 |
 | 6 | Remaining 6 files | 20-45 each | Lower priority |
 
 **Reference implementations:** `tests/test_routers_groups.py` (2026-02-02), `tests/test_routers_users.py` (2026-02-02), `tests/test_routers_auth.py` (2026-02-06)

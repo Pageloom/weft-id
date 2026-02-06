@@ -1,401 +1,402 @@
 """Tests for routers/settings.py endpoints."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
+from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
 
+# Module path constants for cleaner patch targets
+ROUTERS_SETTINGS = "routers.settings"
+DB_SETTINGS = "database.settings"
+DB_SECURITY = "database.security"
+UTILS_TEMPLATE = "utils.template_context"
+UTILS_ERRORS = "utils.service_errors"
 
-def test_settings_index_redirects_to_first_child(test_admin_user, override_auth):
+
+def test_settings_index_redirects_to_first_child(test_admin_user, override_auth, mocker):
     """Test settings index redirects to first accessible child page."""
     override_auth(test_admin_user, level="admin")
 
-    with patch("routers.settings.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/settings/privileged-domains"
+    mock_first_child = mocker.patch(f"{ROUTERS_SETTINGS}.get_first_accessible_child")
+    mock_first_child.return_value = "/admin/settings/privileged-domains"
 
-        client = TestClient(app)
-        response = client.get("/admin/settings/", follow_redirects=False)
+    client = TestClient(app)
+    response = client.get("/admin/settings/", follow_redirects=False)
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/settings/privileged-domains"
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/privileged-domains"
 
 
-def test_privileged_domains_list(test_admin_user, override_auth):
+def test_privileged_domains_list(test_admin_user, override_auth, mocker):
     """Test privileged domains page displays list."""
     from datetime import UTC, datetime
 
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    # Mock at database level - service layer will process the data
-    with patch("database.settings.list_privileged_domains") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = [
-                    {
-                        "id": "1",
-                        "domain": "example.com",
-                        "created_at": datetime.now(UTC),
-                        "first_name": "Admin",
-                        "last_name": "User",
-                    },
-                    {
-                        "id": "2",
-                        "domain": "test.org",
-                        "created_at": datetime.now(UTC),
-                        "first_name": None,
-                        "last_name": None,
-                    },
-                ]
-                mock_context.return_value = {"request": Mock(), "domains": mock_list.return_value}
-                mock_template.return_value = HTMLResponse(content="<html>domains</html>")
+    mock_list = mocker.patch(f"{DB_SETTINGS}.list_privileged_domains")
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>domains</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/privileged-domains")
+    mock_list.return_value = [
+        {
+            "id": "1",
+            "domain": "example.com",
+            "created_at": datetime.now(UTC),
+            "first_name": "Admin",
+            "last_name": "User",
+        },
+        {
+            "id": "2",
+            "domain": "test.org",
+            "created_at": datetime.now(UTC),
+            "first_name": None,
+            "last_name": None,
+        },
+    ]
 
-                assert response.status_code == 200
-                mock_list.assert_called_once_with(str(test_admin_user["tenant_id"]))
+    client = TestClient(app)
+    response = client.get("/admin/settings/privileged-domains")
+
+    assert response.status_code == 200
+    mock_list.assert_called_once_with(str(test_admin_user["tenant_id"]))
 
 
-def test_privileged_domains_with_error_param(test_admin_user, override_auth):
+def test_privileged_domains_with_error_param(test_admin_user, override_auth, mocker):
     """Test privileged domains page with error parameter."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.list_privileged_domains") as mock_list:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_list.return_value = []
-                mock_context.return_value = {
-                    "request": Mock(),
-                    "domains": [],
-                    "error": "invalid_domain",
-                }
-                mock_template.return_value = HTMLResponse(content="<html>error</html>")
+    mocker.patch(f"{DB_SETTINGS}.list_privileged_domains", return_value=[])
+    mocker.patch(
+        f"{UTILS_TEMPLATE}.get_template_context",
+        return_value={"request": Mock(), "domains": [], "error": "invalid_domain"},
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>error</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/privileged-domains?error=invalid_domain")
+    client = TestClient(app)
+    response = client.get("/admin/settings/privileged-domains?error=invalid_domain")
 
-                assert response.status_code == 200
+    assert response.status_code == 200
 
 
-def test_add_privileged_domain_success(test_admin_user, override_auth):
+def test_add_privileged_domain_success(test_admin_user, override_auth, mocker):
     """Test adding a valid privileged domain."""
     from datetime import UTC, datetime
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.privileged_domain_exists") as mock_exists:
-        with patch("database.settings.add_privileged_domain") as mock_add:
-            with patch("database.settings.list_privileged_domains") as mock_list:
-                mock_exists.return_value = False
-                # Service layer fetches the created domain to return it
-                mock_list.return_value = [
-                    {
-                        "id": "1",
-                        "domain": "example.com",
-                        "created_at": datetime.now(UTC),
-                        "first_name": "Admin",
-                        "last_name": "User",
-                    },
-                ]
+    mocker.patch(f"{DB_SETTINGS}.privileged_domain_exists", return_value=False)
+    mock_add = mocker.patch(f"{DB_SETTINGS}.add_privileged_domain")
+    mocker.patch(
+        f"{DB_SETTINGS}.list_privileged_domains",
+        return_value=[
+            {
+                "id": "1",
+                "domain": "example.com",
+                "created_at": datetime.now(UTC),
+                "first_name": "Admin",
+                "last_name": "User",
+            },
+        ],
+    )
 
-                client = TestClient(app)
-                response = client.post(
-                    "/admin/settings/privileged-domains/add",
-                    data={"domain": "example.com"},
-                    follow_redirects=False,
-                )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/add",
+        data={"domain": "example.com"},
+        follow_redirects=False,
+    )
 
-                assert response.status_code == 303
-                assert response.headers["location"] == "/admin/settings/privileged-domains"
-                mock_add.assert_called_once()
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/privileged-domains"
+    mock_add.assert_called_once()
 
 
-def test_add_privileged_domain_with_at_prefix(test_admin_user, override_auth):
+def test_add_privileged_domain_with_at_prefix(test_admin_user, override_auth, mocker):
     """Test adding domain with @ prefix (should be stripped)."""
     from datetime import UTC, datetime
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.privileged_domain_exists") as mock_exists:
-        with patch("database.settings.add_privileged_domain") as mock_add:
-            with patch("database.settings.list_privileged_domains") as mock_list:
-                mock_exists.return_value = False
-                mock_list.return_value = [
-                    {
-                        "id": "1",
-                        "domain": "example.com",
-                        "created_at": datetime.now(UTC),
-                        "first_name": None,
-                        "last_name": None,
-                    },
-                ]
+    mocker.patch(f"{DB_SETTINGS}.privileged_domain_exists", return_value=False)
+    mock_add = mocker.patch(f"{DB_SETTINGS}.add_privileged_domain")
+    mocker.patch(
+        f"{DB_SETTINGS}.list_privileged_domains",
+        return_value=[
+            {
+                "id": "1",
+                "domain": "example.com",
+                "created_at": datetime.now(UTC),
+                "first_name": None,
+                "last_name": None,
+            },
+        ],
+    )
 
-                client = TestClient(app)
-                response = client.post(
-                    "/admin/settings/privileged-domains/add",
-                    data={"domain": "@example.com"},
-                    follow_redirects=False,
-                )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/add",
+        data={"domain": "@example.com"},
+        follow_redirects=False,
+    )
 
-                assert response.status_code == 303
-                # @ should be stripped - check add was called with example.com
-                mock_add.assert_called_once()
-                call_kwargs = mock_add.call_args.kwargs
-                assert call_kwargs["domain"] == "example.com"
+    assert response.status_code == 303
+    # @ should be stripped - check add was called with example.com
+    mock_add.assert_called_once()
+    call_kwargs = mock_add.call_args.kwargs
+    assert call_kwargs["domain"] == "example.com"
 
 
-def test_add_privileged_domain_invalid_shows_error_page(test_admin_user, override_auth):
+def test_add_privileged_domain_invalid_shows_error_page(test_admin_user, override_auth, mocker):
     """Test adding invalid domain shows error page (service layer behavior)."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    # Mock the error page template
-    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-        mock_template.return_value = HTMLResponse(
+    mock_template = mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(
             content="<html>Invalid Input: cannot be empty</html>", status_code=400
-        )
+        ),
+    )
 
-        client = TestClient(app)
-        # Empty domain after strip - shows error page
-        response = client.post(
-            "/admin/settings/privileged-domains/add",
-            data={"domain": "   "},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    # Empty domain after strip - shows error page
+    response = client.post(
+        "/admin/settings/privileged-domains/add",
+        data={"domain": "   "},
+        follow_redirects=False,
+    )
 
-        # Service layer returns error pages for validation errors
-        assert response.status_code == 400
-        mock_template.assert_called_once()
+    # Service layer returns error pages for validation errors
+    assert response.status_code == 400
+    mock_template.assert_called_once()
 
 
-def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user, override_auth):
+def test_add_privileged_domain_no_dot_shows_error_page(test_admin_user, override_auth, mocker):
     """Test adding domain without dot shows error page."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-        mock_template.return_value = HTMLResponse(
+    mock_template = mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(
             content="<html>Invalid Input: must contain a dot</html>", status_code=400
-        )
+        ),
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/privileged-domains/add",
-            data={"domain": "localhost"},
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/add",
+        data={"domain": "localhost"},
+        follow_redirects=False,
+    )
 
-        # Service layer returns error page for validation errors
-        assert response.status_code == 400
-        mock_template.assert_called_once()
+    # Service layer returns error page for validation errors
+    assert response.status_code == 400
+    mock_template.assert_called_once()
 
 
-def test_add_privileged_domain_already_exists_shows_error_page(test_admin_user, override_auth):
+def test_add_privileged_domain_already_exists_shows_error_page(
+    test_admin_user, override_auth, mocker
+):
     """Test adding duplicate domain shows error page."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.privileged_domain_exists") as mock_exists:
-        with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-            mock_exists.return_value = True
-            mock_template.return_value = HTMLResponse(
-                content="<html>Conflict: domain already exists</html>", status_code=409
-            )
+    mocker.patch(f"{DB_SETTINGS}.privileged_domain_exists", return_value=True)
+    mock_template = mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(
+            content="<html>Conflict: domain already exists</html>", status_code=409
+        ),
+    )
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/privileged-domains/add",
-                data={"domain": "example.com"},
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/add",
+        data={"domain": "example.com"},
+        follow_redirects=False,
+    )
 
-            # Service layer returns error page for conflict errors
-            assert response.status_code == 409
-            mock_template.assert_called_once()
+    # Service layer returns error page for conflict errors
+    assert response.status_code == 409
+    mock_template.assert_called_once()
 
 
-def test_delete_privileged_domain(test_admin_user, override_auth):
+def test_delete_privileged_domain(test_admin_user, override_auth, mocker):
     """Test deleting a privileged domain."""
     from datetime import UTC, datetime
 
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.list_privileged_domains") as mock_list:
-        with patch("database.settings.delete_privileged_domain") as mock_delete:
-            # Domain must exist for delete to succeed
-            mock_list.return_value = [
-                {
-                    "id": "domain-id-123",
-                    "domain": "example.com",
-                    "created_at": datetime.now(UTC),
-                    "first_name": None,
-                    "last_name": None,
-                },
-            ]
+    mocker.patch(
+        f"{DB_SETTINGS}.list_privileged_domains",
+        return_value=[
+            {
+                "id": "domain-id-123",
+                "domain": "example.com",
+                "created_at": datetime.now(UTC),
+                "first_name": None,
+                "last_name": None,
+            },
+        ],
+    )
+    mock_delete = mocker.patch(f"{DB_SETTINGS}.delete_privileged_domain")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/privileged-domains/delete/domain-id-123", follow_redirects=False
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/delete/domain-id-123", follow_redirects=False
+    )
 
-            assert response.status_code == 303
-            assert response.headers["location"] == "/admin/settings/privileged-domains"
-            mock_delete.assert_called_once()
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/privileged-domains"
+    mock_delete.assert_called_once()
 
 
-def test_delete_privileged_domain_not_found_shows_error(test_admin_user, override_auth):
+def test_delete_privileged_domain_not_found_shows_error(test_admin_user, override_auth, mocker):
     """Test deleting non-existent domain shows error page."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.list_privileged_domains") as mock_list:
-        with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-            mock_list.return_value = []  # No domains exist
-            mock_template.return_value = HTMLResponse(
-                content="<html>Not Found: domain not found</html>", status_code=404
-            )
+    mocker.patch(f"{DB_SETTINGS}.list_privileged_domains", return_value=[])
+    mock_template = mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(
+            content="<html>Not Found: domain not found</html>", status_code=404
+        ),
+    )
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/privileged-domains/delete/nonexistent-id", follow_redirects=False
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/delete/nonexistent-id", follow_redirects=False
+    )
 
-            assert response.status_code == 404
-            mock_template.assert_called_once()
+    assert response.status_code == 404
+    mock_template.assert_called_once()
 
 
-def test_tenant_security_page(test_super_admin_user, override_auth):
+def test_tenant_security_page(test_super_admin_user, override_auth, mocker):
     """Test tenant security settings page."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("database.security.get_security_settings") as mock_get:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_get.return_value = {
-                    "session_timeout_seconds": 1800,
-                    "persistent_sessions": False,
-                    "allow_users_edit_profile": True,
-                    "allow_users_add_emails": False,
-                }
-                mock_context.return_value = {"request": Mock()}
-                mock_template.return_value = HTMLResponse(content="<html>security</html>")
+    mock_get = mocker.patch(f"{DB_SECURITY}.get_security_settings")
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>security</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/security")
+    mock_get.return_value = {
+        "session_timeout_seconds": 1800,
+        "persistent_sessions": False,
+        "allow_users_edit_profile": True,
+        "allow_users_add_emails": False,
+    }
 
-                assert response.status_code == 200
-                mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]))
+    client = TestClient(app)
+    response = client.get("/admin/settings/security")
+
+    assert response.status_code == 200
+    mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]))
 
 
-def test_tenant_security_page_no_settings(test_super_admin_user, override_auth):
+def test_tenant_security_page_no_settings(test_super_admin_user, override_auth, mocker):
     """Test tenant security page when no settings exist (defaults)."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("database.security.get_security_settings") as mock_get:
-        with patch("utils.template_context.get_template_context") as mock_context:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_get.return_value = None  # No settings row
-                mock_context.return_value = {"request": Mock()}
-                mock_template.return_value = HTMLResponse(content="<html>security</html>")
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>security</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/security")
+    client = TestClient(app)
+    response = client.get("/admin/settings/security")
 
-                assert response.status_code == 200
+    assert response.status_code == 200
 
 
-def test_update_tenant_security(test_super_admin_user, override_auth):
+def test_update_tenant_security(test_super_admin_user, override_auth, mocker):
     """Test updating tenant security settings."""
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("database.security.get_security_settings") as mock_get:
-        with patch("database.security.update_security_settings") as mock_update:
-            mock_get.return_value = None  # No existing settings
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/security/update",
-                data={
-                    "session_timeout": "3600",
-                    "persistent_sessions": "true",
-                    "allow_users_edit_profile": "true",
-                    "allow_users_add_emails": "",  # Unchecked
-                },
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "",  # Unchecked
+        },
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            assert "success=1" in response.headers["location"]
-            mock_update.assert_called_once()
+    assert response.status_code == 303
+    assert "success=1" in response.headers["location"]
+    mock_update.assert_called_once()
 
 
-def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth):
+def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth, mocker):
     """Test updating security with no timeout (indefinite)."""
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("database.security.get_security_settings") as mock_get:
-        with patch("database.security.update_security_settings") as mock_update:
-            mock_get.return_value = None
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/security/update",
-                data={
-                    "session_timeout": "",  # Empty = indefinite
-                    "persistent_sessions": "",
-                    "allow_users_edit_profile": "",
-                    "allow_users_add_emails": "",
-                },
-                follow_redirects=False,
-            )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",  # Empty = indefinite
+            "persistent_sessions": "",
+            "allow_users_edit_profile": "",
+            "allow_users_add_emails": "",
+        },
+        follow_redirects=False,
+    )
 
-            assert response.status_code == 303
-            # timeout_seconds should be None
-            mock_update.assert_called_once()
-            call_kwargs = mock_update.call_args.kwargs
-            assert call_kwargs["timeout_seconds"] is None
+    assert response.status_code == 303
+    # timeout_seconds should be None
+    mock_update.assert_called_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["timeout_seconds"] is None
 
 
 def test_update_tenant_security_invalid_timeout_shows_error_page(
-    test_super_admin_user, override_auth
+    test_super_admin_user, override_auth, mocker
 ):
     """Test updating security with invalid timeout shows error page."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-        mock_template.return_value = HTMLResponse(
+    mock_template = mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(
             content="<html>Invalid Input: timeout must be positive</html>", status_code=400
-        )
+        ),
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/security/update",
-            data={
-                "session_timeout": "0",  # Zero is invalid
-                "persistent_sessions": "true",
-                "allow_users_edit_profile": "true",
-                "allow_users_add_emails": "true",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "0",  # Zero is invalid
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+        },
+        follow_redirects=False,
+    )
 
-        # Route validates timeout and returns error page
-        assert response.status_code == 400
-        mock_template.assert_called_once()
+    # Route validates timeout and returns error page
+    assert response.status_code == 400
+    mock_template.assert_called_once()
 
 
 def test_tenant_security_form_action_url_is_correct():
@@ -427,93 +428,91 @@ def test_tenant_security_form_action_url_is_correct():
 # =============================================================================
 
 
-def test_bind_domain_to_idp_success(test_super_admin_user, override_auth):
+def test_bind_domain_to_idp_success(test_super_admin_user, override_auth, mocker):
     """Test binding a domain to an IdP redirects with success."""
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/privileged-domains/domain-123/bind",
-            data={"idp_id": "idp-456"},
-            follow_redirects=False,
-        )
+    mock_bind = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.bind_domain_to_idp")
 
-        assert response.status_code == 303
-        assert (
-            "/admin/settings/privileged-domains?success=domain_bound"
-            in response.headers["location"]
-        )
-        mock_bind.assert_called_once()
-        call_kwargs = mock_bind.call_args[1]
-        assert call_kwargs["domain_id"] == "domain-123"
-        assert call_kwargs["idp_id"] == "idp-456"
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/bind",
+        data={"idp_id": "idp-456"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/admin/settings/privileged-domains?success=domain_bound" in response.headers["location"]
+    mock_bind.assert_called_once()
+    call_kwargs = mock_bind.call_args[1]
+    assert call_kwargs["domain_id"] == "domain-123"
+    assert call_kwargs["idp_id"] == "idp-456"
 
 
-def test_bind_domain_to_idp_service_error(test_super_admin_user, override_auth):
+def test_bind_domain_to_idp_service_error(test_super_admin_user, override_auth, mocker):
     """Test binding domain with service error renders error page."""
-    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.saml_service.bind_domain_to_idp") as mock_bind:
-        with patch("routers.settings.render_error_page") as mock_error:
-            mock_bind.side_effect = ServiceError(message="IdP not found")
-            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_bind = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.bind_domain_to_idp")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/privileged-domains/domain-123/bind",
-                data={"idp_id": "idp-456"},
-                follow_redirects=False,
-            )
+    mock_bind.side_effect = ServiceError(message="IdP not found")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
-            assert response.status_code == 500
-            mock_error.assert_called_once()
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/bind",
+        data={"idp_id": "idp-456"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
 
 
-def test_unbind_domain_from_idp_success(test_super_admin_user, override_auth):
+def test_unbind_domain_from_idp_success(test_super_admin_user, override_auth, mocker):
     """Test unbinding a domain from IdP redirects with success."""
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/privileged-domains/domain-123/unbind",
-            follow_redirects=False,
-        )
+    mock_unbind = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.unbind_domain_from_idp")
 
-        assert response.status_code == 303
-        assert (
-            "/admin/settings/privileged-domains?success=domain_unbound"
-            in response.headers["location"]
-        )
-        mock_unbind.assert_called_once()
-        call_kwargs = mock_unbind.call_args[1]
-        assert call_kwargs["domain_id"] == "domain-123"
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/unbind",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert (
+        "/admin/settings/privileged-domains?success=domain_unbound" in response.headers["location"]
+    )
+    mock_unbind.assert_called_once()
+    call_kwargs = mock_unbind.call_args[1]
+    assert call_kwargs["domain_id"] == "domain-123"
 
 
-def test_unbind_domain_from_idp_service_error(test_super_admin_user, override_auth):
+def test_unbind_domain_from_idp_service_error(test_super_admin_user, override_auth, mocker):
     """Test unbinding domain with service error renders error page."""
-    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.saml_service.unbind_domain_from_idp") as mock_unbind:
-        with patch("routers.settings.render_error_page") as mock_error:
-            mock_unbind.side_effect = ServiceError(message="Domain not bound")
-            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_unbind = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.unbind_domain_from_idp")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/privileged-domains/domain-123/unbind",
-                follow_redirects=False,
-            )
+    mock_unbind.side_effect = ServiceError(message="Domain not bound")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
-            assert response.status_code == 500
-            mock_error.assert_called_once()
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/privileged-domains/domain-123/unbind",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
 
 
 # =============================================================================
@@ -521,7 +520,7 @@ def test_unbind_domain_from_idp_service_error(test_super_admin_user, override_au
 # =============================================================================
 
 
-def test_settings_index_fallback_to_dashboard(override_auth):
+def test_settings_index_fallback_to_dashboard(override_auth, mocker):
     """Test settings index falls back to dashboard when no children are accessible.
 
     This tests the fallback path (line 47) when get_first_accessible_child returns None.
@@ -538,13 +537,13 @@ def test_settings_index_fallback_to_dashboard(override_auth):
 
     override_auth(mock_user, level="admin")
 
-    # Mock the function where it's imported into the module
-    with patch("routers.settings.get_first_accessible_child", return_value=None):
-        client = TestClient(app)
-        response = client.get("/admin/settings/", follow_redirects=False)
+    mocker.patch(f"{ROUTERS_SETTINGS}.get_first_accessible_child", return_value=None)
 
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
+    client = TestClient(app)
+    response = client.get("/admin/settings/", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
 
 
 # =============================================================================
@@ -552,45 +551,44 @@ def test_settings_index_fallback_to_dashboard(override_auth):
 # =============================================================================
 
 
-def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user, override_auth):
+def test_privileged_domains_super_admin_fetches_idps(test_super_admin_user, override_auth, mocker):
     """Test super_admin user fetches IdPs for domain binding dropdown."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="admin")
 
-    with patch("database.settings.list_privileged_domains") as mock_domains:
-        with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_domains.return_value = []
-                mock_idps.return_value = Mock(items=[{"id": "idp-1", "name": "Test IdP"}])
-                mock_template.return_value = HTMLResponse(content="<html>domains</html>")
+    mocker.patch(f"{DB_SETTINGS}.list_privileged_domains", return_value=[])
+    mock_idps = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.list_identity_providers")
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>domains</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/privileged-domains")
+    mock_idps.return_value = Mock(items=[{"id": "idp-1", "name": "Test IdP"}])
 
-                assert response.status_code == 200
-                # Verify IdPs were fetched for super_admin
-                mock_idps.assert_called_once()
+    client = TestClient(app)
+    response = client.get("/admin/settings/privileged-domains")
+
+    assert response.status_code == 200
+    # Verify IdPs were fetched for super_admin
+    mock_idps.assert_called_once()
 
 
-def test_privileged_domains_regular_admin_no_idps(test_admin_user, override_auth):
+def test_privileged_domains_regular_admin_no_idps(test_admin_user, override_auth, mocker):
     """Test regular admin user does not fetch IdPs (not super_admin)."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_admin_user, level="admin")
 
-    with patch("database.settings.list_privileged_domains") as mock_domains:
-        with patch("routers.settings.saml_service.list_identity_providers") as mock_idps:
-            with patch("routers.settings.templates.TemplateResponse") as mock_template:
-                mock_domains.return_value = []
-                mock_template.return_value = HTMLResponse(content="<html>domains</html>")
+    mocker.patch(f"{DB_SETTINGS}.list_privileged_domains", return_value=[])
+    mock_idps = mocker.patch(f"{ROUTERS_SETTINGS}.saml_service.list_identity_providers")
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>domains</html>"),
+    )
 
-                client = TestClient(app)
-                response = client.get("/admin/settings/privileged-domains")
+    client = TestClient(app)
+    response = client.get("/admin/settings/privileged-domains")
 
-                assert response.status_code == 200
-                # Verify IdPs were NOT fetched for regular admin
-                mock_idps.assert_not_called()
+    assert response.status_code == 200
+    # Verify IdPs were NOT fetched for regular admin
+    mock_idps.assert_not_called()
 
 
 # =============================================================================
@@ -598,97 +596,97 @@ def test_privileged_domains_regular_admin_no_idps(test_admin_user, override_auth
 # =============================================================================
 
 
-def test_admin_security_service_error(test_super_admin_user, override_auth):
+def test_admin_security_service_error(test_super_admin_user, override_auth, mocker):
     """Test security settings page shows error when service fails."""
-    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.settings_service.get_security_settings") as mock_get:
-        with patch("routers.settings.render_error_page") as mock_error:
-            mock_get.side_effect = ServiceError(message="Database error")
-            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_get = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.get_security_settings")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
 
-            client = TestClient(app)
-            response = client.get("/admin/settings/security")
+    mock_get.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
-            assert response.status_code == 500
-            mock_error.assert_called_once()
+    client = TestClient(app)
+    response = client.get("/admin/settings/security")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
 
 
-def test_update_security_non_numeric_timeout_error(test_super_admin_user, override_auth):
+def test_update_security_non_numeric_timeout_error(test_super_admin_user, override_auth, mocker):
     """Test updating security with non-numeric timeout shows error."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-        mock_template.return_value = HTMLResponse(content="Error", status_code=400)
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/security/update",
-            data={
-                "session_timeout": "not-a-number",  # Non-numeric
-                "persistent_sessions": "true",
-                "allow_users_edit_profile": "true",
-                "allow_users_add_emails": "true",
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "not-a-number",  # Non-numeric
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 400
+    assert response.status_code == 400
 
 
-def test_update_security_non_numeric_inactivity_error(test_super_admin_user, override_auth):
+def test_update_security_non_numeric_inactivity_error(test_super_admin_user, override_auth, mocker):
     """Test updating security with non-numeric inactivity threshold shows error."""
-    from fastapi.responses import HTMLResponse
-
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("utils.service_errors.templates.TemplateResponse") as mock_template:
-        mock_template.return_value = HTMLResponse(content="Error", status_code=400)
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
 
-        client = TestClient(app)
-        response = client.post(
-            "/admin/settings/security/update",
-            data={
-                "session_timeout": "3600",
-                "persistent_sessions": "true",
-                "allow_users_edit_profile": "true",
-                "allow_users_add_emails": "true",
-                "inactivity_threshold": "not-a-number",  # Correct field name
-            },
-            follow_redirects=False,
-        )
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "inactivity_threshold": "not-a-number",  # Correct field name
+        },
+        follow_redirects=False,
+    )
 
-        assert response.status_code == 400
+    assert response.status_code == 400
 
 
-def test_update_security_service_error(test_super_admin_user, override_auth):
+def test_update_security_service_error(test_super_admin_user, override_auth, mocker):
     """Test updating security with service error shows error page."""
-    from fastapi.responses import HTMLResponse
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
 
-    with patch("routers.settings.settings_service.update_security_settings") as mock_update:
-        with patch("routers.settings.render_error_page") as mock_error:
-            mock_update.side_effect = ServiceError(message="Database error")
-            mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+    mock_update = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.update_security_settings")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
 
-            client = TestClient(app)
-            response = client.post(
-                "/admin/settings/security/update",
-                data={
-                    "session_timeout": "3600",
-                    "persistent_sessions": "true",
-                    "allow_users_edit_profile": "true",
-                    "allow_users_add_emails": "true",
-                },
-                follow_redirects=False,
-            )
+    mock_update.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
-            assert response.status_code == 500
-            mock_error.assert_called_once()
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()

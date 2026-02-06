@@ -4,6 +4,49 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Critical File Size: services/users.py and services/groups.py
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** High (Claude Traversability)
+
+**Original Description:**
+Two service files exceeded the critical threshold of 1000 lines:
+- `app/services/users.py` (1334 lines, ~40 functions)
+- `app/services/groups.py` (1295 lines, ~35 functions)
+
+**Resolution:**
+Both files split into focused package modules following the established `app/services/saml/` pattern:
+
+**`app/services/groups/` package (8 modules):**
+- `_converters.py` - Row-to-schema conversion helpers
+- `_helpers.py` - IdP group validation guards
+- `utilities.py` - Internal utility functions (get_user_group_ids)
+- `crud.py` - Group CRUD operations (list, get, create, update, delete)
+- `membership.py` - Member management (list, add, remove)
+- `hierarchy.py` - DAG operations (parents, children, add/remove relationships)
+- `selection.py` - UI dropdown helpers (available users, parents, children)
+- `idp.py` - IdP sync operations (create, sync, invalidate)
+
+**`app/services/users/` package (7 modules):**
+- `_converters.py` - Row-to-schema conversion helpers
+- `_validation.py` - Role change validation
+- `utilities.py` - Low-level utility functions (email checks, password updates, etc.)
+- `profile.py` - Self-service profile management (get/update)
+- `crud.py` - User CRUD operations (list, get, create, update, delete)
+- `state.py` - Lifecycle state operations (inactivate, reactivate, anonymize)
+
+**Test Updates:**
+Mock paths updated in 4 test files:
+- `tests/test_services_groups.py` (55 tests)
+- `tests/test_services_users.py` (48 tests)
+- `tests/test_services_event_log.py` (5 tests)
+- `tests/test_services_activity.py` (3 tests)
+
+**Verification:** All 2174 tests pass.
+
+---
+
 ## [TEST] Underutilized Pytest Parametrization
 
 **Status:** Resolved (2026-02-06)

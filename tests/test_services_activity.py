@@ -285,7 +285,7 @@ def test_list_users_tracks_activity(test_tenant, test_admin_user):
         "role": "admin",
     }
 
-    with patch("services.users.track_activity") as mock_track:
+    with patch("services.users.crud.track_activity") as mock_track:
         users.list_users(requesting_user)
         mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
@@ -302,7 +302,7 @@ def test_get_user_tracks_activity(test_tenant, test_admin_user, test_user):
         "role": "admin",
     }
 
-    with patch("services.users.track_activity") as mock_track:
+    with patch("services.users.crud.track_activity") as mock_track:
         users.get_user(requesting_user, str(test_user["id"]))
         mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
@@ -331,7 +331,7 @@ def test_get_current_user_profile_tracks_activity(test_tenant, test_user):
         "created_at": datetime.now(UTC),
     }
 
-    with patch("services.users.track_activity") as mock_track:
+    with patch("services.users.profile.track_activity") as mock_track:
         users.get_current_user_profile(requesting_user, user_data)
         mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_user["id"]))
 

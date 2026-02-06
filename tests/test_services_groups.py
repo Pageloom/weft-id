@@ -45,8 +45,8 @@ def test_list_groups_as_admin_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
     ):
         mock_db.groups.count_groups.return_value = 2
         mock_db.groups.list_groups.return_value = mock_groups
@@ -68,8 +68,8 @@ def test_list_groups_as_super_admin_success(make_requesting_user):
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
     ):
         mock_db.groups.count_groups.return_value = 0
         mock_db.groups.list_groups.return_value = []
@@ -110,8 +110,8 @@ def test_list_groups_with_pagination(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
     ):
         mock_db.groups.count_groups.return_value = 10
         mock_db.groups.list_groups.return_value = [mock_group]
@@ -151,8 +151,8 @@ def test_get_group_as_admin_success(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
 
@@ -173,8 +173,8 @@ def test_get_group_not_found(make_requesting_user):
     group_id = str(uuid4())
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = None
 
@@ -229,8 +229,8 @@ def test_create_group_success(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_weftid_group_by_name.return_value = None
         mock_db.groups.create_group.return_value = mock_created
@@ -266,8 +266,8 @@ def test_create_group_duplicate_name(make_requesting_user):
     requesting_user = make_requesting_user(role="admin")
     group_data = GroupCreate(name="Engineering")
 
-    with patch("services.groups.database") as mock_db:
-        mock_db.groups.get_group_by_name.return_value = {"id": str(uuid4())}
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_weftid_group_by_name.return_value = {"id": str(uuid4())}
 
         with pytest.raises(ConflictError) as exc_info:
             groups_service.create_group(requesting_user, group_data)
@@ -320,8 +320,8 @@ def test_update_group_success(make_requesting_user):
     mock_updated = {**mock_existing, "name": "Updated Name", "description": "New description"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_existing, mock_updated]
         mock_db.groups.get_weftid_group_by_name.return_value = None
@@ -342,7 +342,7 @@ def test_update_group_not_found(make_requesting_user):
     requesting_user = make_requesting_user(role="admin")
     group_data = GroupUpdate(name="New Name")
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = None
 
         with pytest.raises(NotFoundError) as exc_info:
@@ -375,9 +375,9 @@ def test_update_group_duplicate_name(make_requesting_user):
         "updated_at": datetime.now(UTC),
     }
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_existing
-        mock_db.groups.get_group_by_name.return_value = {"id": str(uuid4())}
+        mock_db.groups.get_weftid_group_by_name.return_value = {"id": str(uuid4())}
 
         with pytest.raises(ConflictError) as exc_info:
             groups_service.update_group(requesting_user, group_id, group_data)
@@ -414,8 +414,8 @@ def test_delete_group_success(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_existing
         mock_db.groups.delete_group.return_value = 1
@@ -434,7 +434,7 @@ def test_delete_group_not_found(make_requesting_user):
 
     requesting_user = make_requesting_user(role="admin")
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = None
 
         with pytest.raises(NotFoundError) as exc_info:
@@ -469,8 +469,8 @@ def test_list_members_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.count_group_members.return_value = 1
@@ -496,8 +496,8 @@ def test_add_member_success(make_requesting_user):
     mock_user = {"id": user_id, "first_name": "Test", "last_name": "User"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.users.get_user_by_id.return_value = mock_user
@@ -524,7 +524,7 @@ def test_add_member_already_member(make_requesting_user):
     mock_group = {"id": group_id, "name": "Test Group"}
     mock_user = {"id": user_id}
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.membership.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.users.get_user_by_id.return_value = mock_user
         mock_db.groups.is_group_member.return_value = True
@@ -547,8 +547,8 @@ def test_remove_member_success(make_requesting_user):
     mock_group = {"id": group_id, "name": "Test Group"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.remove_group_member.return_value = 1
@@ -571,7 +571,7 @@ def test_remove_member_not_a_member(make_requesting_user):
 
     mock_group = {"id": group_id, "name": "Test Group"}
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.membership.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.remove_group_member.return_value = 0
 
@@ -607,8 +607,8 @@ def test_list_parents_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.get_group_parents.return_value = mock_parents
@@ -641,8 +641,8 @@ def test_list_children_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.get_group_children.return_value = mock_children
@@ -667,8 +667,8 @@ def test_add_child_success(make_requesting_user):
     mock_child = {"id": child_id, "name": "Child"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_child]
         mock_db.groups.relationship_exists.return_value = False
@@ -708,7 +708,7 @@ def test_add_child_would_create_cycle(make_requesting_user):
     mock_parent = {"id": parent_id, "name": "Parent"}
     mock_child = {"id": child_id, "name": "Child"}
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.hierarchy.database") as mock_db:
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_child]
         mock_db.groups.relationship_exists.return_value = False
         mock_db.groups.would_create_cycle.return_value = True
@@ -731,7 +731,7 @@ def test_add_child_relationship_exists(make_requesting_user):
     mock_parent = {"id": parent_id, "name": "Parent"}
     mock_child = {"id": child_id, "name": "Child"}
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.hierarchy.database") as mock_db:
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_child]
         mock_db.groups.relationship_exists.return_value = True
 
@@ -754,8 +754,8 @@ def test_remove_child_success(make_requesting_user):
     mock_child = {"id": child_id, "name": "Child"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_child]
         mock_db.groups.remove_group_relationship.return_value = 1
@@ -775,7 +775,7 @@ def test_remove_child_not_found(make_requesting_user):
     tenant_id = str(uuid4())
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.hierarchy.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = {"id": str(uuid4()), "name": "Test"}
         mock_db.groups.remove_group_relationship.return_value = 0
 
@@ -802,7 +802,7 @@ def test_get_user_group_ids():
         {"id": uuid4(), "name": "Group 2"},
     ]
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.utilities.database") as mock_db:
         mock_db.groups.get_user_groups.return_value = mock_groups
 
         result = groups_service.get_user_group_ids(tenant_id, user_id)
@@ -842,8 +842,8 @@ def test_list_available_users_for_group_success(make_requesting_user):
     mock_members = [{"user_id": member_user_id}]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
         mock_db.users.list_users.return_value = mock_users
@@ -868,8 +868,8 @@ def test_list_available_users_for_group_not_found(make_requesting_user):
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = None
 
@@ -908,8 +908,8 @@ def test_list_available_parents_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
         mock_db.groups.get_groups_for_parent_select.return_value = mock_available_parents
@@ -931,8 +931,8 @@ def test_list_available_parents_not_found(make_requesting_user):
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = None
 
@@ -959,8 +959,8 @@ def test_list_available_children_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = {"id": group_id, "name": "Test Group"}
         mock_db.groups.get_groups_for_child_select.return_value = mock_available_children
@@ -982,8 +982,8 @@ def test_list_available_children_not_found(make_requesting_user):
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
     ):
         mock_db.groups.get_group_by_id.return_value = None
 
@@ -1025,9 +1025,9 @@ def test_create_idp_base_group_success():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # No existing group with this name for this IdP
         mock_db.groups.get_group_by_idp_and_name.return_value = None
@@ -1063,9 +1063,9 @@ def test_sync_user_idp_groups_adds_new_groups():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # User is not in any IdP groups yet
         mock_db.groups.get_user_idp_group_ids.return_value = []
@@ -1095,12 +1095,13 @@ def test_sync_user_idp_groups_removes_old_groups():
     old_group_id = str(uuid4())
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # User was in a group but no longer
         mock_db.groups.get_user_idp_group_ids.return_value = [old_group_id]
+        mock_db.groups.get_group_by_id.return_value = {"name": "Old Group"}
         mock_db.groups.bulk_remove_user_from_groups.return_value = None
 
         result = groups_service.sync_user_idp_groups(
@@ -1132,9 +1133,9 @@ def test_sync_user_idp_groups_creates_discovered_groups():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         mock_db.groups.get_user_idp_group_ids.return_value = []
         # Group doesn't exist yet
@@ -1172,12 +1173,13 @@ def test_sync_logs_with_idp_attribution():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         mock_db.groups.get_user_idp_group_ids.return_value = []
         mock_db.groups.get_group_by_idp_and_name.return_value = mock_group
+        mock_db.groups.get_group_by_id.return_value = mock_group
         mock_db.groups.bulk_add_user_to_groups.return_value = None
 
         groups_service.sync_user_idp_groups(
@@ -1210,7 +1212,7 @@ def test_add_member_to_idp_group_forbidden(make_requesting_user):
         "is_valid": True,
     }
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.membership.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_idp_group
 
         with pytest.raises(ForbiddenError) as exc_info:
@@ -1236,7 +1238,7 @@ def test_remove_member_from_idp_group_forbidden(make_requesting_user):
         "is_valid": True,
     }
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.membership.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_idp_group
 
         with pytest.raises(ForbiddenError) as exc_info:
@@ -1269,7 +1271,7 @@ def test_update_idp_group_forbidden(make_requesting_user):
         "updated_at": datetime.now(UTC),
     }
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_idp_group
 
         with pytest.raises(ForbiddenError) as exc_info:
@@ -1301,7 +1303,7 @@ def test_delete_valid_idp_group_forbidden(make_requesting_user):
         "updated_at": datetime.now(UTC),
     }
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_group_by_id.return_value = mock_idp_group
 
         with pytest.raises(ForbiddenError) as exc_info:
@@ -1334,8 +1336,8 @@ def test_delete_invalid_idp_group_allowed(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_invalid_idp_group
         mock_db.groups.delete_group.return_value = 1
@@ -1365,8 +1367,8 @@ def test_add_idp_group_as_child_allowed(make_requesting_user):
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_idp_child]
         mock_db.groups.relationship_exists.return_value = False
@@ -1396,7 +1398,7 @@ def test_add_idp_group_as_parent_forbidden(make_requesting_user):
     }
     mock_child = {"id": child_id, "name": "Some Child", "group_type": "weftid"}
 
-    with patch("services.groups.database") as mock_db:
+    with patch("services.groups.hierarchy.database") as mock_db:
         mock_db.groups.get_group_by_id.side_effect = [mock_idp_parent, mock_child]
         mock_db.groups.relationship_exists.return_value = False
 
@@ -1423,9 +1425,9 @@ def test_invalidate_idp_groups_on_deletion():
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # Get groups returns the groups to be invalidated
         mock_db.groups.get_groups_by_idp.return_value = mock_groups
@@ -1478,8 +1480,8 @@ def test_list_groups_for_idp_success(make_requesting_user):
     ]
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.track_activity"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.track_activity"),
     ):
         mock_db.groups.get_groups_by_idp.return_value = mock_groups
 
@@ -1508,8 +1510,8 @@ def test_create_idp_base_group_raises_conflict_when_duplicate():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.system_context"),
     ):
         # Group already exists for this IdP
         mock_db.groups.get_group_by_idp_and_name.return_value = mock_existing_group
@@ -1542,9 +1544,9 @@ def test_sync_user_idp_groups_no_op_when_already_in_sync():
     }
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # User is already in the Engineering group
         mock_db.groups.get_user_idp_group_ids.return_value = [group_id]
@@ -1575,9 +1577,9 @@ def test_invalidate_idp_groups_returns_zero_when_idp_has_no_groups():
     idp_name = "Empty IdP"
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
-        patch("services.groups.system_context"),
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
     ):
         # IdP has no groups
         mock_db.groups.get_groups_by_idp.return_value = []
@@ -1611,8 +1613,8 @@ def test_idp_group_can_have_multiple_weftid_parents(make_requesting_user):
     mock_parent2 = {"id": parent2_id, "name": "All Teams", "group_type": "weftid"}
 
     with (
-        patch("services.groups.database") as mock_db,
-        patch("services.groups.log_event") as mock_log,
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
     ):
         # First parent addition
         mock_db.groups.get_group_by_id.side_effect = [mock_parent1, mock_idp_group]

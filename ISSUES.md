@@ -6,22 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## [REFACTOR] Long Functions in User Management
-
-**Found in:** `app/services/users.py`, `app/services/saml/auth.py`, `app/services/groups.py`
-**Impact:** Medium
-
-**Description:**
-Several functions exceed 100 lines:
-- `update_user()` in users.py (~130 lines)
-- `process_saml_response()` in saml/auth.py (~130 lines)
-- `sync_user_idp_groups()` in groups.py (~121 lines)
-
-**Suggested Refactoring:**
-Extract sub-operations into focused helper functions.
-
----
-
 ## [REFACTOR] File Structure: Large Router Files
 
 **Found in:** `app/routers/`, `app/routers/api/v1/`
@@ -339,7 +323,7 @@ assert org_name == "Test Organization"
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 1 | 1 file structure (2/4 routers done) |
-| Medium | 8 | 1 long functions, 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
+| Medium | 7 | 5 test patch pyramids (medium volume), 1 test docstrings, 1 test parametrization |
 | Low | 2 | 1 architecture consistency, 1 test magic indices |
 
 ## Test Code Refactoring Priority

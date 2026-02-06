@@ -4,6 +4,23 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Nested Patch Pyramids: test_utils_storage.py
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** Medium
+
+**Original Description:**
+67 instances of nested `with patch()` context managers in `tests/test_utils_storage.py`, with SpacesStorageBackend tests having 5-6 levels of nesting for settings patches.
+
+**Resolution:**
+Converted all nested `with patch()` to flat `mocker.patch()` calls. Extracted a `spaces_env` fixture that sets up the common boto3 mock and all Spaces settings patches, returning the mock client and boto3 module for per-test configuration. Local storage tests converted to single `mocker.patch()` calls. Backend selection tests flattened similarly.
+
+**Files Modified:**
+- `tests/test_utils_storage.py` - 67 nested patches eliminated, `spaces_env` fixture added
+
+---
+
 ## [REFACTOR] Long Functions in Service Layer
 
 **Status:** Resolved (2026-02-06)

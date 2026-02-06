@@ -4,6 +4,36 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Long Functions in Service Layer
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** Medium
+
+**Original Description:**
+Three service functions exceeded 100 lines:
+- `update_user()` in `app/services/users.py` (~131 lines)
+- `process_saml_response()` in `app/services/saml/auth.py` (~129 lines)
+- `sync_user_idp_groups()` in `app/services/groups.py` (~119 lines)
+
+**Resolution:**
+Extracted focused helper functions to reduce each function's length without changing behavior:
+
+1. **`app/services/users.py`**: Extracted `_validate_role_change()` (role escalation checks, last super_admin guard, authorization event logging) and `_fetch_user_detail()` (user lookup with emails and service status). `update_user()` dropped to ~50 lines, `get_user()` also simplified by reusing `_fetch_user_detail()`.
+
+2. **`app/services/saml/auth.py`**: Extracted `_prepare_saml_auth()` (IdP config, SP cert, key decryption, settings construction, auth object creation) and `_extract_mapped_attributes()` (attribute extraction and mapping via IdP config). Eliminated duplication across `build_authn_request()`, `process_saml_response()`, and `process_saml_test_response()`.
+
+3. **`app/services/groups.py`**: Extracted `_apply_membership_additions()` and `_apply_membership_removals()` (bulk add/remove with per-group event logging). `sync_user_idp_groups()` dropped to ~25 lines.
+
+**Files Modified:**
+- `app/services/users.py` - Extracted 2 helpers, simplified `update_user()` and `get_user()`
+- `app/services/saml/auth.py` - Extracted 2 helpers, simplified 3 functions
+- `app/services/groups.py` - Extracted 2 helpers, simplified `sync_user_idp_groups()`
+
+**Verification:** All 2174 tests pass with no test file changes.
+
+---
+
 ## [TEST] Duplicated Auth Override Pattern
 
 **Status:** Resolved (2026-02-06)

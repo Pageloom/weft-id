@@ -702,9 +702,7 @@ def add_child(
         )
 
     # Add relationship (transactional: updates both relationships and lineage)
-    database.groups.add_group_relationship(
-        tenant_id, tenant_id, parent_group_id, child_group_id
-    )
+    database.groups.add_group_relationship(tenant_id, tenant_id, parent_group_id, child_group_id)
 
     # Log event
     log_event(
@@ -1070,6 +1068,99 @@ def get_or_create_idp_group(
     return {"id": group_id, "name": group_name, "created": True}
 
 
+def _apply_membership_additions(
+    tenant_id: str,
+    user_id: str,
+    user_email: str,
+    idp_id: str,
+    idp_name: str,
+    group_ids: set[str],
+) -> list[str]:
+    """Add user to the given groups and log each addition.
+
+    Returns list of added group names.
+    """
+    if not group_ids:
+        return []
+
+    database.groups.bulk_add_user_to_groups(tenant_id, tenant_id, user_id, list(group_ids))
+
+    added: list[str] = []
+    for group_id in group_ids:
+        group = database.groups.get_group_by_id(tenant_id, group_id)
+        group_name = group["name"] if group else "Unknown"
+        added.append(group_name)
+
+        with system_context():
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
+                artifact_type="group_membership",
+                artifact_id=f"{group_id}:{user_id}",
+                event_type="idp_group_member_added",
+                metadata={
+                    "idp_id": idp_id,
+                    "idp_name": idp_name,
+                    "user_id": user_id,
+                    "user_email": user_email,
+                    "group_id": group_id,
+                    "group_name": group_name,
+                    "sync_source": "saml_authentication",
+                },
+            )
+
+    return added
+
+
+def _apply_membership_removals(
+    tenant_id: str,
+    user_id: str,
+    user_email: str,
+    idp_id: str,
+    idp_name: str,
+    group_ids: set[str],
+) -> list[str]:
+    """Remove user from the given groups and log each removal.
+
+    Returns list of removed group names.
+    """
+    if not group_ids:
+        return []
+
+    # Collect group names before removal for logging
+    groups_to_remove: list[tuple[str, str]] = []
+    for group_id in group_ids:
+        group = database.groups.get_group_by_id(tenant_id, group_id)
+        group_name = group["name"] if group else "Unknown"
+        groups_to_remove.append((group_id, group_name))
+
+    database.groups.bulk_remove_user_from_groups(tenant_id, user_id, list(group_ids))
+
+    removed: list[str] = []
+    for group_id, group_name in groups_to_remove:
+        removed.append(group_name)
+
+        with system_context():
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
+                artifact_type="group_membership",
+                artifact_id=f"{group_id}:{user_id}",
+                event_type="idp_group_member_removed",
+                metadata={
+                    "idp_id": idp_id,
+                    "idp_name": idp_name,
+                    "user_id": user_id,
+                    "user_email": user_email,
+                    "group_id": group_id,
+                    "group_name": group_name,
+                    "sync_source": "saml_authentication",
+                },
+            )
+
+    return removed
+
+
 def sync_user_idp_groups(
     tenant_id: str,
     user_id: str,
@@ -1106,12 +1197,10 @@ def sync_user_idp_groups(
     result: dict[str, list[str]] = {"added": [], "removed": [], "created": []}
 
     # Get current IdP group memberships for this user
-    current_group_ids = set(
-        database.groups.get_user_idp_group_ids(tenant_id, user_id, idp_id)
-    )
+    current_group_ids = set(database.groups.get_user_idp_group_ids(tenant_id, user_id, idp_id))
 
     # Resolve group names to group IDs (creating groups as needed)
-    target_group_ids = set()
+    target_group_ids: set[str] = set()
     for group_name in group_names:
         group_info = get_or_create_idp_group(tenant_id, idp_id, idp_name, group_name)
         if group_info:
@@ -1119,74 +1208,16 @@ def sync_user_idp_groups(
             if group_info.get("created"):
                 result["created"].append(group_name)
 
-    # Calculate additions and removals
+    # Apply additions and removals
     to_add = target_group_ids - current_group_ids
     to_remove = current_group_ids - target_group_ids
 
-    # Add user to new groups
-    if to_add:
-        database.groups.bulk_add_user_to_groups(
-            tenant_id, tenant_id, user_id, list(to_add)
-        )
-
-        # Log each addition with IdP attribution
-        for group_id in to_add:
-            group = database.groups.get_group_by_id(tenant_id, group_id)
-            group_name = group["name"] if group else "Unknown"
-            result["added"].append(group_name)
-
-            with system_context():
-                log_event(
-                    tenant_id=tenant_id,
-                    actor_user_id=SYSTEM_ACTOR_ID,
-                    artifact_type="group_membership",
-                    artifact_id=f"{group_id}:{user_id}",
-                    event_type="idp_group_member_added",
-                    metadata={
-                        "idp_id": idp_id,
-                        "idp_name": idp_name,
-                        "user_id": user_id,
-                        "user_email": user_email,
-                        "group_id": group_id,
-                        "group_name": group_name,
-                        "sync_source": "saml_authentication",
-                    },
-                )
-
-    # Remove user from old groups
-    if to_remove:
-        # Get group names before removal for logging
-        groups_to_remove = []
-        for group_id in to_remove:
-            group = database.groups.get_group_by_id(tenant_id, group_id)
-            group_name = group["name"] if group else "Unknown"
-            groups_to_remove.append((group_id, group_name))
-
-        database.groups.bulk_remove_user_from_groups(
-            tenant_id, user_id, list(to_remove)
-        )
-
-        # Log each removal with IdP attribution
-        for group_id, group_name in groups_to_remove:
-            result["removed"].append(group_name)
-
-            with system_context():
-                log_event(
-                    tenant_id=tenant_id,
-                    actor_user_id=SYSTEM_ACTOR_ID,
-                    artifact_type="group_membership",
-                    artifact_id=f"{group_id}:{user_id}",
-                    event_type="idp_group_member_removed",
-                    metadata={
-                        "idp_id": idp_id,
-                        "idp_name": idp_name,
-                        "user_id": user_id,
-                        "user_email": user_email,
-                        "group_id": group_id,
-                        "group_name": group_name,
-                        "sync_source": "saml_authentication",
-                    },
-                )
+    result["added"] = _apply_membership_additions(
+        tenant_id, user_id, user_email, idp_id, idp_name, to_add
+    )
+    result["removed"] = _apply_membership_removals(
+        tenant_id, user_id, user_email, idp_id, idp_name, to_remove
+    )
 
     return result
 

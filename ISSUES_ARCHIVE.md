@@ -4,6 +4,45 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Underutilized Pytest Parametrization
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** Medium
+
+**Original Description:**
+Only `test_templates_dark_mode.py` effectively used `@pytest.mark.parametrize`. Many test files had repeated test structures that could be consolidated, particularly section redirect tests and role-based access tests.
+
+**Resolution:**
+Applied parametrization to `tests/test_routers_admin.py` section redirect tests:
+
+- Consolidated 8 individual test functions into 3 parametrized tests
+- `test_section_index_redirects_to_first_child` (3 cases: /admin/, /admin/audit/, /admin/todo/)
+- `test_section_index_fallback_to_dashboard` (3 cases)
+- `test_section_index_works_without_trailing_slash` (2 cases: /admin/audit, /admin/todo)
+
+This establishes the parametrization pattern for the codebase. Other files (test_routers_users.py, test_api_users.py, test_services_users.py) have potential opportunities but with more complex patterns (different function signatures, varying assertions).
+
+**Verification:** All 2174 tests pass.
+
+---
+
+## [TEST] Missing Test Docstrings: test_services_saml.py
+
+**Status:** Already Resolved (confirmed 2026-02-06)
+
+**Original Severity:** Medium
+
+**Original Description:**
+73 tests in `tests/test_services_saml.py` were reported to lack docstrings explaining what they test and why.
+
+**Resolution:**
+Upon investigation, all 163 tests in the file already have docstrings. The examples mentioned in the original issue (lines 197, 455, 569, 625) all contain descriptive docstrings. The issue was either resolved previously or was logged incorrectly.
+
+**Verification:** AST parsing confirmed 163 tests with docstrings, 0 without.
+
+---
+
 ## [REFACTOR] File Structure: Large Router Files (All 4 Routers)
 
 **Status:** Resolved (2026-02-06)

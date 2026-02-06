@@ -8,13 +8,9 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-def test_admin_index_redirects_to_events(test_admin_user):
+def test_admin_index_redirects_to_events(test_admin_user, override_auth):
     """Test admin index redirects to first accessible child page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/audit/events"
@@ -22,27 +18,19 @@ def test_admin_index_redirects_to_events(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/audit/events"
 
 
-def test_admin_index_fallback_to_dashboard(test_admin_user):
+def test_admin_index_fallback_to_dashboard(test_admin_user, override_auth):
     """Test admin index falls back to dashboard when no accessible children."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = None
 
         client = TestClient(app)
         response = client.get("/admin/", follow_redirects=False)
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
@@ -53,13 +41,9 @@ def test_admin_index_fallback_to_dashboard(test_admin_user):
 # =============================================================================
 
 
-def test_audit_index_redirects_to_events(test_admin_user):
+def test_audit_index_redirects_to_events(test_admin_user, override_auth):
     """Test audit section index redirects to first accessible child page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/audit/events"
@@ -67,20 +51,14 @@ def test_audit_index_redirects_to_events(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/audit/", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/audit/events"
         mock_first_child.assert_called_once_with("/admin/audit", test_admin_user.get("role"))
 
 
-def test_audit_index_without_trailing_slash(test_admin_user):
+def test_audit_index_without_trailing_slash(test_admin_user, override_auth):
     """Test audit section index works without trailing slash."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/audit/events"
@@ -88,27 +66,19 @@ def test_audit_index_without_trailing_slash(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/audit", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/audit/events"
 
 
-def test_audit_index_fallback_to_dashboard(test_admin_user):
+def test_audit_index_fallback_to_dashboard(test_admin_user, override_auth):
     """Test audit section index falls back to dashboard when no accessible children."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = None
 
         client = TestClient(app)
         response = client.get("/admin/audit/", follow_redirects=False)
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
@@ -119,13 +89,9 @@ def test_audit_index_fallback_to_dashboard(test_admin_user):
 # =============================================================================
 
 
-def test_todo_index_redirects_to_reactivation(test_admin_user):
+def test_todo_index_redirects_to_reactivation(test_admin_user, override_auth):
     """Test todo section index redirects to first accessible child page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/todo/reactivation"
@@ -133,20 +99,14 @@ def test_todo_index_redirects_to_reactivation(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/todo/", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/todo/reactivation"
         mock_first_child.assert_called_once_with("/admin/todo", test_admin_user.get("role"))
 
 
-def test_todo_index_without_trailing_slash(test_admin_user):
+def test_todo_index_without_trailing_slash(test_admin_user, override_auth):
     """Test todo section index works without trailing slash."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = "/admin/todo/reactivation"
@@ -154,27 +114,19 @@ def test_todo_index_without_trailing_slash(test_admin_user):
         client = TestClient(app)
         response = client.get("/admin/todo", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/todo/reactivation"
 
 
-def test_todo_index_fallback_to_dashboard(test_admin_user):
+def test_todo_index_fallback_to_dashboard(test_admin_user, override_auth):
     """Test todo section index falls back to dashboard when no accessible children."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = None
 
         client = TestClient(app)
         response = client.get("/admin/todo/", follow_redirects=False)
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
@@ -185,14 +137,11 @@ def test_todo_index_fallback_to_dashboard(test_admin_user):
 # =============================================================================
 
 
-def test_event_log_list_renders(test_admin_user):
+def test_event_log_list_renders(test_admin_user, override_auth):
     """Test event log list page renders successfully."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.event_log.list_events") as mock_list:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -211,20 +160,15 @@ def test_event_log_list_renders(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/audit/events")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 mock_list.assert_called_once()
 
 
-def test_event_log_list_with_pagination(test_admin_user):
+def test_event_log_list_with_pagination(test_admin_user, override_auth):
     """Test event log list page with pagination parameters."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.event_log.list_events") as mock_list:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -242,8 +186,6 @@ def test_event_log_list_with_pagination(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/audit/events?page=2&size=25")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 # Verify pagination was passed correctly
                 call_args = mock_list.call_args
@@ -251,15 +193,12 @@ def test_event_log_list_with_pagination(test_admin_user):
                 assert call_args[1]["limit"] == 25
 
 
-def test_event_log_detail_renders(test_admin_user):
+def test_event_log_detail_renders(test_admin_user, override_auth):
     """Test event log detail page renders successfully."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
     from schemas.event_log import EventLogItem
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     event_id = str(uuid4())
 
@@ -283,19 +222,14 @@ def test_event_log_detail_renders(test_admin_user):
                 client = TestClient(app)
                 response = client.get(f"/admin/audit/events/{event_id}")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
 
 
-def test_event_log_detail_not_found_redirects(test_admin_user):
+def test_event_log_detail_not_found_redirects(test_admin_user, override_auth):
     """Test event log detail redirects on not found."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from services.exceptions import NotFoundError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.event_log.get_event") as mock_get:
         mock_get.side_effect = NotFoundError(message="Not found", code="event_not_found")
@@ -303,27 +237,19 @@ def test_event_log_detail_not_found_redirects(test_admin_user):
         client = TestClient(app)
         response = client.get(f"/admin/audit/events/{uuid4()}", follow_redirects=False)
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert "error=not_found" in response.headers["location"]
 
 
-def test_trigger_export_creates_task(test_admin_user):
+def test_trigger_export_creates_task(test_admin_user, override_auth):
     """Test trigger export creates a background task and redirects to background jobs."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.bg_tasks.create_export_task") as mock_create:
         mock_create.return_value = {"id": str(uuid4())}
 
         client = TestClient(app)
         response = client.post("/admin/audit/events/export", follow_redirects=False)
-
-        app.dependency_overrides.clear()
 
         assert response.status_code == 303
         assert response.headers["location"] == "/account/background-jobs?success=export_started"
@@ -352,8 +278,6 @@ def test_admin_routes_require_admin_role(test_user):
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/admin/audit/events")
 
-    app.dependency_overrides.clear()
-
     # The ForbiddenError should be raised
     assert response.status_code in [403, 500]  # Depends on error handling
 
@@ -363,14 +287,11 @@ def test_admin_routes_require_admin_role(test_user):
 # =============================================================================
 
 
-def test_reactivation_requests_list_admin(test_admin_user):
+def test_reactivation_requests_list_admin(test_admin_user, override_auth):
     """Test admin can access reactivation requests list page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.reactivation.list_pending_requests") as mock_list:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -381,8 +302,6 @@ def test_reactivation_requests_list_admin(test_admin_user):
 
                 client = TestClient(app)
                 response = client.get("/admin/todo/reactivation")
-
-                app.dependency_overrides.clear()
 
                 assert response.status_code == 200
                 mock_list.assert_called_once()
@@ -404,19 +323,14 @@ def test_reactivation_requests_list_member_forbidden(test_user):
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/admin/todo/reactivation")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code in [403, 500]
 
 
-def test_reactivation_requests_list_success_message(test_admin_user):
+def test_reactivation_requests_list_success_message(test_admin_user, override_auth):
     """Test success query param is passed to template."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.reactivation.list_pending_requests") as mock_list:
         with patch("routers.admin.get_template_context") as mock_context:
@@ -428,8 +342,6 @@ def test_reactivation_requests_list_success_message(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/todo/reactivation?success=approved")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 # Check get_template_context was called with success param
                 mock_context.assert_called_once()
@@ -437,14 +349,11 @@ def test_reactivation_requests_list_success_message(test_admin_user):
                 assert call_kwargs.get("success") == "approved"
 
 
-def test_reactivation_requests_list_error_message(test_admin_user):
+def test_reactivation_requests_list_error_message(test_admin_user, override_auth):
     """Test error query param is passed to template."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.reactivation.list_pending_requests") as mock_list:
         with patch("routers.admin.get_template_context") as mock_context:
@@ -456,8 +365,6 @@ def test_reactivation_requests_list_error_message(test_admin_user):
                 client = TestClient(app)
                 response = client.get("/admin/todo/reactivation?error=request_not_found")
 
-                app.dependency_overrides.clear()
-
                 assert response.status_code == 200
                 # Check get_template_context was called with error param
                 mock_context.assert_called_once()
@@ -465,14 +372,11 @@ def test_reactivation_requests_list_error_message(test_admin_user):
                 assert call_kwargs.get("error") == "request_not_found"
 
 
-def test_reactivation_history_admin(test_admin_user):
+def test_reactivation_history_admin(test_admin_user, override_auth):
     """Test admin can access reactivation history page."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from fastapi.responses import HTMLResponse
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     with patch("services.reactivation.list_previous_requests") as mock_list:
         with patch("utils.template_context.get_template_context") as mock_context:
@@ -483,8 +387,6 @@ def test_reactivation_history_admin(test_admin_user):
 
                 client = TestClient(app)
                 response = client.get("/admin/todo/reactivation/history")
-
-                app.dependency_overrides.clear()
 
                 assert response.status_code == 200
                 mock_list.assert_called_once()
@@ -506,21 +408,16 @@ def test_reactivation_history_member_forbidden(test_user):
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/admin/todo/reactivation/history")
 
-    app.dependency_overrides.clear()
-
     assert response.status_code in [403, 500]
 
 
-def test_approve_request_success(test_admin_user):
+def test_approve_request_success(test_admin_user, override_auth):
     """Test approving a reactivation request redirects with success."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from schemas.reactivation import ReactivationRequest
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
 
@@ -544,20 +441,15 @@ def test_approve_request_success(test_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert "success=approved" in response.headers["location"]
 
 
-def test_approve_request_not_found(test_admin_user):
+def test_approve_request_not_found(test_admin_user, override_auth):
     """Test approving non-existent request redirects with error."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from services.exceptions import NotFoundError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
 
@@ -572,20 +464,15 @@ def test_approve_request_not_found(test_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert "error=request_not_found" in response.headers["location"]
 
 
-def test_approve_request_already_decided(test_admin_user):
+def test_approve_request_already_decided(test_admin_user, override_auth):
     """Test approving already-decided request redirects with error."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from services.exceptions import ValidationError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
 
@@ -600,22 +487,17 @@ def test_approve_request_already_decided(test_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert "error=already_decided" in response.headers["location"]
 
 
-def test_approve_request_sends_email(test_admin_user):
+def test_approve_request_sends_email(test_admin_user, override_auth):
     """Test approving request sends notification email."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from schemas.reactivation import ReactivationRequest
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
     user_email = "reactivated@example.com"
@@ -640,23 +522,18 @@ def test_approve_request_sends_email(test_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             mock_send_email.assert_called_once()
             call_args = mock_send_email.call_args[0]
             assert call_args[0] == user_email
 
 
-def test_deny_request_success(test_admin_user):
+def test_deny_request_success(test_admin_user, override_auth):
     """Test denying a reactivation request redirects with success."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from schemas.reactivation import ReactivationRequest
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
 
@@ -680,20 +557,15 @@ def test_deny_request_success(test_admin_user):
                 follow_redirects=False,
             )
 
-            app.dependency_overrides.clear()
-
             assert response.status_code == 303
             assert "success=denied" in response.headers["location"]
 
 
-def test_deny_request_not_found(test_admin_user):
+def test_deny_request_not_found(test_admin_user, override_auth):
     """Test denying non-existent request redirects with error."""
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from services.exceptions import NotFoundError
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
 
@@ -706,22 +578,17 @@ def test_deny_request_not_found(test_admin_user):
             follow_redirects=False,
         )
 
-        app.dependency_overrides.clear()
-
         assert response.status_code == 303
         assert "error=request_not_found" in response.headers["location"]
 
 
-def test_deny_request_sends_email(test_admin_user):
+def test_deny_request_sends_email(test_admin_user, override_auth):
     """Test denying request sends notification email."""
     from datetime import UTC, datetime
 
-    from dependencies import get_current_user, get_tenant_id_from_request, require_admin
     from schemas.reactivation import ReactivationRequest
 
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: str(test_admin_user["tenant_id"])
-    app.dependency_overrides[require_admin] = lambda: test_admin_user
-    app.dependency_overrides[get_current_user] = lambda: test_admin_user
+    override_auth(test_admin_user, level="admin")
 
     request_id = str(uuid4())
     user_email = "denied@example.com"
@@ -745,8 +612,6 @@ def test_deny_request_sends_email(test_admin_user):
                 f"/admin/todo/reactivation/{request_id}/deny",
                 follow_redirects=False,
             )
-
-            app.dependency_overrides.clear()
 
             mock_send_email.assert_called_once()
             call_args = mock_send_email.call_args[0]

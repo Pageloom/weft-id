@@ -1,11 +1,18 @@
-"""Tests for routers/users.py endpoints."""
+"""Tests for routers/users/ package endpoints."""
 
 import pytest
 from fastapi.testclient import TestClient
 from main import app
 
 # Module path constants for cleaner patch targets
-USERS_MODULE = "routers.users"
+# Router sub-modules (split from routers.users)
+USERS_LISTING = "routers.users.listing"
+USERS_CREATION = "routers.users.creation"
+USERS_DETAIL = "routers.users.detail"
+USERS_EMAILS = "routers.users.emails"
+USERS_LIFECYCLE = "routers.users.lifecycle"
+
+# Service and database modules
 SERVICES_USERS = "services.users"
 SERVICES_EMAILS = "services.emails"
 SERVICES_SETTINGS = "services.settings"
@@ -42,7 +49,7 @@ def test_users_list_page(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -64,7 +71,7 @@ def test_users_list_with_search(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -90,7 +97,7 @@ def test_users_list_with_sorting(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -114,7 +121,7 @@ def test_users_list_with_pagination(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -137,7 +144,7 @@ def test_users_list_invalid_sort_field(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -179,7 +186,7 @@ def test_user_detail_page(test_admin_user, mocker, override_auth):
         is_service_user=False,
     )
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
     mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
     mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
 
@@ -395,7 +402,7 @@ def test_add_user_email_success(test_admin_user, mocker, override_auth):
     mock_privileged = mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain")
     mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
     mock_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_secondary_email_added_notification")
+    mock_send = mocker.patch(f"{USERS_EMAILS}.send_secondary_email_added_notification")
 
     mock_privileged.return_value = True
     mock_add.return_value = mock_email_info
@@ -439,7 +446,7 @@ def test_remove_user_email_success(test_admin_user, mocker, override_auth):
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
     mock_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_secondary_email_removed_notification")
+    mock_send = mocker.patch(f"{USERS_EMAILS}.send_secondary_email_removed_notification")
 
     mock_get_addr.return_value = "secondary@example.com"
     mock_delete.return_value = None
@@ -493,7 +500,7 @@ def test_promote_user_email_success(test_admin_user, mocker, override_auth):
     mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_primary_email_changed_notification")
+    mock_send = mocker.patch(f"{USERS_EMAILS}.send_primary_email_changed_notification")
 
     mock_old_primary.return_value = "old@example.com"
     mock_get_addr.return_value = "new@example.com"
@@ -548,7 +555,7 @@ def test_users_list_with_locale_collation(test_admin_user, mocker, override_auth
     mock_check = mocker.patch(f"{SERVICES_USERS}.check_collation_exists")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
 
     mock_check.return_value = True
     mock_list.return_value = []
@@ -573,7 +580,7 @@ def test_users_list_with_invalid_page_param(test_admin_user, mocker, override_au
 
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
 
     mock_list.return_value = []
     mock_count.return_value = 0
@@ -594,7 +601,7 @@ def test_users_list_with_invalid_page_size(test_admin_user, mocker, override_aut
 
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
 
     mock_list.return_value = []
     mock_count.return_value = 0
@@ -615,7 +622,7 @@ def test_users_list_with_nonstandard_page_size(test_admin_user, mocker, override
 
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
 
     mock_list.return_value = []
     mock_count.return_value = 0
@@ -636,7 +643,7 @@ def test_users_list_with_invalid_sort_order(test_admin_user, mocker, override_au
 
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
 
     mock_list.return_value = []
     mock_count.return_value = 0
@@ -765,7 +772,7 @@ def test_new_user_page_renders(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_CREATION}.templates.TemplateResponse")
     mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
 
     mock_template.return_value = HTMLResponse(content="<html>New User</html>")
@@ -797,7 +804,7 @@ def test_create_new_user_with_privileged_domain(test_admin_user, mocker, overrid
     mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
     mock_add_email = mocker.patch(f"{SERVICES_USERS}.add_verified_email_with_nonce")
     mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
+    mock_send = mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
 
     mock_privileged.return_value = True
     # Mock create_user to return a UserDetail-like object
@@ -835,7 +842,7 @@ def test_create_new_user_with_non_privileged_domain(test_admin_user, mocker, ove
     mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
     mock_add_email = mocker.patch(f"{SERVICES_USERS}.add_unverified_email_with_nonce")
     mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_invitation")
+    mock_send = mocker.patch(f"{USERS_CREATION}.send_new_user_invitation")
 
     mock_privileged.return_value = False
     # Mock create_user to return a UserDetail-like object
@@ -955,7 +962,7 @@ def test_create_new_user_super_admin_can_create_admin(test_super_admin_user, moc
     mock_create = mocker.patch(f"{SERVICES_USERS}.create_user")
     mocker.patch(f"{SERVICES_USERS}.add_verified_email_with_nonce")
     mock_tenant = mocker.patch(f"{SERVICES_USERS}.get_tenant_name")
-    mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
 
     mock_privileged.return_value = True
     # Mock create_user to return a UserDetail-like object
@@ -1076,7 +1083,7 @@ def test_users_list_with_single_role_filter(test_admin_user, mocker, override_au
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1102,7 +1109,7 @@ def test_users_list_with_multiple_role_filter(test_admin_user, mocker, override_
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1124,7 +1131,7 @@ def test_users_list_with_invalid_role_filter(test_admin_user, mocker, override_a
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1147,7 +1154,7 @@ def test_users_list_with_mixed_valid_invalid_roles(test_admin_user, mocker, over
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1169,7 +1176,7 @@ def test_users_list_with_single_status_filter(test_admin_user, mocker, override_
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1194,7 +1201,7 @@ def test_users_list_with_multiple_status_filter(test_admin_user, mocker, overrid
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1216,7 +1223,7 @@ def test_users_list_with_invalid_status_filter(test_admin_user, mocker, override
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1238,7 +1245,7 @@ def test_users_list_with_role_and_status_filter(test_admin_user, mocker, overrid
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1261,7 +1268,7 @@ def test_users_list_with_search_and_filters(test_admin_user, mocker, override_au
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1286,7 +1293,7 @@ def test_users_list_with_status_sort(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1309,7 +1316,7 @@ def test_users_list_with_status_sort_desc(test_admin_user, mocker, override_auth
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1332,7 +1339,7 @@ def test_users_list_empty_role_filter(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1354,7 +1361,7 @@ def test_users_list_filters_with_pagination(test_admin_user, mocker, override_au
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1382,7 +1389,7 @@ def test_users_list_all_three_statuses(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1404,7 +1411,7 @@ def test_users_list_all_three_roles(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_template = mocker.patch(f"{USERS_MODULE}.templates.TemplateResponse")
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
     mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
     mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
 
@@ -1448,7 +1455,7 @@ def test_create_user_privileged_domain_creates_event_log(
     new_email = f"newuser-{unique_suffix}@{domain}"
 
     # Mock email sending and cache to avoid warnings
-    mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
     mocker.patch(f"{SERVICES_ACTIVITY}.cache.get", return_value=None)
     mocker.patch(f"{SERVICES_ACTIVITY}.cache.set", return_value=True)
 
@@ -1526,7 +1533,7 @@ def test_create_user_non_privileged_domain_creates_event_log(
     new_email = f"newuser-{unique_suffix}@{domain}"
 
     # Mock email sending and cache to avoid warnings
-    mocker.patch(f"{USERS_MODULE}.send_new_user_invitation")
+    mocker.patch(f"{USERS_CREATION}.send_new_user_invitation")
     mocker.patch(f"{SERVICES_ACTIVITY}.cache.get", return_value=None)
     mocker.patch(f"{SERVICES_ACTIVITY}.cache.set", return_value=True)
 
@@ -1610,7 +1617,7 @@ def test_password_set_link_format_privileged_domain(
     )
 
     # Patch the email sending function to capture the password_set_url
-    mock_send = mocker.patch(f"{USERS_MODULE}.send_new_user_privileged_domain_notification")
+    mock_send = mocker.patch(f"{USERS_CREATION}.send_new_user_privileged_domain_notification")
 
     # Create user via HTML router
     unique_suffix = str(uuid4())[:8]
@@ -1681,7 +1688,7 @@ def test_update_user_idp_success(test_super_admin_user, mocker, override_auth):
     """Test super_admin can assign user to an IdP."""
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
 
     client = TestClient(app)
     response = client.post(
@@ -1702,7 +1709,7 @@ def test_update_user_idp_remove_idp(test_super_admin_user, mocker, override_auth
     """Test super_admin can remove user from IdP (set to password-only)."""
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
 
     client = TestClient(app)
     response = client.post(
@@ -1722,7 +1729,7 @@ def test_update_user_idp_denied_for_admin(test_admin_user, mocker, override_auth
     """Test admin cannot assign user to IdP (super_admin only)."""
     override_auth(test_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
 
     client = TestClient(app)
     response = client.post(
@@ -1740,7 +1747,7 @@ def test_update_user_idp_denied_for_member(test_user, mocker, override_auth):
     """Test member cannot assign user to IdP."""
     override_auth(test_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
 
     client = TestClient(app)
     response = client.post(
@@ -1760,7 +1767,7 @@ def test_update_user_idp_user_not_found(test_super_admin_user, mocker, override_
 
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
     mock_assign.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -1780,7 +1787,7 @@ def test_update_user_idp_idp_not_found(test_super_admin_user, mocker, override_a
 
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
     mock_assign.side_effect = NotFoundError(message="IdP not found", code="idp_not_found")
 
     client = TestClient(app)
@@ -1800,7 +1807,7 @@ def test_update_user_idp_validation_error(test_super_admin_user, mocker, overrid
 
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
     mock_assign.side_effect = ValidationError(
         message="Cannot assign to disabled IdP", code="idp_disabled"
     )
@@ -1823,8 +1830,8 @@ def test_update_user_idp_service_error(test_super_admin_user, mocker, override_a
 
     override_auth(test_super_admin_user)
 
-    mock_assign = mocker.patch(f"{USERS_MODULE}.saml_service.assign_user_idp")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_assign = mocker.patch(f"{USERS_DETAIL}.saml_service.assign_user_idp")
+    mock_error_page = mocker.patch(f"{USERS_DETAIL}.render_error_page")
 
     mock_assign.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -1849,7 +1856,7 @@ def test_inactivate_user_success(test_admin_user, mocker, override_auth):
     """Test admin can inactivate a user."""
     override_auth(test_admin_user)
 
-    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.inactivate_user")
 
     client = TestClient(app)
     response = client.post(
@@ -1866,7 +1873,7 @@ def test_inactivate_user_denied_for_member(test_user, mocker, override_auth):
     """Test member cannot inactivate a user."""
     override_auth(test_user)
 
-    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.inactivate_user")
 
     client = TestClient(app)
     response = client.post(
@@ -1885,7 +1892,7 @@ def test_inactivate_user_not_found(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.inactivate_user")
     mock_inactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -1904,7 +1911,7 @@ def test_inactivate_user_validation_error(test_admin_user, mocker, override_auth
 
     override_auth(test_admin_user)
 
-    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
+    mock_inactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.inactivate_user")
     mock_inactivate.side_effect = ValidationError(
         message="User already inactivated", code="already_inactivated"
     )
@@ -1926,8 +1933,8 @@ def test_inactivate_user_service_error(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_inactivate = mocker.patch(f"{USERS_MODULE}.users_service.inactivate_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_inactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.inactivate_user")
+    mock_error_page = mocker.patch(f"{USERS_LIFECYCLE}.render_error_page")
 
     mock_inactivate.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -1951,7 +1958,7 @@ def test_reactivate_user_success(test_admin_user, mocker, override_auth):
     """Test admin can reactivate a user."""
     override_auth(test_admin_user)
 
-    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.reactivate_user")
 
     client = TestClient(app)
     response = client.post(
@@ -1968,7 +1975,7 @@ def test_reactivate_user_denied_for_member(test_user, mocker, override_auth):
     """Test member cannot reactivate a user."""
     override_auth(test_user)
 
-    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.reactivate_user")
 
     client = TestClient(app)
     response = client.post(
@@ -1987,7 +1994,7 @@ def test_reactivate_user_not_found(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.reactivate_user")
     mock_reactivate.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -2006,7 +2013,7 @@ def test_reactivate_user_validation_error(test_admin_user, mocker, override_auth
 
     override_auth(test_admin_user)
 
-    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
+    mock_reactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.reactivate_user")
     mock_reactivate.side_effect = ValidationError(
         message="User is already active", code="already_active"
     )
@@ -2028,8 +2035,8 @@ def test_reactivate_user_service_error(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_reactivate = mocker.patch(f"{USERS_MODULE}.users_service.reactivate_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_reactivate = mocker.patch(f"{USERS_LIFECYCLE}.users_service.reactivate_user")
+    mock_error_page = mocker.patch(f"{USERS_LIFECYCLE}.render_error_page")
 
     mock_reactivate.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2053,7 +2060,7 @@ def test_anonymize_user_success(test_super_admin_user, mocker, override_auth):
     """Test super_admin can anonymize a user."""
     override_auth(test_super_admin_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
 
     client = TestClient(app)
     response = client.post(
@@ -2070,7 +2077,7 @@ def test_anonymize_user_denied_for_admin(test_admin_user, mocker, override_auth)
     """Test admin cannot anonymize a user (super_admin only)."""
     override_auth(test_admin_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
 
     client = TestClient(app)
     response = client.post(
@@ -2087,7 +2094,7 @@ def test_anonymize_user_denied_for_member(test_user, mocker, override_auth):
     """Test member cannot anonymize a user."""
     override_auth(test_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
 
     client = TestClient(app)
     response = client.post(
@@ -2106,7 +2113,7 @@ def test_anonymize_user_not_found(test_super_admin_user, mocker, override_auth):
 
     override_auth(test_super_admin_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
     mock_anonymize.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -2125,7 +2132,7 @@ def test_anonymize_user_validation_error(test_super_admin_user, mocker, override
 
     override_auth(test_super_admin_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
     mock_anonymize.side_effect = ValidationError(
         message="Cannot anonymize your own account", code="cannot_anonymize_self"
     )
@@ -2147,8 +2154,8 @@ def test_anonymize_user_service_error(test_super_admin_user, mocker, override_au
 
     override_auth(test_super_admin_user)
 
-    mock_anonymize = mocker.patch(f"{USERS_MODULE}.users_service.anonymize_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_anonymize = mocker.patch(f"{USERS_LIFECYCLE}.users_service.anonymize_user")
+    mock_error_page = mocker.patch(f"{USERS_LIFECYCLE}.render_error_page")
 
     mock_anonymize.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2172,11 +2179,11 @@ def test_reset_mfa_success(test_admin_user, mocker, override_auth):
     """Test admin can reset MFA for a user."""
     override_auth(test_admin_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
     mocker.patch(
-        f"{USERS_MODULE}.emails_service.get_primary_email", return_value="user@example.com"
+        f"{USERS_LIFECYCLE}.emails_service.get_primary_email", return_value="user@example.com"
     )
-    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
+    mock_email = mocker.patch(f"{USERS_LIFECYCLE}.send_mfa_reset_notification")
 
     client = TestClient(app)
     response = client.post(
@@ -2197,7 +2204,7 @@ def test_reset_mfa_denied_for_member(test_user, mocker, override_auth):
     """Test member cannot reset MFA for a user."""
     override_auth(test_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
 
     client = TestClient(app)
     response = client.post(
@@ -2216,7 +2223,7 @@ def test_reset_mfa_user_not_found(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
     mock_reset.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -2235,7 +2242,7 @@ def test_reset_mfa_validation_error(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
     mock_reset.side_effect = ValidationError(message="MFA not enabled", code="mfa_not_enabled")
 
     client = TestClient(app)
@@ -2255,8 +2262,8 @@ def test_reset_mfa_service_error(test_admin_user, mocker, override_auth):
 
     override_auth(test_admin_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
+    mock_error_page = mocker.patch(f"{USERS_LIFECYCLE}.render_error_page")
 
     mock_reset.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2275,11 +2282,11 @@ def test_reset_mfa_email_includes_admin_name_and_timestamp(test_admin_user, mock
     """Test email notification includes admin name and formatted timestamp."""
     override_auth(test_admin_user)
 
-    mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
+    mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
     mocker.patch(
-        f"{USERS_MODULE}.emails_service.get_primary_email", return_value="user@example.com"
+        f"{USERS_LIFECYCLE}.emails_service.get_primary_email", return_value="user@example.com"
     )
-    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
+    mock_email = mocker.patch(f"{USERS_LIFECYCLE}.send_mfa_reset_notification")
 
     client = TestClient(app)
     client.post("/users/user-123/reset-mfa", follow_redirects=False)
@@ -2303,9 +2310,9 @@ def test_reset_mfa_no_email_notification_when_no_primary_email(
     """Test no email notification sent when user has no primary email."""
     override_auth(test_admin_user)
 
-    mock_reset = mocker.patch(f"{USERS_MODULE}.mfa_service.reset_user_mfa")
-    mocker.patch(f"{USERS_MODULE}.emails_service.get_primary_email", return_value=None)
-    mock_email = mocker.patch(f"{USERS_MODULE}.send_mfa_reset_notification")
+    mock_reset = mocker.patch(f"{USERS_LIFECYCLE}.mfa_service.reset_user_mfa")
+    mocker.patch(f"{USERS_LIFECYCLE}.emails_service.get_primary_email", return_value=None)
+    mock_email = mocker.patch(f"{USERS_LIFECYCLE}.send_mfa_reset_notification")
 
     client = TestClient(app)
     response = client.post(
@@ -2329,7 +2336,7 @@ def test_users_index_no_permission_redirects_to_account(test_user, mocker, overr
     override_auth(test_user)
 
     # Mock has_page_access to return False for /users
-    mocker.patch(f"{USERS_MODULE}.has_page_access", return_value=False)
+    mocker.patch(f"{USERS_LISTING}.has_page_access", return_value=False)
 
     client = TestClient(app)
     response = client.get("/users/", follow_redirects=False)
@@ -2342,8 +2349,8 @@ def test_users_index_fallback_to_account(test_user, mocker, override_auth):
     """Test users index falls back to /account when no children are accessible."""
     override_auth(test_user)
 
-    mocker.patch(f"{USERS_MODULE}.has_page_access", return_value=True)
-    mocker.patch(f"{USERS_MODULE}.get_first_accessible_child", return_value=None)
+    mocker.patch(f"{USERS_LISTING}.has_page_access", return_value=True)
+    mocker.patch(f"{USERS_LISTING}.get_first_accessible_child", return_value=None)
 
     client = TestClient(app)
     response = client.get("/users/", follow_redirects=False)
@@ -2385,7 +2392,7 @@ def test_update_user_name_service_error(test_admin_user, mocker, override_auth):
     override_auth(test_admin_user)
 
     mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_DETAIL}.render_error_page")
 
     mock_update.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2474,7 +2481,7 @@ def test_update_user_role_validation_error(test_super_admin_user, mocker, overri
     override_auth(test_super_admin_user)
 
     mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_DETAIL}.render_error_page")
 
     mock_update.side_effect = ValidationError(message="Some other error", code="other_error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
@@ -2498,7 +2505,7 @@ def test_update_user_role_service_error(test_super_admin_user, mocker, override_
     override_auth(test_super_admin_user)
 
     mock_update = mocker.patch(f"{SERVICES_USERS}.update_user")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_DETAIL}.render_error_page")
 
     mock_update.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2567,7 +2574,7 @@ def test_add_user_email_service_error(test_admin_user, mocker, override_auth):
 
     mocker.patch(f"{SERVICES_SETTINGS}.is_privileged_domain", return_value=True)
     mock_add = mocker.patch(f"{SERVICES_EMAILS}.add_user_email")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
     mock_add.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2614,7 +2621,7 @@ def test_remove_user_email_service_error(test_admin_user, mocker, override_auth)
 
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="old@example.com")
     mock_delete = mocker.patch(f"{SERVICES_EMAILS}.delete_user_email")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
     mock_delete.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)
@@ -2684,7 +2691,7 @@ def test_promote_user_email_validation_error(test_admin_user, mocker, override_a
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
     mock_promote.side_effect = ValidationError(message="Other error", code="other_error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=400)
@@ -2709,7 +2716,7 @@ def test_promote_user_email_service_error(test_admin_user, mocker, override_auth
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
-    mock_error_page = mocker.patch(f"{USERS_MODULE}.render_error_page")
+    mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
     mock_promote.side_effect = ServiceError(message="Database error")
     mock_error_page.return_value = HTMLResponse(content="Error", status_code=500)

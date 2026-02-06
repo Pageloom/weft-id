@@ -4,132 +4,82 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 
+# =============================================================================
+# Section Index Redirect Tests (Parametrized)
+# =============================================================================
 
-def test_admin_index_redirects_to_events(test_admin_user, override_auth):
-    """Test admin index redirects to first accessible child page."""
+
+@pytest.mark.parametrize(
+    "section_path,expected_child",
+    [
+        ("/admin/", "/admin/audit/events"),
+        ("/admin/audit/", "/admin/audit/events"),
+        ("/admin/todo/", "/admin/todo/reactivation"),
+    ],
+)
+def test_section_index_redirects_to_first_child(
+    test_admin_user, override_auth, section_path, expected_child
+):
+    """Section index pages redirect to their first accessible child page."""
     override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/audit/events"
+        mock_first_child.return_value = expected_child
 
         client = TestClient(app)
-        response = client.get("/admin/", follow_redirects=False)
+        response = client.get(section_path, follow_redirects=False)
 
         assert response.status_code == 303
-        assert response.headers["location"] == "/admin/audit/events"
+        assert response.headers["location"] == expected_child
 
 
-def test_admin_index_fallback_to_dashboard(test_admin_user, override_auth):
-    """Test admin index falls back to dashboard when no accessible children."""
+@pytest.mark.parametrize(
+    "section_path",
+    [
+        "/admin/",
+        "/admin/audit/",
+        "/admin/todo/",
+    ],
+)
+def test_section_index_fallback_to_dashboard(test_admin_user, override_auth, section_path):
+    """Section index pages fall back to dashboard when no accessible children."""
     override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
         mock_first_child.return_value = None
 
         client = TestClient(app)
-        response = client.get("/admin/", follow_redirects=False)
+        response = client.get(section_path, follow_redirects=False)
 
         assert response.status_code == 303
         assert response.headers["location"] == "/dashboard"
 
 
-# =============================================================================
-# Audit Section Redirect Tests
-# =============================================================================
-
-
-def test_audit_index_redirects_to_events(test_admin_user, override_auth):
-    """Test audit section index redirects to first accessible child page."""
+@pytest.mark.parametrize(
+    "section_path_no_slash,expected_child",
+    [
+        ("/admin/audit", "/admin/audit/events"),
+        ("/admin/todo", "/admin/todo/reactivation"),
+    ],
+)
+def test_section_index_works_without_trailing_slash(
+    test_admin_user, override_auth, section_path_no_slash, expected_child
+):
+    """Section index pages work correctly without trailing slash."""
     override_auth(test_admin_user, level="admin")
 
     with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/audit/events"
+        mock_first_child.return_value = expected_child
 
         client = TestClient(app)
-        response = client.get("/admin/audit/", follow_redirects=False)
+        response = client.get(section_path_no_slash, follow_redirects=False)
 
         assert response.status_code == 303
-        assert response.headers["location"] == "/admin/audit/events"
-        mock_first_child.assert_called_once_with("/admin/audit", test_admin_user.get("role"))
-
-
-def test_audit_index_without_trailing_slash(test_admin_user, override_auth):
-    """Test audit section index works without trailing slash."""
-    override_auth(test_admin_user, level="admin")
-
-    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/audit/events"
-
-        client = TestClient(app)
-        response = client.get("/admin/audit", follow_redirects=False)
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/audit/events"
-
-
-def test_audit_index_fallback_to_dashboard(test_admin_user, override_auth):
-    """Test audit section index falls back to dashboard when no accessible children."""
-    override_auth(test_admin_user, level="admin")
-
-    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = None
-
-        client = TestClient(app)
-        response = client.get("/admin/audit/", follow_redirects=False)
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
-
-
-# =============================================================================
-# Todo Section Redirect Tests
-# =============================================================================
-
-
-def test_todo_index_redirects_to_reactivation(test_admin_user, override_auth):
-    """Test todo section index redirects to first accessible child page."""
-    override_auth(test_admin_user, level="admin")
-
-    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/todo/reactivation"
-
-        client = TestClient(app)
-        response = client.get("/admin/todo/", follow_redirects=False)
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/todo/reactivation"
-        mock_first_child.assert_called_once_with("/admin/todo", test_admin_user.get("role"))
-
-
-def test_todo_index_without_trailing_slash(test_admin_user, override_auth):
-    """Test todo section index works without trailing slash."""
-    override_auth(test_admin_user, level="admin")
-
-    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = "/admin/todo/reactivation"
-
-        client = TestClient(app)
-        response = client.get("/admin/todo", follow_redirects=False)
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/admin/todo/reactivation"
-
-
-def test_todo_index_fallback_to_dashboard(test_admin_user, override_auth):
-    """Test todo section index falls back to dashboard when no accessible children."""
-    override_auth(test_admin_user, level="admin")
-
-    with patch("routers.admin.get_first_accessible_child") as mock_first_child:
-        mock_first_child.return_value = None
-
-        client = TestClient(app)
-        response = client.get("/admin/todo/", follow_redirects=False)
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/dashboard"
+        assert response.headers["location"] == expected_child
 
 
 # =============================================================================

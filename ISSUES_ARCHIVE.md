@@ -4,6 +4,47 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Nested Patch Pyramids: test_routers_auth.py
+
+**Status:** Resolved (2026-02-06)
+
+**Original Severity:** High
+
+**Original Description:**
+This file contained **104 instances** of nested `with patch()` context managers, typically 2-3 levels deep, with the deepest nesting reaching 8 levels in password-setting tests. Auth tests are critical path tests that need to be easy to read and modify.
+
+**Resolution:**
+Converted all nested `with patch()` context managers to flat `mocker.patch()` calls using pytest-mock fixture. The refactoring:
+
+1. Added module path constants at the top of the file for cleaner patch targets:
+   ```python
+   AUTH_LOGIN = "routers.auth.login"
+   AUTH_LOGOUT = "routers.auth.logout"
+   AUTH_ONBOARDING = "routers.auth.onboarding"
+   AUTH_DASHBOARD = "routers.auth.dashboard"
+   AUTH_HELPERS = "routers.auth._helpers"
+   DEPS_AUTH = "dependencies.auth"
+   SERVICES_EMAILS = "services.emails"
+   SERVICES_USERS = "services.users"
+   UTILS_TEMPLATE = "utils.template_context"
+   UTILS_PASSWORD = "utils.password"
+   ```
+
+2. Added `override_tenant()` helper to reduce auth dependency override boilerplate
+
+3. Converted all nested patterns to flat `mocker.patch()` calls
+
+4. Removed unused `from unittest.mock import patch` import
+
+5. Removed manual `app.dependency_overrides.clear()` calls (handled by autouse fixture in conftest.py)
+
+**Files Modified:**
+- `tests/test_routers_auth.py` (104 patch calls converted to flat mocker.patch() calls)
+
+**Verification:** All 54 tests in the file pass. Full suite (2174 tests) passes.
+
+---
+
 ## [TEST] Nested Patch Pyramids: test_routers_users.py
 
 **Status:** Resolved (2026-02-02)

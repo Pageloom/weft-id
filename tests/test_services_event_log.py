@@ -42,9 +42,8 @@ def test_user_create_logs_event(make_requesting_user, make_user_dict, make_email
     new_email = make_email_dict(user_id=new_user_id, email=unique_email)
 
     with (
-        patch("services.users.database") as mock_db,
-        patch("services.users.track_activity"),
-        patch("services.users.log_event") as mock_log,
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
     ):
         # Email check - no existing email
         mock_db.user_emails.email_exists.return_value = False
@@ -56,6 +55,7 @@ def test_user_create_logs_event(make_requesting_user, make_user_dict, make_email
         # For the return value - get_user call
         mock_db.users.get_user_by_id.return_value = new_user
         mock_db.user_emails.list_emails_for_user.return_value = [new_email]
+        mock_db.user_emails.list_user_emails.return_value = [new_email]
         mock_db.user_emails.get_primary_email.return_value = new_email
         mock_db.users.is_service_user.return_value = False
 
@@ -88,14 +88,19 @@ def test_user_update_logs_event(make_requesting_user, make_user_dict):
         last_name="Name",
     )
 
+    updated_user = {**target_user, "first_name": "Updated", "last_name": "Name"}
+
     with (
-        patch("services.users.database") as mock_db,
-        patch("services.users.track_activity"),
-        patch("services.users.log_event") as mock_log,
+        patch("services.users.crud.database") as mock_crud_db,
+        patch("services.users._converters.database") as mock_conv_db,
+        patch("services.users.crud.log_event") as mock_log,
     ):
-        mock_db.users.get_user_by_id.return_value = target_user
-        mock_db.users.update_user.return_value = None
-        mock_db.user_emails.get_primary_email.return_value = {"email": target_user["email"]}
+        mock_crud_db.users.get_user_by_id.return_value = target_user
+        mock_crud_db.users.update_user.return_value = None
+        mock_conv_db.users.get_user_by_id.return_value = updated_user
+        mock_conv_db.user_emails.get_primary_email.return_value = {"email": target_user["email"]}
+        mock_conv_db.user_emails.list_user_emails.return_value = [{"id": str(uuid4()), "email": target_user["email"], "is_primary": True, "verified_at": None, "created_at": target_user["created_at"]}]
+        mock_conv_db.users.is_service_user.return_value = False
 
         users.update_user(requesting_user, target_user["id"], user_update)
 
@@ -121,18 +126,23 @@ def test_user_inactivate_logs_event(make_requesting_user, make_user_dict, make_e
 
     target_email = make_email_dict(user_id=target_user["id"])
 
+    inactivated_user = {**target_user, "is_inactivated": True}
+
     with (
-        patch("services.users.database") as mock_db,
-        patch("services.users.track_activity"),
-        patch("services.users.log_event") as mock_log,
+        patch("services.users.state.database") as mock_state_db,
+        patch("services.users._converters.database") as mock_conv_db,
+        patch("services.users.state.log_event") as mock_log,
     ):
-        mock_db.users.get_user_by_id.return_value = target_user
+        mock_state_db.users.get_user_by_id.return_value = target_user
         # Not a service user
-        mock_db.users.is_service_user.return_value = False
-        mock_db.users.inactivate_user.return_value = None
-        mock_db.user_emails.list_emails_for_user.return_value = [target_email]
-        mock_db.user_emails.get_primary_email.return_value = target_email
-        mock_db.user_emails.update_email.return_value = None
+        mock_state_db.users.is_service_user.return_value = False
+        mock_state_db.users.inactivate_user.return_value = None
+        mock_state_db.user_emails.list_emails_for_user.return_value = [target_email]
+        mock_state_db.user_emails.update_email.return_value = None
+        mock_conv_db.users.get_user_by_id.return_value = inactivated_user
+        mock_conv_db.user_emails.get_primary_email.return_value = target_email
+        mock_conv_db.user_emails.list_user_emails.return_value = [target_email]
+        mock_conv_db.users.is_service_user.return_value = False
 
         users.inactivate_user(requesting_user, target_user["id"])
 
@@ -156,17 +166,20 @@ def test_user_reactivate_logs_event(make_requesting_user, make_user_dict, make_e
         role="admin",
     )
 
+    reactivated_user = {**target_user, "is_inactivated": False}
+
     with (
-        patch("services.users.database") as mock_db,
-        patch("services.users.track_activity"),
-        patch("services.users.log_event") as mock_log,
+        patch("services.users.state.database") as mock_state_db,
+        patch("services.users._converters.database") as mock_conv_db,
+        patch("services.users.state.log_event") as mock_log,
     ):
-        mock_db.users.get_user_by_id.return_value = target_user
-        mock_db.users.reactivate_user.return_value = None
+        mock_state_db.users.get_user_by_id.return_value = target_user
+        mock_state_db.users.reactivate_user.return_value = None
         # For the return value (get_user call)
-        mock_db.user_emails.list_emails_for_user.return_value = [target_email]
-        mock_db.user_emails.get_primary_email.return_value = target_email
-        mock_db.users.is_service_user.return_value = False
+        mock_conv_db.users.get_user_by_id.return_value = reactivated_user
+        mock_conv_db.user_emails.list_user_emails.return_value = [target_email]
+        mock_conv_db.user_emails.get_primary_email.return_value = target_email
+        mock_conv_db.users.is_service_user.return_value = False
 
         users.reactivate_user(requesting_user, target_user["id"])
 
@@ -485,9 +498,8 @@ def test_users_role_change_logs_authorization_denied(make_requesting_user, make_
     user_update = UserUpdate(role="admin")
 
     with (
-        patch("services.users.database") as mock_db,
-        patch("services.users.track_activity"),
-        patch("services.users.log_event") as mock_log,
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users._validation.log_event") as mock_log,
     ):
         mock_db.users.get_user_by_id.return_value = target_user
 

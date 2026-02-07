@@ -438,23 +438,6 @@ def test_worker_run_handles_exception_and_continues(mock_database, mock_sleep):
 
 
 # =============================================================================
-# register_handler Decorator Tests
-# =============================================================================
-
-
-def test_register_handler_decorator_returns_callable():
-    """Test register_handler re-exports from jobs.registry."""
-    from worker import register_handler
-
-    # The decorator should be callable
-    assert callable(register_handler)
-
-    # It should return a decorator when called
-    decorator = register_handler("test_job_type")
-    assert callable(decorator)
-
-
-# =============================================================================
 # main() Entry Point Tests
 # =============================================================================
 

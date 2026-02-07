@@ -10,6 +10,7 @@ import database
 from schemas.event_log import ExportFileItem, ExportListResponse
 from services.activity import track_activity
 from services.auth import require_admin
+from services.event_log import log_event
 from services.exceptions import NotFoundError
 from services.types import RequestingUser
 from utils import storage
@@ -87,8 +88,15 @@ def get_download(
             code="export_not_found",
         )
 
-    # Mark as downloaded (side-effect for tracking; activity already logged above)
     database.export_files.mark_downloaded(tenant_id, export_id)
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        event_type="export_downloaded",
+        artifact_type="export_file",
+        artifact_id=export_id,
+        metadata={"filename": export["filename"]},
+    )
 
     backend = storage.get_backend()
 

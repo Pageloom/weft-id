@@ -8,46 +8,119 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Group System - Phase 3: User Experience
+## Fix: Auth Method Shows "None" for All Users in Users List
 
-**User Story:**
-As a user
-I want to see which groups I belong to
-So that I understand my organizational context and access rights
+**Bug Report:**
+The users list page (`/admin/users/list`) shows a red "None" badge in the Auth Method column for every user. The
+template checks `u.saml_idp_id` and `u.has_password`, but the listing query (`database/users/listing.py`) does not
+return either field. Every user appears to have no authentication method, which is misleading and looks broken.
+
+**Root Cause:**
+The `list_users` database query selects
+`id, first_name, last_name, role, created_at, last_login, is_inactivated, is_anonymized, email, last_activity_at` but
+omits `saml_idp_id` and `password_hash is not null as has_password`. The template then evaluates both as falsy and falls
+through to the "None" branch.
 
 **Acceptance Criteria:**
 
-**Dashboard - My Groups:**
+- [ ] Users list query includes `u.saml_idp_id` and `u.password_hash is not null as has_password`
+- [ ] Users with a password show "Password" (gray badge)
+- [ ] Users with a password and second factor show "Password + MFA" (yellow badge)
+- [ ] Users associated with an IdP show the name of the IdP such as "Okta" (blue badge)
+- [ ] Users with neither show "Unverified" (red badge), which should only occur for newly created users who haven't completed
+  onboarding
+- [ ] Existing tests updated, new test covers auth method display logic
 
-- [ ] "My Groups" section on user dashboard
-- [ ] Shows all groups user is a member of (direct or via IdP)
-- [ ] Distinguishes between WeftID groups and IdP groups
-- [ ] Shows group hierarchy context (e.g., "Engineering > Backend Team")
+**Effort:** XS
+**Value:** High (Broken UX visible to every admin on the most-visited page)
 
-**Effective Membership:**
+---
 
-- [ ] Calculate effective membership (user in child group = member of parent)
-- [ ] API endpoint to query effective memberships for a user
-- [ ] API endpoint to query effective members of a group (including via children)
+## User-Centric Group Management
 
-**Admin Enhancements:**
+**User Story:**
+As an admin
+I want to manage group assignments from the user's perspective (not just the group's perspective)
+So that onboarding a user or adjusting their access doesn't require visiting each group page individually
 
-- [ ] View effective members of a group (not just direct)
-- [ ] Filter/search groups
-- [ ] Bulk user assignment to groups
+**Context:**
+
+Currently, group membership can only be managed from the group detail page: navigate to a group, add a user. To assign a
+new hire to 5 groups, an admin must visit 5 separate pages. There is no way to see or manage a user's group memberships
+from their profile. This is the single biggest friction point for daily admin work.
+
+**Acceptance Criteria:**
+
+**User Detail - Groups Tab:**
+
+- [ ] "Groups" section on the user detail page (admin view)
+- [ ] Shows all groups the user is a direct member of, with group type badge (WeftID/IdP)
+- [ ] Shows effective groups (inherited via hierarchy) separately, marked as "Inherited"
+- [ ] Admin can add the user to a WeftID group from a dropdown (single add)
+- [ ] Admin can add the user to multiple WeftID groups at once (multi-select bulk add)
+- [ ] Admin can remove the user from a WeftID group (with confirmation)
+- [ ] IdP group memberships are shown as read-only
+
+**Users List - Group Context:**
+
+- [ ] Users list shows a group count column (number of direct group memberships)
+- [ ] Group count is a link to the user's groups tab
+
+**API Endpoints:**
+
+- [ ] `GET /api/v1/users/{user_id}/groups` returns direct group memberships
+- [ ] `POST /api/v1/users/{user_id}/groups` adds user to one or more groups
+- [ ] `DELETE /api/v1/users/{user_id}/groups/{group_id}` removes user from a group
 
 **Technical Implementation:**
 
-- Recursive CTE queries for effective membership
-- Dashboard template updates
-- API endpoints under `/api/v1/groups/`
+- Add group membership data to user detail service/query
+- New section in user detail template
+- New database queries for user-centric group operations
+- API endpoints under `/api/v1/users/{user_id}/groups`
+- Reuses existing `add_member`/`remove_member` service functions (called with swapped perspective)
 
 **Dependencies:**
 
-- Phase 2 complete
+- Group System Phase 3 complete
+
+**Effort:** M
+**Value:** High (Core admin workflow, daily-use feature)
+
+---
+
+## User Export (CSV)
+
+**User Story:**
+As an admin
+I want to export the current filtered user list as a CSV file
+So that I can use the data for auditing, compliance reporting, and operational tasks outside the platform
+
+**Acceptance Criteria:**
+
+**Frontend Export:**
+
+- [ ] "Export" button on the users list page
+- [ ] Exports the current filtered/searched result set (respects active search, role filters, status filters)
+- [ ] Downloads as a `.csv` file with a timestamped filename (e.g., `users_2026-02-07.csv`)
+- [ ] CSV columns: Name, Email, Role, Status, Auth Method, Last Login, Last Activity, Created At
+- [ ] Handles large exports gracefully (streaming response, not buffered in memory)
+- [ ] Export limited to admin+ role
+
+**API Endpoint:**
+
+- [ ] `GET /api/v1/users/export?format=csv` with same filter parameters as list endpoint
+- [ ] Supports `format=csv` (default) and `format=json` for programmatic use
+- [ ] Streams response for large datasets
+- [ ] Admin+ authorization required
+
+**Event Logging:**
+
+- [ ] Export action logged as audit event (`users_exported` event type)
+- [ ] Event metadata includes: format, filter criteria, row count
 
 **Effort:** S
-**Value:** Medium (User visibility, API for downstream apps)
+**Value:** High (Frequently needed for compliance and operations, low implementation cost)
 
 ---
 
@@ -60,15 +133,17 @@ So that those applications can authenticate users via SSO against my tenant's id
 
 **Context:**
 
-This is the foundational phase of making the platform act as a SAML Identity Provider. Currently the platform federates with upstream IdPs (Okta, Azure AD, etc.). This feature enables the reverse: downstream applications trust this platform as their IdP. How users actually authenticate internally (password, MFA, upstream IdP) is opaque to the downstream SP.
+This is the foundational phase of making the platform act as a SAML Identity Provider. Currently the platform federates
+with upstream IdPs (Okta, Azure AD, etc.). This feature enables the reverse: downstream applications trust this platform
+as their IdP. How users actually authenticate internally (password, MFA, upstream IdP) is opaque to the downstream SP.
 
 **Acceptance Criteria:**
 
 **Service Provider Registration:**
 
 - [ ] Super admin can register downstream apps (SPs) via:
-  - Pasted SAML metadata XML
-  - Metadata URL (fetched and parsed)
+    - Pasted SAML metadata XML
+    - Metadata URL (fetched and parsed)
 - [ ] Metadata parsing extracts: Entity ID, ACS URL(s), SP certificate (if present), NameID format
 - [ ] Manual fallback: if metadata incomplete, allow manual entry of Entity ID and ACS URL
 - [ ] SP has name field (required) for display purposes
@@ -107,7 +182,7 @@ This is the foundational phase of making the platform act as a SAML Identity Pro
 **Technical Implementation:**
 
 - Database migration:
-  - `service_providers`: id, tenant_id, name, entity_id, acs_url, certificate, metadata_xml, created_at
+    - `service_providers`: id, tenant_id, name, entity_id, acs_url, certificate, metadata_xml, created_at
 - New router: `app/routers/saml_idp.py` (separate from `saml.py` which handles upstream)
 - New service: `app/services/saml_idp.py`
 - New database module: `app/database/service_providers.py`
@@ -144,7 +219,9 @@ So that I can control which users have access to which downstream applications
 
 **Context:**
 
-Phase 1 established the core IdP infrastructure with SP-initiated SSO. This phase adds the user-facing experience: a "My Apps" dashboard section where users see and launch their assigned applications (IdP-initiated SSO), plus the assignment model for admins to control access.
+Phase 1 established the core IdP infrastructure with SP-initiated SSO. This phase adds the user-facing experience: a "My
+Apps" dashboard section where users see and launch their assigned applications (IdP-initiated SSO), plus the assignment
+model for admins to control access.
 
 **Acceptance Criteria:**
 
@@ -186,8 +263,8 @@ Phase 1 established the core IdP infrastructure with SP-initiated SSO. This phas
 **Technical Implementation:**
 
 - Database migration:
-  - `sp_assignments`: id, sp_id, user_id, assigned_by, assigned_at
-  - Add `description` column to `service_providers`
+    - `sp_assignments`: id, sp_id, user_id, assigned_by, assigned_at
+    - Add `description` column to `service_providers`
 - Update `app/services/saml_idp.py` with assignment logic
 - Update `app/database/service_providers.py` with assignment queries
 - Dashboard template updates for My Apps section
@@ -217,14 +294,17 @@ So that I can integrate applications with non-standard attribute requirements an
 
 **Context:**
 
-Phases 1 and 2 established the IdP with default attribute mappings (email, firstName, lastName). Some applications expect different attribute names or formats. This phase adds per-SP customization and operational SP management features.
+Phases 1 and 2 established the IdP with default attribute mappings (email, firstName, lastName). Some applications
+expect different attribute names or formats. This phase adds per-SP customization and operational SP management
+features.
 
 **Acceptance Criteria:**
 
 **Per-SP Attribute Mapping:**
 
 - [ ] Default attribute mappings remain: email → standard URI, firstName → standard URI, lastName → standard URI
-- [ ] Per-SP attribute mapping overrides (e.g., map `email` to `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
+- [ ] Per-SP attribute mapping overrides (e.g., map `email` to
+  `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
 - [ ] Attribute mapping UI: list current mappings, add/edit/remove custom mappings
 - [ ] Support for common IdP attribute URI formats (SAML 2.0 standard, Azure AD claims, custom)
 - [ ] Preview: show what the assertion attributes will look like
@@ -251,9 +331,9 @@ Phases 1 and 2 established the IdP with default attribute mappings (email, first
 **Technical Implementation:**
 
 - Database migration:
-  - `sp_attribute_mappings`: id, sp_id, internal_attribute, saml_attribute_uri
-  - Add `enabled`, `nameid_format` columns to `service_providers`
-  - Add `persistent_nameid` table for persistent NameID storage (user_id, sp_id, nameid_value)
+    - `sp_attribute_mappings`: id, sp_id, internal_attribute, saml_attribute_uri
+    - Add `enabled`, `nameid_format` columns to `service_providers`
+    - Add `persistent_nameid` table for persistent NameID storage (user_id, sp_id, nameid_value)
 - Update assertion generation to use custom mappings
 - SP edit/management UI
 - Event logging integration
@@ -453,11 +533,13 @@ So that I have baseline assurance that SAML SSO and other auth flows work correc
 **Context:**
 
 Currently the codebase has:
+
 - Unit tests (service layer)
 - Integration tests (TestClient-based)
 - One "E2E-like" test file (`test_mfa_e2e.py`) using TestClient + maildev
 
 True browser-based E2E tests would provide:
+
 - Confidence that JavaScript interactions work (tab switching, copy-to-clipboard, form validation)
 - Full SAML flow testing against SimpleSAMLphp (which is already containerized)
 - Regression safety net for critical auth paths
@@ -486,6 +568,7 @@ True browser-based E2E tests would provide:
 **Dependencies:**
 
 New dev dependencies:
+
 - `playwright = "^1.40.0"`
 - `pytest-playwright = "^0.4.0"`
 

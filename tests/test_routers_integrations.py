@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
@@ -286,44 +287,43 @@ def test_apps_create_multiple_redirect_uris(test_admin_user, override_auth, mock
     ]
 
 
-def test_apps_create_empty_name_redirects_with_error(test_admin_user, override_auth):
-    """Test creating an app with empty name returns error."""
+@pytest.mark.parametrize(
+    "form_data,expected_error",
+    [
+        (
+            {
+                "name": "   ",
+                "redirect_uris": "https://example.com/callback",
+                "description": "",
+                "csrf_token": "test-token",
+            },
+            "error=name_required",
+        ),
+        (
+            {
+                "name": "Test App",
+                "redirect_uris": "",
+                "description": "",
+                "csrf_token": "test-token",
+            },
+            "error=redirect_uris_required",
+        ),
+    ],
+    ids=["empty_name", "empty_redirect_uris"],
+)
+def test_apps_create_validation_error(test_admin_user, override_auth, form_data, expected_error):
+    """Test creating an app with invalid data returns appropriate error."""
     override_auth(test_admin_user, level="admin")
 
     client = TestClient(app)
     response = client.post(
         "/admin/integrations/apps/create",
-        data={
-            "name": "   ",
-            "redirect_uris": "https://example.com/callback",
-            "description": "",
-            "csrf_token": "test-token",
-        },
+        data=form_data,
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert "error=name_required" in response.headers["location"]
-
-
-def test_apps_create_empty_redirect_uris_redirects_with_error(test_admin_user, override_auth):
-    """Test creating an app with empty redirect URIs returns error."""
-    override_auth(test_admin_user, level="admin")
-
-    client = TestClient(app)
-    response = client.post(
-        "/admin/integrations/apps/create",
-        data={
-            "name": "Test App",
-            "redirect_uris": "",
-            "description": "",
-            "csrf_token": "test-token",
-        },
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    assert "error=redirect_uris_required" in response.headers["location"]
+    assert expected_error in response.headers["location"]
 
 
 def test_apps_create_service_error(test_admin_user, override_auth, mocker):

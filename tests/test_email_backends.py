@@ -1,5 +1,6 @@
 """Tests for email backends."""
 
+import smtplib
 from unittest.mock import MagicMock, patch
 
 
@@ -69,8 +70,6 @@ class TestSMTPBackend:
 
     def test_send_failure(self):
         """Test SMTP sending failure handling."""
-        import smtplib
-
         from utils.email_backends.smtp import SMTPBackend
 
         with patch("smtplib.SMTP") as mock_smtp:

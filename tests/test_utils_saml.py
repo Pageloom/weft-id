@@ -315,36 +315,26 @@ def test_fetch_idp_metadata_success(mock_urlopen, sample_idp_metadata_xml):
     mock_urlopen.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    "exception,match",
+    [
+        (
+            HTTPError(
+                url="https://idp.example.com/metadata", code=404, msg="Not Found", hdrs={}, fp=None
+            ),
+            "HTTP error",
+        ),
+        (URLError("Connection refused"), "fetch metadata"),
+        (TimeoutError(), "Timeout"),
+    ],
+    ids=["http_error", "network_error", "timeout"],
+)
 @patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_http_error(mock_urlopen):
-    """Test that HTTP errors raise ValueError."""
-    mock_urlopen.side_effect = HTTPError(
-        url="https://idp.example.com/metadata",
-        code=404,
-        msg="Not Found",
-        hdrs={},
-        fp=None,
-    )
+def test_fetch_idp_metadata_error(mock_urlopen, exception, match):
+    """Test that fetch errors raise ValueError."""
+    mock_urlopen.side_effect = exception
 
-    with pytest.raises(ValueError, match="HTTP error"):
-        fetch_idp_metadata("https://idp.example.com/metadata")
-
-
-@patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_network_error(mock_urlopen):
-    """Test that network errors raise ValueError."""
-    mock_urlopen.side_effect = URLError("Connection refused")
-
-    with pytest.raises(ValueError, match="fetch metadata"):
-        fetch_idp_metadata("https://idp.example.com/metadata")
-
-
-@patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_timeout(mock_urlopen):
-    """Test that timeout raises ValueError."""
-    mock_urlopen.side_effect = TimeoutError()
-
-    with pytest.raises(ValueError, match="Timeout"):
+    with pytest.raises(ValueError, match=match):
         fetch_idp_metadata("https://idp.example.com/metadata")
 
 

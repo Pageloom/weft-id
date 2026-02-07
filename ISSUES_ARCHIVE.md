@@ -4,6 +4,27 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [TEST] Parametrization Opportunities
+
+**Status:** Resolved (2026-02-07)
+
+**Original Severity:** Medium
+
+**Original Description:**
+Several test groups had highly similar structure that could be consolidated using `pytest.mark.parametrize` across 4 test files.
+
+**Resolution:**
+Applied `pytest.mark.parametrize` to 3 of 4 identified files:
+
+1. `test_routers_saml_domain_binding.py`: Consolidated 4 error tests (bind/unbind x not_found/service_error) into 2 parametrized tests. Success tests kept separate (distinct assertions).
+2. `test_routers_integrations.py`: Consolidated 2 validation error tests (empty_name, empty_redirect_uris) into 1 parametrized test. Service error test kept separate (requires mocker for mock setup).
+3. `test_utils_saml.py`: Consolidated 3 fetch error tests (http_error, network_error, timeout) into 1 parametrized test.
+4. `test_email_backends.py`: Evaluated but not parametrized. Each backend has fundamentally different mock setups (SMTP patches smtplib, Resend patches resend.Emails.send, SendGrid uses two-level client mock), making parametrization less readable than the original.
+
+All 2174 tests pass.
+
+---
+
 ## [REFACTOR] Critical File Size: services/users.py and services/groups.py
 
 **Status:** Resolved (2026-02-06)

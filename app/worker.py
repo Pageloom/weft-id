@@ -10,6 +10,7 @@ import logging
 import os
 import signal
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -40,6 +41,41 @@ def register_handler(job_type: str):
     return _register_handler(job_type)
 
 
+def _load_cleanup() -> Any:
+    """Import and run the cleanup job."""
+    from jobs.cleanup_exports import cleanup_expired_exports
+
+    return cleanup_expired_exports()
+
+
+def _load_inactivation() -> Any:
+    """Import and run the inactivation job."""
+    from jobs.inactivate_idle_users import inactivate_idle_users
+
+    return inactivate_idle_users()
+
+
+def _load_saml_refresh() -> Any:
+    """Import and run the SAML metadata refresh job."""
+    from jobs.refresh_saml_metadata import refresh_saml_metadata
+
+    return refresh_saml_metadata()
+
+
+class PeriodicJob:
+    """A periodic background job with interval-based scheduling."""
+
+    __slots__ = ("name", "func", "interval", "last_run")
+
+    def __init__(
+        self, name: str, func: Callable[[], Any], interval: timedelta
+    ) -> None:
+        self.name = name
+        self.func = func
+        self.interval = interval
+        self.last_run: datetime | None = None
+
+
 class Worker:
     """Background job worker."""
 
@@ -59,13 +95,24 @@ class Worker:
             saml_refresh_interval_hours: Hours between SAML metadata refresh runs
         """
         self.poll_interval = poll_interval
-        self.cleanup_interval = timedelta(hours=cleanup_interval_hours)
-        self.inactivation_interval = timedelta(hours=inactivation_interval_hours)
-        self.saml_refresh_interval = timedelta(hours=saml_refresh_interval_hours)
         self.running = True
-        self.last_cleanup: datetime | None = None
-        self.last_inactivation: datetime | None = None
-        self.last_saml_refresh: datetime | None = None
+        self._periodic_jobs = [
+            PeriodicJob(
+                "cleanup",
+                _load_cleanup,
+                timedelta(hours=cleanup_interval_hours),
+            ),
+            PeriodicJob(
+                "inactivation",
+                _load_inactivation,
+                timedelta(hours=inactivation_interval_hours),
+            ),
+            PeriodicJob(
+                "SAML metadata refresh",
+                _load_saml_refresh,
+                timedelta(hours=saml_refresh_interval_hours),
+            ),
+        ]
 
     def stop(self, signum: int | None = None, frame: Any = None) -> None:
         """Handle shutdown signal."""
@@ -76,20 +123,12 @@ class Worker:
         """Main worker loop."""
         logger.info("Worker starting, poll interval: %ds", self.poll_interval)
         logger.info("Registered handlers: %s", get_registered_handlers())
-        logger.info("Cleanup interval: %s", self.cleanup_interval)
-        logger.info("Inactivation interval: %s", self.inactivation_interval)
-        logger.info("SAML refresh interval: %s", self.saml_refresh_interval)
+        for job in self._periodic_jobs:
+            logger.info("%s interval: %s", job.name, job.interval)
 
         while self.running:
             try:
-                # Check if cleanup is due
-                self._maybe_run_cleanup()
-
-                # Check if inactivation is due
-                self._maybe_run_inactivation()
-
-                # Check if SAML metadata refresh is due
-                self._maybe_run_saml_refresh()
+                self._check_periodic_jobs()
 
                 # Poll for next task
                 task = database.bg_tasks.claim_next_task()
@@ -103,74 +142,22 @@ class Worker:
 
         logger.info("Worker stopped")
 
-    def _maybe_run_cleanup(self) -> None:
-        """Run cleanup if enough time has passed since last run."""
+    def _check_periodic_jobs(self) -> None:
+        """Run periodic jobs whose interval has elapsed."""
         now = datetime.now(UTC)
+        for job in self._periodic_jobs:
+            if job.last_run is None or now - job.last_run >= job.interval:
+                job.last_run = now
+                self._run_job(job)
 
-        if self.last_cleanup is None:
-            # Run cleanup on first iteration
-            self.last_cleanup = now
-            self._run_cleanup()
-        elif now - self.last_cleanup >= self.cleanup_interval:
-            self.last_cleanup = now
-            self._run_cleanup()
-
-    def _run_cleanup(self) -> None:
-        """Run the cleanup job directly (not as a queued task)."""
-        logger.info("Running periodic cleanup...")
+    def _run_job(self, job: PeriodicJob) -> None:
+        """Execute a periodic job with logging and error handling."""
+        logger.info("Running %s...", job.name)
         try:
-            from jobs.cleanup_exports import cleanup_expired_exports
-
-            result = cleanup_expired_exports()
-            logger.info("Cleanup completed: %s", result)
+            result = job.func()
+            logger.info("%s completed: %s", job.name, result)
         except Exception as e:
-            logger.exception("Cleanup failed: %s", e)
-
-    def _maybe_run_inactivation(self) -> None:
-        """Run inactivation check if enough time has passed since last run."""
-        now = datetime.now(UTC)
-
-        if self.last_inactivation is None:
-            # Run inactivation on first iteration
-            self.last_inactivation = now
-            self._run_inactivation()
-        elif now - self.last_inactivation >= self.inactivation_interval:
-            self.last_inactivation = now
-            self._run_inactivation()
-
-    def _run_inactivation(self) -> None:
-        """Run the idle user inactivation job directly (not as a queued task)."""
-        logger.info("Running idle user inactivation check...")
-        try:
-            from jobs.inactivate_idle_users import inactivate_idle_users
-
-            result = inactivate_idle_users()
-            logger.info("Inactivation check completed: %s", result)
-        except Exception as e:
-            logger.exception("Inactivation check failed: %s", e)
-
-    def _maybe_run_saml_refresh(self) -> None:
-        """Run SAML metadata refresh if enough time has passed since last run."""
-        now = datetime.now(UTC)
-
-        if self.last_saml_refresh is None:
-            # Run refresh on first iteration
-            self.last_saml_refresh = now
-            self._run_saml_refresh()
-        elif now - self.last_saml_refresh >= self.saml_refresh_interval:
-            self.last_saml_refresh = now
-            self._run_saml_refresh()
-
-    def _run_saml_refresh(self) -> None:
-        """Run the SAML IdP metadata refresh job directly (not as a queued task)."""
-        logger.info("Running SAML IdP metadata refresh...")
-        try:
-            from jobs.refresh_saml_metadata import refresh_saml_metadata
-
-            result = refresh_saml_metadata()
-            logger.info("SAML metadata refresh completed: %s", result)
-        except Exception as e:
-            logger.exception("SAML metadata refresh failed: %s", e)
+            logger.exception("%s failed: %s", job.name, e)
 
     def _process_task(self, task: dict) -> None:
         """Process a single task."""

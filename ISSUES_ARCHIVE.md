@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Duplication: Worker periodic task boilerplate
+
+**Status:** Resolved (2026-02-07)
+
+**Original Severity:** Medium
+
+**Original Description:**
+Three identical `_maybe_run_*` / `_run_*` method pairs in `worker.py` followed the exact same pattern (68 lines of boilerplate). Each new periodic task required copying the same code.
+
+**Resolution:**
+Extracted a `PeriodicJob` class and two generic methods (`_check_periodic_jobs`, `_run_job`) that replace all 6 boilerplate methods. Each periodic task is now a data declaration in `__init__`. Adding a new periodic task is a one-liner. Reduced from 68 lines to ~20 lines of generic code. Tests consolidated from 32 to 24 (9 duplicated timing tests became 3 generic scheduling tests).
+
+**Files Changed:** `app/worker.py`, `tests/test_worker.py`
+
+---
+
 ## [REFACTOR] Correctness: Super-admin count check uses wrong query
 
 **Status:** Resolved (2026-02-07)

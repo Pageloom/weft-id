@@ -29,18 +29,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Re-export register_handler for backwards compatibility
-def register_handler(job_type: str):
-    """Decorator to register a job handler.
-
-    Note: This is re-exported from jobs.registry for backwards compatibility.
-    New code should import directly from jobs.registry.
-    """
-    from jobs.registry import register_handler as _register_handler
-
-    return _register_handler(job_type)
-
-
 def _load_cleanup() -> Any:
     """Import and run the cleanup job."""
     from jobs.cleanup_exports import cleanup_expired_exports
@@ -67,9 +55,7 @@ class PeriodicJob:
 
     __slots__ = ("name", "func", "interval", "last_run")
 
-    def __init__(
-        self, name: str, func: Callable[[], Any], interval: timedelta
-    ) -> None:
+    def __init__(self, name: str, func: Callable[[], Any], interval: timedelta) -> None:
         self.name = name
         self.func = func
         self.interval = interval

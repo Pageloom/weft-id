@@ -77,6 +77,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "tenant_settings_updated": "Tenant settings updated",
     # Background Tasks & Exports
     "export_task_created": "Background export job created",
+    "export_downloaded": "Export file downloaded",
     "jobs_deleted": "Background jobs cleaned up",
     # Groups & Group Management
     "group_created": "Group created",

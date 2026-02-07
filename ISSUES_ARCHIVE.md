@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [REFACTOR] Correctness: Super-admin count check uses wrong query
+
+**Status:** Resolved (2026-02-07)
+
+**Original Severity:** Medium
+
+**Original Description:**
+The last-super-admin guard in `_validation.py` used `database.users.list_users()` with `page_size=100` and counted super admins in Python. If a tenant had more than 100 users, super admins beyond page 1 would be missed, potentially allowing demotion of the last super admin.
+
+**Resolution:**
+Replaced `list_users()` + Python filtering with `database.users.count_active_super_admins(tenant_id)`, matching the correct pattern already used in `state.py`. Updated the corresponding test mock to target `services.users._validation.database` and mock `count_active_super_admins`.
+
+**Files Changed:** `app/services/users/_validation.py`, `tests/test_services_users.py`
+
+---
+
 ## [TEST] Parametrization Opportunities
 
 **Status:** Resolved (2026-02-07)

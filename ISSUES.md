@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | - |
-| Medium | 2 | Correctness, Duplication |
+| Medium | 1 | Duplication |
 | Low | 2 | Dead code, Architecture |
 
 **Last dependency audit:** 2026-02-06 (pip CVE-2026-1703 accepted as low priority dev tool risk)
@@ -19,35 +19,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-06 (users.py and groups.py split into packages)
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
-
----
-
-## [REFACTOR] Correctness: Super-admin count check uses wrong query
-
-**Found in:** `app/services/users/_validation.py:53-68`
-**Impact:** Medium
-**Category:** Correctness / Duplication
-**Description:** The last-super-admin guard in `_validation.py` uses `database.users.list_users()` with `page_size=100` and then counts super admins in Python. The same check in `app/services/users/state.py` (lines 85-92, 306-313) correctly uses the dedicated `database.users.count_active_super_admins()` function.
-**Why It Matters:** If a tenant has more than 100 users, the `list_users()` approach could miss super admins beyond page 1, potentially allowing demotion of the last super admin. This is a correctness bug, not just a style issue.
-**Suggested Refactoring:** Replace lines 55-63 with a call to `database.users.count_active_super_admins(tenant_id)`, matching the pattern used in `state.py`.
-
-```python
-# Before:
-super_admins = database.users.list_users(
-    tenant_id=tenant_id,
-    search=None,
-    sort_field="created_at",
-    sort_order="asc",
-    page=1,
-    page_size=100,
-)
-super_admin_count = sum(1 for u in super_admins if u["role"] == "super_admin")
-
-# After:
-super_admin_count = database.users.count_active_super_admins(tenant_id)
-```
-
-**Files Affected:** `app/services/users/_validation.py`
 
 ---
 

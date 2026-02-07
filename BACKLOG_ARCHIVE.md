@@ -1733,3 +1733,49 @@ Request metadata structure (from `app/utils/request_metadata.py`):
 **Value:** High (Security, Compliance, Audit Trail)
 
 ---
+
+## Group System - Phase 3: User Experience
+
+**Status:** Complete
+
+**User Story:**
+As a user
+I want to see which groups I belong to
+So that I understand my organizational context and access rights
+
+**Completed Work:**
+
+**Dashboard - My Groups:**
+
+- [x] "My Groups" section on user dashboard
+- [x] Shows all groups user is a member of (direct or via IdP)
+- [x] Distinguishes between WeftID groups and IdP groups
+- [x] Shows group hierarchy context (e.g., "Parent1, Parent2 > Group Name")
+
+**Effective Membership:**
+
+- [x] Calculate effective membership using closure table (user in child group = member of parent)
+- [x] API endpoint to query effective memberships for a user (`GET /api/v1/users/{id}/effective-groups`)
+- [x] API endpoint to query effective members of a group (`GET /api/v1/groups/{id}/effective-members`)
+
+**Admin Enhancements:**
+
+- [x] View effective members of a group (direct vs. inherited badges)
+- [x] Filter/search groups (implemented in Phase 2)
+- [x] Bulk user assignment to groups (multi-select form + API endpoint)
+
+**Technical Implementation:**
+
+- New database module: `app/database/groups/effective.py` (4 query functions using closure table)
+- Added `bulk_add_group_members` to `app/database/groups/memberships.py`
+- New schemas: `UserGroup`, `EffectiveMembership`, `EffectiveMember`, `BulkMemberAdd` and list variants
+- New service functions: `get_my_groups`, `get_effective_memberships`, `get_effective_members`, `bulk_add_members`
+- New API router: `app/routers/api/v1/users/groups.py`
+- Updated dashboard, group detail page, and admin group router
+- Event type: `group_members_bulk_added`
+- Comprehensive tests across database, service, API, and router layers
+
+**Effort:** S
+**Value:** Medium (User visibility, API for downstream apps)
+
+---

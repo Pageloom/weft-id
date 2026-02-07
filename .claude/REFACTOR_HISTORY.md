@@ -40,14 +40,16 @@ Track when each area was last analyzed to identify gaps:
 
 | Area | Last Scanned | Last Deep Scan | Notes |
 |------|--------------|----------------|-------|
-| `app/services/` | 2026-02-06 | 2026-02-01 | 2 critical files >1000 lines (users.py, groups.py) |
+| `app/services/` | 2026-02-07 | 2026-02-01 | RESOLVED - all files now <660 lines (users.py, groups.py split into packages) |
 | `app/database/` | 2026-02-06 | 2026-02-01 | RESOLVED - all files now <360 lines (split into packages) |
 | `app/routers/` | 2026-02-06 | 2026-02-01 | RESOLVED - 4 large files split into packages; log_event calls documented as intentional |
 | `app/routers/api/` | 2026-02-06 | 2026-02-01 | RESOLVED - dead code removed in router split |
 | `app/schemas/` | 2026-02-01 | 2026-02-01 | Clean - all files <500 lines |
 | `app/middleware/` | 2026-02-01 | 2026-02-01 | Clean - all files <220 lines |
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
-| `tests/` | 2026-02-06 | 2026-02-06 | Parametrization opportunities (4 files), large files mirror app structure (accepted) |
+| `app/utils/` | 2026-02-07 | 2026-02-07 | Clean - largest file 649 lines (email.py) |
+| `app/worker.py` | 2026-02-07 | 2026-02-07 | Periodic task boilerplate duplication logged |
+| `tests/` | 2026-02-06 | 2026-02-06 | Parametrization applied (commit 979c5f4), large files mirror app structure (accepted) |
 
 ## Recurring Patterns
 
@@ -57,13 +59,48 @@ Track issues that keep appearing to identify systemic problems:
 |---------|-------------|----------------|----------------------|
 | Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
 | Growing god modules | ~~1 (saml.py at 2658 lines)~~ → RESOLVED | services | FIXED: Split into `app/services/saml/` sub-modules |
-| Large files (>500 lines) | ~~8 files~~ → 14 files | services, routers | Database/router splits complete; services layer now has 2 critical files (users.py, groups.py >1000 lines) |
+| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → 12 app files | services, routers, utils | All splits complete; no file exceeds 660 lines; 0 critical files |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-07 - Full Codebase Standard Scan
+
+**Scan type:** Standard
+**Areas analyzed:** Full codebase (app/, tests/, worker.py)
+**Categories focused:** All (file structure, duplication, complexity, architecture, dead code)
+
+**Key findings:**
+
+1. **Super-admin count check uses wrong query (Medium)** - `_validation.py:53-68` uses `list_users(page_size=100)` and counts in Python instead of `count_active_super_admins()`. Potential correctness bug with >100 users. Status: Open
+
+2. **Worker periodic task boilerplate (Medium)** - 3 identical `_maybe_run_*`/`_run_*` pairs in `worker.py` (68 lines). Could be ~20 with a generic helper. Status: Open
+
+3. **Backwards-compat re-export in worker.py (Low)** - `register_handler()` re-exported but may be dead code. Status: Open
+
+4. **Missing event log for export download (Low)** - `exports.py:91` writes `mark_downloaded()` without `log_event()`. Status: Open
+
+**What was clean:**
+- Architecture: No router-to-database imports, layered architecture fully maintained
+- Error handling: All services use ServiceError subclasses consistently
+- Event logging: Comprehensive (72 calls across 22 files, 1 exception noted)
+- Activity tracking: All read functions call track_activity()
+- Authorization: Centralized in auth.py, no duplicated helpers
+- No circular imports, no dead code, no deep nesting issues in production code
+- File structure: No file exceeds 660 lines (down from 2 files >1000 lines)
+
+**Recommendations for next scan:**
+- After fixing _validation.py, verify test coverage for >100 user scenarios
+- After worker refactor, verify all periodic tasks still run correctly
+- Consider deep scan of app/utils/ (email.py at 649 lines may grow)
+
+**Issues logged:** 4 new issues added to ISSUES.md (2 medium, 2 low)
+**Issues resolved since last scan:** 2 (users.py and groups.py >1000 lines now split)
+
+---
 
 ### 2026-02-06 - Verification Scan
 

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | - |
-| Medium | 1 | Duplication |
+| Medium | 0 | - |
 | Low | 2 | Dead code, Architecture |
 
 **Last dependency audit:** 2026-02-06 (pip CVE-2026-1703 accepted as low priority dev tool risk)
@@ -19,37 +19,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-06 (users.py and groups.py split into packages)
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
-
----
-
-## [REFACTOR] Duplication: Worker periodic task boilerplate
-
-**Found in:** `app/worker.py:106-173`
-**Impact:** Medium
-**Category:** Duplication
-**Description:** Three identical `_maybe_run_*` / `_run_*` method pairs follow the exact same pattern: check if enough time has elapsed since last run, then call a job function wrapped in try/except with logging. This is 68 lines that could be reduced to ~20 with a generic periodic task runner.
-**Why It Matters:** Each new periodic task requires copying the same boilerplate (already happened 3 times). A generic helper would make adding future periodic tasks a one-liner.
-**Suggested Refactoring:** Extract a `_run_periodic(name, last_run_attr, interval_attr, func)` method.
-
-```python
-# Before: 3x copy-pasted _maybe_run_* / _run_* pairs (68 lines)
-
-# After:
-def _run_periodic(self, name: str, job_func: Callable, last_attr: str, interval_attr: str) -> None:
-    now = datetime.now(UTC)
-    last = getattr(self, last_attr)
-    interval = getattr(self, interval_attr)
-    if last is None or now - last >= interval:
-        setattr(self, last_attr, now)
-        logger.info("Running %s...", name)
-        try:
-            result = job_func()
-            logger.info("%s completed: %s", name, result)
-        except Exception as e:
-            logger.exception("%s failed: %s", name, e)
-```
-
-**Files Affected:** `app/worker.py`
 
 ---
 

@@ -3,8 +3,9 @@
 This test file covers the Worker class in worker.py:
 - Initialization and default values
 - Shutdown handling
-- Periodic cleanup timing
-- Periodic inactivation timing
+- Periodic job scheduling (_check_periodic_jobs)
+- Periodic job execution (_run_job)
+- Job loader functions (_load_cleanup, _load_inactivation, _load_saml_refresh)
 - Task processing (success, unknown handler, exception)
 - Tenant-scoped session usage
 """
@@ -46,11 +47,23 @@ def test_worker_init_defaults():
     worker = Worker()
 
     assert worker.poll_interval == 10
-    assert worker.cleanup_interval == timedelta(hours=1)
-    assert worker.inactivation_interval == timedelta(hours=24)
     assert worker.running is True
-    assert worker.last_cleanup is None
-    assert worker.last_inactivation is None
+    assert len(worker._periodic_jobs) == 3
+
+    cleanup = worker._periodic_jobs[0]
+    assert cleanup.name == "cleanup"
+    assert cleanup.interval == timedelta(hours=1)
+    assert cleanup.last_run is None
+
+    inactivation = worker._periodic_jobs[1]
+    assert inactivation.name == "inactivation"
+    assert inactivation.interval == timedelta(hours=24)
+    assert inactivation.last_run is None
+
+    saml = worker._periodic_jobs[2]
+    assert saml.name == "SAML metadata refresh"
+    assert saml.interval == timedelta(hours=24)
+    assert saml.last_run is None
 
 
 def test_worker_init_custom_values():
@@ -61,11 +74,13 @@ def test_worker_init_custom_values():
         poll_interval=30,
         cleanup_interval_hours=2,
         inactivation_interval_hours=12,
+        saml_refresh_interval_hours=6,
     )
 
     assert worker.poll_interval == 30
-    assert worker.cleanup_interval == timedelta(hours=2)
-    assert worker.inactivation_interval == timedelta(hours=12)
+    assert worker._periodic_jobs[0].interval == timedelta(hours=2)
+    assert worker._periodic_jobs[1].interval == timedelta(hours=12)
+    assert worker._periodic_jobs[2].interval == timedelta(hours=6)
 
 
 def test_worker_stop_sets_running_false():
@@ -93,121 +108,149 @@ def test_worker_stop_with_signal_args():
 
 
 # =============================================================================
-# Cleanup Timing Tests
+# Periodic Job Scheduling Tests
 # =============================================================================
 
 
 @patch("worker.datetime")
-def test_maybe_run_cleanup_first_run(mock_datetime):
-    """Test cleanup runs immediately on first iteration."""
+def test_check_periodic_jobs_first_run(mock_datetime):
+    """Test all periodic jobs run on first iteration (last_run is None)."""
     from worker import Worker
 
     now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
     mock_datetime.now.return_value = now
 
     worker = Worker()
-    worker._run_cleanup = MagicMock()
+    worker._run_job = MagicMock()
 
-    assert worker.last_cleanup is None
+    worker._check_periodic_jobs()
 
-    worker._maybe_run_cleanup()
-
-    worker._run_cleanup.assert_called_once()
-    assert worker.last_cleanup == now
+    assert worker._run_job.call_count == 3
+    for job in worker._periodic_jobs:
+        assert job.last_run == now
 
 
 @patch("worker.datetime")
-def test_maybe_run_cleanup_respects_interval(mock_datetime):
-    """Test cleanup doesn't run before interval elapsed."""
+def test_check_periodic_jobs_respects_interval(mock_datetime):
+    """Test jobs don't run before their interval has elapsed."""
     from worker import Worker
 
     now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
     mock_datetime.now.return_value = now
 
     worker = Worker(cleanup_interval_hours=1)
-    worker._run_cleanup = MagicMock()
-    worker.last_cleanup = now - timedelta(minutes=30)  # Only 30 min ago
+    worker._run_job = MagicMock()
+    # Set all as recently run (30 min ago, well within all intervals)
+    for job in worker._periodic_jobs:
+        job.last_run = now - timedelta(minutes=30)
 
-    worker._maybe_run_cleanup()
+    worker._check_periodic_jobs()
 
-    worker._run_cleanup.assert_not_called()
+    worker._run_job.assert_not_called()
 
 
 @patch("worker.datetime")
-def test_maybe_run_cleanup_runs_after_interval(mock_datetime):
-    """Test cleanup runs after interval has elapsed."""
+def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
+    """Test only jobs whose interval has elapsed are run."""
     from worker import Worker
 
     now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
     mock_datetime.now.return_value = now
 
     worker = Worker(cleanup_interval_hours=1)
-    worker._run_cleanup = MagicMock()
-    worker.last_cleanup = now - timedelta(hours=2)  # 2 hours ago
+    worker._run_job = MagicMock()
+    # Only cleanup is overdue (2h ago vs 1h interval)
+    worker._periodic_jobs[0].last_run = now - timedelta(hours=2)
+    worker._periodic_jobs[1].last_run = now - timedelta(minutes=5)
+    worker._periodic_jobs[2].last_run = now - timedelta(minutes=5)
 
-    worker._maybe_run_cleanup()
+    old_last_run_1 = worker._periodic_jobs[1].last_run
+    old_last_run_2 = worker._periodic_jobs[2].last_run
 
-    worker._run_cleanup.assert_called_once()
-    assert worker.last_cleanup == now
+    worker._check_periodic_jobs()
+
+    worker._run_job.assert_called_once()
+    assert worker._run_job.call_args[0][0].name == "cleanup"
+    assert worker._periodic_jobs[0].last_run == now
+    # Others unchanged
+    assert worker._periodic_jobs[1].last_run == old_last_run_1
+    assert worker._periodic_jobs[2].last_run == old_last_run_2
 
 
 # =============================================================================
-# Inactivation Timing Tests
+# Job Execution Tests
 # =============================================================================
 
 
-@patch("worker.datetime")
-def test_maybe_run_inactivation_first_run(mock_datetime):
-    """Test inactivation runs on first iteration."""
-    from worker import Worker
+def test_run_job_success():
+    """Test _run_job calls the job function successfully."""
+    from worker import PeriodicJob, Worker
 
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
+    mock_func = MagicMock(return_value={"items": 5})
+    job = PeriodicJob("test_job", mock_func, timedelta(hours=1))
 
     worker = Worker()
-    worker._run_inactivation = MagicMock()
+    worker._run_job(job)
 
-    assert worker.last_inactivation is None
-
-    worker._maybe_run_inactivation()
-
-    worker._run_inactivation.assert_called_once()
-    assert worker.last_inactivation == now
+    mock_func.assert_called_once()
 
 
-@patch("worker.datetime")
-def test_maybe_run_inactivation_respects_interval(mock_datetime):
-    """Test inactivation respects 24h interval."""
-    from worker import Worker
+def test_run_job_exception():
+    """Test _run_job handles exceptions without raising."""
+    from worker import PeriodicJob, Worker
 
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
+    mock_func = MagicMock(side_effect=RuntimeError("Job exploded"))
+    job = PeriodicJob("test_job", mock_func, timedelta(hours=1))
 
-    worker = Worker(inactivation_interval_hours=24)
-    worker._run_inactivation = MagicMock()
-    worker.last_inactivation = now - timedelta(hours=12)  # Only 12 hours ago
+    worker = Worker()
+    # Should not raise, just log
+    worker._run_job(job)
 
-    worker._maybe_run_inactivation()
-
-    worker._run_inactivation.assert_not_called()
+    mock_func.assert_called_once()
 
 
-@patch("worker.datetime")
-def test_maybe_run_inactivation_runs_after_interval(mock_datetime):
-    """Test inactivation runs after interval has elapsed."""
-    from worker import Worker
+# =============================================================================
+# Job Loader Function Tests
+# =============================================================================
 
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
 
-    worker = Worker(inactivation_interval_hours=24)
-    worker._run_inactivation = MagicMock()
-    worker.last_inactivation = now - timedelta(hours=25)  # 25 hours ago
+@patch("jobs.cleanup_exports.cleanup_expired_exports")
+def test_load_cleanup(mock_cleanup):
+    """Test _load_cleanup imports and calls cleanup_expired_exports."""
+    from worker import _load_cleanup
 
-    worker._maybe_run_inactivation()
+    mock_cleanup.return_value = {"deleted_files": 5}
 
-    worker._run_inactivation.assert_called_once()
-    assert worker.last_inactivation == now
+    result = _load_cleanup()
+
+    mock_cleanup.assert_called_once()
+    assert result == {"deleted_files": 5}
+
+
+@patch("jobs.inactivate_idle_users.inactivate_idle_users")
+def test_load_inactivation(mock_inactivation):
+    """Test _load_inactivation imports and calls inactivate_idle_users."""
+    from worker import _load_inactivation
+
+    mock_inactivation.return_value = {"inactivated_count": 3}
+
+    result = _load_inactivation()
+
+    mock_inactivation.assert_called_once()
+    assert result == {"inactivated_count": 3}
+
+
+@patch("jobs.refresh_saml_metadata.refresh_saml_metadata")
+def test_load_saml_refresh(mock_refresh):
+    """Test _load_saml_refresh imports and calls refresh_saml_metadata."""
+    from worker import _load_saml_refresh
+
+    mock_refresh.return_value = {"refreshed_count": 2}
+
+    result = _load_saml_refresh()
+
+    mock_refresh.assert_called_once()
+    assert result == {"refreshed_count": 2}
 
 
 # =============================================================================
@@ -310,161 +353,6 @@ def test_process_task_uses_tenant_scoped_session(mock_database, mock_get_handler
 
 
 # =============================================================================
-# SAML Refresh Timing Tests
-# =============================================================================
-
-
-def test_worker_init_saml_refresh_interval():
-    """Test Worker initializes with custom SAML refresh interval."""
-    from worker import Worker
-
-    worker = Worker(saml_refresh_interval_hours=12)
-
-    assert worker.saml_refresh_interval == timedelta(hours=12)
-    assert worker.last_saml_refresh is None
-
-
-@patch("worker.datetime")
-def test_maybe_run_saml_refresh_first_run(mock_datetime):
-    """Test SAML refresh runs on first iteration."""
-    from worker import Worker
-
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
-
-    worker = Worker()
-    worker._run_saml_refresh = MagicMock()
-
-    assert worker.last_saml_refresh is None
-
-    worker._maybe_run_saml_refresh()
-
-    worker._run_saml_refresh.assert_called_once()
-    assert worker.last_saml_refresh == now
-
-
-@patch("worker.datetime")
-def test_maybe_run_saml_refresh_respects_interval(mock_datetime):
-    """Test SAML refresh respects 24h interval."""
-    from worker import Worker
-
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
-
-    worker = Worker(saml_refresh_interval_hours=24)
-    worker._run_saml_refresh = MagicMock()
-    worker.last_saml_refresh = now - timedelta(hours=12)  # Only 12 hours ago
-
-    worker._maybe_run_saml_refresh()
-
-    worker._run_saml_refresh.assert_not_called()
-
-
-@patch("worker.datetime")
-def test_maybe_run_saml_refresh_runs_after_interval(mock_datetime):
-    """Test SAML refresh runs after interval has elapsed."""
-    from worker import Worker
-
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
-    mock_datetime.now.return_value = now
-
-    worker = Worker(saml_refresh_interval_hours=24)
-    worker._run_saml_refresh = MagicMock()
-    worker.last_saml_refresh = now - timedelta(hours=25)  # 25 hours ago
-
-    worker._maybe_run_saml_refresh()
-
-    worker._run_saml_refresh.assert_called_once()
-    assert worker.last_saml_refresh == now
-
-
-# =============================================================================
-# Periodic Job Execution Tests
-# =============================================================================
-
-
-@patch("jobs.cleanup_exports.cleanup_expired_exports")
-def test_run_cleanup_success(mock_cleanup):
-    """Test _run_cleanup calls cleanup_expired_exports successfully."""
-    from worker import Worker
-
-    mock_cleanup.return_value = {"deleted_files": 5}
-
-    worker = Worker()
-    worker._run_cleanup()
-
-    mock_cleanup.assert_called_once()
-
-
-@patch("jobs.cleanup_exports.cleanup_expired_exports")
-def test_run_cleanup_exception(mock_cleanup):
-    """Test _run_cleanup handles exceptions gracefully."""
-    from worker import Worker
-
-    mock_cleanup.side_effect = RuntimeError("Database connection failed")
-
-    worker = Worker()
-    # Should not raise, just log
-    worker._run_cleanup()
-
-    mock_cleanup.assert_called_once()
-
-
-@patch("jobs.inactivate_idle_users.inactivate_idle_users")
-def test_run_inactivation_success(mock_inactivation):
-    """Test _run_inactivation calls inactivate_idle_users successfully."""
-    from worker import Worker
-
-    mock_inactivation.return_value = {"inactivated_count": 3}
-
-    worker = Worker()
-    worker._run_inactivation()
-
-    mock_inactivation.assert_called_once()
-
-
-@patch("jobs.inactivate_idle_users.inactivate_idle_users")
-def test_run_inactivation_exception(mock_inactivation):
-    """Test _run_inactivation handles exceptions gracefully."""
-    from worker import Worker
-
-    mock_inactivation.side_effect = RuntimeError("Inactivation job exploded")
-
-    worker = Worker()
-    # Should not raise, just log
-    worker._run_inactivation()
-
-    mock_inactivation.assert_called_once()
-
-
-@patch("jobs.refresh_saml_metadata.refresh_saml_metadata")
-def test_run_saml_refresh_success(mock_refresh):
-    """Test _run_saml_refresh calls refresh_saml_metadata successfully."""
-    from worker import Worker
-
-    mock_refresh.return_value = {"refreshed_count": 2}
-
-    worker = Worker()
-    worker._run_saml_refresh()
-
-    mock_refresh.assert_called_once()
-
-
-@patch("jobs.refresh_saml_metadata.refresh_saml_metadata")
-def test_run_saml_refresh_exception(mock_refresh):
-    """Test _run_saml_refresh handles exceptions gracefully."""
-    from worker import Worker
-
-    mock_refresh.side_effect = RuntimeError("SAML refresh failed")
-
-    worker = Worker()
-    # Should not raise, just log
-    worker._run_saml_refresh()
-
-    mock_refresh.assert_called_once()
-
-
-# =============================================================================
 # Main Worker Loop Tests
 # =============================================================================
 
@@ -478,10 +366,7 @@ def test_worker_run_stops_when_running_false(mock_database, mock_sleep):
     mock_database.bg_tasks.claim_next_task.return_value = None
 
     worker = Worker(poll_interval=1)
-    # Mock periodic jobs to avoid actual execution
-    worker._maybe_run_cleanup = MagicMock()
-    worker._maybe_run_inactivation = MagicMock()
-    worker._maybe_run_saml_refresh = MagicMock()
+    worker._check_periodic_jobs = MagicMock()
 
     # Stop after first sleep
     def stop_after_first_call(*args):
@@ -491,10 +376,7 @@ def test_worker_run_stops_when_running_false(mock_database, mock_sleep):
 
     worker.run()
 
-    # Should have called periodic jobs at least once
-    worker._maybe_run_cleanup.assert_called()
-    worker._maybe_run_inactivation.assert_called()
-    worker._maybe_run_saml_refresh.assert_called()
+    worker._check_periodic_jobs.assert_called()
     mock_database.bg_tasks.claim_next_task.assert_called()
 
 
@@ -509,9 +391,7 @@ def test_worker_run_processes_task_when_available(mock_database, mock_sleep):
     mock_database.bg_tasks.claim_next_task.side_effect = [task, None]
 
     worker = Worker(poll_interval=1)
-    worker._maybe_run_cleanup = MagicMock()
-    worker._maybe_run_inactivation = MagicMock()
-    worker._maybe_run_saml_refresh = MagicMock()
+    worker._check_periodic_jobs = MagicMock()
     worker._process_task = MagicMock()
 
     # Stop after processing
@@ -539,9 +419,7 @@ def test_worker_run_handles_exception_and_continues(mock_database, mock_sleep):
     ]
 
     worker = Worker(poll_interval=1)
-    worker._maybe_run_cleanup = MagicMock()
-    worker._maybe_run_inactivation = MagicMock()
-    worker._maybe_run_saml_refresh = MagicMock()
+    worker._check_periodic_jobs = MagicMock()
 
     call_count = [0]
 

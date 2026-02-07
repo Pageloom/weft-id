@@ -579,6 +579,232 @@ def test_api_add_member_to_idp_group_returns_403(make_user_dict, override_api_au
         assert "cannot be manually modified" in data["detail"]
 
 
+# =============================================================================
+# Effective Members API Tests
+# =============================================================================
+
+
+def test_api_list_effective_members_success(make_user_dict, override_api_auth):
+    """Admin can list effective members of a group."""
+    from schemas.groups import EffectiveMember, EffectiveMemberList
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = EffectiveMemberList(
+        items=[
+            EffectiveMember(
+                user_id=str(uuid4()),
+                email="user@example.com",
+                first_name="Test",
+                last_name="User",
+                is_direct=True,
+            ),
+            EffectiveMember(
+                user_id=str(uuid4()),
+                email="inherited@example.com",
+                first_name="Inherited",
+                last_name="User",
+                is_direct=False,
+            ),
+        ],
+        total=2,
+        page=1,
+        limit=50,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_effective_members.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/effective-members")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        assert len(data["items"]) == 2
+        assert data["items"][0]["is_direct"] is True
+        assert data["items"][1]["is_direct"] is False
+
+
+def test_api_list_effective_members_pagination(make_user_dict, override_api_auth):
+    """Test effective members pagination parameters."""
+    from schemas.groups import EffectiveMemberList
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = EffectiveMemberList(items=[], total=0, page=2, limit=10)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_effective_members.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/effective-members?page=2&limit=10")
+
+        assert response.status_code == 200
+        mock_svc.get_effective_members.assert_called_once()
+
+
+def test_api_list_effective_members_not_found(make_user_dict, override_api_auth):
+    """Effective members for non-existent group returns 404."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_effective_members.side_effect = NotFoundError(
+            message="Group not found", code="group_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/effective-members")
+
+        assert response.status_code == 404
+
+
+# =============================================================================
+# Bulk Add Members API Tests
+# =============================================================================
+
+
+def test_api_bulk_add_members_success(make_user_dict, override_api_auth):
+    """Admin can bulk add members to a group."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.bulk_add_members.return_value = 2
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/members/bulk",
+            json={"user_ids": user_ids},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["added"] == 2
+
+
+def test_api_bulk_add_members_idp_forbidden(make_user_dict, override_api_auth):
+    """Bulk adding to IdP group returns 403."""
+    from services.exceptions import ForbiddenError
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.bulk_add_members.side_effect = ForbiddenError(
+            message="IdP groups cannot be modified", code="idp_group_readonly"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/members/bulk",
+            json={"user_ids": [str(uuid4())]},
+        )
+
+        assert response.status_code == 403
+
+
+# =============================================================================
+# User Effective Groups API Tests
+# =============================================================================
+
+
+def test_api_get_user_effective_groups_as_admin(make_user_dict, override_api_auth):
+    """Admin can get effective groups for any user."""
+    from schemas.groups import EffectiveMembership, EffectiveMembershipList
+
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+
+    mock_response = EffectiveMembershipList(
+        items=[
+            EffectiveMembership(
+                id=str(uuid4()),
+                name="Engineering",
+                description=None,
+                group_type="weftid",
+                idp_id=None,
+                idp_name=None,
+                is_direct=True,
+            ),
+        ]
+    )
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_effective_memberships.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/effective-groups")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "Engineering"
+        assert data["items"][0]["is_direct"] is True
+
+
+def test_api_get_user_effective_groups_self(make_user_dict, override_api_auth):
+    """User can get their own effective groups."""
+    from schemas.groups import EffectiveMembershipList
+
+    user_id = str(uuid4())
+    user = make_user_dict(user_id=user_id, role="member")
+
+    mock_response = EffectiveMembershipList(items=[])
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_effective_memberships.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/effective-groups")
+
+        assert response.status_code == 200
+
+
+def test_api_get_user_effective_groups_forbidden(make_user_dict, override_api_auth):
+    """Regular user cannot get another user's effective groups."""
+    from services.exceptions import ForbiddenError
+
+    user = make_user_dict(role="member")
+    other_user_id = str(uuid4())
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_effective_memberships.side_effect = ForbiddenError(
+            message="Forbidden", code="forbidden"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{other_user_id}/effective-groups")
+
+        assert response.status_code == 403
+
+
+# =============================================================================
+# IdP Group API Tests
+# =============================================================================
+
+
 def test_api_list_idp_groups(make_user_dict, override_api_auth):
     """Admin can list groups for an IdP."""
     admin = make_user_dict(role="admin")

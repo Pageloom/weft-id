@@ -33,5 +33,40 @@
             </div>
         </dl>
     </div>
+
+    <!-- My Groups Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mt-6">
+        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">My Groups</h2>
+
+        {% if user_groups %}
+        <div class="space-y-2">
+            {% for group in user_groups %}
+            <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                <div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {% if group.parent_names %}
+                        <span class="text-gray-500 dark:text-gray-400">{{ group.parent_names }} &rsaquo;</span>
+                        {% endif %}
+                        {{ group.name }}
+                    </span>
+                    {% if group.description %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ group.description }}</p>
+                    {% endif %}
+                </div>
+                <span class="px-2 py-1 text-xs font-medium rounded-full
+                    {% if group.group_type == 'idp' %}
+                    bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300
+                    {% else %}
+                    bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
+                    {% endif %}">
+                    {{ group.group_type|upper }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">You are not a member of any groups.</p>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

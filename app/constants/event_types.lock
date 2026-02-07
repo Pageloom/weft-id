@@ -8,6 +8,7 @@ group_created
 group_deleted
 group_member_added
 group_member_removed
+group_members_bulk_added
 group_relationship_created
 group_relationship_deleted
 group_updated

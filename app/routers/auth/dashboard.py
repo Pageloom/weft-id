@@ -3,10 +3,11 @@
 from typing import Annotated
 
 import services.emails as emails_service
-from dependencies import get_current_user, get_tenant_id_from_request
+from dependencies import build_requesting_user, get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from services import groups as groups_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -27,8 +28,12 @@ def dashboard(request: Request, tenant_id: Annotated[str, Depends(get_tenant_id_
 
     user["email"] = primary_email if primary_email else "N/A"
 
+    # Fetch user's groups for the dashboard
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    user_groups = groups_service.get_my_groups(requesting_user)
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        get_template_context(request, tenant_id, user=user),
+        get_template_context(request, tenant_id, user=user, user_groups=user_groups.items),
     )

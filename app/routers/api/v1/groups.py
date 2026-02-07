@@ -6,6 +6,8 @@ from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query, Request
 from schemas.groups import (
+    BulkMemberAdd,
+    EffectiveMemberList,
     GroupChildrenList,
     GroupCreate,
     GroupDetail,
@@ -229,6 +231,56 @@ def remove_member(
 
     try:
         groups_service.remove_member(requesting_user, group_id, user_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{group_id}/effective-members", response_model=EffectiveMemberList)
+def list_effective_members(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+):
+    """
+    List effective members of a group (direct + inherited via descendants).
+
+    Requires admin role.
+
+    Returns:
+        Paginated list of effective group members with is_direct flag
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        return groups_service.get_effective_members(requesting_user, group_id, page, limit)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{group_id}/members/bulk", status_code=201)
+def bulk_add_members(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    member_data: BulkMemberAdd,
+):
+    """
+    Add multiple users to a group in bulk.
+
+    Requires admin role.
+
+    Returns:
+        Count of new memberships created
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        count = groups_service.bulk_add_members(requesting_user, group_id, member_data.user_ids)
+        return {"status": "ok", "added": count}
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

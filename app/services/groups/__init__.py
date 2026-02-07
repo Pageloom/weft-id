@@ -63,6 +63,10 @@ from services.groups.idp import (
 # Re-export from membership module
 from services.groups.membership import (
     add_member,
+    bulk_add_members,
+    get_effective_members,
+    get_effective_memberships,
+    get_my_groups,
     list_members,
     remove_member,
 )
@@ -88,6 +92,10 @@ __all__ = [
     "update_group",
     # Membership
     "add_member",
+    "bulk_add_members",
+    "get_effective_members",
+    "get_effective_memberships",
+    "get_my_groups",
     "list_members",
     "remove_member",
     # Hierarchy

@@ -26,7 +26,10 @@ def test_list_users_as_admin_success(make_requesting_user, make_user_dict):
 
     requesting_user = make_requesting_user(user_id=admin["id"], tenant_id=tenant_id, role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.list_users.return_value = [admin, member]
         mock_db.users.count_users.return_value = 2
 
@@ -46,7 +49,10 @@ def test_list_users_as_super_admin_success(make_requesting_user, make_user_dict)
     tenant_id = str(uuid4())
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.list_users.return_value = [make_user_dict(), make_user_dict()]
         mock_db.users.count_users.return_value = 2
 
@@ -75,7 +81,10 @@ def test_list_users_with_pagination(make_requesting_user, make_user_dict):
     tenant_id = str(uuid4())
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.list_users.return_value = [make_user_dict()]
         mock_db.users.count_users.return_value = 10
 
@@ -94,7 +103,10 @@ def test_list_users_empty_result(make_requesting_user):
     tenant_id = str(uuid4())
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.list_users.return_value = []
         mock_db.users.count_users.return_value = 0
 
@@ -125,7 +137,10 @@ def test_get_user_as_admin_success(make_requesting_user, make_user_dict, make_em
 
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.users._converters.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users._converters.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.user_emails.get_primary_email.return_value = target_email
         mock_db.user_emails.list_user_emails.return_value = [target_email]
@@ -150,7 +165,10 @@ def test_get_user_as_super_admin_success(make_requesting_user, make_user_dict, m
 
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
-    with patch("services.users._converters.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users._converters.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.get_user_by_id.return_value = target_user
         mock_db.user_emails.get_primary_email.return_value = target_email
         mock_db.user_emails.list_user_emails.return_value = [target_email]
@@ -181,7 +199,10 @@ def test_get_user_not_found(make_requesting_user):
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
     fake_user_id = str(uuid4())
 
-    with patch("services.users._converters.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users._converters.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.get_user_by_id.return_value = None
 
         with pytest.raises(NotFoundError) as exc_info:
@@ -204,7 +225,10 @@ def test_get_user_includes_emails(make_requesting_user, make_user_dict, make_ema
 
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.users._converters.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users._converters.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.get_user_by_id.return_value = user
         mock_db.user_emails.get_primary_email.return_value = primary_email
         mock_db.user_emails.list_user_emails.return_value = [primary_email, secondary_email]
@@ -227,7 +251,10 @@ def test_get_user_service_user_flag(make_requesting_user, make_user_dict, make_e
 
     requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-    with patch("services.users._converters.database") as mock_db, patch("services.users.crud.track_activity"):
+    with (
+        patch("services.users._converters.database") as mock_db,
+        patch("services.users.crud.track_activity"),
+    ):
         mock_db.users.get_user_by_id.return_value = service_user
         mock_db.user_emails.get_primary_email.return_value = email
         mock_db.user_emails.list_user_emails.return_value = [email]
@@ -453,7 +480,10 @@ def test_create_user_emits_event_log(make_requesting_user, make_user_dict, make_
     )
     created_email = make_email_dict(user_id=new_user_id, email=email)
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.log_event") as mock_log:
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
+    ):
         mock_db.user_emails.email_exists.return_value = False
         mock_db.users.create_user.return_value = {"user_id": new_user_id}
         mock_db.users.get_user_by_id.return_value = created_user
@@ -608,9 +638,10 @@ def test_update_user_demote_last_super_admin_fails(make_requesting_user, make_us
     )
     update_data = UserUpdate(role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch(
-        "services.users._validation.database"
-    ) as mock_validation_db:
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users._validation.database") as mock_validation_db,
+    ):
         mock_db.users.get_user_by_id.return_value = super_admin
         # Only one active super_admin remains
         mock_validation_db.users.count_active_super_admins.return_value = 1
@@ -750,7 +781,10 @@ def test_delete_user_as_admin_success(make_requesting_user, make_user_dict, make
 
     requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.log_event") as mock_log:
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = user_to_delete
         mock_db.users.is_service_user.return_value = False
         mock_db.user_emails.get_primary_email.return_value = email
@@ -882,7 +916,10 @@ def test_delete_user_captures_user_info_before_deletion(
 
     requesting_user = make_requesting_user(user_id=admin_id, tenant_id=tenant_id, role="admin")
 
-    with patch("services.users.crud.database") as mock_db, patch("services.users.crud.log_event") as mock_log:
+    with (
+        patch("services.users.crud.database") as mock_db,
+        patch("services.users.crud.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = user_to_delete
         mock_db.users.is_service_user.return_value = False
         mock_db.user_emails.get_primary_email.return_value = user_email
@@ -953,7 +990,10 @@ def test_update_current_user_profile_name(make_requesting_user, make_user_dict, 
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(first_name="NewFirst", last_name="NewLast")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -980,7 +1020,10 @@ def test_update_current_user_profile_timezone(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(timezone="America/New_York")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1004,7 +1047,10 @@ def test_update_current_user_profile_locale(make_requesting_user, make_user_dict
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(locale="en")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1032,7 +1078,10 @@ def test_update_current_user_profile_timezone_and_locale(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(timezone="Europe/Stockholm", locale="sv")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1057,7 +1106,10 @@ def test_update_current_user_profile_theme(make_requesting_user, make_user_dict,
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(theme="dark")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1086,7 +1138,10 @@ def test_update_current_user_profile_theme_light(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(theme="light")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1112,7 +1167,10 @@ def test_update_current_user_profile_theme_system(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(theme="system")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1138,7 +1196,10 @@ def test_update_current_user_profile_theme_tracks_changes(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(theme="dark")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event") as mock_log:
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1169,7 +1230,10 @@ def test_update_current_user_profile_full_posix_locale(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(timezone="America/New_York", locale="en_US")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event"):
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event"),
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1200,7 +1264,10 @@ def test_update_current_user_profile_no_changes_no_event(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(first_name="Test", last_name="User")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event") as mock_log:
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = user_data
         mock_db.user_emails.get_primary_email.return_value = email
 
@@ -1234,7 +1301,10 @@ def test_update_current_user_profile_tracks_changes(
     requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
     profile_update = UserProfileUpdate(first_name="TrackedChange")
 
-    with patch("services.users.profile.database") as mock_db, patch("services.users.profile.log_event") as mock_log:
+    with (
+        patch("services.users.profile.database") as mock_db,
+        patch("services.users.profile.log_event") as mock_log,
+    ):
         mock_db.users.get_user_by_id.return_value = updated_user
         mock_db.user_emails.get_primary_email.return_value = email
 

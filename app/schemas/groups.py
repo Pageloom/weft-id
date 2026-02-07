@@ -170,6 +170,77 @@ class AvailableUserOption(BaseModel):
     last_name: str = Field(..., description="User's last name")
 
 
+# ============================================================================
+# Effective Membership Schemas
+# ============================================================================
+
+
+class UserGroup(BaseModel):
+    """Group info for a user's dashboard (their direct memberships with context)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Group UUID")
+    name: str = Field(..., description="Group name")
+    description: str | None = Field(None, description="Group description")
+    group_type: str = Field(..., description="Group type (weftid or idp)")
+    joined_at: datetime = Field(..., description="When user joined the group")
+    parent_names: str | None = Field(None, description="Comma-separated parent group names")
+
+
+class UserGroupsList(BaseModel):
+    """List of a user's direct groups with hierarchy context."""
+
+    items: list[UserGroup] = Field(..., description="List of groups")
+
+
+class EffectiveMembership(BaseModel):
+    """A group the user is effectively in (direct or inherited)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Group UUID")
+    name: str = Field(..., description="Group name")
+    description: str | None = Field(None, description="Group description")
+    group_type: str = Field(..., description="Group type (weftid or idp)")
+    idp_id: str | None = Field(None, description="Source IdP UUID")
+    idp_name: str | None = Field(None, description="Source IdP name")
+    is_direct: bool = Field(..., description="True if user is a direct member")
+
+
+class EffectiveMembershipList(BaseModel):
+    """List of groups a user is effectively in."""
+
+    items: list[EffectiveMembership] = Field(..., description="List of effective memberships")
+
+
+class EffectiveMember(BaseModel):
+    """A user who is an effective member of a group."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str = Field(..., description="User UUID")
+    email: str | None = Field(None, description="User's primary email")
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
+    is_direct: bool = Field(..., description="True if user is a direct member")
+
+
+class EffectiveMemberList(BaseModel):
+    """Paginated list of effective group members."""
+
+    items: list[EffectiveMember] = Field(..., description="List of effective members")
+    total: int = Field(..., description="Total number of effective members")
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Page size limit")
+
+
+class BulkMemberAdd(BaseModel):
+    """Request to add multiple members to a group."""
+
+    user_ids: list[str] = Field(..., min_length=1, description="List of user UUIDs to add")
+
+
 class AvailableGroupOption(BaseModel):
     """Group option for dropdown selections."""
 

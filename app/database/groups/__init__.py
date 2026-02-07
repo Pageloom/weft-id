@@ -8,6 +8,12 @@ from database.groups.core import (
     get_weftid_group_by_name,
     update_group,
 )
+from database.groups.effective import (
+    count_effective_members,
+    get_effective_members,
+    get_effective_memberships,
+    get_user_groups_with_context,
+)
 from database.groups.idp import (
     bulk_add_user_to_groups,
     bulk_remove_user_from_groups,
@@ -25,6 +31,7 @@ from database.groups.lineage import (
 from database.groups.listing import count_groups, list_groups
 from database.groups.memberships import (
     add_group_member,
+    bulk_add_group_members,
     count_group_members,
     get_group_members,
     get_user_groups,
@@ -61,8 +68,14 @@ __all__ = [
     "count_group_members",
     "is_group_member",
     "add_group_member",
+    "bulk_add_group_members",
     "remove_group_member",
     "get_user_groups",
+    # effective membership
+    "get_user_groups_with_context",
+    "get_effective_memberships",
+    "get_effective_members",
+    "count_effective_members",
     # relationships
     "would_create_cycle",
     "relationship_exists",

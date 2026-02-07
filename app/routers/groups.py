@@ -14,7 +14,13 @@ from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from schemas.groups import GroupCreate, GroupUpdate
 from services import groups as groups_service
-from services.exceptions import ConflictError, NotFoundError, ServiceError, ValidationError
+from services.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+)
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 
@@ -157,6 +163,11 @@ def group_detail(
         available_parents = groups_service.list_available_parents(requesting_user, group_id)
         available_children = groups_service.list_available_children(requesting_user, group_id)
 
+        # Fetch effective members only if the group has children
+        effective_members = None
+        if group.child_count > 0:
+            effective_members = groups_service.get_effective_members(requesting_user, group_id)
+
     except NotFoundError:
         return render_error_page(
             request,
@@ -181,6 +192,7 @@ def group_detail(
             available_users=available_users,
             available_parents=available_parents,
             available_children=available_children,
+            effective_members=effective_members,
             success=success,
             error=error,
         ),
@@ -270,6 +282,33 @@ def add_member(
 
     return RedirectResponse(
         url=f"/admin/groups/{group_id}?success=member_added",
+        status_code=303,
+    )
+
+
+@router.post("/{group_id}/members/bulk")
+def bulk_add_members(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    group_id: str,
+    user_ids: Annotated[list[str], Form()],
+):
+    """Add multiple members to the group."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
+    except (NotFoundError, ForbiddenError) as exc:
+        return RedirectResponse(
+            url=f"/admin/groups/{group_id}?error={exc.code}",
+            status_code=303,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url=f"/admin/groups/{group_id}?success=members_bulk_added&count={count}",
         status_code=303,
     )
 

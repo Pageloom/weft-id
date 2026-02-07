@@ -907,3 +907,236 @@ def test_get_groups_for_parent_select(test_tenant):
     assert "Existing Parent" not in names
     # Should include potential parent
     assert "Potential Parent" in names
+
+
+# =============================================================================
+# Effective Membership Tests
+# =============================================================================
+
+
+def test_get_user_groups_with_context_no_parents(test_tenant, test_user):
+    """Test getting user groups with context when groups have no parents."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Context Test Group",
+    )
+
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), group["id"], str(test_user["id"])
+    )
+
+    groups = database.groups.get_user_groups_with_context(test_tenant["id"], str(test_user["id"]))
+
+    assert len(groups) == 1
+    assert groups[0]["name"] == "Context Test Group"
+    assert groups[0]["parent_names"] is None
+
+
+def test_get_user_groups_with_context_with_parents(test_tenant, test_user):
+    """Test getting user groups with context shows parent names."""
+    import database
+
+    parent = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Parent Context",
+    )
+    child = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Child Context",
+    )
+
+    database.groups.add_group_relationship(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
+    )
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), child["id"], str(test_user["id"])
+    )
+
+    groups = database.groups.get_user_groups_with_context(test_tenant["id"], str(test_user["id"]))
+
+    assert len(groups) == 1
+    assert groups[0]["name"] == "Child Context"
+    assert groups[0]["parent_names"] == "Parent Context"
+
+
+def test_get_effective_memberships_direct_and_inherited(test_tenant, test_user):
+    """Test effective memberships include both direct and ancestor groups."""
+    import database
+
+    parent = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Effective Parent",
+    )
+    child = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Effective Child",
+    )
+
+    database.groups.add_group_relationship(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
+    )
+
+    # User is a direct member of child only
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), child["id"], str(test_user["id"])
+    )
+
+    memberships = database.groups.get_effective_memberships(test_tenant["id"], str(test_user["id"]))
+
+    names = {m["name"] for m in memberships}
+    assert "Effective Child" in names
+    assert "Effective Parent" in names
+
+    # Check is_direct flags
+    for m in memberships:
+        if m["name"] == "Effective Child":
+            assert m["is_direct"] is True
+        elif m["name"] == "Effective Parent":
+            assert m["is_direct"] is False
+
+
+def test_get_effective_members_direct_and_inherited(test_tenant, test_user, test_admin_user):
+    """Test effective members include direct and inherited via descendants."""
+    import database
+
+    parent = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="EM Parent",
+    )
+    child = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="EM Child",
+    )
+
+    database.groups.add_group_relationship(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
+    )
+
+    # test_user in parent (direct), test_admin_user in child (inherited for parent)
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], str(test_user["id"])
+    )
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), child["id"], str(test_admin_user["id"])
+    )
+
+    members = database.groups.get_effective_members(test_tenant["id"], parent["id"])
+
+    user_ids = {str(m["user_id"]) for m in members}
+    assert str(test_user["id"]) in user_ids
+    assert str(test_admin_user["id"]) in user_ids
+
+    # Check is_direct flags
+    for m in members:
+        if str(m["user_id"]) == str(test_user["id"]):
+            assert m["is_direct"] is True
+        elif str(m["user_id"]) == str(test_admin_user["id"]):
+            assert m["is_direct"] is False
+
+
+def test_count_effective_members(test_tenant, test_user, test_admin_user):
+    """Test counting effective members."""
+    import database
+
+    parent = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count EM Parent",
+    )
+    child = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count EM Child",
+    )
+
+    database.groups.add_group_relationship(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], child["id"]
+    )
+
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), parent["id"], str(test_user["id"])
+    )
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), child["id"], str(test_admin_user["id"])
+    )
+
+    count = database.groups.count_effective_members(test_tenant["id"], parent["id"])
+
+    assert count == 2
+
+
+def test_bulk_add_group_members(test_tenant, test_user, test_admin_user):
+    """Test bulk adding members to a group."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Add Test",
+    )
+
+    count = database.groups.bulk_add_group_members(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        group["id"],
+        [str(test_user["id"]), str(test_admin_user["id"])],
+    )
+
+    assert count == 2
+    assert database.groups.count_group_members(test_tenant["id"], group["id"]) == 2
+
+
+def test_bulk_add_group_members_duplicates(test_tenant, test_user):
+    """Test bulk adding members skips duplicates."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Dup Test",
+    )
+
+    # Add user first
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), group["id"], str(test_user["id"])
+    )
+
+    # Try to bulk add the same user
+    count = database.groups.bulk_add_group_members(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        group["id"],
+        [str(test_user["id"])],
+    )
+
+    assert count == 0
+    assert database.groups.count_group_members(test_tenant["id"], group["id"]) == 1
+
+
+def test_bulk_add_group_members_empty_list(test_tenant):
+    """Test bulk adding with empty list returns 0."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Empty Test",
+    )
+
+    count = database.groups.bulk_add_group_members(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        group["id"],
+        [],
+    )
+
+    assert count == 0

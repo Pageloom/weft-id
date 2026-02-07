@@ -1,6 +1,6 @@
 """Group membership database operations."""
 
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, execute, fetchall, fetchone, session
 
 
 def get_group_members(
@@ -77,6 +77,40 @@ def remove_group_member(tenant_id: TenantArg, group_id: str, user_id: str) -> in
         "delete from group_memberships where group_id = :group_id and user_id = :user_id",
         {"group_id": group_id, "user_id": user_id},
     )
+
+
+def bulk_add_group_members(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    group_id: str,
+    user_ids: list[str],
+) -> int:
+    """Add multiple users to a single group.
+
+    Uses ON CONFLICT DO NOTHING to skip duplicates.
+    Returns the count of new memberships created.
+    """
+    if not user_ids:
+        return 0
+
+    with session(tenant_id=tenant_id) as cur:
+        from database._core import _convert_query
+
+        total_added = 0
+        for user_id in user_ids:
+            cur.execute(
+                _convert_query(
+                    """
+                    insert into group_memberships (tenant_id, group_id, user_id)
+                    values (:tenant_id, :group_id, :user_id)
+                    on conflict (group_id, user_id) do nothing
+                    """
+                ),
+                {"tenant_id": tenant_id_value, "group_id": group_id, "user_id": user_id},
+            )
+            total_added += cur.rowcount or 0
+
+        return total_added
 
 
 def get_user_groups(tenant_id: TenantArg, user_id: str) -> list[dict]:

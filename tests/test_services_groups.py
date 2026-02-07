@@ -1639,3 +1639,295 @@ def test_idp_group_can_have_multiple_weftid_parents(make_requesting_user):
         # Add second parent - should not raise
         groups_service.add_child(requesting_user, parent2_id, idp_group_id)
         mock_db.groups.add_group_relationship.assert_called_once()
+
+
+# =============================================================================
+# My Groups Tests
+# =============================================================================
+
+
+def test_get_my_groups_any_role(make_requesting_user):
+    """Test that any authenticated user can get their own groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+
+    mock_rows = [
+        {
+            "id": uuid4(),
+            "name": "Engineering",
+            "description": "Eng team",
+            "group_type": "weftid",
+            "joined_at": datetime.now(UTC),
+            "parent_names": "All Teams",
+        },
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity") as mock_track,
+    ):
+        mock_db.groups.get_user_groups_with_context.return_value = mock_rows
+
+        result = groups_service.get_my_groups(requesting_user)
+
+        assert len(result.items) == 1
+        assert result.items[0].name == "Engineering"
+        assert result.items[0].parent_names == "All Teams"
+        mock_track.assert_called_once_with(tenant_id, user_id)
+
+
+def test_get_my_groups_empty(make_requesting_user):
+    """Test get_my_groups returns empty when user has no groups."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_user_groups_with_context.return_value = []
+
+        result = groups_service.get_my_groups(requesting_user)
+
+        assert len(result.items) == 0
+
+
+# =============================================================================
+# Effective Memberships Tests
+# =============================================================================
+
+
+def test_get_effective_memberships_as_admin(make_requesting_user):
+    """Test admin can get effective memberships for any user."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    target_user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_rows = [
+        {
+            "id": uuid4(),
+            "name": "Direct Group",
+            "description": None,
+            "group_type": "weftid",
+            "idp_id": None,
+            "idp_name": None,
+            "is_direct": True,
+        },
+        {
+            "id": uuid4(),
+            "name": "Inherited Group",
+            "description": None,
+            "group_type": "weftid",
+            "idp_id": None,
+            "idp_name": None,
+            "is_direct": False,
+        },
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_effective_memberships.return_value = mock_rows
+
+        result = groups_service.get_effective_memberships(requesting_user, target_user_id)
+
+        assert len(result.items) == 2
+        assert result.items[0].is_direct is True
+        assert result.items[1].is_direct is False
+
+
+def test_get_effective_memberships_self(make_requesting_user):
+    """Test user can get their own effective memberships."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_effective_memberships.return_value = []
+
+        result = groups_service.get_effective_memberships(requesting_user, user_id)
+
+        assert len(result.items) == 0
+
+
+def test_get_effective_memberships_other_user_forbidden(make_requesting_user):
+    """Test regular user cannot get another user's effective memberships."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+    other_user_id = str(uuid4())
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        groups_service.get_effective_memberships(requesting_user, other_user_id)
+
+    assert exc_info.value.code == "forbidden"
+
+
+# =============================================================================
+# Effective Members Tests
+# =============================================================================
+
+
+def test_get_effective_members_as_admin(make_requesting_user):
+    """Test admin can get effective members of a group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Test"}
+    mock_members = [
+        {
+            "user_id": uuid4(),
+            "email": "user@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "is_direct": True,
+        },
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity") as mock_track,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.count_effective_members.return_value = 1
+        mock_db.groups.get_effective_members.return_value = mock_members
+
+        result = groups_service.get_effective_members(requesting_user, group_id)
+
+        assert result.total == 1
+        assert len(result.items) == 1
+        assert result.items[0].is_direct is True
+        mock_track.assert_called_once()
+
+
+def test_get_effective_members_group_not_found(make_requesting_user):
+    """Test effective members raises NotFoundError for missing group."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.get_effective_members(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_get_effective_members_forbidden_for_member(make_requesting_user):
+    """Test regular user cannot get effective members."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.get_effective_members(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# Bulk Add Members Tests
+# =============================================================================
+
+
+def test_bulk_add_members_success(make_requesting_user):
+    """Test bulk adding members to a group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Test Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.bulk_add_group_members.return_value = 2
+
+        count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
+
+        assert count == 2
+        mock_db.groups.bulk_add_group_members.assert_called_once()
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["event_type"] == "group_members_bulk_added"
+        assert call_kwargs["metadata"]["count"] == 2
+
+
+def test_bulk_add_members_idp_group_blocked(make_requesting_user):
+    """Test bulk adding members to IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "IdP Group", "group_type": "idp"}
+
+    with patch("services.groups.membership.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.bulk_add_members(requesting_user, group_id, [str(uuid4())])
+
+        assert exc_info.value.code == "idp_group_readonly"
+
+
+def test_bulk_add_members_no_event_when_zero_added(make_requesting_user):
+    """Test that no event is logged when all users are already members."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Test Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.bulk_add_group_members.return_value = 0
+
+        count = groups_service.bulk_add_members(requesting_user, group_id, [str(uuid4())])
+
+        assert count == 0
+        mock_log.assert_not_called()
+
+
+def test_bulk_add_members_group_not_found(make_requesting_user):
+    """Test bulk add to non-existent group raises NotFoundError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with patch("services.groups.membership.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.bulk_add_members(requesting_user, str(uuid4()), [str(uuid4())])
+
+        assert exc_info.value.code == "group_not_found"

@@ -99,7 +99,15 @@ def test_user_update_logs_event(make_requesting_user, make_user_dict):
         mock_crud_db.users.update_user.return_value = None
         mock_conv_db.users.get_user_by_id.return_value = updated_user
         mock_conv_db.user_emails.get_primary_email.return_value = {"email": target_user["email"]}
-        mock_conv_db.user_emails.list_user_emails.return_value = [{"id": str(uuid4()), "email": target_user["email"], "is_primary": True, "verified_at": None, "created_at": target_user["created_at"]}]
+        mock_conv_db.user_emails.list_user_emails.return_value = [
+            {
+                "id": str(uuid4()),
+                "email": target_user["email"],
+                "is_primary": True,
+                "verified_at": None,
+                "created_at": target_user["created_at"],
+            }
+        ]
         mock_conv_db.users.is_service_user.return_value = False
 
         users.update_user(requesting_user, target_user["id"], user_update)

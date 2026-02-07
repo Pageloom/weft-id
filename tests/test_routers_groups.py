@@ -436,6 +436,9 @@ def mock_group_detail_deps(mocker):
         "list_available_children": mocker.patch(
             f"{GROUPS_MODULE}.groups_service.list_available_children"
         ),
+        "get_effective_members": mocker.patch(
+            f"{GROUPS_MODULE}.groups_service.get_effective_members"
+        ),
         "get_context": mocker.patch(f"{GROUPS_MODULE}.get_template_context"),
         "template": mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse"),
     }
@@ -1300,5 +1303,191 @@ def test_remove_parent_service_error(test_admin_user, override_auth, mocker):
     response = client.post(f"/admin/groups/{group_id}/parents/{parent_group_id}/remove")
 
     # Should render error page
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+# =============================================================================
+# Effective Members Display Tests
+# =============================================================================
+
+
+def test_group_detail_with_effective_members(
+    test_admin_user, override_auth, mock_group_detail_deps
+):
+    """Test group detail page shows effective members when group has children."""
+    from schemas.groups import EffectiveMember, EffectiveMemberList
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Parent Group")
+    # Set child_count > 0 so effective members are fetched
+    mock_group.child_count = 2
+
+    mock_effective = EffectiveMemberList(
+        items=[
+            EffectiveMember(
+                user_id=str(uuid4()),
+                email="user@test.com",
+                first_name="Test",
+                last_name="User",
+                is_direct=True,
+            ),
+        ],
+        total=1,
+        page=1,
+        limit=50,
+    )
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_members"].return_value = _make_member_list()
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_users"].return_value = []
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
+
+    mock_group_detail_deps["get_effective_members"].return_value = mock_effective
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}")
+
+    assert response.status_code == 200
+    mock_group_detail_deps["get_effective_members"].assert_called_once()
+    ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
+    assert ctx_kwargs["effective_members"] == mock_effective
+
+
+def test_group_detail_no_effective_members_without_children(
+    test_admin_user, override_auth, mock_group_detail_deps
+):
+    """Test group detail page does not fetch effective members when no children."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Leaf Group")
+    # child_count = 0, so effective members should not be fetched
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_members"].return_value = _make_member_list()
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_users"].return_value = []
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}")
+
+    assert response.status_code == 200
+    ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
+    assert ctx_kwargs["effective_members"] is None
+
+
+# =============================================================================
+# Bulk Add Members Route Tests
+# =============================================================================
+
+
+def test_bulk_add_members_success(test_admin_user, override_auth, mocker):
+    """Test bulk adding members succeeds."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+
+    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk.return_value = 2
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/bulk",
+        data={"user_ids": user_ids},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}" in response.headers["location"]
+    assert "success=members_bulk_added" in response.headers["location"]
+    mock_bulk.assert_called_once()
+
+
+def test_bulk_add_members_not_found(test_admin_user, override_auth, mocker):
+    """Test bulk adding members to non-existent group redirects with error."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk.side_effect = NotFoundError("Group not found", code="group_not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/bulk",
+        data={"user_ids": [str(uuid4())]},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=group_not_found" in response.headers["location"]
+
+
+def test_bulk_add_members_idp_forbidden(test_admin_user, override_auth, mocker):
+    """Test bulk adding to IdP group redirects with error."""
+    from services.exceptions import ForbiddenError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk.side_effect = ForbiddenError("IdP group", code="idp_group_readonly")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/bulk",
+        data={"user_ids": [str(uuid4())]},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=idp_group_readonly" in response.headers["location"]
+
+
+def test_bulk_add_members_service_error(test_admin_user, override_auth, mocker):
+    """Test bulk adding members with service error renders error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+
+    mock_bulk.side_effect = ServiceError("Database error")
+    mock_error.return_value = HTMLResponse(content="<html>error</html>")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/bulk",
+        data={"user_ids": [str(uuid4())]},
+    )
+
     assert response.status_code == 200
     mock_error.assert_called_once()

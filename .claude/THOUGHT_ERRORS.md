@@ -1,6 +1,18 @@
 # Thought Errors
 
-This file documents common mistakes Claude makes in this project. Review this before starting work to avoid repeating them.
+This file documents common mistakes Claude makes in this project. Review this before starting work to avoid repeating them. Entries should be reviewed every session; add new mistakes at the end.
+
+## Adding New Thought Errors
+
+When you make a mistake that causes wasted effort or confusion, add it here:
+
+1. Describe what you did wrong
+2. Describe what you should have done
+3. Add any relevant context
+
+This helps prevent the same mistakes in future sessions.
+
+---
 
 ## Running Tests
 
@@ -24,10 +36,10 @@ The test environment sets `IS_DEV=true` in `tests/conftest.py`. This is required
 
 ## Type Checking
 
-**Wrong:** `poetry run pyright`
-**Right:** `poetry run mypy`
+**Wrong:** `poetry run pyright` or `poetry run mypy` (neither is installed)
+**Right:** `poetry run ruff check app/`
 
-This project uses mypy, not pyright. Check before assuming.
+This project uses ruff for linting and type-related checks. Neither mypy nor pyright is available in the virtualenv.
 
 ---
 
@@ -150,15 +162,3 @@ The closure table pattern requires self-references for transitive path calculati
 **Right:** Run migration as postgres superuser: `docker compose exec -T db psql -U postgres -d appdb -f /docker-entrypoint-initdb.d/00027_groups.sql`
 
 Migrations use `SET ROLE appowner` which requires superuser privileges. The `appuser` role cannot execute this. When you need to apply a new migration without losing data, run it as the `postgres` user instead of `appuser`.
-
----
-
-## Adding New Thought Errors
-
-When you make a mistake that causes wasted effort or confusion, add it here:
-
-1. Describe what you did wrong
-2. Describe what you should have done
-3. Add any relevant context
-
-This helps prevent the same mistakes in future sessions.

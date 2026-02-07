@@ -608,10 +608,12 @@ def test_update_user_demote_last_super_admin_fails(make_requesting_user, make_us
     )
     update_data = UserUpdate(role="admin")
 
-    with patch("services.users.crud.database") as mock_db:
+    with patch("services.users.crud.database") as mock_db, patch(
+        "services.users._validation.database"
+    ) as mock_validation_db:
         mock_db.users.get_user_by_id.return_value = super_admin
-        # Return only this one super_admin
-        mock_db.users.list_users.return_value = [super_admin]
+        # Only one active super_admin remains
+        mock_validation_db.users.count_active_super_admins.return_value = 1
 
         with pytest.raises(ValidationError) as exc_info:
             users_service.update_user(requesting_user, super_admin_id, update_data)

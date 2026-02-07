@@ -43,13 +43,12 @@ Request → Router → Service → Database → PostgreSQL
 ## Before Committing
 
 ```bash
-poetry run black app/ tests/           # Format
+poetry run ruff format app/ tests/      # Format
 poetry run ruff check --fix app/ tests/ # Lint
-poetry run mypy app/                    # Types
 ./test                                  # Tests
 ```
 
-All four must pass.
+All three must pass.
 
 ## Testing Requirements
 

@@ -15,7 +15,7 @@ Weft-ID is a multi-tenant identity federation platform that acts as middleware b
 **Read `.claude/THOUGHT_ERRORS.md`** for common mistakes to avoid. Key gotchas:
 
 - **Tests**: Use `poetry run python -m pytest` or `./test` (not `pytest` directly)
-- **Type checking**: Use `mypy` (not `pyright`)
+- **Linting**: Use `ruff check` (not `mypy` or `pyright`)
 - **UUIDs**: Convert to string when comparing across boundaries
 - **Background jobs**: Restart worker container, not app container
 - **Mocking sessions**: Patch `starlette.requests.Request.session`, not client cookies
@@ -40,6 +40,11 @@ Request → Router → Service → Database → PostgreSQL
 - **Services** (`app/services/`): Business logic and authorization. Receives `RequestingUser`, returns Pydantic schemas, raises `ServiceError` subclasses.
 - **Database** (`app/database/`): SQL execution with tenant scoping. Returns dicts.
 
+### Authentication vs Authorization
+
+- **Authentication** (router layer): FastAPI dependencies in `app/dependencies.py` and `app/api_dependencies.py` identify the caller and return a user dict. They redirect unauthenticated users.
+- **Authorization** (service layer): Functions in `app/services/auth.py` check role-based access. They receive a `RequestingUser` and raise `ForbiddenError` if the role is insufficient.
+
 ## Key Files
 
 | File | Purpose |
@@ -61,9 +66,18 @@ Request → Router → Service → Database → PostgreSQL
 ```
 app/
 ├── routers/          # HTTP layer (imports services only)
-│   └── api/v1/       # RESTful API endpoints
+│   ├── api/v1/       # RESTful API endpoints
+│   ├── auth/         # Login, logout, onboarding (package)
+│   ├── saml/         # SAML authentication (package)
+│   └── users/        # User management (package)
 ├── services/         # Business logic (imports database)
+│   ├── users/        # User CRUD, profile, lifecycle (package)
+│   ├── groups/       # Group CRUD, hierarchy, membership (package)
+│   └── saml/         # SAML providers, certificates (package)
 ├── database/         # SQL execution (returns dicts)
+│   ├── groups/       # Group queries (package)
+│   ├── oauth2/       # OAuth2 queries (package)
+│   └── saml/         # SAML queries (package)
 ├── schemas/          # Pydantic models
 ├── templates/        # Jinja2 templates
 ├── middleware/       # Request processing
@@ -72,9 +86,18 @@ app/
 tests/                # Mirrors app/ structure
 db-init/              # SQL migrations (sequential numbering)
 scripts/              # Compliance and dependency checks
-.claude/commands/     # Slash command definitions (/pm, /dev, /test, etc.)
+.claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
 .claude/references/   # Detailed patterns and checklists for agents
 ```
+
+### Package-Split Pattern
+
+When a module grows large, it is split into a package directory with focused submodules:
+
+- Public submodules are named by concern (e.g., `crud.py`, `hierarchy.py`, `membership.py`)
+- Private helpers use an underscore prefix (e.g., `_converters.py`, `_validation.py`)
+- `__init__.py` re-exports public functions for backwards compatibility
+- When splitting a module into a package, mock targets in tests must be updated to reference the submodule (e.g., `routers.users.crud.some_func` instead of `routers.users.some_func`)
 
 ## Core Types
 
@@ -228,13 +251,7 @@ poetry run ruff check --fix app/ tests/     # Auto-fix issues
 
 **Formatting:**
 ```bash
-poetry run black app/ tests/                # Format code
-poetry run ruff check --fix app/ tests/     # Fix style issues
-```
-
-**Type checking:**
-```bash
-poetry run mypy app/                        # Check types
+poetry run ruff format app/ tests/          # Format code
 ```
 
 **Dependency security scanning:**
@@ -310,11 +327,10 @@ The CSS is built during the Docker image build process, so running `make up` wil
 4. CSS rebuilds automatically if watch mode is running
 
 **Before committing code:**
-1. Run formatting: `poetry run black app/ tests/`
+1. Run formatting: `poetry run ruff format app/ tests/`
 2. Run linting: `poetry run ruff check --fix app/ tests/`
-3. Run type checking: `poetry run mypy app/`
-4. Run tests: `./test` (or `poetry run python -m pytest`)
-5. If you modified templates and didn't use watch mode: `make build-css`
+3. Run tests: `./test` (or `poetry run python -m pytest`)
+4. If you modified templates and didn't use watch mode: `make build-css`
 
 All checks must pass before committing.
 
@@ -326,7 +342,7 @@ All checks must pass before committing.
 4. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
 5. **New pages must be registered in `app/pages.py`** - each route checks access via this file
 6. **Migrations** go in `db-init/` with sequential numbering (check existing files for next number)
-7. **Run formatting, linting, and typechecking** before committing code
+7. **Run formatting and linting** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`
 9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete
 
@@ -348,7 +364,6 @@ All checks must pass before committing.
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 - Use `/deps` to audit third-party dependencies for known CVEs and vulnerabilities
 - Use `/refactor` to analyze codebase for refactoring opportunities and technical debt
-- Use `/note` to quickly add items to NOTES.md
 
 ## Issue Tracking
 

@@ -52,15 +52,7 @@ def _validate_role_change(
 
     # Prevent demoting the last super_admin
     if current_role == "super_admin" and new_role != "super_admin":
-        super_admins = database.users.list_users(
-            tenant_id=tenant_id,
-            search=None,
-            sort_field="created_at",
-            sort_order="asc",
-            page=1,
-            page_size=100,
-        )
-        super_admin_count = sum(1 for u in super_admins if u["role"] == "super_admin")
+        super_admin_count = database.users.count_active_super_admins(tenant_id)
         if super_admin_count <= 1:
             raise ValidationError(
                 message="Cannot demote the last super_admin",

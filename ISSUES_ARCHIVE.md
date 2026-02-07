@@ -2207,3 +2207,35 @@ Accepted as low risk for the following reasons:
 **Remediation for developers:** Run `pip install --upgrade pip` in local environments when pip 26.0+ becomes available.
 
 ---
+
+## [REFACTOR] Dead code: Backwards-compat re-export in worker.py
+
+**Status:** Resolved (2026-02-07)
+
+**Original Severity:** Low
+
+**Original Description:**
+`register_handler()` was re-exported from `worker.py` for backwards compatibility, but no production code imported it from `worker`. The only consumer was its own test.
+
+**Resolution:**
+Removed the re-export function from `app/worker.py` and its corresponding test from `tests/test_worker.py`. No production imports existed.
+
+**Files Changed:** `app/worker.py`, `tests/test_worker.py`
+
+---
+
+## [REFACTOR] Architecture: Missing event log for export download
+
+**Status:** Resolved (2026-02-07)
+
+**Original Severity:** Low
+
+**Original Description:**
+`get_download()` called `database.export_files.mark_downloaded()` (a DB write) without a corresponding `log_event()` call, violating the "if there is a write, there is a log" principle.
+
+**Resolution:**
+Added `export_downloaded` event type and a `log_event()` call after `mark_downloaded()` in `get_download()`. Added test coverage for the new event log.
+
+**Files Changed:** `app/services/exports.py`, `app/constants/event_types.py`, `app/constants/event_types.lock`, `tests/test_services_exports.py`
+
+---

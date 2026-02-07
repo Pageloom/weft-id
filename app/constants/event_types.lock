@@ -2,6 +2,7 @@ authorization_denied
 email_added
 email_deleted
 email_verified
+export_downloaded
 export_task_created
 group_created
 group_deleted

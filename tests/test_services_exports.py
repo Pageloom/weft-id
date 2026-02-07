@@ -74,6 +74,7 @@ def test_get_download_local_storage(make_requesting_user, make_export_file_dict)
     with (
         patch("services.exports.database") as mock_db,
         patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
         patch("services.exports.storage.get_backend") as mock_backend,
     ):
         mock_db.export_files.get_export_file.return_value = export
@@ -106,6 +107,7 @@ def test_get_download_spaces_storage(make_requesting_user, make_export_file_dict
     with (
         patch("services.exports.database") as mock_db,
         patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
         patch("services.exports.storage.get_backend") as mock_backend,
     ):
         mock_db.export_files.get_export_file.return_value = export
@@ -137,6 +139,7 @@ def test_get_download_marks_as_downloaded(make_requesting_user, make_export_file
     with (
         patch("services.exports.database") as mock_db,
         patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
         patch("services.exports.storage.get_backend") as mock_backend,
     ):
         mock_db.export_files.get_export_file.return_value = export
@@ -162,6 +165,44 @@ def test_get_download_forbidden_for_member(make_requesting_user):
         exports.get_download(requesting_user, str(uuid4()))
 
     assert exc_info.value.code == "admin_required"
+
+
+def test_get_download_logs_event(make_requesting_user, make_export_file_dict):
+    """Test that get_download emits an export_downloaded event log."""
+    from services import exports
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+    export_id = str(uuid4())
+
+    export = make_export_file_dict(
+        export_id=export_id,
+        tenant_id=tenant_id,
+        filename="test-event-log.json.gz",
+        storage_type="local",
+    )
+
+    with (
+        patch("services.exports.database") as mock_db,
+        patch("services.exports.track_activity"),
+        patch("services.exports.log_event") as mock_log_event,
+        patch("services.exports.storage.get_backend") as mock_backend,
+    ):
+        mock_db.export_files.get_export_file.return_value = export
+        mock_storage = MagicMock()
+        mock_storage.get_file_path.return_value = "/app/storage/exports/test.json.gz"
+        mock_backend.return_value = mock_storage
+
+        exports.get_download(requesting_user, export_id)
+
+        mock_log_event.assert_called_once_with(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            event_type="export_downloaded",
+            artifact_type="export_file",
+            artifact_id=export_id,
+            metadata={"filename": "test-event-log.json.gz"},
+        )
 
 
 def test_get_download_not_found(make_requesting_user):
@@ -198,6 +239,7 @@ def test_get_download_file_missing_from_disk(make_requesting_user, make_export_f
     with (
         patch("services.exports.database") as mock_db,
         patch("services.exports.track_activity"),
+        patch("services.exports.log_event"),
         patch("services.exports.storage.get_backend") as mock_backend,
     ):
         mock_db.export_files.get_export_file.return_value = export

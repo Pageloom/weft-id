@@ -95,7 +95,9 @@ def list_users(
 
     Returns:
         List of user dicts with id, first_name, last_name, role, created_at,
-        last_login, last_activity_at, is_inactivated, is_anonymized, and email
+        last_login, last_activity_at, is_inactivated, is_anonymized, email,
+        saml_idp_id, saml_idp_name, require_platform_mfa, has_password,
+        mfa_enabled, and mfa_method
     """
     # Build WHERE clause
     where_clauses: list[str] = []
@@ -185,10 +187,16 @@ def list_users(
         select u.id, u.first_name, u.last_name, u.role, u.created_at, u.last_login,
                u.is_inactivated, u.is_anonymized,
                ue.email,
-               ua.last_activity_at
+               ua.last_activity_at,
+               u.saml_idp_id, idp.name as saml_idp_name,
+               idp.require_platform_mfa,
+               u.password_hash is not null as has_password,
+               u.mfa_enabled,
+               u.mfa_method
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
         left join user_activity ua on u.id = ua.user_id
+        left join saml_identity_providers idp on u.saml_idp_id = idp.id
         {where_clause}
         order by {order_by_clause}
         limit :limit offset :offset

@@ -2,6 +2,8 @@
 
 {% block title %}Users - WeftId{% endblock %}
 
+{% block content_max_width %}max-w-full{% endblock %}
+
 {% block content %}
 <!-- Filter Params Macro - generates query string for role and status filters -->
 {% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% endmacro %}
@@ -248,8 +250,8 @@
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                        {% macro sort_header(field, label) %}
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        {% macro sort_header(field, label, width_class="") %}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
                             <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
                                class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
                                 <span>{{ label }}</span>
@@ -272,12 +274,12 @@
                         </th>
                         {% endmacro %}
 
-                        {{ sort_header('name', 'Name') }}
-                        {{ sort_header('email', 'Email') }}
-                        {{ sort_header('role', 'Role') }}
-                        {{ sort_header('status', 'Status') }}
-                        {{ sort_header('last_activity_at', 'Last Activity') }}
-                        {{ sort_header('created_at', 'Created') }}
+                        {{ sort_header('name', 'Name', 'w-[18%]') }}
+                        {{ sort_header('email', 'Email', 'w-[22%]') }}
+                        {{ sort_header('role', 'Role', 'w-[8%]') }}
+                        {{ sort_header('status', 'Status', 'w-[8%]') }}
+                        {{ sort_header('last_activity_at', 'Last Activity', 'w-[12%]') }}
+                        {{ sort_header('created_at', 'Created', 'w-[12%]') }}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Auth Method
                         </th>

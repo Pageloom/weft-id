@@ -83,6 +83,14 @@ def users_list(
         if not statuses:
             statuses = None
 
+    # Parse auth method filter (comma-separated)
+    auth_method_param = request.query_params.get("auth_method", "").strip()
+    auth_methods: list[str] | None = None
+    if auth_method_param:
+        auth_methods = [m.strip() for m in auth_method_param.split(",") if m.strip()]
+        if not auth_methods:
+            auth_methods = None
+
     try:
         page = max(1, int(request.query_params.get("page", "1")))
     except ValueError:
@@ -104,8 +112,13 @@ def users_list(
     if sort_order not in ["asc", "desc"]:
         sort_order = "desc"
 
+    # Get auth method filter options
+    auth_method_options = users_service.get_auth_method_options(tenant_id)
+
     # Get total count for pagination
-    total_count = users_service.count_users(tenant_id, search if search else None, roles, statuses)
+    total_count = users_service.count_users(
+        tenant_id, search if search else None, roles, statuses, auth_methods
+    )
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
     # Ensure page is within bounds
@@ -122,6 +135,7 @@ def users_list(
         collation,
         roles,
         statuses,
+        auth_methods,
     )
 
     # Calculate offset for pagination metadata
@@ -151,5 +165,7 @@ def users_list(
             sort_order=sort_order,
             roles=roles or [],
             statuses=statuses or [],
+            auth_methods=auth_methods or [],
+            auth_method_options=auth_method_options,
         ),
     )

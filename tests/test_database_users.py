@@ -737,3 +737,75 @@ def test_list_users_tokenized_search_no_match(test_tenant, test_user, test_admin
     # "Test Zzzzz" should not match anyone
     users = database.users.list_users(test_tenant["id"], search="Test Zzzzz", page=1, page_size=10)
     assert len(users) == 0
+
+
+# =============================================================================
+# Auth Method Filter and Counts Tests
+# =============================================================================
+
+
+def test_list_users_filter_by_password_email(test_tenant, test_user, test_admin_user):
+    """Filter by password_email auth method returns users with password but no TOTP."""
+    import database
+
+    users = database.users.list_users(
+        test_tenant["id"], auth_methods=["password_email"], page=1, page_size=10
+    )
+    assert len(users) == 2  # Both test users have passwords, no TOTP
+    for u in users:
+        assert u["has_password"] is True
+
+
+def test_count_users_filter_by_auth_method(test_tenant, test_user, test_admin_user):
+    """count_users with auth_methods filter matches list_users."""
+    import database
+
+    count = database.users.count_users(test_tenant["id"], auth_methods=["password_email"])
+    users = database.users.list_users(
+        test_tenant["id"], auth_methods=["password_email"], page=1, page_size=100
+    )
+    assert count == len(users)
+
+
+def test_list_users_filter_by_unverified(test_tenant, test_user, test_admin_user):
+    """Filter by unverified returns only users without password and without IdP."""
+    import database
+
+    # No unverified users in our test data (both have passwords)
+    users = database.users.list_users(
+        test_tenant["id"], auth_methods=["unverified"], page=1, page_size=10
+    )
+    assert len(users) == 0
+
+
+def test_list_users_filter_auth_method_combined_with_search(
+    test_tenant, test_user, test_admin_user
+):
+    """Auth method filter works together with search."""
+    import database
+
+    users = database.users.list_users(
+        test_tenant["id"],
+        search="Test",
+        auth_methods=["password_email"],
+        page=1,
+        page_size=10,
+    )
+    assert len(users) >= 1
+    assert all(u["has_password"] is True for u in users)
+
+
+def test_list_users_filter_auth_method_combined_with_role(test_tenant, test_user, test_admin_user):
+    """Auth method filter works together with role filter."""
+    import database
+
+    users = database.users.list_users(
+        test_tenant["id"],
+        roles=["admin"],
+        auth_methods=["password_email"],
+        page=1,
+        page_size=10,
+    )
+    assert len(users) == 1
+    assert users[0]["role"] == "admin"
+    assert users[0]["has_password"] is True

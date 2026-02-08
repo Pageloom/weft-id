@@ -2258,3 +2258,251 @@ def test_bulk_add_user_to_groups_forbidden_for_member(make_requesting_user):
 
     with pytest.raises(ForbiddenError):
         groups_service.bulk_add_user_to_groups(requesting_user, str(uuid4()), [str(uuid4())])
+
+
+# =============================================================================
+# Base Group Membership Helpers
+# =============================================================================
+
+
+def test_ensure_user_in_base_group_adds_membership():
+    """Test that ensure_user_in_base_group adds user to IdP base group."""
+    from services import groups as groups_service
+    from services.event_log import SYSTEM_ACTOR_ID
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    base_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.is_group_member.return_value = False
+        mock_db.groups.bulk_add_user_to_groups.return_value = 1
+
+        groups_service.ensure_user_in_base_group(tenant_id, user_id, user_email, idp_id, idp_name)
+
+        mock_db.groups.bulk_add_user_to_groups.assert_called_once_with(
+            tenant_id, tenant_id, user_id, [base_group_id]
+        )
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["actor_user_id"] == SYSTEM_ACTOR_ID
+        assert call_kwargs["event_type"] == "idp_group_member_added"
+        assert call_kwargs["metadata"]["sync_source"] == "idp_assignment"
+        assert call_kwargs["metadata"]["group_id"] == base_group_id
+
+
+def test_ensure_user_in_base_group_already_member_no_op():
+    """Test that ensure_user_in_base_group is a no-op when already a member."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_id = str(uuid4())
+    base_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.is_group_member.return_value = True
+
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, "user@example.com", idp_id, "Okta"
+        )
+
+        mock_db.groups.bulk_add_user_to_groups.assert_not_called()
+        mock_log.assert_not_called()
+
+
+def test_ensure_user_in_base_group_no_base_group_logs_warning():
+    """Test that ensure_user_in_base_group logs warning when no base group found."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.logger") as mock_logger,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = None
+
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, "user@example.com", idp_id, "Missing IdP"
+        )
+
+        mock_logger.warning.assert_called_once()
+        mock_db.groups.bulk_add_user_to_groups.assert_not_called()
+        mock_log.assert_not_called()
+
+
+def test_remove_user_from_base_group_removes_membership():
+    """Test that remove_user_from_base_group removes user from IdP base group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    base_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.bulk_remove_user_from_groups.return_value = 1
+
+        groups_service.remove_user_from_base_group(tenant_id, user_id, user_email, idp_id, idp_name)
+
+        mock_db.groups.bulk_remove_user_from_groups.assert_called_once_with(
+            tenant_id, user_id, [base_group_id]
+        )
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["event_type"] == "idp_group_member_removed"
+        assert call_kwargs["metadata"]["sync_source"] == "idp_reassignment"
+
+
+def test_sync_user_idp_groups_does_not_remove_base_group():
+    """Test that sync_user_idp_groups protects the base group from removal."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    base_group_id = str(uuid4())
+    sub_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        # User is in base group and a sub-group, assertion has no groups
+        mock_db.groups.get_user_idp_group_ids.return_value = [base_group_id, sub_group_id]
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.get_group_by_id.return_value = {"name": "Sub Group"}
+        mock_db.groups.bulk_remove_user_from_groups.return_value = 1
+
+        result = groups_service.sync_user_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name, []
+        )
+
+        # Sub-group should be removed, but base group should not
+        assert len(result["removed"]) == 1
+        mock_db.groups.bulk_remove_user_from_groups.assert_called_once()
+        removed_ids = mock_db.groups.bulk_remove_user_from_groups.call_args[0][2]
+        assert base_group_id not in removed_ids
+        assert sub_group_id in removed_ids
+
+
+def test_remove_user_from_all_idp_groups_removes_base_and_sub_groups():
+    """Test that remove_user_from_all_idp_groups removes all IdP groups."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    user_email = "user@example.com"
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    base_group_id = str(uuid4())
+    sub_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_user_idp_group_ids.return_value = [base_group_id, sub_group_id]
+        mock_db.groups.get_group_by_id.side_effect = [
+            {"name": "Okta"},
+            {"name": "Engineering"},
+        ]
+        mock_db.groups.bulk_remove_user_from_groups.return_value = 2
+
+        groups_service.remove_user_from_all_idp_groups(
+            tenant_id, user_id, user_email, idp_id, idp_name
+        )
+
+        mock_db.groups.bulk_remove_user_from_groups.assert_called_once_with(
+            tenant_id, user_id, [base_group_id, sub_group_id]
+        )
+        # Should log removal for each group
+        assert mock_log.call_count == 2
+
+
+def test_ensure_users_in_base_group_bulk():
+    """Test that ensure_users_in_base_group adds multiple users."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
+    idp_id = str(uuid4())
+    idp_name = "Okta"
+    base_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.bulk_add_user_to_groups.return_value = 1
+
+        count = groups_service.ensure_users_in_base_group(tenant_id, user_ids, idp_id, idp_name)
+
+        assert count == 3
+        assert mock_db.groups.bulk_add_user_to_groups.call_count == 3
+        assert mock_log.call_count == 3
+
+
+def test_move_users_between_idps():
+    """Test moving users between IdPs updates group memberships."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_ids = [str(uuid4())]
+    old_idp_id = str(uuid4())
+    new_idp_id = str(uuid4())
+    old_group_id = str(uuid4())
+    new_base_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        # Old IdP has one group the user is in
+        mock_db.groups.get_user_idp_group_ids.return_value = [old_group_id]
+        mock_db.groups.bulk_remove_user_from_groups.return_value = 1
+        # New base group
+        mock_db.groups.get_idp_base_group_id.return_value = new_base_group_id
+        mock_db.groups.is_group_member.return_value = False
+        mock_db.groups.bulk_add_user_to_groups.return_value = 1
+
+        groups_service.move_users_between_idps(
+            tenant_id, user_ids, old_idp_id, "Old IdP", new_idp_id, "New IdP"
+        )
+
+        # Should remove from old groups
+        mock_db.groups.bulk_remove_user_from_groups.assert_called_once()
+        # Should add to new base group (via ensure_users_in_base_group)
+        mock_db.groups.bulk_add_user_to_groups.assert_called_once()

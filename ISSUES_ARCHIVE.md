@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## [BUG] Users assigned to an IdP are not added to its base group
+
+**Status:** Resolved (2026-02-08)
+
+**Original Severity:** High
+
+**Original Description:**
+Each IdP has an automatically created base group that should contain all users assigned to that IdP. No assignment path (JIT provisioning, domain binding, manual assignment) actually added users to this base group. Users only got placed in assertion sub-groups (if any) during SAML authentication.
+
+**Resolution:**
+Added `get_idp_base_group_id()` database function to look up the base group for an IdP via a join to `saml_identity_providers`. Added service helpers (`ensure_user_in_base_group`, `remove_user_from_base_group`, `ensure_users_in_base_group`, `remove_user_from_all_idp_groups`, `move_users_between_idps`) in `app/services/groups/idp.py`. Wired these helpers into all five assignment paths: JIT provisioning, SAML auth for existing users, domain binding, domain rebinding, and manual assignment. Protected `sync_user_idp_groups` from removing the base group during assertion sync (base group is managed by assignment, not assertions). Existing users are retroactively added to their base group on next SAML authentication.
+
+**Files Changed:** `app/database/groups/idp.py`, `app/database/groups/__init__.py`, `app/services/groups/idp.py`, `app/services/groups/__init__.py`, `app/services/saml/provisioning.py`, `app/services/saml/domains.py`, `tests/test_services_groups.py`, `tests/test_services_saml.py`
+
+---
+
 ## [REFACTOR] Duplication: Worker periodic task boilerplate
 
 **Status:** Resolved (2026-02-07)

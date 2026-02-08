@@ -54,9 +54,14 @@ from services.groups.idp import (
     _apply_membership_additions,
     _apply_membership_removals,
     create_idp_base_group,
+    ensure_user_in_base_group,
+    ensure_users_in_base_group,
     get_or_create_idp_group,
     invalidate_idp_groups,
     list_groups_for_idp,
+    move_users_between_idps,
+    remove_user_from_all_idp_groups,
+    remove_user_from_base_group,
     sync_user_idp_groups,
 )
 
@@ -117,9 +122,14 @@ __all__ = [
     "get_user_group_ids",
     # IdP
     "create_idp_base_group",
+    "ensure_user_in_base_group",
+    "ensure_users_in_base_group",
     "get_or_create_idp_group",
     "invalidate_idp_groups",
     "list_groups_for_idp",
+    "move_users_between_idps",
+    "remove_user_from_all_idp_groups",
+    "remove_user_from_base_group",
     "sync_user_idp_groups",
     # Private (for backwards compatibility)
     "_apply_membership_additions",

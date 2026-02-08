@@ -9,6 +9,7 @@ This module handles:
 import logging
 
 import database
+import services.groups as groups_service
 from schemas.saml import DomainBinding, DomainBindingList, UnboundDomain
 from services.activity import track_activity
 from services.auth import require_super_admin
@@ -123,6 +124,9 @@ def bind_domain_to_idp(
     user_ids_to_assign = [str(u["id"]) for u in users_to_assign]
     if user_ids_to_assign:
         database.users.bulk_assign_users_to_idp(tenant_id, user_ids_to_assign, idp_id)
+        groups_service.ensure_users_in_base_group(
+            tenant_id, user_ids_to_assign, idp_id, idp["name"]
+        )
         logger.info(
             f"Domain binding: assigned {len(user_ids_to_assign)} users "
             f"from {domain['domain']} to IdP {idp['name']}"
@@ -295,6 +299,10 @@ def rebind_domain_to_idp(
 
     previous_idp_id = str(current_binding["idp_id"])
 
+    # Get previous IdP name for group operations
+    previous_idp = database.saml.get_identity_provider(tenant_id, previous_idp_id)
+    previous_idp_name = previous_idp["name"] if previous_idp else "Unknown"
+
     # Find users with this domain who are currently on the old IdP
     users_in_domain = database.users.get_users_by_email_domain(tenant_id, domain["domain"])
     users_to_move = [
@@ -309,6 +317,17 @@ def rebind_domain_to_idp(
         # Use bulk update - no need to wipe passwords (already wiped)
         for user_id in user_ids_to_move:
             database.users.update_user_saml_idp(tenant_id, user_id, new_idp_id)
+
+        # Move group memberships: remove from old IdP groups, add to new base group
+        groups_service.move_users_between_idps(
+            tenant_id,
+            user_ids_to_move,
+            previous_idp_id,
+            previous_idp_name,
+            new_idp_id,
+            new_idp["name"],
+        )
+
         logger.info(
             f"Domain rebind: moved {len(user_ids_to_move)} users "
             f"from IdP {previous_idp_id} to {new_idp['name']}"
@@ -477,6 +496,31 @@ def assign_user_idp(
         user_id=user_id,
         saml_idp_id=saml_idp_id,
     )
+
+    # Update group memberships based on IdP change
+    user_email = user.get("email", "")
+    if had_idp and will_have_idp and str(current_idp_id) != saml_idp_id:
+        # Moving between IdPs: remove from all old IdP groups, add to new base group
+        old_idp = database.saml.get_identity_provider(tenant_id, str(current_idp_id))
+        old_idp_name = old_idp["name"] if old_idp else "Unknown"
+        groups_service.remove_user_from_all_idp_groups(
+            tenant_id, user_id, user_email, str(current_idp_id), old_idp_name
+        )
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, user_email, saml_idp_id, idp_name
+        )
+    elif will_have_idp and not had_idp:
+        # New assignment: add to base group
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, user_email, saml_idp_id, idp_name
+        )
+    elif had_idp and not will_have_idp:
+        # Removing from IdP: remove from all old IdP groups
+        old_idp = database.saml.get_identity_provider(tenant_id, str(current_idp_id))
+        old_idp_name = old_idp["name"] if old_idp else "Unknown"
+        groups_service.remove_user_from_all_idp_groups(
+            tenant_id, user_id, user_email, str(current_idp_id), old_idp_name
+        )
 
     log_event(
         tenant_id=tenant_id,

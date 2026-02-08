@@ -70,6 +70,33 @@ def get_user_by_email_with_status(tenant_id: TenantArg, email: str) -> dict | No
     )
 
 
+def get_user_by_email_for_saml(tenant_id: TenantArg, email: str) -> dict | None:
+    """
+    Get user record by email regardless of verification status.
+
+    Used for SAML authentication where the IdP assertion is authoritative
+    for the email address. Returns the email_id and verification status
+    so the caller can verify unverified emails.
+
+    Returns:
+        User record with id, first_name, last_name, role, inactivated_at,
+        mfa_enabled, mfa_method, email_id, email_verified, saml_idp_id,
+        password_hash, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select u.id, u.first_name, u.last_name, u.role, u.inactivated_at,
+               u.mfa_enabled, u.mfa_method, u.saml_idp_id, u.password_hash,
+               ue.id as email_id, ue.verified_at is not null as email_verified
+        from user_emails ue
+        join users u on u.id = ue.user_id
+        where ue.email = :email
+        """,
+        {"email": email},
+    )
+
+
 def get_user_with_saml_info(tenant_id: TenantArg, user_id: str) -> dict | None:
     """
     Get user with SAML-related fields for admin display.

@@ -848,3 +848,188 @@ def test_api_list_idp_groups(make_user_dict, override_api_auth):
         assert len(data) == 2
         assert data[0]["group_type"] == "idp"
         assert data[0]["idp_id"] == idp_id
+
+
+# =============================================================================
+# User Direct Groups API Tests
+# =============================================================================
+
+
+def test_api_get_user_direct_groups_as_admin(make_user_dict, override_api_auth):
+    """Admin can get direct groups for any user."""
+    from schemas.groups import EffectiveMembership, EffectiveMembershipList
+
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+
+    mock_response = EffectiveMembershipList(
+        items=[
+            EffectiveMembership(
+                id=str(uuid4()),
+                name="Engineering",
+                description=None,
+                group_type="weftid",
+                idp_id=None,
+                idp_name=None,
+                is_direct=True,
+            ),
+        ]
+    )
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_direct_memberships.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/groups")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 1
+        assert data["items"][0]["name"] == "Engineering"
+        assert data["items"][0]["is_direct"] is True
+
+
+def test_api_get_user_direct_groups_self(make_user_dict, override_api_auth):
+    """User can get their own direct groups."""
+    from schemas.groups import EffectiveMembershipList
+
+    user_id = str(uuid4())
+    user = make_user_dict(user_id=user_id, role="member")
+
+    mock_response = EffectiveMembershipList(items=[])
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_direct_memberships.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/groups")
+
+        assert response.status_code == 200
+
+
+def test_api_get_user_direct_groups_forbidden(make_user_dict, override_api_auth):
+    """Regular user cannot get another user's direct groups."""
+    from services.exceptions import ForbiddenError
+
+    user = make_user_dict(role="member")
+    other_user_id = str(uuid4())
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.get_direct_memberships.side_effect = ForbiddenError(
+            message="Forbidden", code="forbidden"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{other_user_id}/groups")
+
+        assert response.status_code == 403
+
+
+def test_api_add_user_to_single_group(make_user_dict, override_api_auth):
+    """Admin can add a user to a single group via API."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    group_id = str(uuid4())
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.add_member.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/users/{user_id}/groups",
+            json={"group_ids": [group_id]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["added"] == 1
+        mock_svc.add_member.assert_called_once()
+
+
+def test_api_add_user_to_multiple_groups(make_user_dict, override_api_auth):
+    """Admin can add a user to multiple groups via API."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    group_ids = [str(uuid4()), str(uuid4())]
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.bulk_add_user_to_groups.return_value = 2
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/users/{user_id}/groups",
+            json={"group_ids": group_ids},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["added"] == 2
+        mock_svc.bulk_add_user_to_groups.assert_called_once()
+
+
+def test_api_add_user_to_groups_not_found(make_user_dict, override_api_auth):
+    """Adding user to non-existent group returns 404."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.add_member.side_effect = NotFoundError(
+            message="Group not found", code="group_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/users/{user_id}/groups",
+            json={"group_ids": [str(uuid4())]},
+        )
+
+        assert response.status_code == 404
+
+
+def test_api_remove_user_from_group(make_user_dict, override_api_auth):
+    """Admin can remove a user from a group via API."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    group_id = str(uuid4())
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.remove_member.return_value = None
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/users/{user_id}/groups/{group_id}")
+
+        assert response.status_code == 204
+        mock_svc.remove_member.assert_called_once()
+
+
+def test_api_remove_user_from_group_not_found(make_user_dict, override_api_auth):
+    """Removing user from non-existent group returns 404."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    group_id = str(uuid4())
+
+    override_api_auth(admin, level="user")
+
+    with patch("routers.api.v1.users.groups_service") as mock_svc:
+        mock_svc.remove_member.side_effect = NotFoundError(
+            message="Not a member", code="not_a_member"
+        )
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/users/{user_id}/groups/{group_id}")
+
+        assert response.status_code == 404

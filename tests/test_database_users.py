@@ -858,3 +858,43 @@ def test_count_users_excludes_service_accounts(test_tenant, test_user, test_admi
     users = database.users.list_users(test_tenant["id"], page=1, page_size=100)
     assert count == len(users)
     assert count == 2  # Only the two regular users
+
+
+def test_list_users_includes_group_count(test_tenant, test_user, test_admin_user):
+    """list_users includes group_count field showing number of group memberships."""
+    import database
+
+    users = database.users.list_users(test_tenant["id"], page=1, page_size=100)
+
+    # All users should have group_count field
+    for u in users:
+        assert "group_count" in u
+        assert isinstance(u["group_count"], int)
+
+    # Initially zero groups
+    test_u = next(u for u in users if u["id"] == test_user["id"])
+    assert test_u["group_count"] == 0
+
+    # Create a group and add user to it
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Test Group for Count",
+        group_type="weftid",
+        created_by=str(test_admin_user["id"]),
+    )
+    database.groups.add_group_member(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        group_id=str(group["id"]),
+        user_id=str(test_user["id"]),
+    )
+
+    # Verify group_count is now 1
+    users_after = database.users.list_users(test_tenant["id"], page=1, page_size=100)
+    test_u_after = next(u for u in users_after if u["id"] == test_user["id"])
+    assert test_u_after["group_count"] == 1
+
+    # Admin should still have 0
+    admin_u = next(u for u in users_after if u["id"] == test_admin_user["id"])
+    assert admin_u["group_count"] == 0

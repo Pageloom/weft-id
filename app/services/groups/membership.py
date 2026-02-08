@@ -4,6 +4,8 @@ This module provides business logic for group membership management:
 - list_members
 - add_member
 - remove_member
+- get_direct_memberships
+- bulk_add_user_to_groups
 
 All functions:
 - Receive a RequestingUser for authorization
@@ -331,3 +333,107 @@ def bulk_add_members(
         )
 
     return count
+
+
+def get_direct_memberships(
+    requesting_user: RequestingUser,
+    user_id: str,
+) -> EffectiveMembershipList:
+    """
+    Get only the direct group memberships for a user.
+
+    Unlike get_effective_memberships, this excludes inherited groups.
+
+    Authorization: Admin, or self (user_id == requesting_user["id"]).
+    """
+    # Allow admin or self
+    if requesting_user["role"] not in ("admin", "super_admin") and requesting_user["id"] != user_id:
+        raise ForbiddenError(
+            message="You can only view your own group memberships",
+            code="forbidden",
+        )
+
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    rows = database.groups.get_user_groups(
+        requesting_user["tenant_id"],
+        user_id,
+    )
+
+    items = [
+        EffectiveMembership(
+            id=str(row["id"]),
+            name=row["name"],
+            description=row.get("description"),
+            group_type=row["group_type"],
+            idp_id=None,
+            idp_name=None,
+            is_direct=True,
+        )
+        for row in rows
+    ]
+
+    return EffectiveMembershipList(items=items)
+
+
+def bulk_add_user_to_groups(
+    requesting_user: RequestingUser,
+    user_id: str,
+    group_ids: list[str],
+) -> int:
+    """
+    Add a user to multiple groups.
+
+    Skips IdP groups, missing groups, and groups where user is already a member.
+
+    Authorization: Requires admin role.
+
+    Returns:
+        Count of new memberships created.
+    """
+    require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify user exists
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+        )
+
+    added_count = 0
+    added_group_names = []
+
+    for group_id in group_ids:
+        group = database.groups.get_group_by_id(tenant_id, group_id)
+        if not group:
+            continue
+
+        # Skip IdP groups
+        if group.get("group_type") == "idp":
+            continue
+
+        # Skip if already a member
+        if database.groups.is_group_member(tenant_id, group_id, user_id):
+            continue
+
+        database.groups.add_group_member(tenant_id, tenant_id, group_id, user_id)
+        added_count += 1
+        added_group_names.append(group["name"])
+
+    if added_count > 0:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_groups_bulk_added",
+            metadata={
+                "count": added_count,
+                "group_names": added_group_names,
+            },
+        )
+
+    return added_count

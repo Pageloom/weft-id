@@ -119,6 +119,30 @@ def test_list_users_with_pagination(make_user_dict, override_api_auth):
         assert data["limit"] == 5
 
 
+def test_list_users_with_filters(make_user_dict, override_api_auth):
+    """Test listing users with role, status, and auth_method filters."""
+    admin = make_user_dict(role="admin")
+
+    mock_response = UserListResponse(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(
+            "/api/v1/users?role=admin,member&status=active&auth_method=password_email"
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_users.call_args
+        # Verify filter params were parsed and passed
+        assert call_kwargs.kwargs.get("roles") == ["admin", "member"]
+        assert call_kwargs.kwargs.get("statuses") == ["active"]
+        assert call_kwargs.kwargs.get("auth_methods") == ["password_email"]
+
+
 # Note: test_list_users_unauthorized is covered in integration tests
 
 

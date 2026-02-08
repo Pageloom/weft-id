@@ -47,6 +47,9 @@ def list_users(
     search: str | None = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+    auth_methods: list[str] | None = None,
 ) -> UserListResponse:
     """
     List all users in the tenant with pagination and search.
@@ -60,6 +63,9 @@ def list_users(
         search: Optional search term for name or email
         sort_by: Field to sort by (name, email, role, created_at, last_login)
         sort_order: Sort order (asc or desc)
+        roles: Optional list of roles to filter by
+        statuses: Optional list of statuses to filter by
+        auth_methods: Optional list of auth method keys to filter by
 
     Returns:
         UserListResponse with paginated results
@@ -80,10 +86,13 @@ def list_users(
         sort_order=sort_order,
         page=page,
         page_size=limit,
+        roles=roles,
+        statuses=statuses,
+        auth_methods=auth_methods,
     )
 
     # Get total count
-    total = database.users.count_users(tenant_id, search)
+    total = database.users.count_users(tenant_id, search, roles, statuses, auth_methods)
 
     return UserListResponse(
         items=[_user_row_to_summary(u) for u in users],

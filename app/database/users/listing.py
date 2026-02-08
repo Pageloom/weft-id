@@ -31,20 +31,84 @@ def _build_search_clauses(
         params[param_name] = f"%{token}%"
 
 
+def _build_auth_method_clauses(
+    auth_methods: list[str] | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Build auth method filter WHERE clauses.
+
+    Auth method keys:
+      - password_email: has password, no TOTP
+      - password_totp: has password, TOTP enabled
+      - idp:<uuid>: SAML IdP user without platform MFA
+      - idp:<uuid>_totp: SAML IdP user with platform MFA TOTP
+      - unverified: no password, no IdP
+    """
+    if not auth_methods:
+        return
+
+    conditions: list[str] = []
+    idp_ids: list[str] = []
+    idp_totp_ids: list[str] = []
+
+    for method in auth_methods:
+        if method == "password_email":
+            conditions.append(
+                "(u.password_hash is not null and u.saml_idp_id is null"
+                " and (u.mfa_method is null or u.mfa_method != 'totp'))"
+            )
+        elif method == "password_totp":
+            conditions.append(
+                "(u.password_hash is not null and u.saml_idp_id is null"
+                " and u.mfa_method = 'totp')"
+            )
+        elif method == "unverified":
+            conditions.append("(u.password_hash is null and u.saml_idp_id is null)")
+        elif method.startswith("idp:"):
+            remainder = method[4:]
+            if remainder.endswith("_totp"):
+                idp_totp_ids.append(remainder[:-5])
+            else:
+                idp_ids.append(remainder)
+
+    if idp_ids:
+        params["auth_idp_ids"] = idp_ids
+        conditions.append(
+            "(u.saml_idp_id = ANY(:auth_idp_ids)"
+            " and (idp.require_platform_mfa is not true"
+            " or u.mfa_method is null or u.mfa_method != 'totp'))"
+        )
+
+    if idp_totp_ids:
+        params["auth_idp_totp_ids"] = idp_totp_ids
+        conditions.append(
+            "(u.saml_idp_id = ANY(:auth_idp_totp_ids)"
+            " and idp.require_platform_mfa = true"
+            " and u.mfa_method = 'totp')"
+        )
+
+    if conditions:
+        where_clauses.append(f"({' or '.join(conditions)})")
+
+
 def count_users(
     tenant_id: TenantArg,
     search: str | None = None,
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
+    auth_methods: list[str] | None = None,
 ) -> int:
     """
-    Count users, optionally filtered by search term, roles, and statuses.
+    Count users, optionally filtered by search term, roles, statuses,
+    and auth methods.
 
     Args:
         tenant_id: Tenant ID
         search: Search term to filter by (searches first_name, last_name, email)
         roles: List of roles to filter by (member, admin, super_admin)
         statuses: List of statuses to filter by (active, inactivated, anonymized)
+        auth_methods: List of auth method keys to filter by
 
     Returns:
         Total count of matching users
@@ -55,7 +119,6 @@ def count_users(
     _build_search_clauses(search, where_clauses, params)
 
     if roles:
-        # Filter by roles using ANY for array matching
         allowed_roles = {"member", "admin", "super_admin"}
         valid_roles = [r for r in roles if r in allowed_roles]
         if valid_roles:
@@ -63,7 +126,6 @@ def count_users(
             params["roles"] = valid_roles
 
     if statuses:
-        # Build status conditions based on boolean flags
         status_conditions: list[str] = []
         if "active" in statuses:
             status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
@@ -74,14 +136,22 @@ def count_users(
         if status_conditions:
             where_clauses.append(f"({' or '.join(status_conditions)})")
 
+    _build_auth_method_clauses(auth_methods, where_clauses, params)
+
     where_clause = ""
     if where_clauses:
         where_clause = "where " + " and ".join(where_clauses)
+
+    # Need IdP join for auth method filtering
+    idp_join = ""
+    if auth_methods:
+        idp_join = "left join saml_identity_providers idp on u.saml_idp_id = idp.id"
 
     query = f"""
         select count(distinct u.id) as count
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        {idp_join}
         {where_clause}
     """
 
@@ -99,6 +169,7 @@ def list_users(
     collation: str | None = None,
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
+    auth_methods: list[str] | None = None,
 ) -> list[dict]:
     """
     List users with pagination, sorting, search, and filtering.
@@ -116,6 +187,7 @@ def list_users(
         collation: Optional collation for text sorting (e.g., "sv-SE-x-icu")
         roles: List of roles to filter by (member, admin, super_admin)
         statuses: List of statuses to filter by (active, inactivated, anonymized)
+        auth_methods: List of auth method keys to filter by
 
     Returns:
         List of user dicts with id, first_name, last_name, role, created_at,
@@ -130,7 +202,6 @@ def list_users(
     _build_search_clauses(search, where_clauses, params)
 
     if roles:
-        # Filter by roles using ANY for array matching
         allowed_roles = {"member", "admin", "super_admin"}
         valid_roles = [r for r in roles if r in allowed_roles]
         if valid_roles:
@@ -138,7 +209,6 @@ def list_users(
             params["roles"] = valid_roles
 
     if statuses:
-        # Build status conditions based on boolean flags
         status_conditions: list[str] = []
         if "active" in statuses:
             status_conditions.append("(u.is_inactivated = false and u.is_anonymized = false)")
@@ -148,6 +218,8 @@ def list_users(
             status_conditions.append("u.is_anonymized = true")
         if status_conditions:
             where_clauses.append(f"({' or '.join(status_conditions)})")
+
+    _build_auth_method_clauses(auth_methods, where_clauses, params)
 
     where_clause = ""
     if where_clauses:

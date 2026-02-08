@@ -1547,6 +1547,76 @@ def test_users_list_passes_auth_method_fields_to_template(test_admin_user, mocke
     assert users[3]["mfa_method"] == "totp"
 
 
+def test_users_list_with_auth_method_filter(test_admin_user, mocker, override_auth):
+    """Test users list with auth_method filter parameter."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user)
+
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_auth_opts = mocker.patch(f"{SERVICES_USERS}.get_auth_method_options")
+
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 2
+    mock_list.return_value = []
+    mock_auth_opts.return_value = [
+        {
+            "auth_method_key": "password_email",
+            "auth_method_label": "Password + Email",
+        },
+    ]
+
+    client = TestClient(app)
+    response = client.get("/users/list?auth_method=password_email")
+
+    assert response.status_code == 200
+
+    # Verify auth_methods was passed to count_users
+    count_call_args = mock_count.call_args[0]
+    assert count_call_args[4] == ["password_email"]
+
+    # Verify auth_methods was passed to list_users_raw
+    list_call_args = mock_list.call_args[0]
+    assert list_call_args[9] == ["password_email"]
+
+    # Verify auth_method_options in template context
+    template_call_args = mock_template.call_args[0]
+    context = template_call_args[1]
+    assert context["auth_methods"] == ["password_email"]
+    assert context["auth_method_options"] == mock_auth_opts.return_value
+
+
+def test_users_list_template_context_includes_auth_method_options(
+    test_admin_user, mocker, override_auth
+):
+    """Test that auth_method_options is always included in template context."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user)
+
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+    mock_auth_opts = mocker.patch(f"{SERVICES_USERS}.get_auth_method_options")
+
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 0
+    mock_list.return_value = []
+    mock_auth_opts.return_value = []
+
+    client = TestClient(app)
+    response = client.get("/users/list")
+
+    assert response.status_code == 200
+    template_call_args = mock_template.call_args[0]
+    context = template_call_args[1]
+    assert "auth_method_options" in context
+    assert "auth_methods" in context
+    assert context["auth_methods"] == []
+
+
 def test_create_user_privileged_domain_creates_event_log(
     test_admin_user, test_tenant, mocker, override_auth
 ):

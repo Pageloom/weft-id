@@ -2255,3 +2255,24 @@ Added `export_downloaded` event type and a `log_event()` call after `mark_downlo
 **Files Changed:** `app/services/exports.py`, `app/constants/event_types.py`, `app/constants/event_types.lock`, `tests/test_services_exports.py`
 
 ---
+
+## [SECURITY] SQL Injection via String Interpolation in Bulk Group Insert
+
+**Status:** Resolved (2026-02-08)
+
+**Found in:** `app/database/groups/idp.py:147`
+
+**Original Severity:** High
+
+**Principle Violated:** Tenant Isolation (parameterized query safety)
+
+**Original Description:**
+`bulk_add_user_to_groups()` built SQL VALUES via f-string interpolation instead of parameterized queries. The `group_ids`, `tenant_id_value`, and `user_id` values were inserted directly into the SQL string. While all current callers passed database-generated UUIDs (low immediate risk), the pattern was unsafe and would become dangerous if any future caller passed user-controlled input.
+
+**Resolution:**
+Replaced the f-string bulk insert with a parameterized loop. Each group ID is inserted via a parameterized `INSERT ... ON CONFLICT DO NOTHING` within the same transaction. The loop is appropriate because group counts are always small (< 20), and it preserves accurate rowcount tracking.
+
+**Files Modified:**
+- `app/database/groups/idp.py` - Replaced f-string SQL with parameterized loop
+
+---

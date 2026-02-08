@@ -5465,6 +5465,177 @@ def test_authenticate_via_saml_existing_user_added_to_base_group(
     assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
 
 
+def test_authenticate_via_saml_verifies_unverified_email(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that SAML auth verifies an unverified email (IdP is authoritative).
+
+    Regression test: When a user is pre-created with an unverified email,
+    SAML authentication should verify the email and proceed normally instead
+    of failing with 'Failed to retrieve user after race condition'.
+    """
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a user with an UNVERIFIED email (simulating admin pre-creation
+    # where the user hasn't clicked the verification link yet)
+    from uuid import uuid4
+
+    unverified_email = f"unverified-{uuid4().hex[:8]}@example.com"
+    user_record = database.fetchone(
+        tenant_id,
+        """
+        INSERT INTO users (tenant_id, password_hash, first_name, last_name, role)
+        VALUES (:tenant_id, NULL, :first_name, :last_name, :role)
+        RETURNING id
+        """,
+        {
+            "tenant_id": tenant_id,
+            "first_name": "Unverified",
+            "last_name": "User",
+            "role": "member",
+        },
+    )
+    user_id = str(user_record["id"])
+
+    # Add email WITHOUT verification (verified_at = null)
+    database.execute(
+        tenant_id,
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, NULL)
+        """,
+        {"tenant_id": tenant_id, "user_id": user_id, "email": unverified_email},
+    )
+
+    # Verify the email is NOT verified yet
+    assert database.users.get_user_by_email_with_status(tenant_id, unverified_email) is None
+
+    # Authenticate via SAML. This should find the user, verify the email, and succeed.
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unverified_email,
+            first_name="Unverified",
+            last_name="User",
+            name_id=unverified_email,
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+
+    assert user is not None
+    assert str(user["id"]) == user_id
+
+    # The email should now be verified
+    verified_user = database.users.get_user_by_email_with_status(tenant_id, unverified_email)
+    assert verified_user is not None
+    assert str(verified_user["id"]) == user_id
+
+    # Sign-in event should have been logged
+    _verify_event_logged(tenant_id, "user_signed_in_saml", user_id)
+
+
+def test_authenticate_via_saml_jit_race_with_unverified_email(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test JIT race condition handler works when existing user has unverified email.
+
+    Regression test: The race condition handler in jit_provision_user should
+    find and verify the email instead of raising 'Failed to retrieve user
+    after race condition'.
+    """
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create enabled IdP with JIT enabled
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Create a user with an unverified email
+    unverified_email = f"jit-race-{uuid4().hex[:8]}@example.com"
+    user_record = database.fetchone(
+        tenant_id,
+        """
+        INSERT INTO users (tenant_id, password_hash, first_name, last_name, role)
+        VALUES (:tenant_id, NULL, :first_name, :last_name, :role)
+        RETURNING id
+        """,
+        {
+            "tenant_id": tenant_id,
+            "first_name": "Race",
+            "last_name": "User",
+            "role": "member",
+        },
+    )
+    user_id = str(user_record["id"])
+
+    database.execute(
+        tenant_id,
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, NULL)
+        """,
+        {"tenant_id": tenant_id, "user_id": user_id, "email": unverified_email},
+    )
+
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=unverified_email,
+            first_name="Race",
+            last_name="User",
+            name_id=unverified_email,
+        ),
+        idp_id=created.id,
+        requires_mfa=False,
+    )
+
+    # Patch get_user_by_email_for_saml to return None on the FIRST call only
+    # (in authenticate_via_saml), simulating a race where the user appears
+    # between the initial check and the JIT provision attempt
+    original_fn = database.users.get_user_by_email_for_saml
+    call_count = {"n": 0}
+
+    def mock_first_call_returns_none(tid, email):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return None  # First call: simulate user not found
+        return original_fn(tid, email)  # Subsequent calls: return real result
+
+    with patch(
+        "database.users.core.get_user_by_email_for_saml",
+        side_effect=mock_first_call_returns_none,
+    ):
+        user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+
+    assert user is not None
+    assert str(user["id"]) == user_id
+
+    # The email should now be verified
+    verified_user = database.users.get_user_by_email_with_status(tenant_id, unverified_email)
+    assert verified_user is not None
+
+
 def test_bind_domain_adds_users_to_base_group(test_tenant, test_super_admin_user, test_idp_data):
     """Test that binding a domain adds all matching users to the IdP base group."""
     import database

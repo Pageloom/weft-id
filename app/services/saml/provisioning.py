@@ -53,8 +53,11 @@ def jit_provision_user(
     # Race condition protection: Check if email was created between
     # our check and now (another concurrent request)
     if users_service.email_exists(tenant_id, email):
-        user = database.users.get_user_by_email_with_status(tenant_id, email)
+        user = database.users.get_user_by_email_for_saml(tenant_id, email)
         if user:
+            # Verify email if needed (IdP assertion is authoritative)
+            if not user.get("email_verified"):
+                database.user_emails.verify_email(tenant_id, str(user["email_id"]))
             return user
         raise ValidationError(
             message="Failed to retrieve user after race condition",
@@ -154,11 +157,11 @@ def authenticate_via_saml(
     """
     email = saml_result.attributes.email
 
-    # Look up user by email
-    user = database.users.get_user_by_email_with_status(tenant_id, email)
+    # Look up user by email (including unverified emails, since IdP is authoritative)
+    user = database.users.get_user_by_email_for_saml(tenant_id, email)
 
     if user is None:
-        # Check if JIT provisioning is enabled for this IdP
+        # No user with this email at all. Check if JIT provisioning is enabled.
         idp = database.saml.get_identity_provider(tenant_id, saml_result.idp_id)
 
         if idp is None or not idp.get("jit_provisioning"):
@@ -191,6 +194,12 @@ def authenticate_via_saml(
         # Return immediately - JIT provisioning already logged the creation event
         # No need to log sign-in since this is their first login (creation implies sign-in)
         return user
+
+    # If the user's email is unverified, verify it now. The SAML assertion
+    # from a trusted IdP is authoritative proof of email ownership.
+    if not user.get("email_verified"):
+        database.user_emails.verify_email(tenant_id, str(user["email_id"]))
+        logger.info(f"Verified email for user {user['id']} via SAML assertion")
 
     # Check user status
     if user.get("inactivated_at"):

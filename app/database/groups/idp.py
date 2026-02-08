@@ -162,16 +162,18 @@ def bulk_add_user_to_groups(
         return 0
 
     with session(tenant_id=tenant_id) as cur:
-        # Build values for bulk insert
-        values = ", ".join(f"('{tenant_id_value}', '{gid}', '{user_id}')" for gid in group_ids)
-        cur.execute(
-            f"""
-            insert into group_memberships (tenant_id, group_id, user_id)
-            values {values}
-            on conflict (group_id, user_id) do nothing
-            """
-        )
-        return int(cur.rowcount) if cur.rowcount else 0
+        total = 0
+        for gid in group_ids:
+            cur.execute(
+                """
+                insert into group_memberships (tenant_id, group_id, user_id)
+                values (%(tenant_id)s, %(group_id)s, %(user_id)s)
+                on conflict (group_id, user_id) do nothing
+                """,
+                {"tenant_id": tenant_id_value, "group_id": gid, "user_id": user_id},
+            )
+            total += cur.rowcount or 0
+        return total
 
 
 def bulk_remove_user_from_groups(

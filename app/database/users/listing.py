@@ -5,6 +5,32 @@ from typing import Any
 from database._core import TenantArg, fetchall, fetchone
 
 
+def _build_search_clauses(
+    search: str | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Build tokenized search WHERE clauses.
+
+    Splits search on whitespace. Each token must match at least one of
+    first_name, last_name, or email (AND across tokens, OR within a token).
+    Single-word searches produce identical behavior to the previous
+    implementation.
+    """
+    if not search:
+        return
+
+    tokens = search.split()
+    for i, token in enumerate(tokens):
+        param_name = f"search_{i}"
+        where_clauses.append(
+            f"(u.first_name ilike :{param_name}"
+            f" or u.last_name ilike :{param_name}"
+            f" or ue.email ilike :{param_name})"
+        )
+        params[param_name] = f"%{token}%"
+
+
 def count_users(
     tenant_id: TenantArg,
     search: str | None = None,
@@ -26,11 +52,7 @@ def count_users(
     where_clauses: list[str] = []
     params: dict[str, Any] = {}
 
-    if search:
-        where_clauses.append(
-            "(u.first_name ilike :search or u.last_name ilike :search or ue.email ilike :search)"
-        )
-        params["search"] = f"%{search}%"
+    _build_search_clauses(search, where_clauses, params)
 
     if roles:
         # Filter by roles using ANY for array matching
@@ -83,7 +105,9 @@ def list_users(
 
     Args:
         tenant_id: Tenant ID
-        search: Search term to filter by (searches first_name, last_name, email)
+        search: Search term to filter by (searches first_name, last_name, email).
+                Multiple words are tokenized: each token must match at least one
+                of first_name, last_name, or email.
         sort_field: Field to sort by (name, email, role, status, last_login,
                    last_activity_at, created_at)
         sort_order: Sort order (asc or desc)
@@ -103,11 +127,7 @@ def list_users(
     where_clauses: list[str] = []
     params: dict[str, Any] = {}
 
-    if search:
-        where_clauses.append(
-            "(u.first_name ilike :search or u.last_name ilike :search or ue.email ilike :search)"
-        )
-        params["search"] = f"%{search}%"
+    _build_search_clauses(search, where_clauses, params)
 
     if roles:
         # Filter by roles using ANY for array matching
@@ -135,17 +155,17 @@ def list_users(
 
     # SECURITY: Dynamic collation and field names in ORDER BY clause.
     #
-    # Collation safety (line 301):
+    # Collation safety:
     # - collation parameter is validated via check_collation_exists() in router
     # - Only database-recognized collations are allowed (SQL injection impossible)
     # - Still wrapped in double quotes as defense-in-depth
     #
-    # Field name safety (lines 308-316):
+    # Field name safety:
     # - sort_field is validated against a whitelist dictionary
     # - Only pre-defined keys are accepted: name, email, role, status, etc.
     # - Values in the dict are controlled template strings, not user input
     #
-    # Sort order safety (lines 321-322):
+    # Sort order safety:
     # - sort_order validated against literal ['asc', 'desc']
     # - Any other value defaults to 'desc'
     #

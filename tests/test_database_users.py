@@ -677,3 +677,63 @@ def test_list_users_with_search_and_filters(test_tenant, test_user, test_admin_u
 
     assert len(users) >= 1
     assert all(u["role"] == "member" for u in users)
+
+
+# =============================================================================
+# Tokenized Search Tests
+# =============================================================================
+
+
+def test_list_users_tokenized_search_single_word(test_tenant, test_user, test_admin_user):
+    """Single-word search behaves identically to old behavior."""
+    import database
+
+    users = database.users.list_users(test_tenant["id"], search="Test", page=1, page_size=10)
+    assert any(u["id"] == test_user["id"] for u in users)
+
+
+def test_list_users_tokenized_search_multi_word_cross_field(
+    test_tenant, test_user, test_admin_user
+):
+    """Multi-word search matches across first_name and last_name."""
+    import database
+
+    # test_user is first_name="Test", last_name="User"
+    # "Test User" should match (Test in first_name, User in last_name)
+    users = database.users.list_users(test_tenant["id"], search="Test User", page=1, page_size=10)
+    assert any(u["id"] == test_user["id"] for u in users)
+
+    # "Admin User" should match admin user (Admin in first_name, User in last_name)
+    users = database.users.list_users(test_tenant["id"], search="Admin User", page=1, page_size=10)
+    assert any(u["id"] == test_admin_user["id"] for u in users)
+    # "Test" shouldn't be in admin results for "Admin User" since both tokens must match
+    assert not any(u["id"] == test_user["id"] for u in users if u["first_name"] != "Admin")
+
+
+def test_list_users_tokenized_search_extra_whitespace(test_tenant, test_user):
+    """Extra whitespace between tokens is ignored."""
+    import database
+
+    users = database.users.list_users(
+        test_tenant["id"], search="  Test   User  ", page=1, page_size=10
+    )
+    assert any(u["id"] == test_user["id"] for u in users)
+
+
+def test_count_users_tokenized_search(test_tenant, test_user, test_admin_user):
+    """count_users agrees with list_users on tokenized search results."""
+    import database
+
+    search = "Test User"
+    count = database.users.count_users(test_tenant["id"], search=search)
+    users = database.users.list_users(test_tenant["id"], search=search, page=1, page_size=100)
+    assert count == len(users)
+
+
+def test_list_users_tokenized_search_no_match(test_tenant, test_user, test_admin_user):
+    """Multi-word search with non-matching token returns no results."""
+    import database
+
+    # "Test Zzzzz" should not match anyone
+    users = database.users.list_users(test_tenant["id"], search="Test Zzzzz", page=1, page_size=10)
+    assert len(users) == 0

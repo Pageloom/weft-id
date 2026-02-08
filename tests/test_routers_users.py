@@ -1432,6 +1432,121 @@ def test_users_list_all_three_roles(test_admin_user, mocker, override_auth):
     assert set(count_call_args[2]) == {"member", "admin", "super_admin"}
 
 
+def test_users_list_passes_auth_method_fields_to_template(test_admin_user, mocker, override_auth):
+    """Test that auth method fields from list_users_raw are passed to the template."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user)
+
+    mock_template = mocker.patch(f"{USERS_LISTING}.templates.TemplateResponse")
+    mock_count = mocker.patch(f"{SERVICES_USERS}.count_users")
+    mock_list = mocker.patch(f"{SERVICES_USERS}.list_users_raw")
+
+    mock_template.return_value = HTMLResponse(content="<html>Users List</html>")
+    mock_count.return_value = 4
+    mock_list.return_value = [
+        {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "SSO",
+            "role": "member",
+            "email": "alice@example.com",
+            "created_at": "2024-01-01",
+            "last_login": None,
+            "last_activity_at": None,
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "saml_idp_id": "idp-1",
+            "saml_idp_name": "Okta",
+            "require_platform_mfa": False,
+            "has_password": False,
+            "mfa_enabled": False,
+            "mfa_method": None,
+        },
+        {
+            "id": "user-2",
+            "first_name": "Bob",
+            "last_name": "Password",
+            "role": "admin",
+            "email": "bob@example.com",
+            "created_at": "2024-01-02",
+            "last_login": None,
+            "last_activity_at": None,
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "saml_idp_id": None,
+            "saml_idp_name": None,
+            "require_platform_mfa": None,
+            "has_password": True,
+            "mfa_enabled": True,
+            "mfa_method": "totp",
+        },
+        {
+            "id": "user-3",
+            "first_name": "Carol",
+            "last_name": "Unverified",
+            "role": "member",
+            "email": "carol@example.com",
+            "created_at": "2024-01-03",
+            "last_login": None,
+            "last_activity_at": None,
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "saml_idp_id": None,
+            "saml_idp_name": None,
+            "require_platform_mfa": None,
+            "has_password": False,
+            "mfa_enabled": False,
+            "mfa_method": None,
+        },
+        {
+            "id": "user-4",
+            "first_name": "Dave",
+            "last_name": "SSO-MFA",
+            "role": "member",
+            "email": "dave@example.com",
+            "created_at": "2024-01-04",
+            "last_login": None,
+            "last_activity_at": None,
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "saml_idp_id": "idp-2",
+            "saml_idp_name": "Entra ID",
+            "require_platform_mfa": True,
+            "has_password": False,
+            "mfa_enabled": True,
+            "mfa_method": "totp",
+        },
+    ]
+
+    client = TestClient(app)
+    response = client.get("/users/list")
+
+    assert response.status_code == 200
+
+    # Verify template was called with user data containing auth method fields
+    # TemplateResponse(name, context) - context is the 2nd positional arg
+    template_call_args = mock_template.call_args[0]
+    context = template_call_args[1]
+    users = context["users"]
+
+    assert len(users) == 4
+    # SSO without platform MFA
+    assert users[0]["saml_idp_id"] == "idp-1"
+    assert users[0]["saml_idp_name"] == "Okta"
+    assert users[0]["require_platform_mfa"] is False
+    # Password + TOTP
+    assert users[1]["has_password"] is True
+    assert users[1]["mfa_method"] == "totp"
+    # Unverified
+    assert users[2]["has_password"] is False
+    assert users[2]["saml_idp_id"] is None
+    # SSO with platform MFA
+    assert users[3]["saml_idp_name"] == "Entra ID"
+    assert users[3]["require_platform_mfa"] is True
+    assert users[3]["mfa_method"] == "totp"
+
+
 def test_create_user_privileged_domain_creates_event_log(
     test_admin_user, test_tenant, mocker, override_auth
 ):

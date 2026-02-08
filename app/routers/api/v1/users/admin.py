@@ -12,6 +12,7 @@ from schemas.api import (
     UserListResponse,
     UserUpdate,
 )
+from schemas.saml import UserIdpAssignment
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
 
@@ -309,5 +310,56 @@ def anonymize_user(
     try:
         requesting_user = build_requesting_user(admin, tenant_id, None)
         return _pkg.users_service.anonymize_user(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+# ============================================================================
+# Admin User IdP Assignment Endpoints
+# ============================================================================
+
+
+@router.put("/{user_id}/idp", status_code=204)
+def assign_user_idp(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    user_id: str,
+    assignment: UserIdpAssignment,
+):
+    """
+    Assign a user to a SAML IdP or set them as password-only.
+
+    Every user must be either:
+    - Password user (saml_idp_id = null) - authenticates with password
+    - IdP user (saml_idp_id = UUID) - authenticates via SAML
+
+    Security constraints:
+    - Assigning to IdP wipes password (keeps MFA)
+    - Removing from IdP inactivates user and unverifies emails
+
+    Requires super_admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Request Body:
+        saml_idp_id: IdP UUID to assign, or null for password-only
+
+    Returns:
+        204 No Content on success
+
+    Errors:
+        403: Insufficient permissions (super_admin required)
+        404: User or IdP not found
+        400: Invalid assignment (e.g., already assigned to same IdP)
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        _pkg.saml_service.assign_user_idp(
+            requesting_user=requesting_user,
+            user_id=user_id,
+            saml_idp_id=assignment.saml_idp_id,
+        )
+        return None
     except ServiceError as e:
         raise translate_to_http_exception(e)

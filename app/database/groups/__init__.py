@@ -20,6 +20,7 @@ from database.groups.idp import (
     create_idp_group,
     get_group_by_idp_and_name,
     get_groups_by_idp,
+    get_idp_base_group_id,
     get_user_idp_group_ids,
     invalidate_groups_by_idp,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "get_groups_for_parent_select",
     "get_groups_for_child_select",
     # idp
+    "get_idp_base_group_id",
     "get_groups_by_idp",
     "get_group_by_idp_and_name",
     "create_idp_group",

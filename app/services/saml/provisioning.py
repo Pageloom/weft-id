@@ -89,6 +89,11 @@ def jit_provision_user(
     # Link user to the IdP that provisioned them
     database.saml.set_user_idp(tenant_id, user_id, saml_result.idp_id)
 
+    # Add to IdP base group
+    groups_service.ensure_user_in_base_group(
+        tenant_id, user_id, email, saml_result.idp_id, idp["name"]
+    )
+
     # Log JIT provisioning event
     log_event(
         tenant_id=tenant_id,
@@ -219,12 +224,21 @@ def authenticate_via_saml(
         },
     )
 
-    # Sync IdP group memberships (Phase 2: IdP Group Integration)
-    if saml_result.groups:
-        # Get IdP name for logging
-        idp = database.saml.get_identity_provider(tenant_id, saml_result.idp_id)
-        idp_name = idp.get("name", "Unknown") if idp else "Unknown"
+    # Get IdP name for base group and sync operations
+    idp = database.saml.get_identity_provider(tenant_id, saml_result.idp_id)
+    idp_name = idp.get("name", "Unknown") if idp else "Unknown"
 
+    # Ensure user is in base group (covers pre-fix users and IdP switches)
+    groups_service.ensure_user_in_base_group(
+        tenant_id,
+        user_id,
+        email,
+        saml_result.idp_id,
+        saml_result.idp_name or idp_name,
+    )
+
+    # Sync IdP sub-group memberships from assertion claims
+    if saml_result.groups:
         groups_service.sync_user_idp_groups(
             tenant_id=tenant_id,
             user_id=user_id,

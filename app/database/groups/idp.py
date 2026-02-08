@@ -3,6 +3,29 @@
 from database._core import TenantArg, execute, fetchall, fetchone, session
 
 
+def get_idp_base_group_id(tenant_id: TenantArg, idp_id: str) -> str | None:
+    """Get the base group ID for an IdP.
+
+    The base group is the one whose name matches the IdP name.
+    Uses a join to identity_providers so callers don't need the IdP name.
+
+    Returns:
+        The group ID as a string, or None if not found.
+    """
+    row = fetchone(
+        tenant_id,
+        """
+        select g.id
+        from groups g
+        join saml_identity_providers ip on g.idp_id = ip.id and g.name = ip.name
+        where g.idp_id = :idp_id
+          and g.is_valid = true
+        """,
+        {"idp_id": idp_id},
+    )
+    return str(row["id"]) if row else None
+
+
 def get_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> list[dict]:
     """Get all groups for a specific IdP."""
     return fetchall(

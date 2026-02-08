@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Security |
+| High | 0 | - |
 | Medium | 1 | API-First |
 | Low | 0 | - |
 
@@ -20,51 +20,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-06 (users.py and groups.py split into packages)
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
-
----
-
-## SECURITY: SQL injection via string interpolation in bulk group insert
-
-**Found in:** `app/database/groups/idp.py:143`
-**Severity:** High
-**Principle Violated:** Tenant Isolation (parameterized query safety)
-**Found by:** Compliance agent (manual review)
-**Date:** 2026-02-08
-
-**Description:**
-`bulk_add_user_to_groups()` builds SQL VALUES via f-string interpolation instead of parameterized queries. The `group_ids`, `tenant_id_value`, and `user_id` values are inserted directly into the SQL string using Python string formatting.
-
-**Evidence:**
-```python
-# Line 143
-values = ", ".join(f"('{tenant_id_value}', '{gid}', '{user_id}')" for gid in group_ids)
-cur.execute(
-    f"""
-    insert into group_memberships (tenant_id, group_id, user_id)
-    values {values}
-    on conflict (group_id, user_id) do nothing
-    """
-)
-```
-
-**Impact:**
-In practice, all current callers pass database-generated UUIDs (from `_apply_membership_additions` in `app/services/groups/idp.py:179`), so the immediate exploitation risk is low. However, the pattern violates parameterized query safety and would become dangerous if any future caller passes user-controlled input.
-
-**Root Cause:** Bulk insert optimization used string formatting instead of parameterized approach.
-
-**Suggested fix:**
-Replace with a parameterized loop or PostgreSQL UNNEST:
-```python
-for group_id in group_ids:
-    cur.execute(
-        """
-        insert into group_memberships (tenant_id, group_id, user_id)
-        values (%(tenant_id)s, %(group_id)s, %(user_id)s)
-        on conflict (group_id, user_id) do nothing
-        """,
-        {"tenant_id": tenant_id_value, "group_id": group_id, "user_id": user_id},
-    )
-```
 
 ---
 

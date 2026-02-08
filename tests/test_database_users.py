@@ -809,3 +809,52 @@ def test_list_users_filter_auth_method_combined_with_role(test_tenant, test_user
     assert len(users) == 1
     assert users[0]["role"] == "admin"
     assert users[0]["has_password"] is True
+
+
+def test_list_users_excludes_service_accounts(test_tenant, test_user, test_admin_user):
+    """Service accounts (B2B OAuth2 clients) are excluded from user listing."""
+    import database
+
+    # Baseline: two regular users
+    users_before = database.users.list_users(test_tenant["id"], page=1, page_size=100)
+    count_before = database.users.count_users(test_tenant["id"])
+    assert len(users_before) == 2
+    assert count_before == 2
+
+    # Create a B2B client (which creates a service user)
+    client = database.oauth2.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Test B2B App",
+        role="member",
+        created_by=str(test_admin_user["id"]),
+    )
+    assert client is not None
+    assert client["service_user_id"] is not None
+
+    # Service user should NOT appear in list or count
+    users_after = database.users.list_users(test_tenant["id"], page=1, page_size=100)
+    count_after = database.users.count_users(test_tenant["id"])
+    assert len(users_after) == 2
+    assert count_after == 2
+    assert not any(str(u["id"]) == str(client["service_user_id"]) for u in users_after)
+
+
+def test_count_users_excludes_service_accounts(test_tenant, test_user, test_admin_user):
+    """count_users excludes service accounts and agrees with list_users."""
+    import database
+
+    # Create a B2B client
+    database.oauth2.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Counter B2B App",
+        role="admin",
+        created_by=str(test_admin_user["id"]),
+    )
+
+    # Count should match list length, both excluding service user
+    count = database.users.count_users(test_tenant["id"])
+    users = database.users.list_users(test_tenant["id"], page=1, page_size=100)
+    assert count == len(users)
+    assert count == 2  # Only the two regular users

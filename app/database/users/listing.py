@@ -113,7 +113,9 @@ def count_users(
     Returns:
         Total count of matching users
     """
-    where_clauses: list[str] = []
+    where_clauses: list[str] = [
+        "not exists (select 1 from oauth2_clients oc where oc.service_user_id = u.id)",
+    ]
     params: dict[str, Any] = {}
 
     _build_search_clauses(search, where_clauses, params)
@@ -138,9 +140,7 @@ def count_users(
 
     _build_auth_method_clauses(auth_methods, where_clauses, params)
 
-    where_clause = ""
-    if where_clauses:
-        where_clause = "where " + " and ".join(where_clauses)
+    where_clause = "where " + " and ".join(where_clauses)
 
     # Need IdP join for auth method filtering
     idp_join = ""
@@ -195,8 +195,10 @@ def list_users(
         saml_idp_id, saml_idp_name, require_platform_mfa, has_password,
         mfa_enabled, and mfa_method
     """
-    # Build WHERE clause
-    where_clauses: list[str] = []
+    # Build WHERE clause — always exclude service accounts (B2B OAuth2 clients)
+    where_clauses: list[str] = [
+        "not exists (select 1 from oauth2_clients oc where oc.service_user_id = u.id)",
+    ]
     params: dict[str, Any] = {}
 
     _build_search_clauses(search, where_clauses, params)
@@ -221,9 +223,7 @@ def list_users(
 
     _build_auth_method_clauses(auth_methods, where_clauses, params)
 
-    where_clause = ""
-    if where_clauses:
-        where_clause = "where " + " and ".join(where_clauses)
+    where_clause = "where " + " and ".join(where_clauses)
 
     # SECURITY: Dynamic collation and field names in ORDER BY clause.
     #

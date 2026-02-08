@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## API-FIRST: Missing API endpoint for user-IdP assignment
+
+**Status:** Resolved (2026-02-08)
+
+**Original Severity:** Medium
+
+**Original Description:**
+The web route `POST /users/{user_id}/update-idp` calls `saml_service.assign_user_idp()` to assign or unassign a user from an IdP. No corresponding REST API endpoint existed under `/api/v1/`.
+
+**Resolution:**
+Added `PUT /api/v1/users/{user_id}/idp` endpoint in `app/routers/api/v1/users/admin.py`. Accepts `{"saml_idp_id": "..." | null}` JSON body. Requires super_admin role. Calls the existing `saml_service.assign_user_idp()` service function. Added `saml_service` re-export to the users API package for test mocking. Added 5 unit tests covering: assign to IdP, set password-only, not found, validation error, and forbidden error.
+
+**Files Changed:** `app/routers/api/v1/users/admin.py`, `app/routers/api/v1/users/__init__.py`, `tests/test_api_users.py`
+
+---
+
 ## [BUG] Users assigned to an IdP are not added to its base group
 
 **Status:** Resolved (2026-02-08)

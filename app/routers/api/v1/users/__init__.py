@@ -12,6 +12,7 @@ from routers.api.v1.users.profile import router as profile_router
 from services import emails as emails_service  # noqa: F401
 from services import groups as groups_service  # noqa: F401
 from services import mfa as mfa_service  # noqa: F401
+from services import saml as saml_service  # noqa: F401
 from services import settings as settings_service  # noqa: F401
 from services import users as users_service  # noqa: F401
 

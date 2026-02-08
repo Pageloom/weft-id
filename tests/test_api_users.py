@@ -1471,3 +1471,116 @@ def test_get_user_includes_saml_idp_info(make_user_dict, override_api_auth):
         assert data["saml_idp_id"] == idp_id
         assert data["saml_idp_name"] == "Okta Corporate"
         assert data["has_password"] is True  # Password preserved with IdP
+
+
+# =============================================================================
+# User IdP Assignment
+# =============================================================================
+
+
+def test_assign_user_idp_as_super_admin(make_user_dict, override_api_auth):
+    """Super admin can assign a user to an IdP."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": idp_id},
+        )
+
+        assert response.status_code == 204
+        mock_svc.assign_user_idp.assert_called_once()
+        call_kwargs = mock_svc.assign_user_idp.call_args
+        assert call_kwargs.kwargs["user_id"] == target_user_id
+        assert call_kwargs.kwargs["saml_idp_id"] == idp_id
+
+
+def test_assign_user_idp_set_password_only(make_user_dict, override_api_auth):
+    """Super admin can set a user as password-only by passing null."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        client = TestClient(app)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": None},
+        )
+
+        assert response.status_code == 204
+        call_kwargs = mock_svc.assign_user_idp.call_args
+        assert call_kwargs.kwargs["saml_idp_id"] is None
+
+
+def test_assign_user_idp_not_found(make_user_dict, override_api_auth):
+    """Returns 404 when user or IdP not found."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        mock_svc.assign_user_idp.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": str(uuid4())},
+        )
+
+        assert response.status_code == 404
+
+
+def test_assign_user_idp_validation_error(make_user_dict, override_api_auth):
+    """Returns 400 on validation error (e.g., already assigned to same IdP)."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        mock_svc.assign_user_idp.side_effect = ValidationError(
+            message="User already assigned to this IdP", code="already_assigned"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": str(uuid4())},
+        )
+
+        assert response.status_code == 400
+
+
+def test_assign_user_idp_forbidden_error(make_user_dict, override_api_auth):
+    """Returns 403 when service raises ForbiddenError."""
+    super_admin = make_user_dict(role="super_admin")
+    target_user_id = str(uuid4())
+
+    override_api_auth(super_admin, level="super_admin")
+
+    with patch("routers.api.v1.users.saml_service") as mock_svc:
+        mock_svc.assign_user_idp.side_effect = ForbiddenError(
+            message="Insufficient permissions", code="forbidden"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.put(
+            f"/api/v1/users/{target_user_id}/idp",
+            json={"saml_idp_id": str(uuid4())},
+        )
+
+        assert response.status_code == 403
+
+
+# Note: test_assign_user_idp_admin_forbidden (role-based auth) is covered
+# in integration tests where the full auth flow is tested.

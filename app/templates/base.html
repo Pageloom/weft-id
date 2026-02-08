@@ -16,7 +16,7 @@
     </script>
     <title>{% block title %}WeftId{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/output.css">
-    <style>
+    <style nonce="{{ csp_nonce }}">
         /* Always show scrollbar gutter to prevent layout shift */
         html {
             overflow-y: scroll;

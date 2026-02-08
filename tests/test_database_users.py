@@ -262,6 +262,74 @@ def test_list_users_includes_inactivation_fields(test_user):
         assert "is_anonymized" in u
 
 
+def test_list_users_includes_auth_method_fields(test_tenant, test_user):
+    """Test that list_users returns auth method fields."""
+    import database
+
+    # test_user has a password_hash set, so has_password should be True
+    users = database.users.list_users(test_tenant["id"], page=1, page_size=10)
+
+    user = next(u for u in users if u["id"] == test_user["id"])
+    assert user["has_password"] is True
+    assert "mfa_enabled" in user
+    assert "mfa_method" in user
+    assert user["saml_idp_id"] is None
+    assert user["saml_idp_name"] is None
+    assert user["require_platform_mfa"] is None
+
+
+def test_list_users_auth_method_with_saml_idp(test_tenant, test_user):
+    """Test that list_users returns saml_idp_name when user has an IdP assigned."""
+    import database
+
+    # Create a SAML IdP for the tenant
+    idp = database.fetchone(
+        test_tenant["id"],
+        """
+        INSERT INTO saml_identity_providers (
+            tenant_id, name, provider_type, entity_id, sso_url,
+            certificate_pem, sp_entity_id, created_by
+        ) VALUES (
+            :tenant_id, :name, 'generic', 'https://idp.example.com',
+            'https://idp.example.com/sso', 'cert-placeholder',
+            'https://sp.example.com', :created_by
+        ) RETURNING id
+        """,
+        {
+            "tenant_id": test_tenant["id"],
+            "name": "Test Okta",
+            "created_by": test_user["id"],
+        },
+    )
+
+    # Assign the IdP to the test user
+    database.execute(
+        test_tenant["id"],
+        "UPDATE users SET saml_idp_id = :idp_id WHERE id = :user_id",
+        {"idp_id": idp["id"], "user_id": test_user["id"]},
+    )
+
+    users = database.users.list_users(test_tenant["id"], page=1, page_size=10)
+    user = next(u for u in users if u["id"] == test_user["id"])
+
+    assert user["saml_idp_id"] == idp["id"]
+    assert user["saml_idp_name"] == "Test Okta"
+    assert user["require_platform_mfa"] is False
+    assert user["has_password"] is True
+
+    # Clean up: unset the IdP and delete it
+    database.execute(
+        test_tenant["id"],
+        "UPDATE users SET saml_idp_id = NULL WHERE id = :user_id",
+        {"user_id": test_user["id"]},
+    )
+    database.execute(
+        test_tenant["id"],
+        "DELETE FROM saml_identity_providers WHERE id = :idp_id",
+        {"idp_id": idp["id"]},
+    )
+
+
 def test_inactivate_user(test_user):
     """Test inactivating a user."""
     import database

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | - |
-| Medium | 1 | API-First |
+| Medium | 0 | - |
 | Low | 0 | - |
 
 **Last compliance scan:** 2026-02-08 (automated + manual five-principle review)
@@ -20,31 +20,5 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-06 (users.py and groups.py split into packages)
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
-
----
-
-## API-FIRST: Missing API endpoint for user-IdP assignment
-
-**Found in:** `app/routers/users/detail.py:181`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Found by:** Compliance agent (manual review)
-**Date:** 2026-02-08
-
-**Description:**
-The web route `POST /users/{user_id}/update-idp` calls `saml_service.assign_user_idp()` to assign or unassign a user from an IdP. No corresponding REST API endpoint exists under `/api/v1/`.
-
-**Evidence:**
-- Web route: `app/routers/users/detail.py:181` (`POST /{user_id}/update-idp`)
-- Service function: `saml_service.assign_user_idp()`
-- API search: No matches for `assign_user_idp` or `update-idp` in `app/routers/api/v1/`
-
-**Impact:**
-API consumers cannot programmatically assign users to identity providers. This breaks the API-first principle for a significant admin operation (super_admin only).
-
-**Root Cause:** The endpoint was added to the web router without a corresponding API endpoint.
-
-**Suggested fix:**
-Add a `POST /api/v1/users/{user_id}/idp` endpoint in `app/routers/api/v1/users/admin.py` (or a new `saml.py` API sub-file) that accepts `{"saml_idp_id": "..." | null}` and calls `saml_service.assign_user_idp()`.
 
 ---

@@ -6,6 +6,83 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Users List UX Overhaul
+
+**User Story:**
+As an admin
+I want a more powerful and usable user listing page
+So that I can quickly find, filter, and scan users without friction
+
+**Context:**
+
+The current user listing works but has several UX limitations: the table doesn't use available screen width, date columns show absolute timestamps that require mental math, search requires exact substring matches, and filtering only covers role and status. This item addresses four improvements together since they all target the same page and template.
+
+**Acceptance Criteria:**
+
+**1. Full-Width Layout:**
+
+- [ ] User listing table stretches to fill the full available screen width
+- [ ] Remove any max-width container constraints on the listing page
+- [ ] Table columns use available space proportionally (name and email get more room)
+- [ ] Maintains responsive behavior on smaller screens (horizontal scroll preserved)
+
+**2. Auth Method Filter:**
+
+- [ ] New "Auth Method" filter section alongside existing Role and Status filters
+- [ ] Filter options are dynamically determined from the tenant's actual data
+- [ ] Possible auth method categories:
+  - Password (password only, no MFA)
+  - Password + TOTP (password with authenticator MFA)
+  - Password + Email (password with email MFA)
+  - [IdP Name] (e.g., "Okta", "Entra ID") for IdP-only users
+  - [IdP Name] + TOTP (IdP with platform MFA required)
+  - Unverified (no credentials set)
+- [ ] IdP names come from the tenant's configured SAML identity providers
+- [ ] Multiple auth methods can be selected simultaneously (checkbox-based, like existing filters)
+- [ ] Filter is applied server-side in the database query
+- [ ] Auth method filter parameter included in URL for bookmarkability
+- [ ] Count or empty state when no users match the selected auth method
+
+**2b. Collapsible Filter Panel & Persistence:**
+
+- [ ] Filter section is collapsed by default (hidden behind an expand toggle)
+- [ ] Toggle button/chevron to expand and collapse the filter panel
+- [ ] When collapsed with active filters, show an inline indicator: "Filtered results" with a "Clear filters" link
+- [ ] "Clear filters" resets all filter selections (role, status, auth method) and reloads the page
+- [ ] Expanding the panel while filters are active shows the current selections (checkboxes checked)
+- [ ] Filter state (selected role, status, auth method checkboxes) is persisted to localStorage
+- [ ] On page load, if localStorage contains saved filters, apply them automatically via URL parameters
+- [ ] Clearing filters also clears the localStorage entry
+- [ ] localStorage key is scoped per tenant to avoid cross-tenant filter leakage
+- [ ] Expand/collapse state is also remembered in localStorage
+
+**3. Relative Date Display:**
+
+- [ ] Last Activity and Created columns show human-readable relative dates
+- [ ] Granularity by day: "Today", "Yesterday", "2 days ago", "3 days ago", etc.
+- [ ] Larger intervals: "2 weeks ago", "3 weeks ago", "1 month ago", "4 months ago", "1 year ago", "2 years ago"
+- [ ] Threshold rules: days up to 13, weeks from 14-59 days, months from 60-364 days, years from 365+ days
+- [ ] On mouseover (tooltip), show the exact datetime in the current format (Babel medium format, timezone-aware)
+- [ ] "Never" still shown when no activity/login exists
+- [ ] Relative dates are computed server-side to avoid timezone complexity in JS
+- [ ] Sorting by date columns still uses the actual datetime values (not the relative text)
+
+**4. Tokenized Search:**
+
+- [ ] Search input is split into whitespace-separated tokens
+- [ ] Each token is matched independently against first_name, last_name, and email
+- [ ] All tokens must match (AND logic) but can match across different fields
+- [ ] Example: "jon ny" matches a user with first_name="Jon" and last_name="Nylander"
+- [ ] Example: "smith gmail" matches a user named "Smith" with a Gmail address
+- [ ] Single-word searches continue to work as before (backward compatible)
+- [ ] Matching remains case-insensitive (ILIKE)
+- [ ] Empty tokens from extra whitespace are ignored
+- [ ] Search performance remains acceptable (each token adds an AND condition)
+- [ ] API endpoint search updated to use the same tokenized logic
+
+**Effort:** M
+**Value:** High (Daily-use admin page, reduces friction for common tasks)
+
 ---
 
 ## Fix: Auth Method Shows "None" for All Users in Users List

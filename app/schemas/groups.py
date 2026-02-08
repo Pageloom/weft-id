@@ -241,6 +241,14 @@ class BulkMemberAdd(BaseModel):
     user_ids: list[str] = Field(..., min_length=1, description="List of user UUIDs to add")
 
 
+class UserGroupsAdd(BaseModel):
+    """Request to add a user to one or more groups."""
+
+    group_ids: list[str] = Field(
+        ..., min_length=1, description="List of group UUIDs to add user to"
+    )
+
+
 class AvailableGroupOption(BaseModel):
     """Group option for dropdown selections."""
 

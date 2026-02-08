@@ -284,11 +284,17 @@ def list_users(
                idp.require_platform_mfa,
                u.password_hash is not null as has_password,
                u.mfa_enabled,
-               u.mfa_method
+               u.mfa_method,
+               coalesce(gc.group_count, 0) as group_count
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
         left join user_activity ua on u.id = ua.user_id
         left join saml_identity_providers idp on u.saml_idp_id = idp.id
+        left join (
+            select user_id, count(*) as group_count
+            from group_memberships
+            group by user_id
+        ) gc on u.id = gc.user_id
         {where_clause}
         order by {order_by_clause}
         limit :limit offset :offset

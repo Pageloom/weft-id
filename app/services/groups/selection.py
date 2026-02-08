@@ -2,6 +2,7 @@
 
 This module provides functions for UI dropdown/selection lists:
 - list_available_users_for_group
+- list_available_groups_for_user
 - list_available_parents
 - list_available_children
 
@@ -68,6 +69,51 @@ def list_available_users_for_group(
     ]
 
     return available
+
+
+def list_available_groups_for_user(
+    requesting_user: RequestingUser,
+    user_id: str,
+) -> list[AvailableGroupOption]:
+    """
+    List WeftID groups available to add a user to (not already a member).
+
+    Excludes IdP groups (managed by identity provider) and groups the user
+    is already in.
+
+    Authorization: Requires admin role.
+
+    Args:
+        requesting_user: The authenticated user
+        user_id: User UUID to find available groups for
+
+    Returns:
+        List of WeftID groups the user is not yet a member of
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify user exists
+    if not database.users.get_user_by_id(tenant_id, user_id):
+        raise NotFoundError(
+            message="User not found",
+            code="user_not_found",
+        )
+
+    rows = database.groups.get_groups_for_user_select(tenant_id, exclude_user_id=user_id)
+
+    # Filter to WeftID groups only (IdP groups can't be manually assigned)
+    return [
+        AvailableGroupOption(
+            id=str(r["id"]),
+            name=r["name"],
+            group_type=r["group_type"],
+        )
+        for r in rows
+        if r["group_type"] == "weftid"
+    ]
 
 
 def list_available_parents(

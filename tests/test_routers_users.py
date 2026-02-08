@@ -11,6 +11,7 @@ USERS_CREATION = "routers.users.creation"
 USERS_DETAIL = "routers.users.detail"
 USERS_EMAILS = "routers.users.emails"
 USERS_LIFECYCLE = "routers.users.lifecycle"
+USERS_GROUPS = "routers.users.groups"
 
 # Service and database modules
 SERVICES_USERS = "services.users"
@@ -189,6 +190,7 @@ def test_user_detail_page(test_admin_user, mocker, override_auth):
     mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
     mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
     mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
 
     mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
     mock_get.return_value = target_user
@@ -2919,3 +2921,192 @@ def test_promote_user_email_service_error(test_admin_user, mocker, override_auth
 
     assert response.status_code == 500
     mock_error_page.assert_called_once()
+
+
+# =============================================================================
+# User Group Membership Route Tests
+# =============================================================================
+
+
+def test_add_user_to_group_success(test_admin_user, mocker, override_auth):
+    """Test admin can add a user to a group."""
+    override_auth(test_admin_user)
+
+    mock_add = mocker.patch(f"{USERS_GROUPS}.groups_service.add_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/add",
+        data={"group_id": "group-456", "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=group_added#groups" in response.headers["location"]
+    mock_add.assert_called_once()
+
+
+def test_add_user_to_group_already_member(test_admin_user, mocker, override_auth):
+    """Test adding user to group they are already in returns conflict error."""
+    from services.exceptions import ConflictError
+
+    override_auth(test_admin_user)
+
+    mock_add = mocker.patch(f"{USERS_GROUPS}.groups_service.add_member")
+    mock_add.side_effect = ConflictError(message="Already a member", code="already_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/add",
+        data={"group_id": "group-456", "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=already_member" in response.headers["location"]
+
+
+def test_add_user_to_group_denied_for_regular_user(test_user, mocker, override_auth):
+    """Test regular user cannot add a user to a group."""
+    override_auth(test_user)
+
+    mock_add = mocker.patch(f"{USERS_GROUPS}.groups_service.add_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/add",
+        data={"group_id": "group-456", "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_add.assert_not_called()
+
+
+def test_bulk_add_user_to_groups_success(test_admin_user, mocker, override_auth):
+    """Test admin can bulk add a user to multiple groups."""
+    override_auth(test_admin_user)
+
+    mock_bulk = mocker.patch(f"{USERS_GROUPS}.groups_service.bulk_add_user_to_groups")
+    mock_bulk.return_value = 3
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/bulk",
+        data={"group_ids": ["g1", "g2", "g3"], "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=groups_bulk_added" in response.headers["location"]
+    assert "count=3" in response.headers["location"]
+    mock_bulk.assert_called_once()
+
+
+def test_remove_user_from_group_success(test_admin_user, mocker, override_auth):
+    """Test admin can remove a user from a group."""
+    override_auth(test_admin_user)
+
+    mock_remove = mocker.patch(f"{USERS_GROUPS}.groups_service.remove_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/group-456/remove",
+        data={"csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "/users/user-123?success=group_removed#groups" in response.headers["location"]
+    mock_remove.assert_called_once()
+
+
+def test_remove_user_from_group_not_found(test_admin_user, mocker, override_auth):
+    """Test removing user from group returns error when not a member."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user)
+
+    mock_remove = mocker.patch(f"{USERS_GROUPS}.groups_service.remove_member")
+    mock_remove.side_effect = NotFoundError(message="Not a member", code="not_a_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/group-456/remove",
+        data={"csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=not_a_member" in response.headers["location"]
+
+
+def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
+    """Test user detail page loads group memberships and available groups."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from schemas.groups import EffectiveMembership, EffectiveMembershipList
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
+    mock_groups = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
+    mock_available = mocker.patch(f"{USERS_DETAIL}.groups_service.list_available_groups_for_user")
+
+    mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
+    mock_get.return_value = target_user
+    mock_domains.return_value = []
+
+    mock_memberships = EffectiveMembershipList(
+        items=[
+            EffectiveMembership(
+                id="group-1",
+                name="Engineering",
+                description=None,
+                group_type="weftid",
+                idp_id=None,
+                idp_name=None,
+                is_direct=True,
+            ),
+        ]
+    )
+    mock_groups.return_value = mock_memberships
+    mock_available.return_value = [
+        {"id": "group-2", "name": "Sales"},
+    ]
+
+    client = TestClient(app)
+    response = client.get("/users/user-123")
+
+    assert response.status_code == 200
+    mock_groups.assert_called_once()
+    mock_available.assert_called_once()
+
+    # Verify template was called with group data in context
+    template_call_args = mock_template.call_args[0]
+    context = template_call_args[1]
+    assert "user_groups" in context
+    assert "available_groups" in context
+    assert context["user_groups"] == mock_memberships
+    assert len(context["available_groups"]) == 1

@@ -1931,3 +1931,330 @@ def test_bulk_add_members_group_not_found(make_requesting_user):
             groups_service.bulk_add_members(requesting_user, str(uuid4()), [str(uuid4())])
 
         assert exc_info.value.code == "group_not_found"
+
+
+# =============================================================================
+# List Available Groups for User Tests
+# =============================================================================
+
+
+def test_list_available_groups_for_user_as_admin(make_requesting_user):
+    """Test that an admin can get available groups for a user."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    weftid_group_id = uuid4()
+    idp_group_id = uuid4()
+
+    mock_rows = [
+        {"id": weftid_group_id, "name": "Engineering", "group_type": "weftid"},
+        {"id": idp_group_id, "name": "Okta All", "group_type": "idp"},
+    ]
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_groups_for_user_select.return_value = mock_rows
+
+        result = groups_service.list_available_groups_for_user(requesting_user, user_id)
+
+        # Only weftid groups should be returned
+        assert len(result) == 1
+        assert result[0].id == str(weftid_group_id)
+        assert result[0].name == "Engineering"
+        assert result[0].group_type == "weftid"
+
+
+def test_list_available_groups_for_user_filters_idp_groups(make_requesting_user):
+    """Test that all IdP groups are filtered out, returning empty list."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_rows = [
+        {"id": uuid4(), "name": "Okta Engineering", "group_type": "idp"},
+        {"id": uuid4(), "name": "Okta Sales", "group_type": "idp"},
+    ]
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_groups_for_user_select.return_value = mock_rows
+
+        result = groups_service.list_available_groups_for_user(requesting_user, user_id)
+
+        assert len(result) == 0
+
+
+def test_list_available_groups_for_user_not_found(make_requesting_user):
+    """Test that listing available groups for a non-existent user raises NotFoundError."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.users.get_user_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_available_groups_for_user(requesting_user, user_id)
+
+        assert exc_info.value.code == "user_not_found"
+
+
+def test_list_available_groups_for_user_forbidden_for_member(make_requesting_user):
+    """Test that a regular member cannot list available groups for a user."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.list_available_groups_for_user(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# Get Direct Memberships Tests
+# =============================================================================
+
+
+def test_get_direct_memberships_as_admin(make_requesting_user):
+    """Test that an admin can get direct memberships for any user."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    target_user_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_rows = [
+        {
+            "id": uuid4(),
+            "name": "Engineering",
+            "description": None,
+            "group_type": "weftid",
+            "joined_at": datetime.now(UTC),
+        },
+        {
+            "id": uuid4(),
+            "name": "Marketing",
+            "description": "Marketing team",
+            "group_type": "weftid",
+            "joined_at": datetime.now(UTC),
+        },
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_user_groups.return_value = mock_rows
+
+        result = groups_service.get_direct_memberships(requesting_user, target_user_id)
+
+        assert len(result.items) == 2
+        assert all(item.is_direct is True for item in result.items)
+        assert result.items[0].name == "Engineering"
+        assert result.items[1].name == "Marketing"
+
+
+def test_get_direct_memberships_self(make_requesting_user):
+    """Test that a user can see their own direct memberships."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="member")
+
+    mock_rows = [
+        {
+            "id": uuid4(),
+            "name": "Engineering",
+            "description": None,
+            "group_type": "weftid",
+            "joined_at": datetime.now(UTC),
+        },
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_user_groups.return_value = mock_rows
+
+        result = groups_service.get_direct_memberships(requesting_user, user_id)
+
+        assert len(result.items) == 1
+        assert result.items[0].is_direct is True
+        assert result.items[0].name == "Engineering"
+
+
+def test_get_direct_memberships_other_user_forbidden(make_requesting_user):
+    """Test that a member cannot view another user's direct memberships."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+    other_user_id = str(uuid4())
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        groups_service.get_direct_memberships(requesting_user, other_user_id)
+
+    assert exc_info.value.code == "forbidden"
+
+
+# =============================================================================
+# Bulk Add User to Groups Tests
+# =============================================================================
+
+
+def test_bulk_add_user_to_groups_success(make_requesting_user):
+    """Test admin adds a user to 2 weftid groups successfully."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    group1_id = str(uuid4())
+    group2_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group1 = {"id": group1_id, "name": "Engineering", "group_type": "weftid"}
+    mock_group2 = {"id": group2_id, "name": "Marketing", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_group_by_id.side_effect = [mock_group1, mock_group2]
+        mock_db.groups.is_group_member.return_value = False
+        mock_db.groups.add_group_member.return_value = {"id": str(uuid4())}
+
+        result = groups_service.bulk_add_user_to_groups(
+            requesting_user, user_id, [group1_id, group2_id]
+        )
+
+        assert result == 2
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["event_type"] == "user_groups_bulk_added"
+        assert call_kwargs["metadata"]["count"] == 2
+
+
+def test_bulk_add_user_to_groups_skips_idp_groups(make_requesting_user):
+    """Test that IdP groups are skipped, only weftid groups are added."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    weftid_group_id = str(uuid4())
+    idp_group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_weftid_group = {"id": weftid_group_id, "name": "Engineering", "group_type": "weftid"}
+    mock_idp_group = {"id": idp_group_id, "name": "Okta All", "group_type": "idp"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_group_by_id.side_effect = [mock_idp_group, mock_weftid_group]
+        mock_db.groups.is_group_member.return_value = False
+        mock_db.groups.add_group_member.return_value = {"id": str(uuid4())}
+
+        result = groups_service.bulk_add_user_to_groups(
+            requesting_user, user_id, [idp_group_id, weftid_group_id]
+        )
+
+        assert result == 1
+
+
+def test_bulk_add_user_to_groups_skips_existing_members(make_requesting_user):
+    """Test that groups where user is already a member are skipped."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    group1_id = str(uuid4())
+    group2_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group1 = {"id": group1_id, "name": "Engineering", "group_type": "weftid"}
+    mock_group2 = {"id": group2_id, "name": "Marketing", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_group_by_id.side_effect = [mock_group1, mock_group2]
+        # User is already a member of the first group but not the second
+        mock_db.groups.is_group_member.side_effect = [True, False]
+        mock_db.groups.add_group_member.return_value = {"id": str(uuid4())}
+
+        result = groups_service.bulk_add_user_to_groups(
+            requesting_user, user_id, [group1_id, group2_id]
+        )
+
+        assert result == 1
+
+
+def test_bulk_add_user_to_groups_user_not_found(make_requesting_user):
+    """Test that adding to groups for a non-existent user raises NotFoundError."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with patch("services.groups.membership.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.bulk_add_user_to_groups(requesting_user, str(uuid4()), [str(uuid4())])
+
+        assert exc_info.value.code == "user_not_found"
+
+
+def test_bulk_add_user_to_groups_no_event_when_zero_added(make_requesting_user):
+    """Test that no event is logged when all groups are IdP (zero added)."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_idp_group = {"id": idp_group_id, "name": "Okta All", "group_type": "idp"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.users.get_user_by_id.return_value = {"id": user_id}
+        mock_db.groups.get_group_by_id.return_value = mock_idp_group
+
+        result = groups_service.bulk_add_user_to_groups(requesting_user, user_id, [idp_group_id])
+
+        assert result == 0
+        mock_log.assert_not_called()
+
+
+def test_bulk_add_user_to_groups_forbidden_for_member(make_requesting_user):
+    """Test that a regular member cannot bulk add a user to groups."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.bulk_add_user_to_groups(requesting_user, str(uuid4()), [str(uuid4())])

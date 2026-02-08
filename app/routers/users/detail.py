@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import has_page_access
 from schemas.api import UserUpdate
+from services import groups as groups_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
@@ -69,6 +70,15 @@ def user_detail(
             tenant_id, user_detail_data.saml_idp_id
         )
 
+    # Get group memberships and available groups for assignment
+    user_groups = None
+    available_groups = []
+    try:
+        user_groups = groups_service.get_effective_memberships(requesting_user, user_id)
+        available_groups = groups_service.list_available_groups_for_user(requesting_user, user_id)
+    except ServiceError:
+        pass  # Gracefully degrade if group data unavailable
+
     # Get success/error messages from query params
     success = request.query_params.get("success")
     error = request.query_params.get("error")
@@ -83,6 +93,8 @@ def user_detail(
             privileged_domains=privileged_domains,
             idps=idps,
             idp_requires_mfa=idp_requires_mfa,
+            user_groups=user_groups,
+            available_groups=available_groups,
             success=success,
             error=error,
         ),

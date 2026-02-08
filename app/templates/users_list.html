@@ -227,6 +227,7 @@
             const TENANT_ID = {{ user.tenant_id | string | tojson }};
             const STORAGE_KEY = 'weftid_filters_' + TENANT_ID;
             const COLLAPSE_KEY = 'weftid_filters_collapsed_' + TENANT_ID;
+            const PAGE_SIZE_KEY = 'weftid_page_size_' + TENANT_ID;
 
             // Toggle filter panel
             const toggleBtn = document.getElementById('toggle-filters-btn');
@@ -303,31 +304,51 @@
                 });
             });
 
-            // Restore filters from localStorage on page load (only if no URL filters present)
+            // Restore page size and filters from localStorage in a single redirect
+            let effectivePageSize = '{{ pagination.page_size }}';
+            try {
+                const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
+                if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
+                    effectivePageSize = savedSize;
+                }
+            } catch(e) {}
+
+            const needsSizeRestore = !new URLSearchParams(window.location.search).has('size')
+                && effectivePageSize !== '25';
+
             const urlHasFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
+            let savedFilters = null;
             if (!urlHasFilters) {
                 try {
-                    const saved = localStorage.getItem(STORAGE_KEY);
-                    if (saved) {
-                        const filters = JSON.parse(saved);
-                        const hasFilters = (filters.roles && filters.roles.length > 0)
-                            || (filters.statuses && filters.statuses.length > 0)
-                            || (filters.auth_methods && filters.auth_methods.length > 0);
-                        if (hasFilters) {
-                            let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
-                            {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
-                            if (filters.roles && filters.roles.length > 0) url += '&role=' + filters.roles.join(',');
-                            if (filters.statuses && filters.statuses.length > 0) url += '&status=' + filters.statuses.join(',');
-                            if (filters.auth_methods && filters.auth_methods.length > 0) url += '&auth_method=' + filters.auth_methods.join(',');
-                            window.location.href = url;
-                        }
-                    }
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) savedFilters = JSON.parse(raw);
                 } catch(e) {}
+            }
+            const needsFilterRestore = savedFilters && (
+                (savedFilters.roles && savedFilters.roles.length > 0)
+                || (savedFilters.statuses && savedFilters.statuses.length > 0)
+                || (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
+            );
+
+            if (needsSizeRestore || needsFilterRestore) {
+                let url = '/users/list?page=1&size=' + effectivePageSize
+                    + '&sort={{ sort_field }}&order={{ sort_order }}';
+                {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+                if (needsFilterRestore) {
+                    if (savedFilters.roles && savedFilters.roles.length > 0)
+                        url += '&role=' + savedFilters.roles.join(',');
+                    if (savedFilters.statuses && savedFilters.statuses.length > 0)
+                        url += '&status=' + savedFilters.statuses.join(',');
+                    if (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
+                        url += '&auth_method=' + savedFilters.auth_methods.join(',');
+                }
+                window.location.href = url;
             }
 
             // Page size selector
             document.querySelectorAll('#page-size').forEach(function(select) {
                 select.addEventListener('change', function() {
+                    try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
                     let url = '?page=1&size=' + this.value;
                     url += '&sort=' + this.dataset.sort;
                     url += '&order=' + this.dataset.order;

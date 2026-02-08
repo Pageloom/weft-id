@@ -64,6 +64,8 @@ from services.groups.idp import (
 from services.groups.membership import (
     add_member,
     bulk_add_members,
+    bulk_add_user_to_groups,
+    get_direct_memberships,
     get_effective_members,
     get_effective_memberships,
     get_my_groups,
@@ -74,6 +76,7 @@ from services.groups.membership import (
 # Re-export from selection module
 from services.groups.selection import (
     list_available_children,
+    list_available_groups_for_user,
     list_available_parents,
     list_available_users_for_group,
 )
@@ -93,6 +96,8 @@ __all__ = [
     # Membership
     "add_member",
     "bulk_add_members",
+    "bulk_add_user_to_groups",
+    "get_direct_memberships",
     "get_effective_members",
     "get_effective_memberships",
     "get_my_groups",
@@ -105,6 +110,7 @@ __all__ = [
     "remove_child",
     # Selection
     "list_available_children",
+    "list_available_groups_for_user",
     "list_available_parents",
     "list_available_users_for_group",
     # Utilities

@@ -461,6 +461,28 @@ def test_handle_export_events_filename_format(test_tenant, test_admin_user):
         assert len(parts) == 3  # date, time, hash
 
 
+def test_handle_export_events_nonexistent_tenant():
+    """Test export raises early when tenant does not exist, before writing files."""
+    from jobs.export_events import handle_export_events
+
+    task = {
+        "id": str(uuid4()),
+        "tenant_id": str(uuid4()),  # Non-existent tenant
+        "created_by": str(uuid4()),
+        "job_type": "export_events",
+    }
+
+    with patch("jobs.export_events.storage.get_backend") as mock_get_backend:
+        mock_backend = MagicMock()
+        mock_get_backend.return_value = mock_backend
+
+        with pytest.raises(ValueError, match="does not exist"):
+            handle_export_events(task)
+
+        # Storage should never have been called
+        assert not mock_backend.save.called
+
+
 # =============================================================================
 # Export Notification Tests
 # =============================================================================

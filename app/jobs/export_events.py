@@ -46,6 +46,11 @@ def handle_export_events(task: dict) -> dict[str, Any]:
 
     logger.info("Starting event log export for tenant %s", tenant_id)
 
+    # Validate tenant exists before doing any work (avoids orphaned storage files)
+    tenant = database.tenants.get_tenant_by_id(tenant_id)
+    if not tenant:
+        raise ValueError(f"Tenant {tenant_id} does not exist")
+
     # Get all events (paginated to avoid memory issues)
     all_events = []
     offset = 0

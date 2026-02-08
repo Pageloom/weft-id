@@ -5378,3 +5378,246 @@ def test_list_saml_debug_entries_requires_super_admin(test_tenant, test_admin_us
         saml_service.list_saml_debug_entries(requesting_user)
 
     assert exc_info.value.code == "super_admin_required"
+
+
+# =============================================================================
+# Base Group Membership Integration Tests
+# =============================================================================
+
+
+def test_jit_provision_adds_user_to_base_group(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that JIT provisioning adds the new user to the IdP's base group."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create enabled IdP with JIT
+    data = IdPCreate(**test_idp_data, is_enabled=True, jit_provisioning=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    # Get base group ID
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, created.id)
+    assert base_group_id is not None
+
+    # JIT provision a new user
+    new_email = "jit.basegroup@example.com"
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=new_email,
+            first_name="Base",
+            last_name="GroupUser",
+            name_id=new_email,
+        ),
+        idp_id=created.id,
+        idp_name=created.name,
+        requires_mfa=False,
+    )
+
+    user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+    user_id = str(user["id"])
+
+    # Verify user is in the base group
+    assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+
+def test_authenticate_via_saml_existing_user_added_to_base_group(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that existing user is added to base group on SAML auth."""
+    import database
+    from schemas.saml import IdPCreate, SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create enabled IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    created = saml_service.create_identity_provider(
+        requesting_user, data, "https://test.example.com"
+    )
+
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, created.id)
+    assert base_group_id is not None
+
+    # Authenticate existing user via SAML (no groups in assertion)
+    saml_result = SAMLAuthResult(
+        attributes=SAMLAttributes(
+            email=test_user["email"],
+            first_name=test_user["first_name"],
+            last_name=test_user["last_name"],
+            name_id=test_user["email"],
+        ),
+        idp_id=created.id,
+        idp_name=created.name,
+        requires_mfa=False,
+    )
+
+    user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+    user_id = str(user["id"])
+
+    # User should be in the base group even without group claims
+    assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+
+def test_bind_domain_adds_users_to_base_group(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that binding a domain adds all matching users to the IdP base group."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create unique domain
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    domain_name = f"basegrp-{unique_suffix}.example.com"
+    domain_data = PrivilegedDomainCreate(domain=domain_name)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create a user with email in this domain
+    user_email = f"user@{domain_name}"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Domain",
+        last_name="User",
+        email=user_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id, user_id=user_id, email=user_email, is_primary=True
+    )
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp.id)
+    assert base_group_id is not None
+
+    # Bind domain to IdP
+    saml_service.bind_domain_to_idp(requesting_user, idp_id=idp.id, domain_id=domain.id)
+
+    # User should now be in the base group
+    assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+
+def test_assign_user_idp_adds_to_base_group(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that manually assigning a user to an IdP adds them to the base group."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp.id)
+    assert base_group_id is not None
+
+    user_id = str(test_user["id"])
+
+    # Assign user to IdP
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+
+    # User should be in the base group
+    assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+
+def test_assign_user_idp_disconnect_removes_from_all_groups(
+    test_tenant, test_super_admin_user, test_user, test_idp_data
+):
+    """Test that disconnecting a user from IdP removes them from all IdP groups."""
+    import database
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create IdP
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp.id)
+    user_id = str(test_user["id"])
+
+    # Assign user to IdP (adds to base group)
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=idp.id)
+    assert database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+    # Disconnect user from IdP (removes from all IdP groups, inactivates user)
+    saml_service.assign_user_idp(requesting_user, user_id, saml_idp_id=None)
+
+    # User should no longer be in the base group
+    assert not database.groups.is_group_member(tenant_id, base_group_id, user_id)
+
+
+def test_rebind_domain_moves_users_between_base_groups(
+    test_tenant, test_super_admin_user, test_idp_data
+):
+    """Test that rebinding a domain moves users from old to new base group."""
+    import database
+    from schemas.saml import IdPCreate
+    from schemas.settings import PrivilegedDomainCreate
+    from services import saml as saml_service
+    from services import settings as settings_service
+    from services import users as users_service
+
+    tenant_id = str(test_tenant["id"])
+    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
+
+    # Create unique domain
+    unique_suffix = str(test_super_admin_user["id"])[:8]
+    domain_name = f"rebind-{unique_suffix}.example.com"
+    domain_data = PrivilegedDomainCreate(domain=domain_name)
+    domain = settings_service.add_privileged_domain(requesting_user, domain_data)
+
+    # Create a user with email in this domain
+    user_email = f"user@{domain_name}"
+    user_result = users_service.create_user_raw(
+        tenant_id=tenant_id,
+        first_name="Rebind",
+        last_name="User",
+        email=user_email,
+        role="member",
+    )
+    user_id = str(user_result["user_id"])
+    users_service.add_verified_email_with_nonce(
+        tenant_id=tenant_id, user_id=user_id, email=user_email, is_primary=True
+    )
+
+    # Create two IdPs
+    data1 = IdPCreate(**test_idp_data, is_enabled=True)
+    idp1 = saml_service.create_identity_provider(requesting_user, data1, "https://test.example.com")
+    base_group_id_1 = database.groups.get_idp_base_group_id(tenant_id, idp1.id)
+
+    idp_data_2 = {**test_idp_data, "name": "Second IdP", "entity_id": "https://second.example.com"}
+    data2 = IdPCreate(**idp_data_2, is_enabled=True)
+    idp2 = saml_service.create_identity_provider(requesting_user, data2, "https://test.example.com")
+    base_group_id_2 = database.groups.get_idp_base_group_id(tenant_id, idp2.id)
+
+    # Bind domain to first IdP
+    saml_service.bind_domain_to_idp(requesting_user, idp_id=idp1.id, domain_id=domain.id)
+    assert database.groups.is_group_member(tenant_id, base_group_id_1, user_id)
+
+    # Rebind domain to second IdP
+    saml_service.rebind_domain_to_idp(requesting_user, domain_id=domain.id, new_idp_id=idp2.id)
+
+    # User should be removed from first base group and added to second
+    assert not database.groups.is_group_member(tenant_id, base_group_id_1, user_id)
+    assert database.groups.is_group_member(tenant_id, base_group_id_2, user_id)

@@ -6,10 +6,16 @@ This module provides business logic for IdP-managed group operations:
 - sync_user_idp_groups
 - invalidate_idp_groups
 - list_groups_for_idp
+- ensure_user_in_base_group / remove_user_from_base_group
+- ensure_users_in_base_group
+- remove_user_from_all_idp_groups
+- move_users_between_idps
 
 These are system-level operations typically invoked during SAML authentication
 or IdP lifecycle events.
 """
+
+import logging
 
 import database
 from schemas.groups import GroupDetail, GroupSummary
@@ -301,6 +307,11 @@ def sync_user_idp_groups(
             if group_info.get("created"):
                 result["created"].append(group_name)
 
+    # Protect base group from removal (managed by assignment, not assertions)
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if base_group_id:
+        current_group_ids.discard(base_group_id)
+
     # Apply additions and removals
     to_add = target_group_ids - current_group_ids
     to_remove = current_group_ids - target_group_ids
@@ -364,6 +375,220 @@ def invalidate_idp_groups(
                 )
 
     return count
+
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Base Group Membership Helpers
+# ============================================================================
+
+
+def ensure_user_in_base_group(
+    tenant_id: str,
+    user_id: str,
+    user_email: str,
+    idp_id: str,
+    idp_name: str,
+) -> None:
+    """Add user to the IdP's base group if not already a member.
+
+    Called from all IdP assignment paths to guarantee every assigned user
+    is in the base group.
+    """
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if not base_group_id:
+        logger.warning(
+            "No base group found for IdP %s (%s), skipping base group assignment",
+            idp_id,
+            idp_name,
+        )
+        return
+
+    if database.groups.is_group_member(tenant_id, base_group_id, user_id):
+        return
+
+    database.groups.bulk_add_user_to_groups(tenant_id, tenant_id, user_id, [base_group_id])
+
+    with system_context():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="group_membership",
+            artifact_id=f"{base_group_id}:{user_id}",
+            event_type="idp_group_member_added",
+            metadata={
+                "idp_id": idp_id,
+                "idp_name": idp_name,
+                "user_id": user_id,
+                "user_email": user_email,
+                "group_id": base_group_id,
+                "group_name": idp_name,
+                "sync_source": "idp_assignment",
+            },
+        )
+
+
+def remove_user_from_base_group(
+    tenant_id: str,
+    user_id: str,
+    user_email: str,
+    idp_id: str,
+    idp_name: str,
+) -> None:
+    """Remove user from the IdP's base group."""
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if not base_group_id:
+        return
+
+    database.groups.bulk_remove_user_from_groups(tenant_id, user_id, [base_group_id])
+
+    with system_context():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="group_membership",
+            artifact_id=f"{base_group_id}:{user_id}",
+            event_type="idp_group_member_removed",
+            metadata={
+                "idp_id": idp_id,
+                "idp_name": idp_name,
+                "user_id": user_id,
+                "user_email": user_email,
+                "group_id": base_group_id,
+                "group_name": idp_name,
+                "sync_source": "idp_reassignment",
+            },
+        )
+
+
+def ensure_users_in_base_group(
+    tenant_id: str,
+    user_ids: list[str],
+    idp_id: str,
+    idp_name: str,
+) -> int:
+    """Add multiple users to the IdP's base group.
+
+    Uses bulk_add_user_to_groups which handles ON CONFLICT DO NOTHING,
+    so already-members are silently skipped.
+
+    Returns:
+        Number of memberships actually created.
+    """
+    if not user_ids:
+        return 0
+
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if not base_group_id:
+        logger.warning(
+            "No base group found for IdP %s (%s), skipping bulk base group assignment",
+            idp_id,
+            idp_name,
+        )
+        return 0
+
+    total_added = 0
+    for user_id in user_ids:
+        added = database.groups.bulk_add_user_to_groups(
+            tenant_id, tenant_id, user_id, [base_group_id]
+        )
+        if added:
+            total_added += added
+            with system_context():
+                log_event(
+                    tenant_id=tenant_id,
+                    actor_user_id=SYSTEM_ACTOR_ID,
+                    artifact_type="group_membership",
+                    artifact_id=f"{base_group_id}:{user_id}",
+                    event_type="idp_group_member_added",
+                    metadata={
+                        "idp_id": idp_id,
+                        "idp_name": idp_name,
+                        "user_id": user_id,
+                        "group_id": base_group_id,
+                        "group_name": idp_name,
+                        "sync_source": "idp_assignment",
+                    },
+                )
+
+    return total_added
+
+
+def remove_user_from_all_idp_groups(
+    tenant_id: str,
+    user_id: str,
+    user_email: str,
+    idp_id: str,
+    idp_name: str,
+) -> None:
+    """Remove user from all groups (base + sub-groups) for an IdP."""
+    group_ids = database.groups.get_user_idp_group_ids(tenant_id, user_id, idp_id)
+    if not group_ids:
+        return
+
+    # Collect group names before removal for logging
+    groups_info: list[tuple[str, str]] = []
+    for gid in group_ids:
+        group = database.groups.get_group_by_id(tenant_id, gid)
+        groups_info.append((gid, group["name"] if group else "Unknown"))
+
+    database.groups.bulk_remove_user_from_groups(tenant_id, user_id, group_ids)
+
+    with system_context():
+        for gid, gname in groups_info:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
+                artifact_type="group_membership",
+                artifact_id=f"{gid}:{user_id}",
+                event_type="idp_group_member_removed",
+                metadata={
+                    "idp_id": idp_id,
+                    "idp_name": idp_name,
+                    "user_id": user_id,
+                    "user_email": user_email,
+                    "group_id": gid,
+                    "group_name": gname,
+                    "sync_source": "idp_reassignment",
+                },
+            )
+
+
+def move_users_between_idps(
+    tenant_id: str,
+    user_ids: list[str],
+    old_idp_id: str,
+    old_idp_name: str,
+    new_idp_id: str,
+    new_idp_name: str,
+) -> None:
+    """Remove users from all old IdP groups and add them to the new IdP's base group."""
+    for user_id in user_ids:
+        # Remove from all old IdP groups (base + sub-groups)
+        old_group_ids = database.groups.get_user_idp_group_ids(tenant_id, user_id, old_idp_id)
+        if old_group_ids:
+            database.groups.bulk_remove_user_from_groups(tenant_id, user_id, old_group_ids)
+            with system_context():
+                for gid in old_group_ids:
+                    log_event(
+                        tenant_id=tenant_id,
+                        actor_user_id=SYSTEM_ACTOR_ID,
+                        artifact_type="group_membership",
+                        artifact_id=f"{gid}:{user_id}",
+                        event_type="idp_group_member_removed",
+                        metadata={
+                            "idp_id": old_idp_id,
+                            "idp_name": old_idp_name,
+                            "user_id": user_id,
+                            "group_id": gid,
+                            "sync_source": "idp_reassignment",
+                        },
+                    )
+
+    # Add all users to new IdP's base group
+    ensure_users_in_base_group(tenant_id, user_ids, new_idp_id, new_idp_name)
 
 
 def list_groups_for_idp(

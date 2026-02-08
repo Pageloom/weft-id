@@ -329,11 +329,13 @@
                                 </span>
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {{ fmt_datetime(u.last_activity_at) if u.last_activity_at else 'Never' }}
+                            {% set rel_activity = fmt_relative(u.last_activity_at) %}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_activity[1] }}">
+                                {{ rel_activity[0] }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {{ fmt_datetime(u.created_at) }}
+                            {% set rel_created = fmt_relative(u.created_at) %}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_created[1] }}">
+                                {{ rel_created[0] }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% if u.saml_idp_id and u.require_platform_mfa %}

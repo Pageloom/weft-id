@@ -4,6 +4,75 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Users List UX Overhaul
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want a more powerful and usable user listing page
+So that I can quickly find, filter, and scan users without friction
+
+**Completed Work:**
+
+**1. Full-Width Layout:**
+
+- [x] User listing table stretches to fill the full available screen width
+- [x] Removed max-width container constraints on the listing page
+- [x] Table columns use available space proportionally (name and email get more room)
+- [x] Maintains responsive behavior on smaller screens (horizontal scroll preserved)
+
+**2. Relative Date Display:**
+
+- [x] Last Activity and Created columns show human-readable relative dates
+- [x] Granularity: "Today", "Yesterday", "3 days ago", "2 weeks ago", "4 months ago", "1 year ago"
+- [x] Threshold rules: days up to 13, weeks from 14-59 days, months from 60-364 days, years from 365+ days
+- [x] Tooltip shows exact datetime in Babel medium format (timezone-aware)
+- [x] "Never" shown when no activity exists
+- [x] Computed server-side; date column sorting uses actual datetime values
+
+**3. Tokenized Search:**
+
+- [x] Search input split into whitespace-separated tokens
+- [x] Each token matched independently against first_name, last_name, and email (AND across tokens, OR within)
+- [x] Single-word searches backward compatible
+- [x] Case-insensitive matching (ILIKE)
+- [x] API endpoint benefits automatically (same database layer)
+
+**4. Auth Method Filter + Collapsible Panel:**
+
+- [x] Auth method filter section alongside existing Role and Status filters
+- [x] Filter options built from static categories plus tenant's SAML IdPs
+- [x] Categories: Password + Email, Password + TOTP, [IdP Name], [IdP Name] + TOTP, Unverified
+- [x] Multiple auth methods selectable (checkbox-based)
+- [x] Filter applied server-side in database query
+- [x] Auth method parameter included in URL for bookmarkability
+- [x] Collapsible filter panel (collapsed by default)
+- [x] "Filtered results" indicator with "Clear filters" link when collapsed with active filters
+- [x] Filter state persisted to localStorage (scoped by tenant_id)
+- [x] Collapse/expand state also remembered in localStorage
+
+**Also fixed:** Auth method column previously showed "None" for all users because the listing
+query omitted `saml_idp_id`, `has_password`, `mfa_enabled`, and `mfa_method`. Now included.
+
+**Technical Implementation:**
+
+- `app/templates/base.html`: Content wrapper class overridable via `{% block content_wrapper %}`
+- `app/templates/users_list.html`: Full-width layout, relative dates, collapsible filter panel, localStorage persistence
+- `app/utils/datetime_format.py`: `format_relative_date()` and `create_relative_date_formatter()`
+- `app/utils/template_context.py`: `fmt_relative` injected into template context
+- `app/database/users/listing.py`: `_build_search_clauses()`, `_build_auth_method_clauses()`, auth_methods param
+- `app/services/users/utilities.py`: `get_auth_method_options()` builds options from static + IdP data
+- `app/services/users/crud.py`: `list_users()` accepts roles/statuses/auth_methods
+- `app/routers/users/listing.py`: Parses auth_method query param, fetches options, passes to template
+- `app/routers/api/v1/users/admin.py`: role/status/auth_method query params for API
+- 26 new tests across database, router, API, and utility layers
+
+**Effort:** M
+**Value:** High (Daily-use admin page, reduces friction for common tasks)
+
+---
+
 ## Group System - Phase 1: Core Infrastructure
 
 **Status:** Complete

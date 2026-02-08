@@ -35,6 +35,13 @@ def list_users(
         description="Sort field (name, email, role, created_at, last_login, last_activity_at)",
     ),
     sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
+    role: str | None = Query(
+        None, description="Comma-separated role filter (member,admin,super_admin)"
+    ),
+    status: str | None = Query(
+        None, description="Comma-separated status filter (active,inactivated,anonymized)"
+    ),
+    auth_method: str | None = Query(None, description="Comma-separated auth method filter"),
 ):
     """
     List all users in the tenant with pagination and search.
@@ -47,10 +54,34 @@ def list_users(
         search: Search term for name or email
         sort_by: Field to sort by (name, email, role, created_at, last_login, last_activity_at)
         sort_order: Sort order (asc or desc)
+        role: Comma-separated role filter (member, admin, super_admin)
+        status: Comma-separated status filter (active, inactivated, anonymized)
+        auth_method: Comma-separated auth method keys
 
     Returns:
         Paginated list of users
     """
+    # Parse filters
+    roles: list[str] | None = None
+    if role:
+        allowed_roles = {"member", "admin", "super_admin"}
+        roles = [r.strip() for r in role.split(",") if r.strip() in allowed_roles]
+        if not roles:
+            roles = None
+
+    statuses: list[str] | None = None
+    if status:
+        allowed_statuses = {"active", "inactivated", "anonymized"}
+        statuses = [s.strip() for s in status.split(",") if s.strip() in allowed_statuses]
+        if not statuses:
+            statuses = None
+
+    auth_methods: list[str] | None = None
+    if auth_method:
+        auth_methods = [m.strip() for m in auth_method.split(",") if m.strip()]
+        if not auth_methods:
+            auth_methods = None
+
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return _pkg.users_service.list_users(
@@ -60,6 +91,9 @@ def list_users(
             search=search,
             sort_by=sort_by,
             sort_order=sort_order,
+            roles=roles,
+            statuses=statuses,
+            auth_methods=auth_methods,
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

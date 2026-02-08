@@ -1,9 +1,14 @@
 """Tests for datetime formatting utilities."""
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from app.utils.datetime_format import create_datetime_formatter, format_datetime
+from app.utils.datetime_format import (
+    create_datetime_formatter,
+    create_relative_date_formatter,
+    format_datetime,
+    format_relative_date,
+)
 
 
 def test_format_datetime_basic():
@@ -158,3 +163,128 @@ def test_format_datetime_different_timezones():
     assert isinstance(result_utc, str)
     assert isinstance(result_tokyo, str)
     assert isinstance(result_la, str)
+
+
+# ============================================================================
+# Relative date formatting tests
+# ============================================================================
+
+
+class TestFormatRelativeDate:
+    """Tests for format_relative_date()."""
+
+    def test_none_returns_never(self):
+        result = format_relative_date(None)
+        assert result == ("Never", "")
+
+    def test_today(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, exact = format_relative_date(dt, reference=ref)
+        assert rel == "Today"
+        assert len(exact) > 0
+
+    def test_yesterday(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 14, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, exact = format_relative_date(dt, reference=ref)
+        assert rel == "Yesterday"
+
+    def test_days_ago(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 12, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "3 days ago"
+
+    def test_boundary_13_days(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 2, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "13 days ago"
+
+    def test_boundary_14_days_switches_to_weeks(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 1, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "2 weeks ago"
+
+    def test_weeks_ago(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 5, 25, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "3 weeks ago"
+
+    def test_boundary_60_days_switches_to_months(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 4, 16, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "2 months ago"
+
+    def test_months_ago(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 2, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "4 months ago"
+
+    def test_boundary_365_days_switches_to_years(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2024, 6, 14, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "1 year ago"
+
+    def test_years_ago(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2023, 1, 1, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "2 years ago"
+
+    def test_future_date(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 20, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "In the future"
+
+    def test_timezone_edge_case(self):
+        """A datetime that is 'yesterday' in UTC but 'today' in a +12 timezone."""
+        ref = date(2025, 6, 15)
+        # 23:30 UTC on June 14 = 11:30 June 15 in Pacific/Auckland (+12)
+        dt = datetime(2025, 6, 14, 23, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel_utc, _ = format_relative_date(dt, reference=ref)
+        rel_nz, _ = format_relative_date(dt, timezone="Pacific/Auckland", reference=ref)
+        assert rel_utc == "Yesterday"
+        assert rel_nz == "Today"
+
+    def test_exact_text_uses_babel_format(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        _, exact = format_relative_date(dt, locale="en_US", reference=ref)
+        assert "2025" in exact or "25" in exact
+
+    def test_1_week_singular(self):
+        ref = date(2025, 6, 15)
+        # Exactly 14 days ago = 2 weeks, so test 7 days = still days range
+        dt = datetime(2025, 6, 8, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "7 days ago"
+
+
+class TestCreateRelativeDateFormatter:
+    """Tests for create_relative_date_formatter()."""
+
+    def test_returns_callable(self):
+        formatter = create_relative_date_formatter("UTC", "en_US")
+        assert callable(formatter)
+
+    def test_formats_none(self):
+        formatter = create_relative_date_formatter("UTC", "en_US")
+        rel, exact = formatter(None)
+        assert rel == "Never"
+        assert exact == ""
+
+    def test_formats_datetime(self):
+        formatter = create_relative_date_formatter("UTC", "en_US")
+        dt = datetime(2025, 6, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, exact = formatter(dt)
+        assert isinstance(rel, str)
+        assert isinstance(exact, str)
+        assert len(exact) > 0

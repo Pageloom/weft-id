@@ -1028,7 +1028,7 @@ def test_saml_acs_success_with_relay_state(acs_test_setup, test_tenant_host, mon
 
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_host, monkeypatch):
-    """Test ACS endpoint redirects to MFA verify when required."""
+    """Test ACS endpoint redirects to MFA verify when required and sends email code."""
     from routers.saml import authentication as saml_router
     from schemas.saml import SAMLAttributes, SAMLAuthResult
     from services import saml as saml_service
@@ -1064,6 +1064,22 @@ def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_h
     monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
     monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
 
+    # Mock email OTP sending
+    monkeypatch.setattr(saml_router, "create_email_otp", lambda tid, uid: "123456")
+    monkeypatch.setattr(
+        saml_router,
+        "emails_service",
+        type(
+            "MockEmailsService",
+            (),
+            {"get_primary_email": staticmethod(lambda tid, uid: test_user["email"])},
+        )(),
+    )
+    send_calls = []
+    monkeypatch.setattr(
+        saml_router, "send_mfa_code_email", lambda email, code: send_calls.append((email, code))
+    )
+
     response = acs_test_setup["client"].post(
         "/saml/acs",
         data={
@@ -1077,6 +1093,75 @@ def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_h
     # Should redirect to MFA verify
     assert response.status_code == 303
     assert "/mfa/verify" in response.headers.get("location", "")
+
+    # Should have sent email MFA code
+    assert len(send_calls) == 1
+    assert send_calls[0] == (test_user["email"], "123456")
+
+
+@pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
+def test_saml_acs_mfa_totp_does_not_send_email(acs_test_setup, test_tenant_host, monkeypatch):
+    """Test ACS endpoint does not send email code when MFA method is TOTP."""
+    from routers.saml import authentication as saml_router
+    from schemas.saml import SAMLAttributes, SAMLAuthResult
+    from services import saml as saml_service
+
+    idp = acs_test_setup["idp"]
+    test_user = acs_test_setup["test_user"]
+
+    monkeypatch.setattr(saml_router, "extract_issuer_from_response", lambda x: idp.entity_id)
+
+    def mock_process_response(*args, **kwargs):
+        return SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email=test_user["email"],
+                first_name="Test",
+                last_name="User",
+                name_id=test_user["email"],
+            ),
+            idp_id=idp.id,
+            requires_mfa=True,
+        )
+
+    def mock_authenticate(*args, **kwargs):
+        return {
+            "id": test_user["id"],
+            "email": test_user["email"],
+            "first_name": "Test",
+            "last_name": "User",
+            "mfa_method": "totp",  # TOTP, not email
+        }
+
+    monkeypatch.setattr(saml_service, "process_saml_response", mock_process_response)
+    monkeypatch.setattr(saml_service, "authenticate_via_saml", mock_authenticate)
+
+    # Mock email OTP sending — these should NOT be called
+    otp_calls = []
+    monkeypatch.setattr(
+        saml_router, "create_email_otp", lambda tid, uid: otp_calls.append((tid, uid)) or "123456"
+    )
+    send_calls = []
+    monkeypatch.setattr(
+        saml_router, "send_mfa_code_email", lambda email, code: send_calls.append((email, code))
+    )
+
+    response = acs_test_setup["client"].post(
+        "/saml/acs",
+        data={
+            "SAMLResponse": "dummybase64response",
+            "RelayState": "/dashboard",
+        },
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    # Should still redirect to MFA verify
+    assert response.status_code == 303
+    assert "/mfa/verify" in response.headers.get("location", "")
+
+    # Should NOT have sent any email
+    assert len(otp_calls) == 0
+    assert len(send_calls) == 0
 
 
 # ==============================================================================

@@ -8,29 +8,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ## High Severity
 
-### ISSUE-002: Group audit events silently lost due to invalid UUID in artifact_id
-
-**Category:** Data Integrity Bug
-**Found:** 2026-02-09
-**Files:**
-- `app/services/groups/idp.py` (lines 198, 247, 419, 452, 504, 545, 579)
-- `app/services/groups/membership.py` (lines 121, 172)
-- `app/services/groups/hierarchy.py` (lines 156, 204)
-
-**Problem:** 11 `log_event()` calls pass `artifact_id=f"{id1}:{id2}"` (e.g. `f"{group_id}:{user_id}"`), but `event_logs.artifact_id` is a `UUID` column. The colon-separated string fails Postgres UUID validation, so the INSERT is rejected and the event is never recorded.
-
-**Impact:** All audit events for group membership changes (add/remove member), IdP group sync operations, and group hierarchy changes (add/remove relationship) are silently discarded. This is a complete gap in the audit trail for the entire groups feature.
-
-**Root cause:** The groups service was written to encode a composite key (group+user or parent+child) into `artifact_id`, but the column type is `UUID NOT NULL` and cannot hold compound values.
-
-**Suggested fix:** Use one ID as `artifact_id` (e.g. the group ID) and move the second ID into the `metadata` dict. For example:
-```python
-log_event(
-    artifact_id=group_id,
-    metadata={"user_id": str(user_id)},
-    ...
-)
-```
+(None)
 
 ---
 
@@ -52,7 +30,7 @@ log_event(
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Data Integrity Bug |
+| High | 0 | - |
 | Medium | 1 | UX Bug |
 | Low | 0 | - |
 

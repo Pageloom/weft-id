@@ -510,6 +510,7 @@ def test_add_member_success(make_requesting_user):
         mock_log.assert_called_once()
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "group_member_added"
+        assert call_kwargs["artifact_id"] == group_id
 
 
 def test_add_member_already_member(make_requesting_user):
@@ -559,6 +560,7 @@ def test_remove_member_success(make_requesting_user):
         mock_log.assert_called_once()
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "group_member_removed"
+        assert call_kwargs["artifact_id"] == group_id
 
 
 def test_remove_member_not_a_member(make_requesting_user):
@@ -681,6 +683,7 @@ def test_add_child_success(make_requesting_user):
         mock_log.assert_called_once()
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "group_relationship_created"
+        assert call_kwargs["artifact_id"] == parent_id
 
 
 def test_add_child_self_reference(make_requesting_user):
@@ -766,6 +769,7 @@ def test_remove_child_success(make_requesting_user):
         mock_log.assert_called_once()
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "group_relationship_deleted"
+        assert call_kwargs["artifact_id"] == parent_id
 
 
 def test_remove_child_not_found(make_requesting_user):
@@ -1193,6 +1197,7 @@ def test_sync_logs_with_idp_attribution():
         assert call_kwargs["metadata"]["idp_id"] == idp_id
         assert call_kwargs["metadata"]["idp_name"] == idp_name
         assert call_kwargs["metadata"]["sync_source"] == "saml_authentication"
+        assert call_kwargs["artifact_id"] == group_id
 
 
 def test_add_member_to_idp_group_forbidden(make_requesting_user):
@@ -2297,6 +2302,7 @@ def test_ensure_user_in_base_group_adds_membership():
         assert call_kwargs["event_type"] == "idp_group_member_added"
         assert call_kwargs["metadata"]["sync_source"] == "idp_assignment"
         assert call_kwargs["metadata"]["group_id"] == base_group_id
+        assert call_kwargs["artifact_id"] == base_group_id
 
 
 def test_ensure_user_in_base_group_already_member_no_op():
@@ -2377,6 +2383,7 @@ def test_remove_user_from_base_group_removes_membership():
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "idp_group_member_removed"
         assert call_kwargs["metadata"]["sync_source"] == "idp_reassignment"
+        assert call_kwargs["artifact_id"] == base_group_id
 
 
 def test_sync_user_idp_groups_does_not_remove_base_group():

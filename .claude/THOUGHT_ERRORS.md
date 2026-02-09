@@ -156,6 +156,17 @@ The closure table pattern requires self-references for transitive path calculati
 
 ---
 
+## Compound Strings in UUID Columns Fail Silently
+
+**Wrong:** `artifact_id=f"{group_id}:{user_id}"` in `log_event()` calls
+**Right:** `artifact_id=group_id` with the second ID in `metadata`
+
+The `event_logs.artifact_id` column is `UUID NOT NULL`. A colon-separated compound string fails Postgres UUID validation, so the INSERT is silently rejected and the audit event is never recorded. No error is raised because `log_event()` swallows exceptions to avoid disrupting the main operation.
+
+When logging events for operations involving two entities (membership, relationships), use one UUID as `artifact_id` and put the other in `metadata`. The existing `bulk_add_members()` function shows the correct pattern.
+
+---
+
 ## Running Database Migrations Without Full Reset
 
 **Wrong:** `make db-reset` (destroys all data)

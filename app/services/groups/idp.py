@@ -195,7 +195,7 @@ def _apply_membership_additions(
                 tenant_id=tenant_id,
                 actor_user_id=SYSTEM_ACTOR_ID,
                 artifact_type="group_membership",
-                artifact_id=f"{group_id}:{user_id}",
+                artifact_id=group_id,
                 event_type="idp_group_member_added",
                 metadata={
                     "idp_id": idp_id,
@@ -244,7 +244,7 @@ def _apply_membership_removals(
                 tenant_id=tenant_id,
                 actor_user_id=SYSTEM_ACTOR_ID,
                 artifact_type="group_membership",
-                artifact_id=f"{group_id}:{user_id}",
+                artifact_id=group_id,
                 event_type="idp_group_member_removed",
                 metadata={
                     "idp_id": idp_id,
@@ -416,7 +416,7 @@ def ensure_user_in_base_group(
             tenant_id=tenant_id,
             actor_user_id=SYSTEM_ACTOR_ID,
             artifact_type="group_membership",
-            artifact_id=f"{base_group_id}:{user_id}",
+            artifact_id=base_group_id,
             event_type="idp_group_member_added",
             metadata={
                 "idp_id": idp_id,
@@ -449,7 +449,7 @@ def remove_user_from_base_group(
             tenant_id=tenant_id,
             actor_user_id=SYSTEM_ACTOR_ID,
             artifact_type="group_membership",
-            artifact_id=f"{base_group_id}:{user_id}",
+            artifact_id=base_group_id,
             event_type="idp_group_member_removed",
             metadata={
                 "idp_id": idp_id,
@@ -501,7 +501,7 @@ def ensure_users_in_base_group(
                     tenant_id=tenant_id,
                     actor_user_id=SYSTEM_ACTOR_ID,
                     artifact_type="group_membership",
-                    artifact_id=f"{base_group_id}:{user_id}",
+                    artifact_id=base_group_id,
                     event_type="idp_group_member_added",
                     metadata={
                         "idp_id": idp_id,
@@ -542,7 +542,7 @@ def remove_user_from_all_idp_groups(
                 tenant_id=tenant_id,
                 actor_user_id=SYSTEM_ACTOR_ID,
                 artifact_type="group_membership",
-                artifact_id=f"{gid}:{user_id}",
+                artifact_id=gid,
                 event_type="idp_group_member_removed",
                 metadata={
                     "idp_id": idp_id,
@@ -576,7 +576,7 @@ def move_users_between_idps(
                         tenant_id=tenant_id,
                         actor_user_id=SYSTEM_ACTOR_ID,
                         artifact_type="group_membership",
-                        artifact_id=f"{gid}:{user_id}",
+                        artifact_id=gid,
                         event_type="idp_group_member_removed",
                         metadata={
                             "idp_id": old_idp_id,

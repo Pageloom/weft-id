@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Python dependencies (Poetry via pip ecosystem)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/app"
+    schedule:
+      interval: "monthly"

@@ -5,10 +5,10 @@ Each page definition includes routing info, permissions, and navigation structur
 """
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class PagePermission(str, Enum):
+class PagePermission(StrEnum):
     """Permission levels for pages."""
 
     PUBLIC = "public"  # Accessible to everyone

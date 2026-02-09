@@ -173,9 +173,9 @@ def test_super_admin_routes_have_super_admin_dependency():
                     ]
                     has_super_admin_dep = require_super_admin in deps
 
-                assert (
-                    has_super_admin_dep
-                ), f"Super admin route {path} is missing require_super_admin dependency"
+                assert has_super_admin_dep, (
+                    f"Super admin route {path} is missing require_super_admin dependency"
+                )
 
 
 def test_public_routes_accessible_without_auth():
@@ -192,9 +192,9 @@ def test_public_routes_accessible_without_auth():
         # Should not redirect to /login (allow 404 for missing tenant, 200 for success)
         # But if it redirects, it shouldn't be to /login
         if response.status_code == 303:
-            assert "/login" not in response.headers.get(
-                "location", ""
-            ), f"Public route {route} should not redirect to /login"
+            assert "/login" not in response.headers.get("location", ""), (
+                f"Public route {route} should not redirect to /login"
+            )
 
 
 def test_router_level_dependencies_are_set():

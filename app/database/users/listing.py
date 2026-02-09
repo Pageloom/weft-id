@@ -60,8 +60,7 @@ def _build_auth_method_clauses(
             )
         elif method == "password_totp":
             conditions.append(
-                "(u.password_hash is not null and u.saml_idp_id is null"
-                " and u.mfa_method = 'totp')"
+                "(u.password_hash is not null and u.saml_idp_id is null and u.mfa_method = 'totp')"
             )
         elif method == "unverified":
             conditions.append("(u.password_hash is null and u.saml_idp_id is null)")

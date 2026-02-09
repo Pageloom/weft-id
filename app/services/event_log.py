@@ -87,8 +87,7 @@ def log_event(
     # Validate event type has a description (enforces documentation)
     if event_type not in EVENT_TYPE_DESCRIPTIONS:
         raise ValueError(
-            f"Unknown event type '{event_type}'. "
-            "Add it to app/constants/event_types.py before use."
+            f"Unknown event type '{event_type}'. Add it to app/constants/event_types.py before use."
         )
 
     # Auto-populate from contextvar if not explicitly provided

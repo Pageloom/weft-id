@@ -118,7 +118,7 @@ def add_member(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="group_membership",
-        artifact_id=f"{group_id}:{user_id}",
+        artifact_id=group_id,
         event_type="group_member_added",
         metadata={
             "group_id": group_id,
@@ -169,7 +169,7 @@ def remove_member(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="group_membership",
-        artifact_id=f"{group_id}:{user_id}",
+        artifact_id=group_id,
         event_type="group_member_removed",
         metadata={
             "group_id": group_id,

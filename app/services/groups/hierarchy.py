@@ -153,7 +153,7 @@ def add_child(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="group_relationship",
-        artifact_id=f"{parent_group_id}:{child_group_id}",
+        artifact_id=parent_group_id,
         event_type="group_relationship_created",
         metadata={
             "parent_group_id": parent_group_id,
@@ -201,7 +201,7 @@ def remove_child(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="group_relationship",
-        artifact_id=f"{parent_group_id}:{child_group_id}",
+        artifact_id=parent_group_id,
         event_type="group_relationship_deleted",
         metadata={
             "parent_group_id": parent_group_id,

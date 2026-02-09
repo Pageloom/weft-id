@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## ISSUE-002: Group audit events silently lost due to invalid UUID in artifact_id
+
+**Status:** Resolved (2026-02-09)
+
+**Original Severity:** High
+
+**Original Description:**
+11 `log_event()` calls in the groups service passed compound strings like `f"{group_id}:{user_id}"` as `artifact_id`, but `event_logs.artifact_id` is a `UUID NOT NULL` column. The compound string failed Postgres UUID validation, so the INSERT was silently rejected and the audit event was never recorded. All group membership, IdP sync, and hierarchy audit events were lost.
+
+**Resolution:**
+Replaced all 11 compound `artifact_id` values with a single UUID (the group ID or parent group ID). The second ID was already present in the `metadata` dict in every case, so no information was lost. Added `artifact_id` assertions to 7 existing tests to prevent regression.
+
+**Files Changed:** `app/services/groups/idp.py` (7 fixes), `app/services/groups/membership.py` (2 fixes), `app/services/groups/hierarchy.py` (2 fixes), `tests/test_services_groups.py` (7 assertions added)
+
+---
+
 ## API-FIRST: Missing API endpoint for user-IdP assignment
 
 **Status:** Resolved (2026-02-08)

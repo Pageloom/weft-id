@@ -506,11 +506,13 @@ def assign_user_idp(
         groups_service.remove_user_from_all_idp_groups(
             tenant_id, user_id, user_email, str(current_idp_id), old_idp_name
         )
+        assert saml_idp_id is not None and idp_name is not None
         groups_service.ensure_user_in_base_group(
             tenant_id, user_id, user_email, saml_idp_id, idp_name
         )
     elif will_have_idp and not had_idp:
         # New assignment: add to base group
+        assert saml_idp_id is not None and idp_name is not None
         groups_service.ensure_user_in_base_group(
             tenant_id, user_id, user_email, saml_idp_id, idp_name
         )

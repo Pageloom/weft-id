@@ -6,9 +6,15 @@ This module handles the core SAML authentication flow:
 - Testing SAML connections
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 import database
+
+if TYPE_CHECKING:
+    from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from schemas.saml import (
     IdPConfig,
     IdPForLogin,
@@ -80,7 +86,7 @@ def _prepare_saml_auth(
 
 
 def _extract_mapped_attributes(
-    auth: object,
+    auth: OneLogin_Saml2_Auth,
     idp: IdPConfig,
 ) -> dict:
     """Extract and map SAML attributes from a processed auth response.

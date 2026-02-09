@@ -157,10 +157,13 @@ class TestSessionFixationPrevention:
         mock_request.session = mock_session
 
         # Simulate attacker-controlled pre-auth session
-        mock_session.__contains__ = lambda self, key: key in [
-            "pending_mfa_user_id",
-            "evil_key",
-        ]
+        mock_session.__contains__ = lambda self, key: (
+            key
+            in [
+                "pending_mfa_user_id",
+                "evil_key",
+            ]
+        )
 
         regenerate_session(mock_request, "legitimate-user", 3600)
 

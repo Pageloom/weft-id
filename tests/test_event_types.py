@@ -30,9 +30,9 @@ class TestEventTypeDescriptions:
         """Every event type should have a non-empty description."""
         for event_type, description in EVENT_TYPE_DESCRIPTIONS.items():
             assert description, f"Event type '{event_type}' has empty description"
-            assert isinstance(
-                description, str
-            ), f"Event type '{event_type}' description is not a string"
+            assert isinstance(description, str), (
+                f"Event type '{event_type}' description is not a string"
+            )
 
     def test_get_event_description_returns_description(self):
         """get_event_description should return the description for known types."""

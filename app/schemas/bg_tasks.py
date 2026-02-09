@@ -1,12 +1,12 @@
 """Background tasks schemas."""
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, computed_field
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """Background job status values."""
 
     PENDING = "pending"

@@ -2698,9 +2698,9 @@ def test_user_idp_updated_on_auth_via_different_idp(
     # (user is now linked to the IdP they authenticated with)
     assigned_idp_after = database.saml.get_user_assigned_idp(tenant_id, str(user_via_idp2["id"]))
     assert assigned_idp_after is not None
-    assert (
-        str(assigned_idp_after["id"]) == idp2.id
-    ), "User's saml_idp_id should be updated to the IdP they authenticated with"
+    assert str(assigned_idp_after["id"]) == idp2.id, (
+        "User's saml_idp_id should be updated to the IdP they authenticated with"
+    )
 
 
 # =============================================================================
@@ -4542,9 +4542,9 @@ def test_remove_user_from_idp_unverifies_emails(
     # Verify email is now unverified
     emails_after = database.user_emails.list_user_emails(tenant_id, user_id)
     primary_after = [e for e in emails_after if e["is_primary"]]
-    assert (
-        primary_after[0]["verified_at"] is None
-    ), "Email should be unverified after IdP disconnect"
+    assert primary_after[0]["verified_at"] is None, (
+        "Email should be unverified after IdP disconnect"
+    )
 
 
 def test_remove_user_from_idp_revokes_oauth_tokens(

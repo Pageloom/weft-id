@@ -1,14 +1,32 @@
-# Weft-ID - Identity Federation Layer
+# Weft ID
 
 [![Lint](https://github.com/pageloom/weft-id/actions/workflows/lint.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/lint.yml)
 [![Type Check](https://github.com/pageloom/weft-id/actions/workflows/typecheck.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/typecheck.yml)
 [![Tests](https://github.com/pageloom/weft-id/actions/workflows/tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/tests.yml)
 
-Weft-ID is a federation layer that aggregates multiple identity providers into a single, unified interface. It acts as a middleware between your applications and identity systems like Okta, Microsoft Entra ID, Google Workspace, and other SAML/OIDC-compliant providers.
+Weft ID is an open-source identity federation layer that aggregates multiple identity providers into a single,
+consistent interface. It acts as middleware between your applications and identity systems like Okta, Microsoft Entra
+ID, Google Workspace, and other SAML-compliant providers, so applications stay simple when identity providers are
+added or removed.
 
-## Setting up a dev-environment
+Weft ID also works as a standalone identity provider with built-in username/password authentication, multi-factor
+authentication (TOTP, email codes, backup codes), and user lifecycle management.
+
+For more details, see [pageloom.com/products/weft-id](https://pageloom.com/products/weft-id).
+
+## Key Features
+
+- **SAML 2.0 federation** with upstream IdP integration and downstream application registration
+- **Built-in authentication** with username/password, MFA, and automatic user provisioning
+- **Hierarchical group management** with IdP group discovery
+- **Multi-tenant isolation** at the database level using row-level security
+- **Complete audit trail** of all actions with a management API (OAuth2-secured)
+- **SAML debugging tools** for connection testing and troubleshooting
+
+## Setting up a dev environment
 
 ### Prerequisites
+
 - Docker & Docker Compose
 - Poetry (for local development)
 - mkcert (for local TLS certificates)
@@ -28,12 +46,13 @@ Weft-ID is a federation layer that aggregates multiple identity providers into a
    ```bash
    poetry install
    ```
-   **Note**: Poetry is configured to create the virtual environment in `.venv/` at the project root for easy IDE integration.
+   **Note**: Poetry is configured to create the virtual environment in `.venv/` at the project root for easy IDE
+   integration.
 
 3. Configure your IDE
-   - Point your IDE's Python interpreter to `.venv/bin/python`
-   - This should auto-detect in most IDEs (VS Code, PyCharm, etc.)
-   - Verify it's using Python 3.12: `poetry run python --version`
+    - Point your IDE's Python interpreter to `.venv/bin/python`
+    - This should auto-detect in most IDEs (VS Code, PyCharm, etc.)
+    - Verify it's using Python 3.12: `poetry run python --version`
 
 4. Generate dev-env certificates
    ```bash
@@ -57,6 +76,7 @@ Weft-ID is a federation layer that aggregates multiple identity providers into a
 ## Development Commands
 
 ### Docker Services
+
 ```bash
 make up              # Start all services
 make down            # Stop services
@@ -67,19 +87,21 @@ make sh-app          # Shell into app container
 ```
 
 ### Testing & Code Quality
+
 ```bash
 ./test                                      # Run tests (parallelized by default)
 ./test --cov=app --cov-report=term-missing  # Run tests with coverage
 poetry run ruff check --fix app/ tests/     # Lint and auto-fix
-poetry run black app/ tests/                # Format code
+poetry run ruff format app/ tests/          # Format code
 poetry run mypy app/                        # Type checking
 ```
 
 ### Frontend/CSS Development
+
 ```bash
 make build-css       # Build Tailwind CSS after template changes
 make watch-css       # Auto-rebuild CSS when templates change (recommended)
 ```
 
-**Tip**: When actively working on templates/UI, run `make watch-css` in a separate terminal. It will automatically rebuild the CSS whenever you modify any template file.
-
+**Tip**: When actively working on templates/UI, run `make watch-css` in a separate terminal. It will automatically
+rebuild the CSS whenever you modify any template file.

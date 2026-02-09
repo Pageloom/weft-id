@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxmlsec1-dev libxmlsec1-openssl pkg-config
+
+      - name: Install Poetry
+        run: pipx install poetry==2.2.1
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Python dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Lint
+        run: poetry run ruff check app/ tests/
+
+      - name: Check formatting
+        run: poetry run ruff format --check app/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: appdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      memcached:
+        image: memcached:1.6-alpine
+        ports:
+          - 11211:11211
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxmlsec1-dev libxmlsec1-openssl pkg-config postgresql-client
+
+      - name: Install Poetry
+        run: pipx install poetry==2.2.1
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Python dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Run database migrations
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: appdb
+        run: |
+          for f in db-init/[0-9]*.sql; do
+            echo "Applying $f ..."
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run tests
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: apppass
+          POSTGRES_DB: appdb
+          MEMCACHED_HOST: localhost
+        run: poetry run python -m pytest

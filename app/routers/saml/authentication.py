@@ -2,6 +2,7 @@
 
 from typing import Annotated
 
+import services.emails as emails_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
@@ -12,6 +13,8 @@ from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.csp_nonce import get_csp_nonce
+from utils.email import send_mfa_code_email
+from utils.mfa import create_email_otp
 from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
 from utils.template_context import get_template_context
@@ -304,6 +307,13 @@ def saml_acs(
         request.session["pending_mfa_user_id"] = str(user["id"])
         request.session["pending_mfa_method"] = user.get("mfa_method", "email")
         request.session["pending_saml_relay_state"] = RelayState
+
+        # If email MFA, send code immediately
+        if user.get("mfa_method") == "email":
+            code = create_email_otp(tenant_id, str(user["id"]))
+            primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
+            if primary_email:
+                send_mfa_code_email(primary_email, code)
 
         return RedirectResponse(url="/mfa/verify", status_code=303)
 

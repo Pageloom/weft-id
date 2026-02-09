@@ -741,10 +741,10 @@ def test_process_logout_response_success(saml_settings_with_slo):
     """Test processing successful logout response."""
     from app.utils.saml import process_logout_response
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.get_errors.return_value = []
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         success, error = process_logout_response(
             settings=saml_settings_with_slo,
@@ -760,10 +760,10 @@ def test_process_logout_response_with_errors(saml_settings_with_slo):
     """Test processing logout response with errors."""
     from app.utils.saml import process_logout_response
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.get_errors.return_value = ["Invalid signature", "Response expired"]
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         success, error = process_logout_response(
             settings=saml_settings_with_slo,
@@ -779,10 +779,10 @@ def test_process_logout_response_exception(saml_settings_with_slo):
     """Test processing logout response when exception is raised."""
     from app.utils.saml import process_logout_response
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.process_slo.side_effect = Exception("SLO processing failed")
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         success, error = process_logout_response(
             settings=saml_settings_with_slo,
@@ -797,10 +797,10 @@ def test_process_logout_response_with_request_id(saml_settings_with_slo):
     """Test processing logout response with request ID validation."""
     from app.utils.saml import process_logout_response
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.get_errors.return_value = []
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         success, error = process_logout_response(
             settings=saml_settings_with_slo,
@@ -818,12 +818,12 @@ def test_process_logout_request_success(saml_settings_with_slo):
     """Test processing IdP-initiated logout request."""
     from app.utils.saml import process_logout_request
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.get_nameid.return_value = "user@example.com"
         mock_auth.get_session_index.return_value = "session-123"
         mock_auth.get_last_request_id.return_value = "request-456"
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         request_data = {
             "http_host": "sp.example.com",
@@ -846,10 +846,10 @@ def test_process_logout_request_exception(saml_settings_with_slo):
     """Test processing logout request when exception is raised."""
     from app.utils.saml import process_logout_request
 
-    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as MockAuth:
+    with patch("onelogin.saml2.auth.OneLogin_Saml2_Auth") as mock_auth_cls:
         mock_auth = MagicMock()
         mock_auth.process_slo.side_effect = Exception("Invalid request")
-        MockAuth.return_value = mock_auth
+        mock_auth_cls.return_value = mock_auth
 
         request_data = {
             "http_host": "sp.example.com",
@@ -1002,11 +1002,11 @@ def test_get_certificate_expiry_fallback_for_older_cryptography():
 
         @property
         def not_valid_after(self):
-            return datetime.datetime(2030, 1, 1, 0, 0, 0)
+            return datetime.datetime(2030, 1, 1, 0, 0, 0, tzinfo=datetime.UTC)
 
     with patch("app.utils.saml.x509.load_pem_x509_certificate", return_value=MockCert()):
         result = get_certificate_expiry(cert_pem)
-        assert result == datetime.datetime(2030, 1, 1, 0, 0, 0)
+        assert result == datetime.datetime(2030, 1, 1, 0, 0, 0, tzinfo=datetime.UTC)
 
 
 def test_parse_idp_metadata_with_certificate_as_list():

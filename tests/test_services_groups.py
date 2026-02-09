@@ -1064,7 +1064,7 @@ def test_sync_user_idp_groups_adds_new_groups():
 
     with (
         patch("services.groups.idp.database") as mock_db,
-        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.log_event"),
         patch("services.groups.idp.system_context"),
     ):
         # User is not in any IdP groups yet
@@ -1096,7 +1096,7 @@ def test_sync_user_idp_groups_removes_old_groups():
 
     with (
         patch("services.groups.idp.database") as mock_db,
-        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.log_event"),
         patch("services.groups.idp.system_context"),
     ):
         # User was in a group but no longer
@@ -1134,7 +1134,7 @@ def test_sync_user_idp_groups_creates_discovered_groups():
 
     with (
         patch("services.groups.idp.database") as mock_db,
-        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.log_event"),
         patch("services.groups.idp.system_context"),
     ):
         mock_db.groups.get_user_idp_group_ids.return_value = []
@@ -1368,7 +1368,7 @@ def test_add_idp_group_as_child_allowed(make_requesting_user):
 
     with (
         patch("services.groups.hierarchy.database") as mock_db,
-        patch("services.groups.hierarchy.log_event") as mock_log,
+        patch("services.groups.hierarchy.log_event"),
     ):
         mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_idp_child]
         mock_db.groups.relationship_exists.return_value = False
@@ -2166,7 +2166,7 @@ def test_bulk_add_user_to_groups_skips_idp_groups(make_requesting_user):
 
     with (
         patch("services.groups.membership.database") as mock_db,
-        patch("services.groups.membership.log_event") as mock_log,
+        patch("services.groups.membership.log_event"),
     ):
         mock_db.users.get_user_by_id.return_value = {"id": user_id}
         mock_db.groups.get_group_by_id.side_effect = [mock_idp_group, mock_weftid_group]
@@ -2195,7 +2195,7 @@ def test_bulk_add_user_to_groups_skips_existing_members(make_requesting_user):
 
     with (
         patch("services.groups.membership.database") as mock_db,
-        patch("services.groups.membership.log_event") as mock_log,
+        patch("services.groups.membership.log_event"),
     ):
         mock_db.users.get_user_by_id.return_value = {"id": user_id}
         mock_db.groups.get_group_by_id.side_effect = [mock_group1, mock_group2]

@@ -71,10 +71,10 @@ def parse_device_from_user_agent(user_agent_string: str | None) -> str | None:
         return None
 
     try:
-        result = parse(user_agent_string)
+        parsed = parse(user_agent_string)
 
         # Use with_defaults() to handle None values gracefully
-        result = result.with_defaults()
+        result = parsed.with_defaults()
 
         parts = []
         ua_lower = user_agent_string.lower()

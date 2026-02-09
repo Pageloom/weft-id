@@ -1,9 +1,9 @@
 """Tests for API endpoints."""
 
 
-def test_root_endpoint_with_valid_tenant(client, test_host):
+def test_root_endpoint_with_valid_tenant(client, test_tenant_host):
     """Test root endpoint with a valid tenant hostname redirects to login."""
-    response = client.get("/", headers={"host": test_host}, follow_redirects=False)
+    response = client.get("/", headers={"host": test_tenant_host}, follow_redirects=False)
 
     # Root endpoint redirects to /login when not authenticated
     assert response.status_code == 303

@@ -419,9 +419,9 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
         assert "Detail Test IdP" in response.text or idp.name in response.text
         # Verify the form action is correct (this was the reported bug)
         expected_action = f'action="/admin/settings/identity-providers/{idp.id}"'
-        assert (
-            expected_action in response.text
-        ), f"Form action not found. Looking for: {expected_action}"
+        assert expected_action in response.text, (
+            f"Form action not found. Looking for: {expected_action}"
+        )
         # Verify ACS URL is displayed (sp_acs_url field)
         assert "/saml/acs" in response.text, "ACS URL not displayed in template"
 

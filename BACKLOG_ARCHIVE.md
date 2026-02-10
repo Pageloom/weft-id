@@ -4,6 +4,55 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## User-Centric Group Management
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to manage group assignments from the user's perspective (not just the group's perspective)
+So that onboarding a user or adjusting their access doesn't require visiting each group page individually
+
+**Completed Work:**
+
+**User Detail - Groups Tab:**
+
+- [x] "Groups" section on the user detail page (admin view)
+- [x] Shows all groups the user is a direct member of, with group type badge (WeftID/IdP)
+- [x] Shows effective groups (inherited via hierarchy) separately, marked as "Inherited"
+- [x] Admin can add the user to a WeftID group from a dropdown (single add)
+- [x] Admin can add the user to multiple WeftID groups at once (multi-select bulk add)
+- [x] Admin can remove the user from a WeftID group (with confirmation)
+- [x] IdP group memberships are shown as read-only
+
+**Users List - Group Context:**
+
+- [x] Users list shows a group count column (number of direct group memberships)
+- [x] Group count is a link to the user's groups tab
+
+**API Endpoints:**
+
+- [x] `GET /api/v1/users/{user_id}/groups` returns direct group memberships
+- [x] `POST /api/v1/users/{user_id}/groups` adds user to one or more groups
+- [x] `DELETE /api/v1/users/{user_id}/groups/{group_id}` removes user from a group
+
+**Technical Implementation:**
+
+- Group membership data added to user detail service/query
+- Groups section in user detail template with direct/inherited views
+- Database queries for user-centric group operations
+- API endpoints under `/api/v1/users/{user_id}/groups`
+- Web routes in `app/routers/users/groups.py` for form submissions
+- Service functions: `get_direct_memberships`, `get_effective_memberships`, `bulk_add_user_to_groups`, `list_available_groups_for_user`
+- Reuses existing `add_member`/`remove_member` service functions
+- Group count column via LEFT JOIN subquery in users listing query
+- Comprehensive tests across router, API, service, and database layers
+
+**Effort:** M
+**Value:** High (Core admin workflow, daily-use feature)
+
+---
+
 ## Users List UX Overhaul
 
 **Status:** Complete

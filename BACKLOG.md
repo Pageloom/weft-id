@@ -6,59 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## User-Centric Group Management
-
-**User Story:**
-As an admin
-I want to manage group assignments from the user's perspective (not just the group's perspective)
-So that onboarding a user or adjusting their access doesn't require visiting each group page individually
-
-**Context:**
-
-Currently, group membership can only be managed from the group detail page: navigate to a group, add a user. To assign a
-new hire to 5 groups, an admin must visit 5 separate pages. There is no way to see or manage a user's group memberships
-from their profile. This is the single biggest friction point for daily admin work.
-
-**Acceptance Criteria:**
-
-**User Detail - Groups Tab:**
-
-- [ ] "Groups" section on the user detail page (admin view)
-- [ ] Shows all groups the user is a direct member of, with group type badge (WeftID/IdP)
-- [ ] Shows effective groups (inherited via hierarchy) separately, marked as "Inherited"
-- [ ] Admin can add the user to a WeftID group from a dropdown (single add)
-- [ ] Admin can add the user to multiple WeftID groups at once (multi-select bulk add)
-- [ ] Admin can remove the user from a WeftID group (with confirmation)
-- [ ] IdP group memberships are shown as read-only
-
-**Users List - Group Context:**
-
-- [ ] Users list shows a group count column (number of direct group memberships)
-- [ ] Group count is a link to the user's groups tab
-
-**API Endpoints:**
-
-- [ ] `GET /api/v1/users/{user_id}/groups` returns direct group memberships
-- [ ] `POST /api/v1/users/{user_id}/groups` adds user to one or more groups
-- [ ] `DELETE /api/v1/users/{user_id}/groups/{group_id}` removes user from a group
-
-**Technical Implementation:**
-
-- Add group membership data to user detail service/query
-- New section in user detail template
-- New database queries for user-centric group operations
-- API endpoints under `/api/v1/users/{user_id}/groups`
-- Reuses existing `add_member`/`remove_member` service functions (called with swapped perspective)
-
-**Dependencies:**
-
-- Group System Phase 3 complete
-
-**Effort:** M
-**Value:** High (Core admin workflow, daily-use feature)
-
----
-
 ## User Export (CSV)
 
 **User Story:**

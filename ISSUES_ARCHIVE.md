@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## ISSUE-001: Email MFA code not auto-sent on IDP/SAML sign-in
+
+**Status:** Resolved (2026-02-09)
+
+**Original Severity:** Medium
+
+**Original Description:**
+When a user signs in via SAML/IDP and has email-based MFA enabled, no verification email is sent automatically. The user lands on `/mfa/verify` with an empty inbox and must manually click "Send code to my email." The SAML ACS handler stored pending MFA session data and redirected to `/mfa/verify` but did not call `create_email_otp()` or `send_mfa_code_email()`. The password login flow already auto-sent.
+
+**Resolution:**
+Added `create_email_otp()` and `send_mfa_code_email()` calls to the SAML ACS handler's MFA block in `authentication.py`, matching the existing password login behavior. 87 lines of new tests cover the fix.
+
+**Files Changed:** `app/routers/saml/authentication.py`, `tests/test_routers_saml.py`
+
+---
+
 ## ISSUE-002: Group audit events silently lost due to invalid UUID in artifact_id
 
 **Status:** Resolved (2026-02-09)

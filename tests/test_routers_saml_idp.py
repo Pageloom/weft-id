@@ -468,6 +468,27 @@ class TestSPListMetadataURL:
         assert "idp_metadata_url" in ctx_kwargs
         assert ctx_kwargs["idp_metadata_url"].endswith("/saml/idp/metadata")
 
+    def test_sp_list_hides_metadata_url_when_empty(self, sp_admin_session, sp_host, mocker):
+        """SP list page does not pass idp_metadata_url when no SPs exist."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp list</html>")
+
+        empty_list = SPListResponse(items=[], total=0)
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=empty_list,
+        ):
+            response = sp_admin_session.get(
+                "/admin/integrations/service-providers",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["idp_metadata_url"] is None
+
 
 # =============================================================================
 # Per-SP Metadata Endpoint

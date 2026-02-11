@@ -61,7 +61,7 @@ def sp_list(
         service_providers = []
 
     base_url = get_base_url(request)
-    idp_metadata_url = f"{base_url}/saml/idp/metadata"
+    idp_metadata_url = f"{base_url}/saml/idp/metadata" if service_providers else None
 
     context = get_template_context(
         request,

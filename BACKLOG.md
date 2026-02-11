@@ -205,75 +205,56 @@ So that I can guarantee data residency in specific regions and enable future geo
 
 ---
 
-## E2E Test Suite with Playwright (Tentative)
-
-**Status:** Tentative - Considering for future implementation
+## SAML Smoketest: Manual Testing Pattern & Future Automation
 
 **User Story:**
+As a developer
+I want a documented manual testing pattern for both SAML IdP and SP flows using SAMLtest.id
+So that I can verify SAML integration works end-to-end without maintaining a local IdP simulator
+
 As a platform operator
-I want browser-based end-to-end tests for critical authentication flows
-So that I have baseline assurance that SAML SSO and other auth flows work correctly in a real browser
+I want automated Playwright-based smoketests for SAML SSO flows
+So that regressions in critical auth paths are caught before deployment
 
 **Context:**
 
-Currently the codebase has:
+The project previously used SimpleSAMLphp in docker-compose for manual SAML testing, but it was removed in favor of SAMLtest.id (a free hosted SAML testing service that acts as both IdP and SP). This item establishes a manual testing pattern first, then automates it.
 
-- Unit tests (service layer)
-- Integration tests (TestClient-based)
-- One "E2E-like" test file (`test_mfa_e2e.py`) using TestClient + maildev
+**Phase 1: Manual Testing Pattern (SAMLtest.id)**
 
-True browser-based E2E tests would provide:
+- [ ] Document SP-side testing: configure SAMLtest.id as upstream IdP, verify login flow
+- [ ] Document IdP-side testing: register SAMLtest.id as downstream SP, verify SSO assertion delivery
+- [ ] Document metadata exchange process (upload Weft ID metadata to SAMLtest.id, download theirs)
+- [ ] Verify both SP-initiated and IdP-initiated SSO flows work
+- [ ] Verify per-SP signing certificates are correctly used in assertions
 
-- Confidence that JavaScript interactions work (tab switching, copy-to-clipboard, form validation)
-- Full SAML flow testing against SimpleSAMLphp (which is already containerized)
-- Regression safety net for critical auth paths
-
-**Acceptance Criteria:**
-
-**Infrastructure:**
+**Phase 2: Automated Smoketests (Playwright)**
 
 - [ ] New `tests/e2e/` directory separate from unit/integration tests
-- [ ] Playwright (Python) for browser automation
-- [ ] `pytest-playwright` integration
+- [ ] Playwright (Python) for browser automation with `pytest-playwright`
 - [ ] Makefile targets: `test-e2e`, `test-e2e-debug`, `test-unit`
-- [ ] Auto-skip when SimpleSAMLphp not running
-
-**Initial Test Coverage (SAML auth flow only):**
-
-- [ ] Successful SAML login creates session
-- [ ] User not in DB shows "Account Not Found" error
-- [ ] Wrong IdP credentials keeps user at IdP
-- [ ] Single IdP auto-redirects (no selection page)
-- [ ] SSO button appears when IdP enabled
-- [ ] Disabled IdP shows error
-- [ ] Invalid IdP ID shows not found
-- [ ] Session persists across navigation
+- [ ] SP-side smoketest: SAML login via SAMLtest.id IdP creates session
+- [ ] IdP-side smoketest: SAMLtest.id SP receives valid assertion from Weft ID
+- [ ] Auto-skip when SAMLtest.id is unreachable
+- [ ] Cross-tenant test option: Tenant A as IdP serving Tenant B as SP (no external dependency)
 
 **Dependencies:**
 
-New dev dependencies:
+New dev dependencies (Phase 2 only):
 
 - `playwright = "^1.40.0"`
 - `pytest-playwright = "^0.4.0"`
 
 Post-install: `playwright install chromium`
 
-**Technical Notes:**
-
-- Uses SimpleSAMLphp container already in docker-compose
-- Test users pre-configured in `simplesamlphp/authsources.php`
-- Requires `ignore_https_errors=True` for self-signed dev certs
-- Reuses existing `test_tenant`, `test_super_admin_user` fixtures
-
-**Effort:** M
-**Value:** Medium (Quality assurance, regression safety)
+**Effort:** S (Phase 1), M (Phase 2)
+**Value:** High (Catches SAML regressions that unit tests cannot)
 
 **Notes:**
 
-- This is tentative - the dependency footprint (Playwright + browser binaries) is non-trivial
-- Consider implementing when SAML Phase 2+ is complete and flows are stable
-- Alternative: Continue using TestClient-based integration tests which are faster
-- Could start with just SAML flow and expand to other auth flows later
+- SAMLtest.id is free and hosted, no local infrastructure needed
+- Cross-tenant testing (Weft ID as both IdP and SP) is a good offline fallback
+- Phase 1 can be done immediately; Phase 2 when SAML flows are stable
 
 ---
 

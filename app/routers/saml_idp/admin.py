@@ -22,14 +22,14 @@ from ._helpers import get_base_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/admin/integrations/service-providers",
+    prefix="/admin/settings/service-providers",
     tags=["saml-idp"],
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
 templates = Jinja2Templates(directory="templates")
 
-SP_LIST_URL = "/admin/integrations/service-providers"
+SP_LIST_URL = "/admin/settings/service-providers"
 
 
 def _build_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
@@ -48,7 +48,7 @@ def sp_list(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """List all registered service providers."""
-    if not has_page_access("/admin/integrations/service-providers", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -81,7 +81,7 @@ def sp_new(
     user: Annotated[dict, Depends(get_current_user)],
 ):
     """Show the SP registration form."""
-    if not has_page_access("/admin/integrations/service-providers/new", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers/new", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     context = get_template_context(
@@ -102,7 +102,7 @@ def sp_create_manual(
     acs_url: str = Form(""),
 ):
     """Create an SP from manual entry."""
-    if not has_page_access("/admin/integrations/service-providers", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -136,7 +136,7 @@ def sp_import_xml(
     metadata_xml: str = Form(""),
 ):
     """Create an SP from pasted metadata XML."""
-    if not has_page_access("/admin/integrations/service-providers", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -167,7 +167,7 @@ def sp_import_url(
     metadata_url: str = Form(""),
 ):
     """Create an SP from a metadata URL."""
-    if not has_page_access("/admin/integrations/service-providers", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
@@ -197,7 +197,7 @@ def sp_detail(
     sp_id: str,
 ):
     """Show SP detail page with cert status and per-SP metadata URL."""
-    if not has_page_access("/admin/integrations/service-providers/detail", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -238,7 +238,7 @@ def sp_rotate_certificate(
     sp_id: str,
 ):
     """Rotate the signing certificate for an SP."""
-    if not has_page_access("/admin/integrations/service-providers/detail", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -261,7 +261,7 @@ def sp_delete(
     sp_id: str,
 ):
     """Delete a service provider."""
-    if not has_page_access("/admin/integrations/service-providers", user.get("role")):
+    if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)

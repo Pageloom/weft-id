@@ -453,12 +453,21 @@ def test_integrations_children_structure():
     """Test the integrations page has expected children."""
     page = get_page_by_path("/admin/integrations")
     assert page.children is not None
-    assert len(page.children) == 3
+    assert len(page.children) == 2
 
     child_paths = [child.path for child in page.children]
     assert "/admin/integrations/apps" in child_paths
     assert "/admin/integrations/b2b" in child_paths
-    assert "/admin/integrations/service-providers" in child_paths
+
+
+def test_service_providers_in_settings():
+    """Test that service providers is under settings, next to identity providers."""
+    page = get_page_by_path("/admin/settings")
+    assert page.children is not None
+
+    child_paths = [child.path for child in page.children]
+    assert "/admin/settings/identity-providers" in child_paths
+    assert "/admin/settings/service-providers" in child_paths
 
 
 def test_integrations_in_admin_nav():

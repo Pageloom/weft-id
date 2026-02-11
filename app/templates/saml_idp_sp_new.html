@@ -35,7 +35,7 @@
 
         <!-- Tab: Import from Metadata URL -->
         <div id="tab-metadata-url" class="tab-content">
-            <form method="post" action="/admin/integrations/service-providers/import-metadata-url">
+            <form method="post" action="/admin/settings/service-providers/import-metadata-url">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="space-y-4">
                     <div>
@@ -58,7 +58,7 @@
                         </p>
                     </div>
                     <div class="flex justify-end gap-3 pt-4">
-                        <a href="/admin/integrations/service-providers"
+                        <a href="/admin/settings/service-providers"
                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                             Cancel
                         </a>
@@ -73,7 +73,7 @@
 
         <!-- Tab: Import from Metadata XML -->
         <div id="tab-metadata-xml" class="tab-content hidden">
-            <form method="post" action="/admin/integrations/service-providers/import-metadata-xml">
+            <form method="post" action="/admin/settings/service-providers/import-metadata-xml">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="space-y-4">
                     <div>
@@ -93,7 +93,7 @@
                                   placeholder="Paste the SP metadata XML here..."></textarea>
                     </div>
                     <div class="flex justify-end gap-3 pt-4">
-                        <a href="/admin/integrations/service-providers"
+                        <a href="/admin/settings/service-providers"
                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                             Cancel
                         </a>
@@ -108,7 +108,7 @@
 
         <!-- Tab: Manual Entry -->
         <div id="tab-manual" class="tab-content hidden">
-            <form method="post" action="/admin/integrations/service-providers/create">
+            <form method="post" action="/admin/settings/service-providers/create">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="space-y-4">
                     <div>
@@ -142,7 +142,7 @@
                         </p>
                     </div>
                     <div class="flex justify-end gap-3 pt-4">
-                        <a href="/admin/integrations/service-providers"
+                        <a href="/admin/settings/service-providers"
                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
                             Cancel
                         </a>

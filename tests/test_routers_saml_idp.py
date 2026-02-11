@@ -114,7 +114,7 @@ class TestSPListPage:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/integrations/service-providers",
+                "/admin/settings/service-providers",
                 headers={"Host": sp_host},
             )
 
@@ -139,7 +139,7 @@ class TestSPListPage:
             return_value=empty,
         ):
             response = sp_admin_session.get(
-                "/admin/integrations/service-providers",
+                "/admin/settings/service-providers",
                 headers={"Host": sp_host},
             )
 
@@ -161,7 +161,7 @@ class TestSPListPage:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/integrations/service-providers?success=created",
+                "/admin/settings/service-providers?success=created",
                 headers={"Host": sp_host},
             )
 
@@ -186,7 +186,7 @@ class TestSPNewPage:
         mock_tmpl.return_value = HTMLResponse(content="<html>new sp</html>")
 
         response = sp_admin_session.get(
-            "/admin/integrations/service-providers/new",
+            "/admin/settings/service-providers/new",
             headers={"Host": sp_host},
         )
 
@@ -211,7 +211,7 @@ class TestSPCreateManual:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/integrations/service-providers/create",
+                "/admin/settings/service-providers/create",
                 data={
                     "name": "New App",
                     "entity_id": "https://new.example.com",
@@ -227,7 +227,7 @@ class TestSPCreateManual:
     def test_create_missing_name(self, sp_admin_session, sp_host):
         """Missing name redirects with error."""
         response = sp_admin_session.post(
-            "/admin/integrations/service-providers/create",
+            "/admin/settings/service-providers/create",
             data={"name": "", "entity_id": "x", "acs_url": "x"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -239,7 +239,7 @@ class TestSPCreateManual:
     def test_create_missing_entity_id(self, sp_admin_session, sp_host):
         """Missing entity_id redirects with error."""
         response = sp_admin_session.post(
-            "/admin/integrations/service-providers/create",
+            "/admin/settings/service-providers/create",
             data={"name": "App", "entity_id": "", "acs_url": "x"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -251,7 +251,7 @@ class TestSPCreateManual:
     def test_create_missing_acs_url(self, sp_admin_session, sp_host):
         """Missing acs_url redirects with error."""
         response = sp_admin_session.post(
-            "/admin/integrations/service-providers/create",
+            "/admin/settings/service-providers/create",
             data={"name": "App", "entity_id": "x", "acs_url": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -276,7 +276,7 @@ class TestSPImportXML:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/integrations/service-providers/import-metadata-xml",
+                "/admin/settings/service-providers/import-metadata-xml",
                 data={"name": "XML App", "metadata_xml": "<xml>test</xml>"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -288,7 +288,7 @@ class TestSPImportXML:
     def test_import_xml_missing_name(self, sp_admin_session, sp_host):
         """Missing name redirects with error."""
         response = sp_admin_session.post(
-            "/admin/integrations/service-providers/import-metadata-xml",
+            "/admin/settings/service-providers/import-metadata-xml",
             data={"name": "", "metadata_xml": "<xml/>"},
             headers={"Host": sp_host},
             follow_redirects=False,
@@ -313,7 +313,7 @@ class TestSPImportURL:
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
-                "/admin/integrations/service-providers/import-metadata-url",
+                "/admin/settings/service-providers/import-metadata-url",
                 data={"name": "URL App", "metadata_url": "https://example.com/metadata"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
@@ -340,7 +340,7 @@ class TestSPDelete:
             return_value=None,
         ):
             response = sp_admin_session.post(
-                f"/admin/integrations/service-providers/{sp_id}/delete",
+                f"/admin/settings/service-providers/{sp_id}/delete",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -359,7 +359,7 @@ class TestSPDelete:
             side_effect=NotFoundError(message="Service provider not found"),
         ):
             response = sp_admin_session.post(
-                f"/admin/integrations/service-providers/{sp_id}/delete",
+                f"/admin/settings/service-providers/{sp_id}/delete",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -459,7 +459,7 @@ class TestSPListMetadataURL:
             return_value=sample_sp_list,
         ):
             response = sp_admin_session.get(
-                "/admin/integrations/service-providers",
+                "/admin/settings/service-providers",
                 headers={"Host": sp_host},
             )
 
@@ -481,7 +481,7 @@ class TestSPListMetadataURL:
             return_value=empty_list,
         ):
             response = sp_admin_session.get(
-                "/admin/integrations/service-providers",
+                "/admin/settings/service-providers",
                 headers={"Host": sp_host},
             )
 
@@ -584,7 +584,7 @@ class TestSPDetailPage:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/integrations/service-providers/{sample_sp_config.id}",
+                f"/admin/settings/service-providers/{sample_sp_config.id}",
                 headers={"Host": sp_host},
             )
 
@@ -617,7 +617,7 @@ class TestSPDetailPage:
             ),
         ):
             response = sp_admin_session.get(
-                f"/admin/integrations/service-providers/{sample_sp_config.id}",
+                f"/admin/settings/service-providers/{sample_sp_config.id}",
                 headers={"Host": sp_host},
             )
 
@@ -648,7 +648,7 @@ class TestSPRotateCertificate:
             return_value=rotation_result,
         ):
             response = sp_admin_session.post(
-                f"/admin/integrations/service-providers/{sp_id}/rotate-certificate",
+                f"/admin/settings/service-providers/{sp_id}/rotate-certificate",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
@@ -667,7 +667,7 @@ class TestSPRotateCertificate:
             side_effect=NotFoundError(message="No signing certificate exists"),
         ):
             response = sp_admin_session.post(
-                f"/admin/integrations/service-providers/{sp_id}/rotate-certificate",
+                f"/admin/settings/service-providers/{sp_id}/rotate-certificate",
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )

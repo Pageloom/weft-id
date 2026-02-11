@@ -10,7 +10,7 @@
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Providers</h1>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Downstream applications that authenticate users via SAML SSO</p>
             </div>
-            <a href="/admin/integrations/service-providers/new"
+            <a href="/admin/settings/service-providers/new"
                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 Add Service Provider
             </a>
@@ -91,7 +91,7 @@
                     {% for sp in service_providers %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/integrations/service-providers/{{ sp.id }}"
+                            <a href="/admin/settings/service-providers/{{ sp.id }}"
                                class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ sp.name }}
                             </a>
@@ -116,9 +116,9 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="/admin/integrations/service-providers/{{ sp.id }}"
+                            <a href="/admin/settings/service-providers/{{ sp.id }}"
                                class="text-blue-600 dark:text-blue-400 hover:underline mr-3">Details</a>
-                            <form method="post" action="/admin/integrations/service-providers/{{ sp.id }}/delete" class="inline">
+                            <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/delete" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         class="confirm-btn text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"

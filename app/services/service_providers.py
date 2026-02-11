@@ -18,6 +18,7 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.types import RequestingUser
+from utils.saml_idp import generate_idp_metadata_xml
 
 logger = logging.getLogger(__name__)
 
@@ -336,4 +337,42 @@ def delete_service_provider(
         artifact_id=sp_id,
         event_type="service_provider_deleted",
         metadata={"name": existing["name"]},
+    )
+
+
+# ============================================================================
+# IdP Metadata
+# ============================================================================
+
+
+def get_tenant_idp_metadata_xml(tenant_id: str, base_url: str) -> str:
+    """Generate IdP metadata XML for downstream SPs to consume.
+
+    No authorization required (public endpoint).
+
+    Args:
+        tenant_id: Tenant ID
+        base_url: Base URL for the tenant
+
+    Returns:
+        XML metadata string
+
+    Raises:
+        NotFoundError: If no SP certificate is configured for the tenant
+    """
+    cert = database.saml.get_sp_certificate(tenant_id)
+
+    if cert is None:
+        raise NotFoundError(
+            message="IdP certificate not configured",
+            code="idp_certificate_not_found",
+        )
+
+    entity_id = f"{base_url}/saml/idp/metadata"
+    sso_url = f"{base_url}/saml/idp/sso"
+
+    return generate_idp_metadata_xml(
+        entity_id=entity_id,
+        sso_url=sso_url,
+        certificate_pem=cert["certificate_pem"],
     )

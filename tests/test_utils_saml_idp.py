@@ -1,7 +1,8 @@
-"""Tests for SAML IdP SP metadata parsing utilities."""
+"""Tests for SAML IdP SP metadata parsing and IdP metadata generation utilities."""
 
 import pytest
-from utils.saml_idp import parse_sp_metadata_xml
+from defusedxml import ElementTree as DefusedET
+from utils.saml_idp import generate_idp_metadata_xml, parse_sp_metadata_xml
 
 # =============================================================================
 # Sample Metadata
@@ -146,3 +147,141 @@ class TestParseSPMetadataXML:
         cert = result["certificate_pem"]
         assert cert.startswith("-----BEGIN CERTIFICATE-----")
         assert cert.endswith("-----END CERTIFICATE-----")
+
+
+# =============================================================================
+# generate_idp_metadata_xml Tests
+# =============================================================================
+
+SAMPLE_CERT_PEM = (
+    "-----BEGIN CERTIFICATE-----\nMIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n-----END CERTIFICATE-----"
+)
+
+
+class TestGenerateIdPMetadataXML:
+    """Tests for generate_idp_metadata_xml."""
+
+    def test_valid_xml_output(self):
+        """Generated output is valid XML."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        # Should not raise
+        DefusedET.fromstring(xml)
+
+    def test_entity_id(self):
+        """EntityDescriptor has correct entityID."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        assert root.attrib["entityID"] == "https://idp.example.com/saml/idp/metadata"
+
+    def test_idp_sso_descriptor(self):
+        """Contains IDPSSODescriptor (not SPSSODescriptor)."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+
+        assert idp_desc is not None
+        assert sp_desc is None
+
+    def test_want_authn_requests_signed_false(self):
+        """IDPSSODescriptor has WantAuthnRequestsSigned=false."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        assert idp_desc.attrib["WantAuthnRequestsSigned"] == "false"
+
+    def test_signing_certificate(self):
+        """Contains signing KeyDescriptor with certificate data."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        ds_ns = "http://www.w3.org/2000/09/xmldsig#"
+
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        key_desc = idp_desc.find(f"{{{md_ns}}}KeyDescriptor")
+        assert key_desc is not None
+        assert key_desc.attrib["use"] == "signing"
+
+        x509_cert = key_desc.find(f".//{{{ds_ns}}}X509Certificate")
+        assert x509_cert is not None
+        assert "MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=" in x509_cert.text
+
+    def test_strips_pem_headers(self):
+        """Certificate PEM headers are stripped from the XML."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        assert "-----BEGIN CERTIFICATE-----" not in xml
+        assert "-----END CERTIFICATE-----" not in xml
+
+    def test_two_nameid_formats(self):
+        """Contains both emailAddress and unspecified NameID formats."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        nameid_formats = [elem.text for elem in idp_desc.findall(f"{{{md_ns}}}NameIDFormat")]
+
+        assert len(nameid_formats) == 2
+        assert "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" in nameid_formats
+        assert "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" in nameid_formats
+
+    def test_two_sso_bindings(self):
+        """Contains both HTTP-Redirect and HTTP-POST SSO bindings."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        sso_services = idp_desc.findall(f"{{{md_ns}}}SingleSignOnService")
+
+        assert len(sso_services) == 2
+        bindings = [svc.attrib["Binding"] for svc in sso_services]
+        assert "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" in bindings
+        assert "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" in bindings
+
+    def test_sso_url_in_bindings(self):
+        """Both SSO bindings point to the correct SSO URL."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        sso_services = idp_desc.findall(f"{{{md_ns}}}SingleSignOnService")
+
+        for svc in sso_services:
+            assert svc.attrib["Location"] == "https://idp.example.com/saml/idp/sso"

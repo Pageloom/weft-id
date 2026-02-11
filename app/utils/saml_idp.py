@@ -79,6 +79,52 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
     }
 
 
+def generate_idp_metadata_xml(
+    entity_id: str,
+    sso_url: str,
+    certificate_pem: str,
+) -> str:
+    """Generate SAML IdP metadata XML for downstream SPs to consume.
+
+    Args:
+        entity_id: IdP entity ID (metadata URL)
+        sso_url: Single Sign-On service URL
+        certificate_pem: PEM-encoded IdP signing certificate
+
+    Returns:
+        XML metadata string
+    """
+    # Extract the raw certificate data (without PEM headers)
+    cert_lines = certificate_pem.strip().split("\n")
+    cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
+
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    entityID="{entity_id}">
+  <md:IDPSSODescriptor
+      WantAuthnRequestsSigned="false"
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>{cert_data}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="{sso_url}" />
+    <md:SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="{sso_url}" />
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
 def fetch_sp_metadata(url: str, timeout: int = 10) -> str:
     """Fetch SP metadata XML from a URL.
 

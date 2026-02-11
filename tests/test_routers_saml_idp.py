@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from schemas.service_providers import SPConfig, SPListItem, SPListResponse
 
 ROUTER_MODULE = "routers.saml_idp.admin"
+METADATA_MODULE = "routers.saml_idp.metadata"
 
 # =============================================================================
 # Fixtures
@@ -359,3 +360,104 @@ class TestSPDelete:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# IdP Metadata Endpoint
+# =============================================================================
+
+SAMPLE_IDP_METADATA_XML = '<?xml version="1.0"?><md:EntityDescriptor />'
+
+
+class TestIdPMetadata:
+    """Tests for the public IdP metadata endpoints."""
+
+    def test_metadata_returns_xml(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata returns XML with correct content type."""
+        with patch(
+            "services.service_providers.get_tenant_idp_metadata_xml",
+            return_value=SAMPLE_IDP_METADATA_XML,
+        ):
+            response = sp_admin_session.get(
+                "/saml/idp/metadata",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "application/xml" in response.headers["content-type"]
+        assert "EntityDescriptor" in response.text
+
+    def test_metadata_returns_404_when_no_cert(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata returns 404 when no cert configured."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.get_tenant_idp_metadata_xml",
+            side_effect=NotFoundError(message="IdP certificate not configured"),
+        ):
+            response = sp_admin_session.get(
+                "/saml/idp/metadata",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 404
+        assert "not configured" in response.text
+
+    def test_metadata_download_sets_content_disposition(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata/download sets Content-Disposition header."""
+        with patch(
+            "services.service_providers.get_tenant_idp_metadata_xml",
+            return_value=SAMPLE_IDP_METADATA_XML,
+        ):
+            response = sp_admin_session.get(
+                "/saml/idp/metadata/download",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert 'attachment; filename="idp-metadata.xml"' in response.headers["content-disposition"]
+
+    def test_metadata_download_returns_404_when_no_cert(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata/download returns 404 when no cert configured."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.get_tenant_idp_metadata_xml",
+            side_effect=NotFoundError(message="IdP certificate not configured"),
+        ):
+            response = sp_admin_session.get(
+                "/saml/idp/metadata/download",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 404
+
+
+# =============================================================================
+# SP List Page with Metadata URL
+# =============================================================================
+
+
+class TestSPListMetadataURL:
+    """Tests for the metadata URL display on the SP list page."""
+
+    def test_sp_list_includes_metadata_url(self, sp_admin_session, sp_host, sample_sp_list, mocker):
+        """SP list page passes idp_metadata_url to template context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp list</html>")
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=sample_sp_list,
+        ):
+            response = sp_admin_session.get(
+                "/admin/integrations/service-providers",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert "idp_metadata_url" in ctx_kwargs
+        assert ctx_kwargs["idp_metadata_url"].endswith("/saml/idp/metadata")

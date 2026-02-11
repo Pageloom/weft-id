@@ -63,3 +63,11 @@ class SPListResponse(BaseModel):
 
     items: list[SPListItem]
     total: int
+
+
+class IdPMetadataInfo(BaseModel):
+    """IdP metadata URL info for API consumers."""
+
+    metadata_url: str
+    entity_id: str
+    sso_url: str

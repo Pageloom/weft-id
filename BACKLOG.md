@@ -77,7 +77,7 @@ actual SSO flow: receiving AuthnRequests, authenticating users, and generating s
 **Access Model:**
 
 - [ ] All authenticated users in the tenant can access all registered SPs
-- [ ] No per-user assignment in this phase (comes in Phase 2)
+- [ ] No per-user assignment in this phase (comes in Phase 3)
 
 **Technical Implementation:**
 
@@ -98,7 +98,73 @@ actual SSO flow: receiving AuthnRequests, authenticating users, and generating s
 
 ---
 
-## SAML Identity Provider - Phase 2: Dashboard & App Assignment
+## SAML Identity Provider - Phase 2: Per-SP Signing Certificates & Metadata
+
+**User Story:**
+As a super admin
+I want each downstream service provider to have its own signing certificate and metadata URL
+So that certificate compromise or rotation for one SP does not affect others
+
+**Context:**
+
+Major IdPs (Entra ID, Okta) issue per-application signing certificates. Entra ID provides per-app metadata URLs
+(`?appid=...`) where the primary difference is the signing certificate. Okta scopes everything per-app (cert, entity ID,
+SSO URL). This isolation reduces blast radius: rotating or revoking one SP's certificate has no impact on other SPs.
+
+Currently Weft-ID has a single signing certificate per tenant (`saml_sp_certificates` table with a UNIQUE constraint on
+`tenant_id`) and a single tenant-wide metadata URL (`/saml/idp/metadata`). This phase migrates to per-SP certificates
+while keeping the entity ID and SSO URL at the tenant level (matching the Entra ID pattern).
+
+**Acceptance Criteria:**
+
+**Per-SP Signing Certificates:**
+
+- [ ] Each registered SP gets its own auto-generated signing certificate
+- [ ] Certificate generated on SP registration (alongside existing SP creation flow)
+- [ ] SP-specific certificate used when signing SAML assertions for that SP
+- [ ] Certificate rotation per SP (rotate one without affecting others)
+- [ ] Admin UI shows certificate status (expiry date) per SP
+
+**Per-SP Metadata URLs:**
+
+- [ ] Metadata endpoint accepts SP identifier: `GET /saml/idp/metadata/{sp_id}`
+- [ ] Per-SP metadata returns that SP's signing certificate (not a shared tenant cert)
+- [ ] Tenant-wide metadata URL (`/saml/idp/metadata`) remains as a fallback returning the tenant cert
+- [ ] Admin UI shows per-SP metadata URL on SP detail/list page
+- [ ] Download and copy per-SP metadata URL
+
+**Backward Compatibility:**
+
+- [ ] Existing SPs get certificates generated via a one-time migration or lazy generation
+- [ ] Entity ID and SSO URL remain tenant-scoped (no per-SP SSO endpoints)
+- [ ] Phase 1c SSO flow updated to sign with the correct SP-specific certificate
+
+**Technical Implementation:**
+
+- Database migration:
+    - New `sp_signing_certificates` table: id, sp_id, tenant_id, certificate_pem, private_key_pem_enc, expires_at, rotation fields
+    - Or: relax UNIQUE constraint on `saml_sp_certificates` to allow per-SP rows (with sp_id FK)
+- Update `generate_idp_metadata_xml()` to accept per-SP certificate
+- Update metadata endpoint to route by SP ID
+- Update assertion signing in SSO flow to use SP-specific cert
+- Certificate generation utility (reuse existing cert generation from SAML infrastructure)
+
+**Dependencies:**
+
+- Phase 1c complete (SSO flow must exist before per-SP signing can be wired in)
+
+**Effort:** M
+**Value:** High (Security isolation, matches industry standard IdP behavior)
+
+**Notes:**
+
+- Entra ID keeps entity ID and SSO URL at tenant level, only the signing cert varies per-app
+- Okta goes further with per-app entity IDs and SSO URLs, but that adds complexity without clear benefit
+- Consider lazy certificate generation: generate on first SSO attempt if not yet created
+
+---
+
+## SAML Identity Provider - Phase 3: Dashboard & App Assignment
 
 **User Story:**
 As a user
@@ -111,9 +177,9 @@ So that I can control which users have access to which downstream applications
 
 **Context:**
 
-Phase 1 established the core IdP infrastructure with SP-initiated SSO. This phase adds the user-facing experience: a "My
-Apps" dashboard section where users see and launch their assigned applications (IdP-initiated SSO), plus the assignment
-model for admins to control access.
+Phases 1 and 2 established the core IdP infrastructure with SP-initiated SSO and per-SP signing certificates. This phase
+adds the user-facing experience: a "My Apps" dashboard section where users see and launch their assigned applications
+(IdP-initiated SSO), plus the assignment model for admins to control access.
 
 **Acceptance Criteria:**
 
@@ -164,7 +230,7 @@ model for admins to control access.
 
 **Dependencies:**
 
-- SAML IdP Phase 1 complete
+- SAML IdP Phase 2 complete (per-SP certificates)
 
 **Effort:** M
 **Value:** High (User-facing feature, admin control over access)
@@ -177,7 +243,7 @@ model for admins to control access.
 
 ---
 
-## SAML Identity Provider - Phase 3: Attribute Mapping & SP Management
+## SAML Identity Provider - Phase 4: Attribute Mapping & SP Management
 
 **User Story:**
 As a super admin
@@ -186,7 +252,7 @@ So that I can integrate applications with non-standard attribute requirements an
 
 **Context:**
 
-Phases 1 and 2 established the IdP with default attribute mappings (email, firstName, lastName). Some applications
+Earlier phases established the IdP with default attribute mappings (email, firstName, lastName). Some applications
 expect different attribute names or formats. This phase adds per-SP customization and operational SP management
 features.
 
@@ -232,7 +298,7 @@ features.
 
 **Dependencies:**
 
-- SAML IdP Phase 2 complete
+- SAML IdP Phase 3 complete
 
 **Effort:** M
 **Value:** Medium (Flexibility for production integrations)

@@ -96,9 +96,12 @@ def _handle_sso_request(
         return _render_sso_error(request, tenant_id, "invalid_request", str(e))
 
     # 2. Look up SP by issuer
-    sp = sp_service.get_sp_by_entity_id(tenant_id, parsed["issuer"])
+    issuer = parsed["issuer"]
+    if not issuer:
+        return _render_sso_error(request, tenant_id, "invalid_request", "Missing issuer")
+    sp = sp_service.get_sp_by_entity_id(tenant_id, issuer)
     if sp is None:
-        logger.warning("Unknown SP entity_id: %s", parsed["issuer"])
+        logger.warning("Unknown SP entity_id: %s", issuer)
         return _render_sso_error(request, tenant_id, "unknown_sp")
 
     # 3. Validate request against registered SP (ACS URL match etc.)

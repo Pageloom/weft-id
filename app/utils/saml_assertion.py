@@ -262,8 +262,8 @@ def _sign_assertion(
     # Position: after Issuer (index 1)
     signature_node = xmlsec.template.create(
         assertion,
-        c14n_method=xmlsec.Transform.EXCL_C14N,
-        sign_method=xmlsec.Transform.RSA_SHA256,
+        c14n_method=xmlsec.Transform.EXCL_C14N,  # type: ignore[attr-defined]
+        sign_method=xmlsec.Transform.RSA_SHA256,  # type: ignore[attr-defined]
     )
     # Insert after Issuer (which is the first child)
     assertion.insert(1, signature_node)
@@ -271,11 +271,11 @@ def _sign_assertion(
     # Add reference to the Assertion itself
     ref = xmlsec.template.add_reference(
         signature_node,
-        digest_method=xmlsec.Transform.SHA256,
+        digest_method=xmlsec.Transform.SHA256,  # type: ignore[attr-defined]
         uri=f"#{assertion_id}",
     )
-    xmlsec.template.add_transform(ref, xmlsec.Transform.ENVELOPED)
-    xmlsec.template.add_transform(ref, xmlsec.Transform.EXCL_C14N)
+    xmlsec.template.add_transform(ref, xmlsec.Transform.ENVELOPED)  # type: ignore[attr-defined]
+    xmlsec.template.add_transform(ref, xmlsec.Transform.EXCL_C14N)  # type: ignore[attr-defined]
 
     # Add KeyInfo with X509 certificate
     key_info = xmlsec.template.ensure_key_info(signature_node)
@@ -286,9 +286,9 @@ def _sign_assertion(
     ctx = xmlsec.SignatureContext()
     key = xmlsec.Key.from_memory(
         private_key_pem.encode("utf-8"),
-        format=xmlsec.KeyFormat.PEM,
+        format=xmlsec.KeyFormat.PEM,  # type: ignore[attr-defined]
     )
-    key.load_cert_from_memory(certificate_pem.encode("utf-8"), xmlsec.KeyFormat.CERT_PEM)
+    key.load_cert_from_memory(certificate_pem.encode("utf-8"), xmlsec.KeyFormat.CERT_PEM)  # type: ignore[attr-defined]
     ctx.key = key
 
     # Register the ID attribute so xmlsec can resolve the #ID reference

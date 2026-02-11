@@ -1183,6 +1183,21 @@ html5 = ["html5lib"]
 htmlsoup = ["BeautifulSoup4"]
 
 [[package]]
+name = "lxml-stubs"
+version = "0.5.1"
+description = "Type annotations for the lxml package"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "lxml-stubs-0.5.1.tar.gz", hash = "sha256:e0ec2aa1ce92d91278b719091ce4515c12adc1d564359dfaf81efa7d4feab79d"},
+    {file = "lxml_stubs-0.5.1-py3-none-any.whl", hash = "sha256:1f689e5dbc4b9247cb09ae820c7d34daeb1fdbd1db06123814b856dae7787272"},
+]
+
+[package.extras]
+test = ["coverage[toml] (>=7.2.5)", "mypy (>=1.2.0)", "pytest (>=7.3.0)", "pytest-mypy-plugins (>=1.10.1)"]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.0.0"
 description = "Python port of markdown-it. Markdown parsing, done right!"
@@ -2559,6 +2574,18 @@ files = [
 ]
 
 [[package]]
+name = "types-defusedxml"
+version = "0.7.0.20250822"
+description = "Typing stubs for defusedxml"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "types_defusedxml-0.7.0.20250822-py3-none-any.whl", hash = "sha256:5ee219f8a9a79c184773599ad216123aedc62a969533ec36737ec98601f20dcf"},
+    {file = "types_defusedxml-0.7.0.20250822.tar.gz", hash = "sha256:ba6c395105f800c973bba8a25e41b215483e55ec79c8ca82b6fe90ba0bc3f8b2"},
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.15.0"
 description = "Backported and Experimental Type Hints for Python 3.9+"
@@ -3013,4 +3040,4 @@ lxml = ">=3.8"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "f6362ff28420335fb5579ab99590598f480b6c93c3a332435161af22c258e246"
+content-hash = "a25c29b7cb286c52e8cb60406b14b7fa94ef2f6f840ef94c332e1b6bfdfbc0c8"

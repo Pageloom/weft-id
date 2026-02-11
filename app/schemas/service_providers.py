@@ -45,6 +45,7 @@ class SPConfig(BaseModel):
     acs_url: str
     certificate_pem: str | None = None
     nameid_format: str
+    signing_cert_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -55,6 +56,7 @@ class SPListItem(BaseModel):
     id: str
     name: str
     entity_id: str
+    signing_cert_expires_at: datetime | None = None
     created_at: datetime
 
 
@@ -71,3 +73,38 @@ class IdPMetadataInfo(BaseModel):
     metadata_url: str
     entity_id: str
     sso_url: str
+
+
+# ============================================================================
+# Per-SP Signing Certificate Schemas
+# ============================================================================
+
+
+class SPSigningCertificate(BaseModel):
+    """SP signing certificate info (no private key exposed)."""
+
+    id: str
+    sp_id: str
+    certificate_pem: str
+    expires_at: datetime
+    created_at: datetime
+    has_previous_certificate: bool = False
+    rotation_grace_period_ends_at: datetime | None = None
+
+
+class SPSigningCertificateRotationResult(BaseModel):
+    """Result of an SP signing certificate rotation."""
+
+    new_certificate_pem: str
+    new_expires_at: datetime
+    grace_period_ends_at: datetime
+
+
+class SPMetadataURLInfo(BaseModel):
+    """Per-SP metadata URL info for API consumers."""
+
+    metadata_url: str
+    entity_id: str
+    sso_url: str
+    sp_id: str
+    sp_name: str

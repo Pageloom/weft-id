@@ -77,6 +77,9 @@
                             Entity ID
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Certificate
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Created
                         </th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -88,9 +91,10 @@
                     {% for sp in service_providers %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <a href="/admin/integrations/service-providers/{{ sp.id }}"
+                               class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ sp.name }}
-                            </span>
+                            </a>
                         </td>
                         <td class="px-6 py-4">
                             <span class="text-sm text-gray-500 dark:text-gray-400 font-mono break-all">
@@ -98,11 +102,22 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
+                            {% if sp.signing_cert_expires_at %}
+                            <span class="text-sm text-green-600 dark:text-green-400">
+                                Expires {{ fmt_datetime(sp.signing_cert_expires_at) }}
+                            </span>
+                            {% else %}
+                            <span class="text-sm text-gray-400 dark:text-gray-500">None</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm text-gray-500 dark:text-gray-400">
                                 {{ fmt_datetime(sp.created_at) }}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a href="/admin/integrations/service-providers/{{ sp.id }}"
+                               class="text-blue-600 dark:text-blue-400 hover:underline mr-3">Details</a>
                             <form method="post" action="/admin/integrations/service-providers/{{ sp.id }}/delete" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"

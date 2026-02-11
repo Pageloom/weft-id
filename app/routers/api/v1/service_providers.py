@@ -12,6 +12,9 @@ from schemas.service_providers import (
     SPListResponse,
     SPMetadataImportURL,
     SPMetadataImportXML,
+    SPMetadataURLInfo,
+    SPSigningCertificate,
+    SPSigningCertificateRotationResult,
 )
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
@@ -176,5 +179,67 @@ def delete_service_provider(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         sp_service.delete_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Per-SP Signing Certificate Endpoints
+# =============================================================================
+
+
+@router.get("/{sp_id}/signing-certificate", response_model=SPSigningCertificate)
+def get_sp_signing_certificate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Get signing certificate info for a Service Provider.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.get_sp_signing_certificate(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/{sp_id}/signing-certificate/rotate",
+    response_model=SPSigningCertificateRotationResult,
+)
+def rotate_sp_signing_certificate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Rotate the signing certificate for a Service Provider.
+
+    Requires super_admin role.
+    The previous certificate remains valid during a 7-day grace period.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{sp_id}/metadata-url", response_model=SPMetadataURLInfo)
+def get_sp_metadata_url(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Get per-SP metadata URL info.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return sp_service.get_sp_metadata_url_info(requesting_user, sp_id, base_url)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

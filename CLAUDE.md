@@ -5,6 +5,7 @@
 Weft-ID is a multi-tenant identity federation platform that acts as middleware between applications and identity providers (Okta, Entra ID, Google Workspace, SAML/OIDC). Core capabilities:
 
 - SAML 2.0 and OAuth2 identity provider integration
+- SAML 2.0 Identity Provider for downstream service providers (SSO assertions, per-SP signing certificates)
 - Multi-factor authentication (TOTP-based with backup codes)
 - User lifecycle management with inactivation/reactivation workflows
 - Comprehensive audit logging and activity tracking
@@ -59,6 +60,10 @@ Request → Router → Service → Database → PostgreSQL
 | `BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
 | `ISSUES.md` | Active quality/security issues (goal: keep empty) |
 | `ISSUES_ARCHIVE.md` | Resolved issues with fix details |
+| `app/services/service_providers.py` | SP registration, SSO response building |
+| `app/routers/saml_idp/` | SAML IdP admin, SSO, metadata (package) |
+| `app/database/service_providers.py` | SP database queries |
+| `app/database/sp_signing_certificates.py` | Per-SP signing certificate queries |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
 ## Directory Structure
@@ -68,7 +73,8 @@ app/
 ├── routers/          # HTTP layer (imports services only)
 │   ├── api/v1/       # RESTful API endpoints
 │   ├── auth/         # Login, logout, onboarding (package)
-│   ├── saml/         # SAML authentication (package)
+│   ├── saml/         # SAML SP authentication (package)
+│   ├── saml_idp/     # SAML IdP admin, SSO, metadata (package)
 │   └── users/        # User management (package)
 ├── services/         # Business logic (imports database)
 │   ├── users/        # User CRUD, profile, lifecycle (package)
@@ -77,7 +83,8 @@ app/
 ├── database/         # SQL execution (returns dicts)
 │   ├── groups/       # Group queries (package)
 │   ├── oauth2/       # OAuth2 queries (package)
-│   └── saml/         # SAML queries (package)
+│   ├── saml/         # SAML queries (package)
+│   └── users/        # User queries (package)
 ├── schemas/          # Pydantic models
 ├── templates/        # Jinja2 templates
 ├── middleware/       # Request processing

@@ -1028,6 +1028,8 @@ So that I can manually test and debug SAML authentication flows without external
 **Effort:** S
 **Value:** Medium
 
+**Note:** SimpleSAMLphp was later removed from docker-compose in favor of SAMLtest.id (hosted service). See BACKLOG.md "SAML Smoketest" item for the replacement testing approach.
+
 ---
 
 ## SAML Upstream IdP Support - Phase 2: JIT Provisioning & Connection Testing

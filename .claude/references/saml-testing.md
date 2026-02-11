@@ -44,11 +44,57 @@ These cannot be unit/integration tested effectively:
 
 ## E2E Test Setup
 
-The project includes SimpleSAMLphp in docker-compose for manual testing. Automated E2E tests would need:
+For manual E2E testing, use SAMLtest.id (a free hosted SAML testing service that acts as both IdP and SP). Automated E2E tests would need:
 
-1. SimpleSAMLphp configured with matching certificates
+1. SAMLtest.id configured with matching metadata (or a cross-tenant Weft ID setup)
 2. Playwright to navigate the IdP login page
 3. Handle the POST back to ACS
 4. Verify session creation
 
-This is complex and fragile. Accept the coverage gap or invest in a proper E2E test suite with the SimpleSAMLphp simulator.
+This is complex and fragile. Accept the coverage gap or invest in a proper E2E test suite (see BACKLOG.md SAML Smoketest item).
+
+## SAML IdP / Service Provider Testing
+
+Weft ID also acts as a SAML Identity Provider, issuing assertions to registered Service Providers.
+
+### What's Covered (Automated Tests)
+
+- SP registration (manual entry, XML import, URL import)
+- SP CRUD operations (create, list, get, update, delete)
+- Per-SP signing certificate lifecycle (create, rotate, grace period)
+- SSO response building and assertion signing
+- Consent flow routing
+- IdP metadata generation (generic and per-SP)
+- Authorization checks (super_admin required for admin, admin+ for SSO)
+
+### What Requires E2E Tests
+
+1. **Full SSO round-trip** - SP sends AuthnRequest, user authenticates, consents, SP receives signed assertion
+2. **Real SAML assertion validation** - An actual SP validating the signature, audience, timing
+3. **Metadata import from live URL** - Fetching and parsing metadata from a running SP
+
+### Key Test Files
+
+| File | Coverage |
+|------|----------|
+| `tests/test_routers_saml_idp.py` | Admin UI for SP management |
+| `tests/test_routers_saml_idp_sso.py` | SSO flow, consent, assertion delivery |
+| `tests/test_services_service_providers.py` | SP service CRUD and certificate management |
+| `tests/test_services_service_providers_sso.py` | SSO assertion building and signing |
+| `tests/test_api_service_providers.py` | API endpoints for SP management |
+| `tests/test_utils_saml_idp.py` | IdP utility functions |
+
+### Manual SP Testing
+
+To manually test the SP setup flow:
+
+1. Start Docker services (`make up`), log in as `super_admin`
+2. Navigate to `/admin/settings/service-providers`, click "Add Service Provider"
+3. Enter a test SP (Name: "Test App", Entity ID: `https://testapp.local/saml/metadata`, ACS URL: `https://testapp.local/saml/acs`)
+4. Verify the SP appears in the list and its detail page shows IdP metadata URL
+5. Visit `/saml/idp/metadata` (generic) and `/saml/idp/metadata/{sp_id}` (per-SP) to confirm valid XML
+6. For full SSO testing, options include:
+   - **SAMLtest.id** (free online service, can act as SP)
+   - **sptest.iamshowcase.com** (free online test SP)
+   - **Another Weft ID tenant** (Tenant B as SP consuming Tenant A as IdP, requires separate subdomains and manual certificate exchange)
+7. Check event logs for `service_provider_created`, `sp_signing_certificate_created`, and (after SSO) `sso_assertion_issued`

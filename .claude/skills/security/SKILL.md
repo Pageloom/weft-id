@@ -79,6 +79,35 @@ For each vulnerability:
 - **Medium:** XSS, CSRF on sensitive actions, info disclosure
 - **Low:** Missing headers, minor misconfigurations
 
+## SAML Security Patterns
+
+Weft ID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing assertions to SPs). Check for:
+
+**XML Signature Wrapping (XSW):**
+- Verify signature validation covers the entire assertion, not just a fragment
+- Check that signed elements cannot be moved or duplicated within the XML
+- Review `python3-saml` configuration for strict signature validation
+
+**Assertion Replay:**
+- Check that assertions include unique IDs and are validated for reuse
+- Verify `NotOnOrAfter` / `NotBefore` timing constraints are enforced
+- Look for assertion replay protection (nonce tracking or short validity windows)
+
+**Audience Restriction Bypass:**
+- Verify `Audience` element matches the expected SP entity ID
+- Check that assertions intended for one SP cannot be replayed to another
+
+**IdP-side (Weft ID issuing assertions):**
+- Verify signing keys are properly protected (not logged, not in plaintext config)
+- Check per-SP certificate isolation (SP A's cert should not sign SP B's assertions)
+- Verify consent flow cannot be bypassed (direct POST to assertion endpoint)
+- Check that `NameID` and attribute values are properly escaped in assertion XML
+
+**Metadata Security:**
+- Verify metadata endpoints do not leak private keys
+- Check that metadata URL imports validate the fetched XML
+- Look for SSRF in metadata URL fetching
+
 ## Key Patterns to Check
 
 See `.claude/references/owasp-patterns.md` for detailed patterns including:

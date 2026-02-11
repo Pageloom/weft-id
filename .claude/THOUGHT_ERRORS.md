@@ -36,10 +36,10 @@ The test environment sets `IS_DEV=true` in `tests/conftest.py`. This is required
 
 ## Type Checking
 
-**Wrong:** `poetry run pyright` or `poetry run mypy` (neither is installed)
-**Right:** `poetry run ruff check app/`
+**Wrong:** `poetry run pyright` (not installed)
+**Right:** `poetry run mypy app/` or `poetry run ruff check app/`
 
-This project uses ruff for linting and type-related checks. Neither mypy nor pyright is available in the virtualenv.
+This project uses ruff for linting and mypy for type checking (configured in `pyproject.toml` with the pydantic plugin). pyright is not available in the virtualenv.
 
 ---
 

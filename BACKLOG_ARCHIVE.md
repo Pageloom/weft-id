@@ -4,6 +4,41 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Identity Provider - Phase 2: Per-SP Signing Certificates & Metadata
+
+**Status:** Complete
+
+**Summary:** Implemented per-SP signing certificates and metadata URLs so that certificate compromise or rotation for one SP does not affect others. Each registered SP now gets its own auto-generated signing certificate, and metadata is available at per-SP URLs (`/saml/idp/metadata/{sp_id}`). The tenant-wide metadata URL remains as a fallback. The SSO flow signs assertions with the correct SP-specific certificate. Also moved Service Providers from the Integrations section to Settings and hid the tenant metadata URL when no SPs are registered.
+
+**Completed Work:**
+
+**Per-SP Signing Certificates:**
+
+- [x] Each registered SP gets its own auto-generated signing certificate
+- [x] Certificate generated on SP registration (alongside existing SP creation flow)
+- [x] SP-specific certificate used when signing SAML assertions for that SP
+- [x] Certificate rotation per SP (rotate one without affecting others)
+- [x] Admin UI shows certificate status (expiry date) per SP
+
+**Per-SP Metadata URLs:**
+
+- [x] Metadata endpoint accepts SP identifier: `GET /saml/idp/metadata/{sp_id}`
+- [x] Per-SP metadata returns that SP's signing certificate (not a shared tenant cert)
+- [x] Tenant-wide metadata URL (`/saml/idp/metadata`) remains as a fallback returning the tenant cert
+- [x] Admin UI shows per-SP metadata URL on SP detail/list page
+- [x] Download and copy per-SP metadata URL
+
+**Backward Compatibility:**
+
+- [x] Existing SPs get certificates generated via a one-time migration or lazy generation
+- [x] Entity ID and SSO URL remain tenant-scoped (no per-SP SSO endpoints)
+- [x] Phase 1c SSO flow updated to sign with the correct SP-specific certificate
+
+**Effort:** M
+**Value:** High (Security isolation, matches industry standard IdP behavior)
+
+---
+
 ## SAML Identity Provider - Phase 1c: SP-Initiated SSO Flow
 
 **Status:** Complete

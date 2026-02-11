@@ -92,6 +92,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / Service Providers
     "service_provider_created": "Downstream service provider registered",
     "service_provider_deleted": "Downstream service provider removed",
+    # SAML IdP / SSO
+    "sso_assertion_issued": "SAML SSO assertion issued to downstream service provider",
+    "sso_consent_denied": "User denied SSO consent for downstream service provider",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",

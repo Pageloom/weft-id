@@ -4,6 +4,55 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Identity Provider - Phase 1c: SP-Initiated SSO Flow
+
+**Status:** Complete
+
+**Summary:** Implemented the full SP-Initiated SSO flow for the SAML IdP. SPs send AuthnRequests to `/saml/idp/sso` (HTTP-Redirect or POST binding). Unauthenticated users are redirected to login with SSO context preserved through session regeneration. Authenticated users see a consent screen showing the SP name and attributes being shared. On consent, a signed SAML Response (RSA-SHA256, Exclusive C14N, enveloped signature) is generated using `lxml` + `xmlsec` and POSTed to the SP's ACS URL via auto-submitting form.
+
+**Delivered:**
+- AuthnRequest parsing utility (`app/utils/saml_authn_request.py`) with redirect and POST binding support
+- SAML Response/Assertion generation with XML Digital Signatures (`app/utils/saml_assertion.py`)
+- SSO router (`app/routers/saml_idp/sso.py`) with GET/POST SSO and GET/POST consent endpoints
+- Consent screen, auto-submit POST form, and error templates
+- SSO service layer functions (`get_sp_by_entity_id`, `build_sso_response`)
+- SSO context preservation through MFA verification and SAML authentication flows
+- CSRF exemption for `/saml/idp/sso` (external SP POST), CSRF protection for consent form
+- Event logging: `sso_assertion_issued`, `sso_consent_denied`
+- 67 new tests across 5 test files (utilities, services, router, integration)
+
+---
+
+## SAML Identity Provider - Phase 1b: IdP Metadata Exposure
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want my tenant to expose SAML IdP metadata
+So that downstream service providers can configure trust with my identity provider
+
+**Completed Work:**
+
+- [x] Tenant-specific IdP metadata endpoint: `GET /saml/idp/metadata`
+- [x] Metadata includes: Entity ID, SSO endpoint URL, signing certificate, supported NameID formats
+- [x] Downloadable as XML file via `GET /saml/idp/metadata/download`
+- [x] Admin UI displays the metadata URL and provides download button on SP list page
+
+**Technical Implementation:**
+
+- New `app/routers/saml_idp/metadata.py`: public metadata endpoint (unauthenticated)
+- `app/utils/saml_idp.py`: `generate_idp_metadata_xml()` produces SAML 2.0 IdP metadata XML
+- `app/services/service_providers.py`: `get_tenant_idp_metadata_xml()` orchestrates cert lookup and XML generation
+- Entity ID: `{base_url}/saml/idp/metadata`, SSO URL: `{base_url}/saml/idp/sso`
+- Reuses existing `saml_sp_certificates` table for tenant signing certificate
+- Router package: `app/routers/saml_idp/` with `_helpers.py` for shared `get_base_url()`
+
+**Effort:** S
+**Value:** High (Required for downstream SP configuration)
+
+---
+
 ## SAML Identity Provider - Phase 1a: Service Provider Registration
 
 **Status:** Complete

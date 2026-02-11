@@ -6,41 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## User Export (CSV)
-
-**User Story:**
-As an admin
-I want to export the current filtered user list as a CSV file
-So that I can use the data for auditing, compliance reporting, and operational tasks outside the platform
-
-**Acceptance Criteria:**
-
-**Frontend Export:**
-
-- [ ] "Export" button on the users list page
-- [ ] Exports the current filtered/searched result set (respects active search, role filters, status filters)
-- [ ] Downloads as a `.csv` file with a timestamped filename (e.g., `users_2026-02-07.csv`)
-- [ ] CSV columns: Name, Email, Role, Status, Auth Method, Last Login, Last Activity, Created At
-- [ ] Handles large exports gracefully (streaming response, not buffered in memory)
-- [ ] Export limited to admin+ role
-
-**API Endpoint:**
-
-- [ ] `GET /api/v1/users/export?format=csv` with same filter parameters as list endpoint
-- [ ] Supports `format=csv` (default) and `format=json` for programmatic use
-- [ ] Streams response for large datasets
-- [ ] Admin+ authorization required
-
-**Event Logging:**
-
-- [ ] Export action logged as audit event (`users_exported` event type)
-- [ ] Event metadata includes: format, filter criteria, row count
-
-**Effort:** S
-**Value:** High (Frequently needed for compliance and operations, low implementation cost)
-
----
-
 ## SAML Identity Provider - Phase 1: Core IdP (SP-Initiated SSO)
 
 **User Story:**
@@ -322,122 +287,6 @@ So that I can guarantee data residency in specific regions and enable future geo
 
 ---
 
-## Internationalization (i18n) Support
-
-**User Story:**
-As a platform operator
-I want to serve the application in multiple languages
-So that users can interact with the platform in their preferred language
-
-**Acceptance Criteria:**
-
-**Core Infrastructure:**
-
-- [ ] Translation framework integrated (Babel + Flask-Babel or similar for FastAPI/Jinja2)
-- [ ] Message extraction configured for Python code and Jinja2 templates
-- [ ] Translation files stored in `locales/` directory using standard `.po`/`.mo` format
-- [ ] English (en) as base language with all strings extracted
-- [ ] At least one additional language fully translated for MVP (suggest: Spanish, French, or German)
-
-**Language Detection & Selection:**
-
-- [ ] User preference stored in database (`preferred_language` column on users table)
-- [ ] Tenant default language setting (fallback when user has no preference)
-- [ ] Browser `Accept-Language` header detection (fallback when no user/tenant preference)
-- [ ] Language switcher UI component (accessible from all pages)
-- [ ] Language preference persists across sessions
-
-**Translated Content:**
-
-- [ ] All UI text in templates (buttons, labels, headings, navigation)
-- [ ] Flash messages and inline validation errors
-- [ ] Email templates (subject lines and body content)
-- [ ] Date/time formatting localized per locale
-- [ ] Number formatting localized per locale (future: currency if needed)
-
-**Developer Experience:**
-
-- [ ] `make extract-messages` command to extract translatable strings
-- [ ] `make compile-messages` command to compile `.po` to `.mo`
-- [ ] Documentation on adding new translatable strings
-- [ ] Documentation on adding a new language
-
-**Out of Scope:**
-
-- API response message translation (API returns English, clients handle i18n)
-- User-generated content translation
-- Right-to-left (RTL) language support (can be added later)
-- Machine translation integration
-- Translation management UI (use external tools like Weblate, POEditor)
-- Pluralization rules beyond basic (singular/plural)
-
-**Technical Implementation:**
-
-- Database migration: Add `preferred_language` to users table, `default_language` to tenant settings
-- Install `Babel` package for extraction and locale management
-- Jinja2 integration with `_()` or `gettext()` function
-- Middleware to set locale per request based on preference hierarchy
-- Update all templates to use translation functions
-- Create `locales/` directory structure
-- Add extraction configuration (`babel.cfg`)
-
-**Dependencies:**
-
-- `Babel` package
-- `python-i18n` or custom FastAPI middleware
-
-**Effort:** L
-**Value:** Medium (Expands Addressable Market)
-
-**Notes:**
-
-- Start with a single additional language to validate the pipeline
-- Keep translation keys close to English text (not abstract keys) for maintainability
-- Consider hiring professional translators for production languages
-
----
-
-## Privileged Domain Verification via DNS TXT Records
-
-**User Story:**
-As a super admin
-I want to verify ownership of privileged email domains via DNS TXT records
-So that only domains I actually control can bypass email verification, preventing security vulnerabilities
-
-**Acceptance Criteria:**
-
-- [ ] Super admin can add privileged domains which are created in an "unverified" state
-- [ ] System generates a unique verification token (32-char random string) for each domain
-- [ ] UI displays verification instructions: "Add this TXT record to your DNS: `loom-verify=<token>`"
-- [ ] "Verify Domain" button triggers on-demand DNS TXT record lookup
-- [ ] When matching TXT record is found, domain is marked as verified with timestamp
-- [ ] Unverified domains are visible but marked as "pending verification"
-- [ ] Regular admins can view privileged domains and their verification status (read-only)
-- [ ] Periodic background job re-verifies all verified domains (e.g., daily/weekly)
-- [ ] If re-verification fails, domain status changes to "verification failed" (with alert/notification)
-- [ ] Auto-verification of new user emails works regardless of domain verification status (future features may restrict
-  this)
-- [ ] Users who were previously verified remain verified even if domain verification later fails
-- [ ] Database tracks: verification_token, verified (boolean), verified_at (timestamp)
-
-**Technical Implementation:**
-
-- Database migration: `00009_domain_verification.sql`
-- DNS utility: `app/utils/dns.py` (using dnspython package)
-- Update: `app/database/settings.py`
-- New endpoint: verification route in settings router
-- UI updates: settings template showing verification status and instructions
-- Background job: domain re-verification cron task
-
-**Dependencies:**
-
-- `dnspython` package
-
-**Effort:** L
-**Value:** Low
-
----
-
 ## E2E Test Suite with Playwright (Tentative)
 
 **Status:** Tentative - Considering for future implementation
@@ -507,6 +356,41 @@ Post-install: `playwright install chromium`
 - Consider implementing when SAML Phase 2+ is complete and flows are stable
 - Alternative: Continue using TestClient-based integration tests which are faster
 - Could start with just SAML flow and expand to other auth flows later
+
+---
+
+## User Export (CSV)
+
+**User Story:**
+As an admin
+I want to export the current filtered user list as a CSV file
+So that I can use the data for auditing, compliance reporting, and operational tasks outside the platform
+
+**Acceptance Criteria:**
+
+**Frontend Export:**
+
+- [ ] "Export" button on the users list page
+- [ ] Exports the current filtered/searched result set (respects active search, role filters, status filters)
+- [ ] Downloads as a `.csv` file with a timestamped filename (e.g., `users_2026-02-07.csv`)
+- [ ] CSV columns: Name, Email, Role, Status, Auth Method, Last Login, Last Activity, Created At
+- [ ] Handles large exports gracefully (streaming response, not buffered in memory)
+- [ ] Export limited to admin+ role
+
+**API Endpoint:**
+
+- [ ] `GET /api/v1/users/export?format=csv` with same filter parameters as list endpoint
+- [ ] Supports `format=csv` (default) and `format=json` for programmatic use
+- [ ] Streams response for large datasets
+- [ ] Admin+ authorization required
+
+**Event Logging:**
+
+- [ ] Export action logged as audit event (`users_exported` event type)
+- [ ] Event metadata includes: format, filter criteria, row count
+
+**Effort:** S
+**Value:** High (Frequently needed for compliance and operations, low implementation cost)
 
 ---
 

@@ -343,9 +343,19 @@ def saml_acs(
         "saml_name_id_format": saml_result.name_id_format,
         "saml_session_index": saml_result.session_index,
     }
+
+    # Preserve pending SSO context through session regeneration
+    from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
+
+    pending_sso = extract_pending_sso(request.session)
+    if pending_sso:
+        saml_session_data.update(pending_sso)
+
     regenerate_session(request, str(user["id"]), max_age, additional_data=saml_session_data)
 
     # Update last login
     users_service.update_last_login(tenant_id, str(user["id"]))
 
-    return RedirectResponse(url=RelayState, status_code=303)
+    # Redirect to consent page if pending SSO, otherwise use RelayState
+    redirect_url = get_post_auth_redirect(request.session, default=RelayState)
+    return RedirectResponse(url=redirect_url, status_code=303)

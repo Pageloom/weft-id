@@ -132,6 +132,11 @@ def mfa_verify(
     tz_to_update = timezone or request.session.get("pending_timezone", "")
     locale_to_update = locale or request.session.get("pending_locale", "")
 
+    # Extract pending SSO context (if user was redirected from an SP's AuthnRequest)
+    from routers.saml_idp._helpers import extract_pending_sso
+
+    pending_sso = extract_pending_sso(request.session)
+
     # Log successful sign-in event (also updates last_activity_at via log_event)
     from services.event_log import log_event
 
@@ -164,7 +169,7 @@ def mfa_verify(
 
     # CRITICAL: Regenerate session to prevent session fixation attacks
     # This clears all pre-auth data and creates a fresh authenticated session
-    regenerate_session(request, pending_user_id, max_age)
+    regenerate_session(request, pending_user_id, max_age, additional_data=pending_sso)
 
     # Update timezone and locale if provided
     current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
@@ -185,7 +190,11 @@ def mfa_verify(
     else:
         users_service.update_last_login(tenant_id, pending_user_id)
 
-    return RedirectResponse(url="/dashboard", status_code=303)
+    # Redirect to consent page if pending SSO, otherwise dashboard
+    from routers.saml_idp._helpers import get_post_auth_redirect
+
+    redirect_url = get_post_auth_redirect(request.session)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/verify/send-email")

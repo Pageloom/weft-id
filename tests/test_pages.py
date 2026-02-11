@@ -453,11 +453,12 @@ def test_integrations_children_structure():
     """Test the integrations page has expected children."""
     page = get_page_by_path("/admin/integrations")
     assert page.children is not None
-    assert len(page.children) == 2
+    assert len(page.children) == 3
 
     child_paths = [child.path for child in page.children]
     assert "/admin/integrations/apps" in child_paths
     assert "/admin/integrations/b2b" in child_paths
+    assert "/admin/integrations/service-providers" in child_paths
 
 
 def test_integrations_in_admin_nav():

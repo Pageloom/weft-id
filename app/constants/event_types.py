@@ -89,6 +89,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_groups_bulk_added": "User added to multiple groups in bulk",
     "group_relationship_created": "Group hierarchy relationship created",
     "group_relationship_deleted": "Group hierarchy relationship removed",
+    # SAML IdP / Service Providers
+    "service_provider_created": "Downstream service provider registered",
+    "service_provider_deleted": "Downstream service provider removed",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",

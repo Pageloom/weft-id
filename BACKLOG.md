@@ -6,40 +6,58 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML Identity Provider - Phase 1: Core IdP (SP-Initiated SSO)
+## SAML Identity Provider - Phase 1b: IdP Metadata Exposure
 
 **User Story:**
 As a super admin
-I want to register downstream applications as SAML Service Providers
-So that those applications can authenticate users via SSO against my tenant's identity provider
+I want my tenant to expose SAML IdP metadata
+So that downstream service providers can configure trust with my identity provider
 
 **Context:**
 
-This is the foundational phase of making the platform act as a SAML Identity Provider. Currently the platform federates
-with upstream IdPs (Okta, Azure AD, etc.). This feature enables the reverse: downstream applications trust this platform
-as their IdP. How users actually authenticate internally (password, MFA, upstream IdP) is opaque to the downstream SP.
+Phase 1a established SP registration (database, service layer, admin UI, API). This phase exposes the tenant's IdP
+metadata so downstream SPs can complete their side of the trust configuration.
 
 **Acceptance Criteria:**
-
-**Service Provider Registration:**
-
-- [ ] Super admin can register downstream apps (SPs) via:
-    - Pasted SAML metadata XML
-    - Metadata URL (fetched and parsed)
-- [ ] Metadata parsing extracts: Entity ID, ACS URL(s), SP certificate (if present), NameID format
-- [ ] Manual fallback: if metadata incomplete, allow manual entry of Entity ID and ACS URL
-- [ ] SP has name field (required) for display purposes
-- [ ] Basic SP list view (super admin only): Name, Entity ID, Created At
-- [ ] Delete SP (for correcting mistakes)
-
-**IdP Metadata Exposure:**
 
 - [ ] Tenant-specific IdP metadata endpoint: `GET /saml/idp/metadata`
 - [ ] Metadata includes: Entity ID, SSO endpoint URL, signing certificate, supported NameID formats
 - [ ] Downloadable as XML file
 - [ ] Copyable metadata URL for SP configuration
+- [ ] Admin UI displays the metadata URL and provides a download button
 
-**SP-Initiated SSO Flow:**
+**Technical Implementation:**
+
+- New route in `app/routers/saml_idp/` for metadata endpoint
+- Generate IdP metadata XML using tenant's SAML certificate
+- Entity ID derived from tenant subdomain
+- SSO endpoint URL points to the SSO route (Phase 1c)
+
+**Dependencies:**
+
+- Phase 1a complete (SP registration infrastructure)
+- Existing SAML certificate infrastructure
+
+**Effort:** S
+**Value:** High (Required for downstream SP configuration)
+
+---
+
+## SAML Identity Provider - Phase 1c: SP-Initiated SSO Flow
+
+**User Story:**
+As a user
+I want to authenticate via SSO when a downstream application sends me to my tenant's IdP
+So that I can access downstream applications using my existing credentials
+
+**Context:**
+
+Phases 1a (SP registration) and 1b (IdP metadata) established the trust infrastructure. This phase implements the
+actual SSO flow: receiving AuthnRequests, authenticating users, and generating signed SAML assertions.
+
+**Acceptance Criteria:**
+
+**SSO Endpoint:**
 
 - [ ] SSO endpoint: `POST/GET /saml/idp/sso` receives SAML AuthnRequest
 - [ ] Parse and validate AuthnRequest (issuer must match registered SP)
@@ -56,35 +74,27 @@ as their IdP. How users actually authenticate internally (password, MFA, upstrea
 - [ ] Assertion signed with tenant's certificate (reuse existing SAML certificate infrastructure)
 - [ ] POST assertion to SP's ACS URL via auto-submitting form
 
-**Access Model (Phase 1):**
+**Access Model:**
 
 - [ ] All authenticated users in the tenant can access all registered SPs
 - [ ] No per-user assignment in this phase (comes in Phase 2)
 
 **Technical Implementation:**
 
-- Database migration:
-    - `service_providers`: id, tenant_id, name, entity_id, acs_url, certificate, metadata_xml, created_at
-- New router: `app/routers/saml_idp.py` (separate from `saml.py` which handles upstream)
-- New service: `app/services/saml_idp.py`
-- New database module: `app/database/service_providers.py`
+- AuthnRequest parsing and validation
+- Consent screen template
 - SAML assertion generation using existing `python3-saml` library
 - Signing with tenant's existing SAML certificate
-- UI: SP registration form, SP list, consent screen
+- Login redirect integration (return to SSO flow after authentication)
 
 **Dependencies:**
 
+- Phase 1a complete (SP registration)
+- Phase 1b complete (IdP metadata)
 - Existing SAML infrastructure (certificates, python3-saml library)
-- Organizational Structure & Grouping System (recommended before Phase 2)
 
 **Effort:** L
-**Value:** High (Core IdP capability - enables downstream app integration)
-
-**Notes:**
-
-- This phase delivers a working IdP that integrators can test against
-- The "all users can access all SPs" model is intentionally simple for Phase 1
-- Study existing upstream IdP registration flow in `app/routers/saml.py` for patterns
+**Value:** High (Core IdP capability, enables downstream app integration)
 
 ---
 

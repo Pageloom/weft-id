@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Identity Provider - Phase 1a: Service Provider Registration
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want to register downstream applications as SAML Service Providers
+So that those applications can authenticate users via SSO against my tenant's identity provider
+
+**Completed Work:**
+
+- [x] Database migration (`db-init/00029_service_providers.sql`): `service_providers` table with RLS, indexes, triggers
+- [x] Pydantic schemas (`app/schemas/service_providers.py`): SPCreate, SPConfig, SPListItem, SPListResponse, metadata import models
+- [x] Database CRUD layer (`app/database/service_providers.py`): list, get, get_by_entity_id, create, delete
+- [x] SP metadata parsing utility (`app/utils/saml_idp.py`): parse_sp_metadata_xml, fetch_sp_metadata using defusedxml
+- [x] Service layer (`app/services/service_providers.py`): full CRUD with authorization, event logging, activity tracking
+- [x] Admin UI router (`app/routers/saml_idp/admin.py`): list, new form, create (manual/XML/URL), delete
+- [x] REST API router (`app/routers/api/v1/service_providers.py`): full CRUD endpoints under `/api/v1/service-providers`
+- [x] Templates: SP list page (`saml_idp_sp_list.html`), registration form with 3 tabs (`saml_idp_sp_new.html`)
+- [x] Event types: `service_provider_created`, `service_provider_deleted`
+- [x] Pages registry updated with Service Providers under Integrations (super_admin)
+- [x] Comprehensive tests: utility (8), service (19), router (13), API (13) = 53 new tests
+
+---
+
 ## User-Centric Group Management
 
 **Status:** Complete

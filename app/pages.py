@@ -260,6 +260,21 @@ PAGES = [
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
                     ),
+                    Page(
+                        path="/admin/integrations/service-providers",
+                        title="Service Providers",
+                        permission=PagePermission.SUPER_ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/integrations/service-providers/new",
+                                title="Add Service Provider",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
                 ],
             ),
             # Groups section: Group management

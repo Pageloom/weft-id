@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Add Service Provider - WeftId{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <div class="mb-6">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Add Service Provider</h1>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Register a downstream application for SAML SSO</p>
+        </div>
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
+                {{ error }}
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Tab Navigation -->
+        <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+            <nav class="-mb-px flex space-x-8" aria-label="Registration method">
+                <button type="button" class="tab-btn border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" data-tab="metadata-url">
+                    Metadata URL
+                </button>
+                <button type="button" class="tab-btn border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" data-tab="metadata-xml">
+                    Metadata XML
+                </button>
+                <button type="button" class="tab-btn border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" data-tab="manual">
+                    Manual Entry
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab: Import from Metadata URL -->
+        <div id="tab-metadata-url" class="tab-content">
+            <form method="post" action="/admin/integrations/service-providers/import-metadata-url">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="space-y-4">
+                    <div>
+                        <label for="url-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Display Name
+                        </label>
+                        <input type="text" id="url-name" name="name" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="My Application">
+                    </div>
+                    <div>
+                        <label for="metadata-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Metadata URL
+                        </label>
+                        <input type="url" id="metadata-url" name="metadata_url" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="https://app.example.com/saml/metadata">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            The SP metadata XML will be fetched and parsed automatically.
+                        </p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4">
+                        <a href="/admin/integrations/service-providers"
+                           class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                        </a>
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Import
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: Import from Metadata XML -->
+        <div id="tab-metadata-xml" class="tab-content hidden">
+            <form method="post" action="/admin/integrations/service-providers/import-metadata-xml">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="space-y-4">
+                    <div>
+                        <label for="xml-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Display Name
+                        </label>
+                        <input type="text" id="xml-name" name="name" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="My Application">
+                    </div>
+                    <div>
+                        <label for="metadata-xml" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Metadata XML
+                        </label>
+                        <textarea id="metadata-xml" name="metadata_xml" rows="10" required
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="Paste the SP metadata XML here..."></textarea>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4">
+                        <a href="/admin/integrations/service-providers"
+                           class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                        </a>
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Import
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: Manual Entry -->
+        <div id="tab-manual" class="tab-content hidden">
+            <form method="post" action="/admin/integrations/service-providers/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="space-y-4">
+                    <div>
+                        <label for="manual-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Display Name
+                        </label>
+                        <input type="text" id="manual-name" name="name" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="My Application">
+                    </div>
+                    <div>
+                        <label for="entity-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Entity ID
+                        </label>
+                        <input type="text" id="entity-id" name="entity_id" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="https://app.example.com/saml/metadata">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            The SAML Entity ID of the service provider.
+                        </p>
+                    </div>
+                    <div>
+                        <label for="acs-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            ACS URL
+                        </label>
+                        <input type="url" id="acs-url" name="acs_url" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="https://app.example.com/saml/acs">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            The Assertion Consumer Service URL where SAML responses are sent.
+                        </p>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4">
+                        <a href="/admin/integrations/service-providers"
+                           class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                        </a>
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            Register
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var tabId = this.dataset.tab;
+
+        // Hide all tab content
+        document.querySelectorAll('.tab-content').forEach(function(content) {
+            content.classList.add('hidden');
+        });
+
+        // Reset all tab buttons
+        document.querySelectorAll('.tab-btn').forEach(function(b) {
+            b.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+            b.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        });
+
+        // Show selected tab
+        document.getElementById('tab-' + tabId).classList.remove('hidden');
+
+        // Activate selected button
+        this.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+        this.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+    });
+});
+</script>
+{% endblock %}

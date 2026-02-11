@@ -23,6 +23,7 @@ from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
+from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
 from routers.api.v1 import exports as exports_api  # noqa: E402
@@ -31,6 +32,7 @@ from routers.api.v1 import jobs as jobs_api  # noqa: E402
 from routers.api.v1 import oauth2_clients  # noqa: E402
 from routers.api.v1 import reactivation as reactivation_api  # noqa: E402
 from routers.api.v1 import saml as saml_api  # noqa: E402
+from routers.api.v1 import service_providers as service_providers_api  # noqa: E402
 from routers.api.v1 import settings as settings_api  # noqa: E402
 from routers.api.v1 import users as users_api  # noqa: E402
 
@@ -86,6 +88,7 @@ app.include_router(account_router.router)
 app.include_router(admin_router.router)
 app.include_router(groups_router.router)
 app.include_router(integrations_router.router)
+app.include_router(saml_idp_router.router)
 app.include_router(settings_router.router)
 app.include_router(tenants.router)
 app.include_router(users.router)
@@ -102,6 +105,7 @@ app.include_router(jobs_api.router)
 app.include_router(oauth2_clients.router)
 app.include_router(reactivation_api.router)
 app.include_router(saml_api.router)
+app.include_router(service_providers_api.router)
 app.include_router(settings_api.router)
 app.include_router(users_api.router)
 

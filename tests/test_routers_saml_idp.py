@@ -1,0 +1,361 @@
+"""Tests for the SAML IdP admin UI routes."""
+
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
+
+import pytest
+from fastapi.responses import HTMLResponse
+from schemas.service_providers import SPConfig, SPListItem, SPListResponse
+
+ROUTER_MODULE = "routers.saml_idp.admin"
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def sp_user():
+    """Mock super admin user dict for dependency overrides."""
+    tenant_id = str(uuid4())
+    return {
+        "id": str(uuid4()),
+        "tenant_id": tenant_id,
+        "role": "super_admin",
+        "email": "admin@test.com",
+        "first_name": "Test",
+        "last_name": "Admin",
+        "tz": "UTC",
+        "locale": "en_US",
+    }
+
+
+@pytest.fixture
+def sp_admin_session(client, sp_user, override_auth):
+    """Client with super_admin session for SP routes."""
+    override_auth(sp_user, level="super_admin")
+    return client
+
+
+@pytest.fixture
+def sp_host(sp_user):
+    """Host header matching the user's tenant."""
+    import settings
+
+    return f"test.{settings.BASE_DOMAIN}"
+
+
+@pytest.fixture(autouse=True)
+def mock_tenant_lookup(sp_user):
+    """Mock tenant lookup so test host resolves to our test tenant."""
+    with patch("dependencies.database") as mock_db:
+        mock_db.tenants.get_tenant_by_subdomain.return_value = {
+            "id": sp_user["tenant_id"],
+            "subdomain": "test",
+        }
+        yield
+
+
+@pytest.fixture
+def sample_sp_list():
+    """Sample SP list response."""
+    return SPListResponse(
+        items=[
+            SPListItem(
+                id=str(uuid4()),
+                name="Test App",
+                entity_id="https://app.example.com",
+                created_at=datetime.now(UTC),
+            ),
+        ],
+        total=1,
+    )
+
+
+@pytest.fixture
+def sample_sp_config():
+    """Sample SP config response."""
+    return SPConfig(
+        id=str(uuid4()),
+        name="New App",
+        entity_id="https://new.example.com",
+        acs_url="https://new.example.com/acs",
+        nameid_format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+# =============================================================================
+# SP List Page
+# =============================================================================
+
+
+class TestSPListPage:
+    """Tests for the SP list page."""
+
+    def test_list_page_renders(self, sp_admin_session, sp_host, sample_sp_list, mocker):
+        """SP list page renders for super admin."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp list</html>")
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=sample_sp_list,
+        ):
+            response = sp_admin_session.get(
+                "/admin/integrations/service-providers",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_list.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert "service_providers" in ctx_kwargs
+
+    def test_list_page_empty(self, sp_admin_session, sp_host, mocker):
+        """SP list page shows empty state when no SPs exist."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>empty</html>")
+
+        empty = SPListResponse(items=[], total=0)
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=empty,
+        ):
+            response = sp_admin_session.get(
+                "/admin/integrations/service-providers",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["service_providers"] == []
+
+    def test_list_page_shows_success_created(
+        self, sp_admin_session, sp_host, sample_sp_list, mocker
+    ):
+        """SP list page passes success param to template context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>success</html>")
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=sample_sp_list,
+        ):
+            response = sp_admin_session.get(
+                "/admin/integrations/service-providers?success=created",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["success"] == "created"
+
+
+# =============================================================================
+# SP New Page
+# =============================================================================
+
+
+class TestSPNewPage:
+    """Tests for the SP registration form."""
+
+    def test_new_page_renders(self, sp_admin_session, sp_host, mocker):
+        """SP registration form renders."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>new sp</html>")
+
+        response = sp_admin_session.get(
+            "/admin/integrations/service-providers/new",
+            headers={"Host": sp_host},
+        )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_new.html"
+
+
+# =============================================================================
+# SP Create (Manual)
+# =============================================================================
+
+
+class TestSPCreateManual:
+    """Tests for manual SP creation."""
+
+    def test_create_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful manual creation redirects with success."""
+        with patch(
+            "services.service_providers.create_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                "/admin/integrations/service-providers/create",
+                data={
+                    "name": "New App",
+                    "entity_id": "https://new.example.com",
+                    "acs_url": "https://new.example.com/acs",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=created" in response.headers["location"]
+
+    def test_create_missing_name(self, sp_admin_session, sp_host):
+        """Missing name redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/integrations/service-providers/create",
+            data={"name": "", "entity_id": "x", "acs_url": "x"},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_create_missing_entity_id(self, sp_admin_session, sp_host):
+        """Missing entity_id redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/integrations/service-providers/create",
+            data={"name": "App", "entity_id": "", "acs_url": "x"},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_create_missing_acs_url(self, sp_admin_session, sp_host):
+        """Missing acs_url redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/integrations/service-providers/create",
+            data={"name": "App", "entity_id": "x", "acs_url": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Import from XML
+# =============================================================================
+
+
+class TestSPImportXML:
+    """Tests for SP import from metadata XML."""
+
+    def test_import_xml_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful XML import redirects with success."""
+        with patch(
+            "services.service_providers.import_sp_from_metadata_xml",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                "/admin/integrations/service-providers/import-metadata-xml",
+                data={"name": "XML App", "metadata_xml": "<xml>test</xml>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=created" in response.headers["location"]
+
+    def test_import_xml_missing_name(self, sp_admin_session, sp_host):
+        """Missing name redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/integrations/service-providers/import-metadata-xml",
+            data={"name": "", "metadata_xml": "<xml/>"},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Import from URL
+# =============================================================================
+
+
+class TestSPImportURL:
+    """Tests for SP import from metadata URL."""
+
+    def test_import_url_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful URL import redirects with success."""
+        with patch(
+            "services.service_providers.import_sp_from_metadata_url",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                "/admin/integrations/service-providers/import-metadata-url",
+                data={"name": "URL App", "metadata_url": "https://example.com/metadata"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=created" in response.headers["location"]
+
+
+# =============================================================================
+# SP Delete
+# =============================================================================
+
+
+class TestSPDelete:
+    """Tests for SP deletion."""
+
+    def test_delete_success(self, sp_admin_session, sp_host):
+        """Successful deletion redirects with success."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.delete_service_provider",
+            return_value=None,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/integrations/service-providers/{sp_id}/delete",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=deleted" in response.headers["location"]
+
+    def test_delete_not_found(self, sp_admin_session, sp_host):
+        """Deleting non-existent SP shows error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.delete_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/integrations/service-providers/{sp_id}/delete",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]

@@ -51,6 +51,8 @@ saml_idp_set_default
 saml_idp_updated
 saml_sp_certificate_created
 saml_sp_certificate_rotated
+service_provider_created
+service_provider_deleted
 super_admin_self_reactivated
 tenant_settings_updated
 totp_setup_initiated

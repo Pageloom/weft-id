@@ -11,6 +11,21 @@ SAMPLE_CERT_PEM = (
     "-----BEGIN CERTIFICATE-----\nMIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n-----END CERTIFICATE-----"
 )
 
+SAMPLE_SIGNING_CERT_ROW = {
+    "id": str(uuid4()),
+    "sp_id": str(uuid4()),
+    "tenant_id": str(uuid4()),
+    "certificate_pem": SAMPLE_CERT_PEM,
+    "private_key_pem_enc": "encrypted-key",
+    "expires_at": datetime(2036, 1, 1, tzinfo=UTC),
+    "created_by": str(uuid4()),
+    "created_at": datetime.now(UTC),
+    "previous_certificate_pem": None,
+    "previous_private_key_pem_enc": None,
+    "previous_expires_at": None,
+    "rotation_grace_period_ends_at": None,
+}
+
 # =============================================================================
 # Helpers
 # =============================================================================
@@ -556,3 +571,415 @@ class TestGetTenantIdPMetadataXML:
             result = sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://acme.example.com")
 
             assert 'Location="https://acme.example.com/saml/idp/sso"' in result
+
+
+# =============================================================================
+# create_service_provider generates signing cert
+# =============================================================================
+
+
+class TestCreateSPGeneratesSigningCert:
+    """Tests that SP creation eagerly generates a signing certificate."""
+
+    def test_create_generates_signing_cert(self, make_requesting_user, fast_sp_certificate):
+        """Creating an SP generates a per-SP signing certificate."""
+        from schemas.service_providers import SPCreate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPCreate(
+            name="New App",
+            entity_id="https://new.example.com",
+            acs_url="https://new.example.com/acs",
+        )
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+            # No existing signing cert
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.sp_signing_certificates.create_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+
+            sp_service.create_service_provider(requesting_user, data)
+
+            mock_db.sp_signing_certificates.create_signing_certificate.assert_called_once()
+
+
+class TestImportXMLGeneratesSigningCert:
+    """Tests that import_sp_from_metadata_xml generates a signing cert."""
+
+    def test_import_xml_generates_signing_cert(self, make_requesting_user, fast_sp_certificate):
+        """Importing SP from XML generates a per-SP signing certificate."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        parsed = {
+            "entity_id": "https://parsed.example.com",
+            "acs_url": "https://parsed.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.log_event"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.sp_signing_certificates.create_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+
+            sp_service.import_sp_from_metadata_xml(
+                requesting_user, name="Parsed App", metadata_xml="<xml/>"
+            )
+
+            mock_db.sp_signing_certificates.create_signing_certificate.assert_called_once()
+
+
+class TestImportURLGeneratesSigningCert:
+    """Tests that import_sp_from_metadata_url generates a signing cert."""
+
+    def test_import_url_generates_signing_cert(self, make_requesting_user, fast_sp_certificate):
+        """Importing SP from URL generates a per-SP signing certificate."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        parsed = {
+            "entity_id": "https://url.example.com",
+            "acs_url": "https://url.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.log_event"),
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.sp_signing_certificates.create_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+
+            sp_service.import_sp_from_metadata_url(
+                requesting_user,
+                name="URL App",
+                metadata_url="https://url.example.com/metadata",
+            )
+
+            mock_db.sp_signing_certificates.create_signing_certificate.assert_called_once()
+
+
+# =============================================================================
+# get_sp_signing_certificate
+# =============================================================================
+
+
+class TestGetSPSigningCertificate:
+    """Tests for get_sp_signing_certificate."""
+
+    def test_success(self, make_requesting_user):
+        """Super admin can get signing cert info."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+
+            result = sp_service.get_sp_signing_certificate(requesting_user, sp_id)
+
+            assert result.sp_id == sp_id
+            assert result.certificate_pem == SAMPLE_CERT_PEM
+            assert result.has_previous_certificate is False
+
+    def test_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP does not exist."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.get_sp_signing_certificate(requesting_user, str(uuid4()))
+
+    def test_cert_not_found(self, make_requesting_user):
+        """Raises NotFoundError when cert does not exist."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            with pytest.raises(NotFoundError, match="Signing certificate not found"):
+                sp_service.get_sp_signing_certificate(requesting_user, sp_id)
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot get signing cert."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.get_sp_signing_certificate(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# rotate_sp_signing_certificate
+# =============================================================================
+
+
+class TestRotateSPSigningCertificate:
+    """Tests for rotate_sp_signing_certificate."""
+
+    def test_success(self, make_requesting_user, fast_sp_certificate):
+        """Super admin can rotate a signing cert."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+            mock_db.sp_signing_certificates.rotate_signing_certificate.return_value = {
+                **SAMPLE_SIGNING_CERT_ROW,
+                "sp_id": sp_id,
+            }
+
+            result = sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
+
+            assert result.new_certificate_pem is not None
+            assert result.grace_period_ends_at is not None
+            mock_db.sp_signing_certificates.rotate_signing_certificate.assert_called_once()
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "sp_signing_certificate_rotated"
+
+    def test_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP does not exist."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.rotate_sp_signing_certificate(requesting_user, str(uuid4()))
+
+    def test_cert_not_found(self, make_requesting_user):
+        """Raises NotFoundError when no cert exists to rotate."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            with pytest.raises(NotFoundError, match="No signing certificate exists"):
+                sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot rotate signing cert."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.rotate_sp_signing_certificate(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# get_sp_idp_metadata_xml
+# =============================================================================
+
+
+class TestGetSPIdPMetadataXML:
+    """Tests for get_sp_idp_metadata_xml."""
+
+    def test_returns_xml_with_per_sp_cert(self):
+        """Returns metadata XML using per-SP signing certificate."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                "certificate_pem": SAMPLE_CERT_PEM,
+            }
+
+            result = sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
+
+            assert "IDPSSODescriptor" in result
+            # Should not need to fall back to tenant cert
+            mock_db.saml.get_sp_certificate.assert_not_called()
+
+    def test_falls_back_to_tenant_cert(self):
+        """Falls back to tenant cert when no per-SP cert exists."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.saml.get_sp_certificate.return_value = {
+                "certificate_pem": SAMPLE_CERT_PEM,
+            }
+
+            result = sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
+
+            assert "IDPSSODescriptor" in result
+            mock_db.saml.get_sp_certificate.assert_called_once()
+
+    def test_sp_not_found(self):
+        """Raises NotFoundError when SP does not exist."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.get_sp_idp_metadata_xml(
+                    tenant_id, str(uuid4()), "https://idp.example.com"
+                )
+
+    def test_no_cert_at_all(self):
+        """Raises NotFoundError when neither per-SP nor tenant cert exists."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.saml.get_sp_certificate.return_value = None
+
+            with pytest.raises(NotFoundError, match="IdP certificate not configured"):
+                sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
+
+
+# =============================================================================
+# list_service_providers with cert expiry enrichment
+# =============================================================================
+
+
+class TestListSPCertEnrichment:
+    """Tests that list_service_providers enriches items with cert expiry."""
+
+    def test_includes_signing_cert_expires_at(self, make_requesting_user):
+        """List items include signing cert expiry when cert exists."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        cert_expires = datetime(2036, 1, 1, tzinfo=UTC)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                "expires_at": cert_expires,
+            }
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].signing_cert_expires_at == cert_expires
+
+    def test_none_when_no_signing_cert(self, make_requesting_user):
+        """List items have None cert expiry when no cert exists."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].signing_cert_expires_at is None

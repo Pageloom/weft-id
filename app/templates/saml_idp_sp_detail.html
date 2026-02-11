@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sp.name }} - Service Provider - WeftId{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="mb-4">
+        <a href="/admin/integrations/service-providers"
+           class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Service Providers</a>
+    </div>
+
+    {% if success == 'certificate_rotated' %}
+    <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+        <p class="text-sm text-green-800 dark:text-green-300">
+            Signing certificate rotated successfully. The previous certificate remains valid during the grace period.
+        </p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+        <p class="text-sm text-red-800 dark:text-red-300">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    {# SP Info Card #}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ sp.name }}</h1>
+        <dl class="grid grid-cols-1 gap-4">
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Entity ID</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ sp.entity_id }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ACS URL</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ sp.acs_url }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NameID Format</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ sp.nameid_format }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(sp.created_at) }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    {# Signing Certificate Card #}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Signing Certificate</h2>
+            {% if signing_cert %}
+            <form method="post" action="/admin/integrations/service-providers/{{ sp.id }}/rotate-certificate" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="confirm-btn px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-600 rounded hover:bg-amber-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        data-confirm="Rotate the signing certificate for {{ sp.name }}?&#10;&#10;The current certificate will remain valid during a 7-day grace period. Update the downstream SP's metadata before the grace period ends."
+                        data-destructive="false">
+                    Rotate Certificate
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if signing_cert %}
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expires</dt>
+                <dd class="mt-1 text-sm">
+                    {% set now = signing_cert.expires_at.__class__.now(signing_cert.expires_at.tzinfo) %}
+                    {% set days_until = (signing_cert.expires_at - now).days %}
+                    {% if days_until < 30 %}
+                    <span class="text-red-600 dark:text-red-400 font-medium">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                    {% elif days_until < 90 %}
+                    <span class="text-amber-600 dark:text-amber-400 font-medium">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                    {% else %}
+                    <span class="text-green-600 dark:text-green-400">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                    {% endif %}
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(signing_cert.created_at) }}</dd>
+            </div>
+            {% if signing_cert.has_previous_certificate %}
+            <div class="sm:col-span-2">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rotation Grace Period</dt>
+                <dd class="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                    Previous certificate valid until {{ fmt_datetime(signing_cert.rotation_grace_period_ends_at) }}
+                </dd>
+            </div>
+            {% endif %}
+        </dl>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">No signing certificate generated yet.</p>
+        {% endif %}
+    </div>
+
+    {# Per-SP Metadata URL Card #}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Per-SP Metadata URL</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Share this URL with {{ sp.name }} to configure SAML trust. It contains the signing certificate specific to this SP.
+        </p>
+        <div class="flex items-center gap-2 mb-2">
+            <code id="sp-metadata-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded px-3 py-1.5 text-gray-900 dark:text-gray-200 font-mono break-all">{{ sp_metadata_url }}</code>
+            <button type="button" id="copy-sp-metadata-url"
+                    class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Copy
+            </button>
+        </div>
+        <div class="flex gap-3 text-xs">
+            <a href="{{ sp_metadata_url }}" target="_blank" rel="noopener"
+               class="text-blue-600 dark:text-blue-400 hover:underline">View XML</a>
+            <a href="{{ sp_metadata_url }}/download"
+               class="text-blue-600 dark:text-blue-400 hover:underline">Download</a>
+        </div>
+    </div>
+
+    {# Danger Zone #}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
+        <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Danger Zone</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Deleting this service provider will remove all configuration including the signing certificate. SSO will stop working for this SP immediately.</p>
+        <form method="post" action="/admin/integrations/service-providers/{{ sp.id }}/delete" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    data-confirm="Delete {{ sp.name }}?&#10;&#10;This cannot be undone. SSO will stop working immediately."
+                    data-destructive="true">
+                Delete Service Provider
+            </button>
+        </form>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var form = this.closest('form');
+        var message = this.dataset.confirm;
+        var isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, function() {
+            form.submit();
+        }, { destructive: isDestructive });
+    });
+});
+
+var copyBtn = document.getElementById('copy-sp-metadata-url');
+if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+        var url = document.getElementById('sp-metadata-url').textContent.trim();
+        navigator.clipboard.writeText(url).then(function() {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+        });
+    });
+}
+</script>
+{% endblock %}

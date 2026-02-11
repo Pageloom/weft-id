@@ -92,6 +92,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / Service Providers
     "service_provider_created": "Downstream service provider registered",
     "service_provider_deleted": "Downstream service provider removed",
+    "sp_signing_certificate_created": "Per-SP signing certificate generated",
+    "sp_signing_certificate_rotated": "Per-SP signing certificate rotated",
     # SAML IdP / SSO
     "sso_assertion_issued": "SAML SSO assertion issued to downstream service provider",
     "sso_consent_denied": "User denied SSO consent for downstream service provider",

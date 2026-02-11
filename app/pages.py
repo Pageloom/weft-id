@@ -273,6 +273,13 @@ PAGES = [
                                 show_in_nav=False,
                                 creates_nav_level=False,
                             ),
+                            Page(
+                                path="/admin/integrations/service-providers/detail",
+                                title="Service Provider Details",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
                         ],
                     ),
                 ],

@@ -6,7 +6,13 @@ from uuid import uuid4
 
 import pytest
 from fastapi.responses import HTMLResponse
-from schemas.service_providers import SPConfig, SPListItem, SPListResponse
+from schemas.service_providers import (
+    SPConfig,
+    SPListItem,
+    SPListResponse,
+    SPSigningCertificate,
+    SPSigningCertificateRotationResult,
+)
 
 ROUTER_MODULE = "routers.saml_idp.admin"
 METADATA_MODULE = "routers.saml_idp.metadata"
@@ -461,3 +467,189 @@ class TestSPListMetadataURL:
         ctx_kwargs = mock_ctx.call_args[1]
         assert "idp_metadata_url" in ctx_kwargs
         assert ctx_kwargs["idp_metadata_url"].endswith("/saml/idp/metadata")
+
+
+# =============================================================================
+# Per-SP Metadata Endpoint
+# =============================================================================
+
+SAMPLE_SP_METADATA_XML = '<?xml version="1.0"?><md:EntityDescriptor />'
+
+
+class TestPerSPMetadata:
+    """Tests for per-SP IdP metadata endpoints."""
+
+    def test_per_sp_metadata_returns_xml(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata/{sp_id} returns XML with correct content type."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.get_sp_idp_metadata_xml",
+            return_value=SAMPLE_SP_METADATA_XML,
+        ):
+            response = sp_admin_session.get(
+                f"/saml/idp/metadata/{sp_id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "application/xml" in response.headers["content-type"]
+
+    def test_per_sp_metadata_returns_404_when_not_found(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata/{sp_id} returns 404 when SP not found."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.get_sp_idp_metadata_xml",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.get(
+                f"/saml/idp/metadata/{sp_id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_per_sp_metadata_download(self, sp_admin_session, sp_host):
+        """GET /saml/idp/metadata/{sp_id}/download sets Content-Disposition."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.get_sp_idp_metadata_xml",
+            return_value=SAMPLE_SP_METADATA_XML,
+        ):
+            response = sp_admin_session.get(
+                f"/saml/idp/metadata/{sp_id}/download",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "attachment" in response.headers["content-disposition"]
+
+
+# =============================================================================
+# SP Detail Page
+# =============================================================================
+
+
+class TestSPDetailPage:
+    """Tests for the SP detail page."""
+
+    def test_detail_page_renders(self, sp_admin_session, sp_host, sample_sp_config, mocker):
+        """SP detail page renders for super admin."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        signing_cert = SPSigningCertificate(
+            id=str(uuid4()),
+            sp_id=sample_sp_config.id,
+            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            created_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                return_value=signing_cert,
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/integrations/service-providers/{sample_sp_config.id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_detail.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert "sp" in ctx_kwargs
+        assert "signing_cert" in ctx_kwargs
+        assert "sp_metadata_url" in ctx_kwargs
+
+    def test_detail_page_without_cert(self, sp_admin_session, sp_host, sample_sp_config, mocker):
+        """SP detail page renders even when no signing cert exists."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        from services.exceptions import NotFoundError
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                side_effect=NotFoundError(message="not found"),
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/integrations/service-providers/{sample_sp_config.id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["signing_cert"] is None
+
+
+# =============================================================================
+# SP Certificate Rotation
+# =============================================================================
+
+
+class TestSPRotateCertificate:
+    """Tests for SP certificate rotation via admin UI."""
+
+    def test_rotate_success(self, sp_admin_session, sp_host):
+        """Successful rotation redirects with success."""
+        sp_id = str(uuid4())
+        rotation_result = SPSigningCertificateRotationResult(
+            new_certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
+            new_expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            grace_period_ends_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "services.service_providers.rotate_sp_signing_certificate",
+            return_value=rotation_result,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/integrations/service-providers/{sp_id}/rotate-certificate",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=certificate_rotated" in response.headers["location"]
+
+    def test_rotate_failure(self, sp_admin_session, sp_host):
+        """Failed rotation redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.rotate_sp_signing_certificate",
+            side_effect=NotFoundError(message="No signing certificate exists"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/integrations/service-providers/{sp_id}/rotate-certificate",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]

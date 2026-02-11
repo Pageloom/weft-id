@@ -12,6 +12,9 @@ from schemas.service_providers import (
     SPCreate,
     SPListItem,
     SPListResponse,
+    SPMetadataURLInfo,
+    SPSigningCertificate,
+    SPSigningCertificateRotationResult,
 )
 from services.activity import track_activity
 from services.auth import require_super_admin
@@ -42,14 +45,67 @@ def _row_to_config(row: dict) -> SPConfig:
     )
 
 
-def _row_to_list_item(row: dict) -> SPListItem:
+def _row_to_list_item(row: dict, signing_cert_expires_at=None) -> SPListItem:
     """Convert database row to SPListItem schema."""
     return SPListItem(
         id=str(row["id"]),
         name=row["name"],
         entity_id=row["entity_id"],
+        signing_cert_expires_at=signing_cert_expires_at,
         created_at=row["created_at"],
     )
+
+
+# ============================================================================
+# Internal Helpers
+# ============================================================================
+
+
+def _get_or_create_sp_signing_certificate(
+    tenant_id: str,
+    sp_id: str,
+    created_by: str,
+) -> dict:
+    """Get existing per-SP signing cert or generate a new one.
+
+    Returns the certificate database row dict.
+    """
+    from utils.saml import encrypt_private_key, generate_sp_certificate, get_certificate_expiry
+
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert:
+        return cert
+
+    cert_pem, key_pem = generate_sp_certificate(tenant_id)
+    encrypted_key = encrypt_private_key(key_pem)
+    expires_at = get_certificate_expiry(cert_pem)
+
+    cert = database.sp_signing_certificates.create_signing_certificate(
+        tenant_id=tenant_id,
+        sp_id=sp_id,
+        tenant_id_value=tenant_id,
+        certificate_pem=cert_pem,
+        private_key_pem_enc=encrypted_key,
+        expires_at=expires_at,
+        created_by=created_by,
+    )
+
+    if cert is None:
+        raise ValidationError(
+            message="Failed to create SP signing certificate",
+            code="sp_signing_certificate_creation_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=created_by,
+        artifact_type="sp_signing_certificate",
+        artifact_id=str(cert["id"]),
+        event_type="sp_signing_certificate_created",
+        metadata={"sp_id": sp_id, "expires_at": str(expires_at)},
+    )
+
+    return cert
 
 
 # ============================================================================
@@ -67,8 +123,16 @@ def list_service_providers(
     require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
-    rows = database.service_providers.list_service_providers(requesting_user["tenant_id"])
-    items = [_row_to_list_item(row) for row in rows]
+    tenant_id = requesting_user["tenant_id"]
+    rows = database.service_providers.list_service_providers(tenant_id)
+
+    # Enrich each SP with signing cert expiry
+    items = []
+    for row in rows:
+        sp_id = str(row["id"])
+        cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+        cert_expires = cert["expires_at"] if cert else None
+        items.append(_row_to_list_item(row, signing_cert_expires_at=cert_expires))
 
     return SPListResponse(items=items, total=len(items))
 
@@ -84,7 +148,8 @@ def get_service_provider(
     require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
-    row = database.service_providers.get_service_provider(requesting_user["tenant_id"], sp_id)
+    tenant_id = requesting_user["tenant_id"]
+    row = database.service_providers.get_service_provider(tenant_id, sp_id)
 
     if row is None:
         raise NotFoundError(
@@ -92,7 +157,14 @@ def get_service_provider(
             code="sp_not_found",
         )
 
-    return _row_to_config(row)
+    config = _row_to_config(row)
+
+    # Enrich with signing cert expiry
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert:
+        config.signing_cert_expires_at = cert["expires_at"]
+
+    return config
 
 
 def create_service_provider(
@@ -147,6 +219,9 @@ def create_service_provider(
             "method": "manual",
         },
     )
+
+    # Eagerly generate per-SP signing certificate
+    _get_or_create_sp_signing_certificate(tenant_id, sp_id, requesting_user["id"])
 
     return _row_to_config(row)
 
@@ -220,6 +295,9 @@ def import_sp_from_metadata_xml(
             "method": "metadata_xml",
         },
     )
+
+    # Eagerly generate per-SP signing certificate
+    _get_or_create_sp_signing_certificate(tenant_id, sp_id, requesting_user["id"])
 
     return _row_to_config(row)
 
@@ -303,6 +381,9 @@ def import_sp_from_metadata_url(
             "metadata_url": metadata_url,
         },
     )
+
+    # Eagerly generate per-SP signing certificate
+    _get_or_create_sp_signing_certificate(tenant_id, sp_id, requesting_user["id"])
 
     return _row_to_config(row)
 
@@ -391,8 +472,11 @@ def build_sso_response(
             code="sp_not_found",
         )
 
-    # 2. Get signing certificate
-    cert = database.saml.get_sp_certificate(tenant_id)
+    # 2. Get signing certificate (per-SP first, then tenant fallback)
+    sp_id = str(sp_row["id"])
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert is None:
+        cert = database.saml.get_sp_certificate(tenant_id)
     if cert is None:
         raise NotFoundError(
             message="IdP signing certificate not configured",
@@ -495,4 +579,205 @@ def get_tenant_idp_metadata_xml(tenant_id: str, base_url: str) -> str:
         entity_id=entity_id,
         sso_url=sso_url,
         certificate_pem=cert["certificate_pem"],
+    )
+
+
+def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
+    """Generate IdP metadata XML with per-SP signing certificate.
+
+    No authorization required (public endpoint).
+    Falls back to tenant cert if no per-SP cert exists.
+
+    Args:
+        tenant_id: Tenant ID
+        sp_id: Service Provider ID
+        base_url: Base URL for the tenant
+
+    Returns:
+        XML metadata string
+
+    Raises:
+        NotFoundError: If SP not found or no certificate available
+    """
+    # Verify SP exists
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    # Try per-SP cert first, then tenant cert
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert is None:
+        cert = database.saml.get_sp_certificate(tenant_id)
+    if cert is None:
+        raise NotFoundError(
+            message="IdP certificate not configured",
+            code="idp_certificate_not_found",
+        )
+
+    entity_id = f"{base_url}/saml/idp/metadata"
+    sso_url = f"{base_url}/saml/idp/sso"
+
+    return generate_idp_metadata_xml(
+        entity_id=entity_id,
+        sso_url=sso_url,
+        certificate_pem=cert["certificate_pem"],
+    )
+
+
+# ============================================================================
+# Per-SP Signing Certificate Management
+# ============================================================================
+
+
+def get_sp_signing_certificate(
+    requesting_user: RequestingUser,
+    sp_id: str,
+) -> SPSigningCertificate:
+    """Get signing certificate info for an SP.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify SP exists
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert is None:
+        raise NotFoundError(
+            message="Signing certificate not found for this service provider",
+            code="sp_signing_certificate_not_found",
+        )
+
+    return SPSigningCertificate(
+        id=str(cert["id"]),
+        sp_id=str(cert["sp_id"]),
+        certificate_pem=cert["certificate_pem"],
+        expires_at=cert["expires_at"],
+        created_at=cert["created_at"],
+        has_previous_certificate=cert["previous_certificate_pem"] is not None,
+        rotation_grace_period_ends_at=cert.get("rotation_grace_period_ends_at"),
+    )
+
+
+def rotate_sp_signing_certificate(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    grace_period_days: int = 7,
+) -> SPSigningCertificateRotationResult:
+    """Rotate the signing certificate for an SP.
+
+    Authorization: Requires super_admin role.
+    Logs: sp_signing_certificate_rotated event.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from utils.saml import encrypt_private_key, generate_sp_certificate, get_certificate_expiry
+
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify SP exists
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    # Get current certificate
+    current = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if current is None:
+        raise NotFoundError(
+            message="No signing certificate exists to rotate",
+            code="sp_signing_certificate_not_found",
+        )
+
+    # Generate new certificate
+    new_cert_pem, new_key_pem = generate_sp_certificate(tenant_id)
+    new_encrypted_key = encrypt_private_key(new_key_pem)
+    new_expires_at = get_certificate_expiry(new_cert_pem)
+
+    # Calculate grace period end
+    grace_period_ends = datetime.now(UTC) + timedelta(days=grace_period_days)
+
+    # Rotate
+    result = database.sp_signing_certificates.rotate_signing_certificate(
+        tenant_id=tenant_id,
+        sp_id=sp_id,
+        new_certificate_pem=new_cert_pem,
+        new_private_key_pem_enc=new_encrypted_key,
+        new_expires_at=new_expires_at,
+        previous_certificate_pem=current["certificate_pem"],
+        previous_private_key_pem_enc=current["private_key_pem_enc"],
+        previous_expires_at=current["expires_at"],
+        rotation_grace_period_ends_at=grace_period_ends,
+    )
+
+    if result is None:
+        raise ValidationError(
+            message="Failed to rotate SP signing certificate",
+            code="sp_signing_certificate_rotation_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="sp_signing_certificate",
+        artifact_id=str(result["id"]),
+        event_type="sp_signing_certificate_rotated",
+        metadata={
+            "sp_id": sp_id,
+            "grace_period_days": grace_period_days,
+            "grace_period_ends_at": str(grace_period_ends),
+            "new_expires_at": str(new_expires_at),
+        },
+    )
+
+    return SPSigningCertificateRotationResult(
+        new_certificate_pem=new_cert_pem,
+        new_expires_at=new_expires_at,
+        grace_period_ends_at=grace_period_ends,
+    )
+
+
+def get_sp_metadata_url_info(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    base_url: str,
+) -> SPMetadataURLInfo:
+    """Get per-SP metadata URL info.
+
+    Authorization: Requires super_admin role.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    return SPMetadataURLInfo(
+        metadata_url=f"{base_url}/saml/idp/metadata/{sp_id}",
+        entity_id=f"{base_url}/saml/idp/metadata",
+        sso_url=f"{base_url}/saml/idp/sso",
+        sp_id=sp_id,
+        sp_name=sp_row["name"],
     )

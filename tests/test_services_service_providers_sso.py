@@ -49,7 +49,7 @@ class TestGetSpByEntityId:
 
 
 class TestBuildSsoResponse:
-    def _setup_mocks(self, mock_db):
+    def _setup_mocks(self, mock_db, *, use_per_sp_cert=False):
         """Set up standard mocks for a successful SSO response."""
         mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
             "id": "sp-1",
@@ -61,10 +61,17 @@ class TestBuildSsoResponse:
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
         }
-        mock_db.saml.get_sp_certificate.return_value = {
-            "certificate_pem": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
-            "private_key_pem_enc": "encrypted-key",
-        }
+        if use_per_sp_cert:
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                "certificate_pem": "-----BEGIN CERTIFICATE-----\nper-sp\n-----END CERTIFICATE-----",
+                "private_key_pem_enc": "encrypted-sp-key",
+            }
+        else:
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+            mock_db.saml.get_sp_certificate.return_value = {
+                "certificate_pem": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+                "private_key_pem_enc": "encrypted-key",
+            }
         mock_db.users.get_user_by_id.return_value = {
             "id": "user-1",
             "first_name": "Alice",
@@ -146,6 +153,7 @@ class TestBuildSsoResponse:
             "acs_url": "https://sp.example.com/acs",
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         }
+        mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
         mock_db.saml.get_sp_certificate.return_value = None
 
         with pytest.raises(NotFoundError, match="certificate not configured"):
@@ -186,3 +194,75 @@ class TestBuildSsoResponse:
                     authn_request_id=None,
                     base_url="https://idp.example.com",
                 )
+
+    @patch("services.service_providers.log_event")
+    @patch("services.service_providers.database")
+    def test_uses_per_sp_cert_when_available(self, mock_db, mock_log_event):
+        """build_sso_response uses per-SP signing cert when available."""
+        self._setup_mocks(mock_db, use_per_sp_cert=True)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value="base64-response",
+            ),
+        ):
+            result_b64, acs_url = build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert result_b64 == "base64-response"
+        # Per-SP cert was used, so tenant cert should not have been fetched
+        mock_db.saml.get_sp_certificate.assert_not_called()
+
+    @patch("services.service_providers.log_event")
+    @patch("services.service_providers.database")
+    def test_falls_back_to_tenant_cert(self, mock_db, mock_log_event):
+        """build_sso_response falls back to tenant cert when no per-SP cert."""
+        self._setup_mocks(mock_db, use_per_sp_cert=False)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value="base64-response",
+            ),
+        ):
+            result_b64, acs_url = build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert result_b64 == "base64-response"
+        # Tenant cert was used as fallback
+        mock_db.saml.get_sp_certificate.assert_called_once()
+
+    @patch("services.service_providers.database")
+    def test_fails_when_neither_cert_exists(self, mock_db):
+        """build_sso_response fails when neither per-SP nor tenant cert exists."""
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
+            "id": "sp-1",
+            "name": "Test SP",
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+        mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+        mock_db.saml.get_sp_certificate.return_value = None
+
+        with pytest.raises(NotFoundError, match="certificate not configured"):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )

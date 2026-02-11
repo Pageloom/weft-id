@@ -189,6 +189,70 @@ def sp_import_url(
         return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
 
 
+@router.get("/{sp_id}", response_class=HTMLResponse)
+def sp_detail(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Show SP detail page with cert status and per-SP metadata URL."""
+    if not has_page_access("/admin/integrations/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_config = sp_service.get_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+    # Get signing cert info
+    signing_cert = None
+    try:
+        signing_cert = sp_service.get_sp_signing_certificate(requesting_user, sp_id)
+    except ServiceError:
+        pass
+
+    base_url = get_base_url(request)
+    sp_metadata_url = f"{base_url}/saml/idp/metadata/{sp_id}"
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        signing_cert=signing_cert,
+        sp_metadata_url=sp_metadata_url,
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_detail.html", context)
+
+
+@router.post("/{sp_id}/rotate-certificate", response_class=HTMLResponse)
+def sp_rotate_certificate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Rotate the signing certificate for an SP."""
+    if not has_page_access("/admin/integrations/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?success=certificate_rotated", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to rotate SP certificate: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
 @router.post("/{sp_id}/delete", response_class=HTMLResponse)
 def sp_delete(
     request: Request,

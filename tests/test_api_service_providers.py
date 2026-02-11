@@ -5,7 +5,14 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from schemas.service_providers import SPConfig, SPListItem, SPListResponse
+from schemas.service_providers import (
+    SPConfig,
+    SPListItem,
+    SPListResponse,
+    SPMetadataURLInfo,
+    SPSigningCertificate,
+    SPSigningCertificateRotationResult,
+)
 
 # =============================================================================
 # Fixtures
@@ -402,4 +409,172 @@ class TestIdPMetadataInfoAPI:
         )
 
         # Returns 401 because require_super_admin_api dependency is not overridden
+        assert response.status_code == 401
+
+
+# =============================================================================
+# Per-SP Signing Certificate Endpoints
+# =============================================================================
+
+
+class TestGetSigningCertificateAPI:
+    """Tests for GET /api/v1/service-providers/{sp_id}/signing-certificate."""
+
+    def test_get_signing_cert_success(self, sp_api_client, api_host):
+        """Super admin can get signing certificate info."""
+        sp_id = str(uuid4())
+        signing_cert = SPSigningCertificate(
+            id=str(uuid4()),
+            sp_id=sp_id,
+            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            created_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "services.service_providers.get_sp_signing_certificate",
+            return_value=signing_cert,
+        ):
+            response = sp_api_client.get(
+                f"/api/v1/service-providers/{sp_id}/signing-certificate",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sp_id"] == sp_id
+        assert "certificate_pem" in data
+
+    def test_get_signing_cert_not_found(self, sp_api_client, api_host):
+        """Returns 404 when no signing cert exists."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.get_sp_signing_certificate",
+            side_effect=NotFoundError(message="Signing certificate not found"),
+        ):
+            response = sp_api_client.get(
+                f"/api/v1/service-providers/{sp_id}/signing-certificate",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_unauthenticated_returns_401(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.get(
+            f"/api/v1/service-providers/{uuid4()}/signing-certificate",
+            headers={"Host": api_host},
+        )
+
+        assert response.status_code == 401
+
+
+class TestRotateSigningCertificateAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/signing-certificate/rotate."""
+
+    def test_rotate_success(self, sp_api_client, api_host):
+        """Super admin can rotate a signing certificate."""
+        sp_id = str(uuid4())
+        rotation_result = SPSigningCertificateRotationResult(
+            new_certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
+            new_expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            grace_period_ends_at=datetime.now(UTC),
+        )
+
+        with patch(
+            "services.service_providers.rotate_sp_signing_certificate",
+            return_value=rotation_result,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/signing-certificate/rotate",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "new_certificate_pem" in data
+        assert "grace_period_ends_at" in data
+
+    def test_rotate_not_found(self, sp_api_client, api_host):
+        """Returns 404 when no cert exists to rotate."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.rotate_sp_signing_certificate",
+            side_effect=NotFoundError(message="No signing certificate exists"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/signing-certificate/rotate",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_unauthenticated_returns_401(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.post(
+            f"/api/v1/service-providers/{uuid4()}/signing-certificate/rotate",
+            headers={"Host": api_host},
+        )
+
+        assert response.status_code == 401
+
+
+class TestGetSPMetadataURLAPI:
+    """Tests for GET /api/v1/service-providers/{sp_id}/metadata-url."""
+
+    def test_get_metadata_url_success(self, sp_api_client, api_host):
+        """Super admin can get per-SP metadata URL info."""
+        sp_id = str(uuid4())
+        metadata_info = SPMetadataURLInfo(
+            metadata_url=f"https://test.example.com/saml/idp/metadata/{sp_id}",
+            entity_id="https://test.example.com/saml/idp/metadata",
+            sso_url="https://test.example.com/saml/idp/sso",
+            sp_id=sp_id,
+            sp_name="Test App",
+        )
+
+        with patch(
+            "services.service_providers.get_sp_metadata_url_info",
+            return_value=metadata_info,
+        ):
+            response = sp_api_client.get(
+                f"/api/v1/service-providers/{sp_id}/metadata-url",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sp_id"] == sp_id
+        assert sp_id in data["metadata_url"]
+
+    def test_get_metadata_url_sp_not_found(self, sp_api_client, api_host):
+        """Returns 404 when SP not found."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.get_sp_metadata_url_info",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.get(
+                f"/api/v1/service-providers/{sp_id}/metadata-url",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_unauthenticated_returns_401(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.get(
+            f"/api/v1/service-providers/{uuid4()}/metadata-url",
+            headers={"Host": api_host},
+        )
+
         assert response.status_code == 401

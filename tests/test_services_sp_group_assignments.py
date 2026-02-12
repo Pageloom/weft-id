@@ -755,6 +755,271 @@ class TestCheckUserSPAccess:
 
 
 # =============================================================================
+# check_user_sp_access - hierarchy scenarios
+# =============================================================================
+
+
+class TestCheckUserSPAccessScenarios:
+    """Extended scenarios documenting hierarchy-based access via the DAG closure table.
+
+    Each test mocks database.sp_group_assignments.user_can_access_sp to verify
+    the service delegates correctly. The actual hierarchy resolution happens in
+    the SQL query (using group_lineage), so these tests document the *intended*
+    semantics at the service layer.
+    """
+
+    def test_access_via_direct_group_membership(self):
+        """User in a directly-assigned group can access the SP."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = True
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is True
+            mock_db.sp_group_assignments.user_can_access_sp.assert_called_once_with(
+                tenant_id, user_id, sp_id
+            )
+
+    def test_access_via_descendant_group(self):
+        """User in a child of an assigned group can access the SP (depth=1)."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            # DB query joins group_lineage, so child membership resolves to True
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = True
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is True
+
+    def test_access_via_deep_descendant(self):
+        """User in a grandchild group can access the SP (depth=2)."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            # Deep hierarchy: grandchild membership resolves via closure table
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = True
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is True
+
+    def test_no_access_sp_has_zero_assignments(self):
+        """Deny-by-default: SP with no group assignments denies all users."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = False
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is False
+
+    def test_no_access_user_in_unrelated_group(self):
+        """User in group C is denied when SP is assigned only to group A."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            # User's group has no lineage relationship to the assigned group
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = False
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is False
+
+    def test_no_access_after_group_unassigned(self, make_requesting_user):
+        """Revocation: removing group assignment revokes access."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+        user_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+        sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.log_event"),
+        ):
+            # Step 1: remove the group assignment
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            mock_db.sp_group_assignments.delete_assignment.return_value = 1
+
+            sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
+
+            # Step 2: verify access is now denied
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = False
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is False
+
+    def test_no_access_after_user_removed_from_group(self):
+        """Revocation: user removed from group loses SP access (group still assigned)."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with patch("services.service_providers.database") as mock_db:
+            # Group is still assigned to SP, but user is no longer a member
+            mock_db.sp_group_assignments.user_can_access_sp.return_value = False
+
+            result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
+
+            assert result is False
+
+
+# =============================================================================
+# list_service_providers - assignment count enrichment
+# =============================================================================
+
+
+class TestListSPAssignmentCounts:
+    """Tests for assigned_group_count enrichment in list_service_providers."""
+
+    def test_sp_with_assignments_shows_count(self, make_requesting_user):
+        """SP with group assignments shows the correct count."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {sp_id: 5}
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].assigned_group_count == 5
+
+    def test_sp_with_zero_assignments_shows_zero(self, make_requesting_user):
+        """SP not in count map defaults to zero."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].assigned_group_count == 0
+
+    def test_multiple_sps_with_different_counts(self, make_requesting_user):
+        """Each SP gets its own assignment count."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id_1 = str(uuid4())
+        sp_id_2 = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row_1 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_1, name="App 1")
+        row_2 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_2, name="App 2")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row_1, row_2]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {
+                sp_id_1: 3,
+                sp_id_2: 7,
+            }
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].assigned_group_count == 3
+            assert result.items[1].assigned_group_count == 7
+
+    def test_count_defaults_to_zero_for_unlisted_sp(self, make_requesting_user):
+        """SP missing from count map gets 0, while listed SP gets its count."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id_1 = str(uuid4())
+        sp_id_2 = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row_1 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_1, name="Listed")
+        row_2 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_2, name="Unlisted")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row_1, row_2]
+            # Only sp_id_1 in the count map
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {sp_id_1: 2}
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].assigned_group_count == 2
+            assert result.items[1].assigned_group_count == 0
+
+    def test_empty_sp_list_skips_enrichment(self, make_requesting_user):
+        """Empty SP list still calls count but produces no items."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = []
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.total == 0
+            assert result.items == []
+            mock_db.sp_group_assignments.count_assignments_for_sps.assert_called_once_with(
+                tenant_id
+            )
+
+
+# =============================================================================
 # get_user_accessible_apps
 # =============================================================================
 
@@ -839,3 +1104,129 @@ class TestGetUserAccessibleApps:
                 result = sp_service.get_user_accessible_apps(requesting_user)
 
                 assert result.total == 0
+
+
+# =============================================================================
+# get_user_accessible_apps - extended scenarios
+# =============================================================================
+
+
+class TestGetUserAccessibleAppsExtended:
+    """Extended scenarios for get_user_accessible_apps: field mapping, ordering."""
+
+    def test_multiple_apps_via_different_groups(self, make_requesting_user):
+        """Multiple apps are returned when user has access via different groups."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+        app_rows = [
+            _make_app_row(name="App A"),
+            _make_app_row(name="App B"),
+            _make_app_row(name="App C"),
+        ]
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.total == 3
+            assert [item.name for item in result.items] == ["App A", "App B", "App C"]
+
+    def test_single_app_when_db_deduplicates(self, make_requesting_user):
+        """DB returns 1 row (DISTINCT handles duplicates), verify 1 result."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+        app_rows = [_make_app_row(sp_id=sp_id, name="Shared App")]
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.total == 1
+            assert result.items[0].id == sp_id
+            assert result.items[0].name == "Shared App"
+
+    def test_maps_all_fields_correctly(self, make_requesting_user):
+        """Verify id, name, description, entity_id are mapped from row to UserApp."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+        app_row = {
+            "id": sp_id,
+            "name": "Full App",
+            "description": "A complete application",
+            "entity_id": "https://fullapp.example.com",
+        }
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            item = result.items[0]
+            assert item.id == sp_id
+            assert item.name == "Full App"
+            assert item.description == "A complete application"
+            assert item.entity_id == "https://fullapp.example.com"
+
+    def test_description_is_optional(self, make_requesting_user):
+        """Row with description=None produces UserApp with description=None."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+        app_row = {
+            "id": str(uuid4()),
+            "name": "No Desc App",
+            "entity_id": "https://nodesc.example.com",
+        }
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            assert result.items[0].description is None
+
+    def test_apps_ordered_by_name(self, make_requesting_user):
+        """Result preserves DB ordering (alphabetical by name)."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
+        app_rows = [
+            _make_app_row(name="Alpha"),
+            _make_app_row(name="Beta"),
+            _make_app_row(name="Gamma"),
+        ]
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
+
+            result = sp_service.get_user_accessible_apps(requesting_user)
+
+            names = [item.name for item in result.items]
+            assert names == ["Alpha", "Beta", "Gamma"]

@@ -71,20 +71,22 @@ def _encode_post(xml: str) -> str:
     return base64.b64encode(xml.encode("utf-8")).decode("utf-8")
 
 
-def _sample_sp_config(**overrides) -> SPConfig:
+def _sample_sp_config(**overrides: str) -> SPConfig:
     from datetime import UTC, datetime
 
-    defaults = {
-        "id": str(uuid4()),
-        "name": "Test SP",
-        "entity_id": "https://sp.example.com",
-        "acs_url": "https://sp.example.com/acs",
-        "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-        "created_at": datetime.now(UTC),
-        "updated_at": datetime.now(UTC),
-    }
-    defaults.update(overrides)
-    return SPConfig(**defaults)
+    now = datetime.now(UTC)
+    return SPConfig(
+        id=overrides.get("id", str(uuid4())),
+        name=overrides.get("name", "Test SP"),
+        entity_id=overrides.get("entity_id", "https://sp.example.com"),
+        acs_url=overrides.get("acs_url", "https://sp.example.com/acs"),
+        nameid_format=overrides.get(
+            "nameid_format",
+            "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        ),
+        created_at=now,
+        updated_at=now,
+    )
 
 
 # ============================================================================
@@ -632,3 +634,260 @@ class TestIdPInitiatedLaunch:
 
         assert response.status_code == 303
         assert "/saml/idp/consent" in response.headers["location"]
+
+
+# ============================================================================
+# SSO Access Scenarios (hierarchy, revocation, argument verification)
+# ============================================================================
+
+
+def _make_pending_sso_session(user_id, sp_id=None, sp_name="Test Application"):
+    """Build a session dict with user_id and pending SSO context."""
+    return {
+        "user_id": user_id,
+        "pending_sso_sp_id": sp_id or str(uuid4()),
+        "pending_sso_sp_entity_id": "https://sp.example.com",
+        "pending_sso_sp_name": sp_name,
+        "pending_sso_authn_request_id": "_req456",
+        "pending_sso_relay_state": "",
+    }
+
+
+class TestSSOAccessScenarios:
+    """Extended SSO access scenarios: consent page and IdP-initiated launch."""
+
+    def test_consent_denies_after_group_removal(self, client, sso_user, sso_host):
+        """User denied on consent page after group removal (access=False)."""
+        mock_session = _make_pending_sso_session(sso_user["id"])
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=False,
+            ),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+        assert "Access Denied" in response.text
+
+    def test_consent_allows_descendant_group_member(self, client, sso_user, sso_host):
+        """User in descendant group sees consent page (access=True)."""
+        mock_session = _make_pending_sso_session(sso_user["id"], sp_name="Descendant App")
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=True,
+            ),
+            patch(
+                "services.service_providers.get_user_consent_info",
+                return_value={
+                    "email": "alice@test.com",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            ),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 200
+        assert "Descendant App" in response.text
+
+    def test_consent_access_check_uses_sp_id_from_session(self, client, sso_user, sso_host):
+        """check_user_sp_access is called with the SP ID from session."""
+        sp_id = str(uuid4())
+        mock_session = _make_pending_sso_session(sso_user["id"], sp_id=sp_id)
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=True,
+            ) as mock_check,
+            patch(
+                "services.service_providers.get_user_consent_info",
+                return_value={
+                    "email": "alice@test.com",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            ),
+        ):
+            client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        mock_check.assert_called_once()
+        call_args = mock_check.call_args[0]
+        # tenant_id, user_id, sp_id
+        assert call_args[1] == sso_user["id"]
+        assert call_args[2] == sp_id
+
+    def test_consent_post_does_not_recheck_access(self, client, sso_user, sso_host):
+        """POST /consent (continue) builds response without re-checking access."""
+        mock_session = _make_pending_sso_session(sso_user["id"])
+        mock_session["_csrf_token"] = "test-csrf-token"
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.build_sso_response",
+                return_value=("base64-saml-response", "https://sp.example.com/acs"),
+            ),
+        ):
+            response = client.post(
+                "/saml/idp/consent",
+                data={"action": "continue", "csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 200
+        assert "saml-form" in response.text
+        assert "base64-saml-response" in response.text
+
+    def test_launch_denies_user_not_in_any_group(self, client, sso_user, sso_host):
+        """User not in any assigned group is denied on launch."""
+        sp_id = str(uuid4())
+        mock_session = {"user_id": sso_user["id"]}
+        sp_row = {
+            "id": sp_id,
+            "name": "Restricted App",
+            "entity_id": "https://restricted.example.com",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=False,
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+        assert "Access Denied" in response.text
+
+    def test_launch_allows_descendant_group_member(self, client, sso_user, sso_host):
+        """User in descendant group is redirected to consent on launch."""
+        sp_id = str(uuid4())
+        mock_session = {"user_id": sso_user["id"]}
+        sp_row = {
+            "id": sp_id,
+            "name": "My App",
+            "entity_id": "https://myapp.example.com",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=True,
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "/saml/idp/consent" in response.headers["location"]
+
+    def test_launch_access_check_uses_sp_id_from_path(self, client, sso_user, sso_host):
+        """check_user_sp_access is called with the SP ID from the URL path."""
+        sp_id = str(uuid4())
+        mock_session = {"user_id": sso_user["id"]}
+        sp_row = {
+            "id": sp_id,
+            "name": "My App",
+            "entity_id": "https://myapp.example.com",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=True,
+            ) as mock_check,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        mock_check.assert_called_once()
+        call_args = mock_check.call_args[0]
+        # tenant_id, user_id, sp_id
+        assert call_args[1] == sso_user["id"]
+        assert call_args[2] == sp_id
+
+    def test_launch_error_page_has_dashboard_link(self, client, sso_user, sso_host):
+        """Access denied error page includes a link back to the dashboard."""
+        sp_id = str(uuid4())
+        mock_session = {"user_id": sso_user["id"]}
+        sp_row = {
+            "id": sp_id,
+            "name": "Locked App",
+            "entity_id": "https://locked.example.com",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=False,
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = sp_row
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+        assert "Dashboard" in response.text

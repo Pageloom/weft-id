@@ -226,6 +226,16 @@ def step_5_register_idp_in_sp_test(
         raise RuntimeError("Failed to create identity provider")
     log.info("Created IdP: %s (id=%s)", idp_entity_id, idp["id"])
 
+    # Create the base group for this IdP (service layer normally does this,
+    # but we created the IdP via the database layer directly).
+    from services.groups.idp import create_idp_base_group
+
+    create_idp_base_group(
+        tenant_id=sp_test_tenant_id,
+        idp_id=str(idp["id"]),
+        idp_name="Dev Tenant IdP",
+    )
+
 
 def print_summary(sp_id: str):
     """Print test URLs and next steps."""

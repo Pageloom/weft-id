@@ -8,7 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from schemas.groups import GroupCreate, GroupUpdate
+from schemas.groups import GroupCreate, GroupDetail, GroupUpdate
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 # =============================================================================
@@ -2330,8 +2330,79 @@ def test_ensure_user_in_base_group_already_member_no_op():
         mock_log.assert_not_called()
 
 
-def test_ensure_user_in_base_group_no_base_group_logs_warning():
-    """Test that ensure_user_in_base_group logs warning when no base group found."""
+def test_ensure_user_in_base_group_auto_creates_missing_base_group():
+    """Test that ensure_user_in_base_group auto-creates the base group when missing."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_id = str(uuid4())
+    new_group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=new_group_id,
+        name="Test IdP",
+        group_type="idp",
+        idp_id=idp_id,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+        patch("services.groups.idp.create_idp_base_group", return_value=mock_group) as mock_create,
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = None
+        mock_db.groups.is_group_member.return_value = False
+
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, "user@example.com", idp_id, "Test IdP"
+        )
+
+        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP")
+        mock_db.groups.bulk_add_user_to_groups.assert_called_once_with(
+            tenant_id, tenant_id, user_id, [new_group_id]
+        )
+
+
+def test_ensure_user_in_base_group_auto_create_handles_race_condition():
+    """Test race condition: another request creates the base group between check and create."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_id = str(uuid4())
+    recovered_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+        patch(
+            "services.groups.idp.create_idp_base_group",
+            side_effect=ConflictError(message="exists"),
+        ),
+    ):
+        # First call returns None (triggers create), second call returns recovered ID
+        mock_db.groups.get_idp_base_group_id.side_effect = [None, recovered_id]
+        mock_db.groups.is_group_member.return_value = False
+
+        groups_service.ensure_user_in_base_group(
+            tenant_id, user_id, "user@example.com", idp_id, "Test IdP"
+        )
+
+        mock_db.groups.bulk_add_user_to_groups.assert_called_once_with(
+            tenant_id, tenant_id, user_id, [recovered_id]
+        )
+
+
+def test_ensure_user_in_base_group_auto_create_unrecoverable_raises():
+    """ValidationError raised when base group creation and re-query both fail."""
     from services import groups as groups_service
 
     tenant_id = str(uuid4())
@@ -2340,19 +2411,57 @@ def test_ensure_user_in_base_group_no_base_group_logs_warning():
 
     with (
         patch("services.groups.idp.database") as mock_db,
-        patch("services.groups.idp.log_event") as mock_log,
-        patch("services.groups.idp.logger") as mock_logger,
+        patch("services.groups.idp.log_event"),
         patch("services.groups.idp.system_context"),
+        patch(
+            "services.groups.idp.create_idp_base_group",
+            side_effect=ConflictError(message="exists"),
+        ),
     ):
+        # Both lookups return None
         mock_db.groups.get_idp_base_group_id.return_value = None
 
-        groups_service.ensure_user_in_base_group(
-            tenant_id, user_id, "user@example.com", idp_id, "Missing IdP"
-        )
+        with pytest.raises(ValidationError, match="Failed to create or find base group"):
+            groups_service.ensure_user_in_base_group(
+                tenant_id, user_id, "user@example.com", idp_id, "Test IdP"
+            )
 
-        mock_logger.warning.assert_called_once()
-        mock_db.groups.bulk_add_user_to_groups.assert_not_called()
-        mock_log.assert_not_called()
+
+def test_ensure_users_in_base_group_auto_creates_missing_base_group():
+    """Test that ensure_users_in_base_group auto-creates the base group when missing."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+    idp_id = str(uuid4())
+    new_group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=new_group_id,
+        name="Test IdP",
+        group_type="idp",
+        idp_id=idp_id,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+        patch("services.groups.idp.create_idp_base_group", return_value=mock_group) as mock_create,
+    ):
+        mock_db.groups.get_idp_base_group_id.return_value = None
+        mock_db.groups.bulk_add_user_to_groups.return_value = 1
+
+        count = groups_service.ensure_users_in_base_group(tenant_id, user_ids, idp_id, "Test IdP")
+
+        mock_create.assert_called_once_with(tenant_id, idp_id, "Test IdP")
+        assert count == 2
+        assert mock_db.groups.bulk_add_user_to_groups.call_count == 2
 
 
 def test_remove_user_from_base_group_removes_membership():

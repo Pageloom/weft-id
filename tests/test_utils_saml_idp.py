@@ -285,3 +285,88 @@ class TestGenerateIdPMetadataXML:
 
         for svc in sso_services:
             assert svc.attrib["Location"] == "https://idp.example.com/saml/idp/sso"
+
+
+# =============================================================================
+# parse_sp_metadata_xml: fallback ACS and PEM header edge cases
+# =============================================================================
+
+
+class TestParseSPMetadataFallbackACS:
+    """Test ACS URL extraction when no HTTP-POST binding is found."""
+
+    def test_falls_back_to_first_acs(self):
+        """When no HTTP-POST ACS exists, uses the first ACS URL found."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            entityID="https://redirect-only.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                Location="https://redirect-only.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+        assert result["acs_url"] == "https://redirect-only.example.com/acs"
+
+    def test_prefers_http_post_over_redirect(self):
+        """When both bindings exist, HTTP-POST is preferred."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            entityID="https://both.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                Location="https://both.example.com/acs-redirect"
+                index="0" />
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://both.example.com/acs-post"
+                index="1" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+        assert result["acs_url"] == "https://both.example.com/acs-post"
+
+
+class TestParseSPMetadataCertificateWithPEMHeaders:
+    """Test certificate extraction when XML already includes PEM headers."""
+
+    def test_preserves_existing_pem_headers(self):
+        """Certificate data with PEM headers passes through unchanged."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://pem.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="signing">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>-----BEGIN CERTIFICATE-----
+MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=
+-----END CERTIFICATE-----</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://pem.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+        cert = result["certificate_pem"]
+        assert cert.startswith("-----BEGIN CERTIFICATE-----")
+        assert cert.endswith("-----END CERTIFICATE-----")
+        # Should not double-wrap
+        assert cert.count("-----BEGIN CERTIFICATE-----") == 1

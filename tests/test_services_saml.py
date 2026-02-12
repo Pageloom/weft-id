@@ -5792,3 +5792,677 @@ def test_rebind_domain_moves_users_between_base_groups(
     # User should be removed from first base group and added to second
     assert not database.groups.is_group_member(tenant_id, base_group_id_1, user_id)
     assert database.groups.is_group_member(tenant_id, base_group_id_2, user_id)
+
+
+# =============================================================================
+# _helpers.py: get_saml_group_attributes
+# =============================================================================
+
+
+class TestGetSamlGroupAttributes:
+    """Test all normalization paths for SAML group claim extraction."""
+
+    def test_list_of_strings(self):
+        """Standard case: list of string group names."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": ["engineering", "admins", "devops"]}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering", "admins", "devops"]
+
+    def test_single_string(self):
+        """Single group as a plain string."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": "engineering"}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering"]
+
+    def test_comma_separated_string(self):
+        """Comma-separated groups in a single string."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": "engineering,admins,devops"}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering", "admins", "devops"]
+
+    def test_comma_separated_string_with_spaces(self):
+        """Comma-separated groups with whitespace."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": " engineering , admins , devops "}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering", "admins", "devops"]
+
+    def test_comma_separated_within_list(self):
+        """List items that themselves contain commas."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": ["engineering,admins", "devops"]}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering", "admins", "devops"]
+
+    def test_missing_key(self):
+        """Missing attribute key returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"email": "user@example.com"}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+    def test_none_value(self):
+        """None value returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": None}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+    def test_empty_list(self):
+        """Empty list returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": []}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+    def test_empty_string(self):
+        """Empty/whitespace string returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": "  "}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+    def test_list_with_empty_items(self):
+        """List items that are empty or falsy are skipped."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": ["engineering", "", None, "admins"]}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["engineering", "admins"]
+
+    def test_non_string_type_returns_empty(self):
+        """Non-list, non-string value returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": 42}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+    def test_list_with_integer_values(self):
+        """Non-string items in list are converted via str()."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": [123, "admins"]}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == ["123", "admins"]
+
+    def test_comma_only_string(self):
+        """String of only commas returns empty list."""
+        from services.saml._helpers import get_saml_group_attributes
+
+        attrs = {"groups": ",,,"}
+        result = get_saml_group_attributes(attrs, "groups")
+        assert result == []
+
+
+# =============================================================================
+# logout.py: process_idp_logout_request success path
+# =============================================================================
+
+
+class TestProcessIdpLogoutRequestSuccess:
+    """Test IdP-initiated SLO flow when all preconditions are met."""
+
+    def test_success_with_name_id(self):
+        """Full success path: IdP found, cert found, request processed, response built."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        idp_row = {
+            "id": idp_id,
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "name": "Test IdP",
+        }
+        sp_cert = {
+            "certificate_pem": "sp-cert-pem",
+            "private_key_pem_enc": "encrypted-key",
+        }
+
+        with (
+            patch("services.saml.logout.database") as mock_db,
+            patch("services.saml.logout.decrypt_private_key", return_value="decrypted-key"),
+            patch("services.saml.logout.build_saml_settings", return_value={"settings": True}),
+            patch(
+                "services.saml.logout.process_logout_request",
+                return_value=("user@example.com", "_session_idx", "_req_123"),
+            ),
+            patch(
+                "services.saml.logout.build_logout_response",
+                return_value="https://idp.example.com/slo?SAMLResponse=...",
+            ),
+            patch("services.saml.logout.extract_issuer_from_response"),
+        ):
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+            mock_db.saml.get_sp_certificate.return_value = sp_cert
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer="https://idp.example.com",
+            )
+
+            assert result == "https://idp.example.com/slo?SAMLResponse=..."
+
+    def test_success_without_name_id(self):
+        """Success path when process_logout_request returns no name_id."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+        idp_row = {
+            "id": str(uuid4()),
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "name": "Test IdP",
+        }
+        sp_cert = {
+            "certificate_pem": "sp-cert-pem",
+            "private_key_pem_enc": "encrypted-key",
+        }
+
+        with (
+            patch("services.saml.logout.database") as mock_db,
+            patch("services.saml.logout.decrypt_private_key", return_value="decrypted-key"),
+            patch("services.saml.logout.build_saml_settings", return_value={"settings": True}),
+            patch(
+                "services.saml.logout.process_logout_request",
+                return_value=(None, None, "_req_123"),
+            ),
+            patch(
+                "services.saml.logout.build_logout_response",
+                return_value="https://idp.example.com/slo?SAMLResponse=...",
+            ),
+            patch("services.saml.logout.extract_issuer_from_response"),
+        ):
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+            mock_db.saml.get_sp_certificate.return_value = sp_cert
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer="https://idp.example.com",
+            )
+
+            assert result is not None
+
+    def test_no_sp_certificate(self):
+        """Returns None when SP certificate is missing."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+        idp_row = {
+            "id": str(uuid4()),
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "name": "Test IdP",
+        }
+
+        with patch("services.saml.logout.database") as mock_db:
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+            mock_db.saml.get_sp_certificate.return_value = None
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer="https://idp.example.com",
+            )
+
+            assert result is None
+
+    def test_issuer_extracted_from_request_when_not_provided(self):
+        """When issuer is None, extracts it from the SAML request."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+        idp_row = {
+            "id": str(uuid4()),
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "name": "Test IdP",
+        }
+        sp_cert = {
+            "certificate_pem": "sp-cert-pem",
+            "private_key_pem_enc": "encrypted-key",
+        }
+
+        with (
+            patch("services.saml.logout.database") as mock_db,
+            patch("services.saml.logout.decrypt_private_key", return_value="decrypted-key"),
+            patch("services.saml.logout.build_saml_settings", return_value={"settings": True}),
+            patch(
+                "services.saml.logout.extract_issuer_from_response",
+                return_value="https://idp.example.com",
+            ),
+            patch(
+                "services.saml.logout.process_logout_request",
+                return_value=("user@example.com", None, "_req_123"),
+            ),
+            patch(
+                "services.saml.logout.build_logout_response",
+                return_value="https://idp.example.com/slo?SAMLResponse=...",
+            ),
+        ):
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+            mock_db.saml.get_sp_certificate.return_value = sp_cert
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer=None,
+            )
+
+            assert result is not None
+
+    def test_idp_no_slo_url(self):
+        """Returns None when IdP has no SLO URL."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+        idp_row = {
+            "id": str(uuid4()),
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": None,
+            "name": "Test IdP",
+        }
+
+        with patch("services.saml.logout.database") as mock_db:
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer="https://idp.example.com",
+            )
+
+            assert result is None
+
+
+# =============================================================================
+# providers.py: edge cases
+# =============================================================================
+
+
+class TestIdpRequiresPlatformMfa:
+    """Tests for idp_requires_platform_mfa."""
+
+    def test_returns_false_when_idp_not_found(self):
+        from unittest.mock import patch
+
+        from services.saml.providers import idp_requires_platform_mfa
+
+        with patch("services.saml.providers.database") as mock_db:
+            mock_db.saml.get_identity_provider.return_value = None
+
+            result = idp_requires_platform_mfa("tenant-1", "idp-1")
+            assert result is False
+
+    def test_returns_true_when_flag_set(self):
+        from unittest.mock import patch
+
+        from services.saml.providers import idp_requires_platform_mfa
+
+        with patch("services.saml.providers.database") as mock_db:
+            mock_db.saml.get_identity_provider.return_value = {"require_platform_mfa": True}
+
+            result = idp_requires_platform_mfa("tenant-1", "idp-1")
+            assert result is True
+
+    def test_returns_false_when_flag_not_set(self):
+        from unittest.mock import patch
+
+        from services.saml.providers import idp_requires_platform_mfa
+
+        with patch("services.saml.providers.database") as mock_db:
+            mock_db.saml.get_identity_provider.return_value = {"require_platform_mfa": False}
+
+            result = idp_requires_platform_mfa("tenant-1", "idp-1")
+            assert result is False
+
+    def test_returns_false_when_flag_missing(self):
+        from unittest.mock import patch
+
+        from services.saml.providers import idp_requires_platform_mfa
+
+        with patch("services.saml.providers.database") as mock_db:
+            mock_db.saml.get_identity_provider.return_value = {}
+
+            result = idp_requires_platform_mfa("tenant-1", "idp-1")
+            assert result is False
+
+
+class TestUpdateIdentityProviderNoOp:
+    """Test update_identity_provider when no fields are changed."""
+
+    def test_returns_existing_config_when_no_fields_set(self, make_requesting_user):
+        from datetime import UTC, datetime
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.providers import update_identity_provider
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        existing_row = {
+            "id": idp_id,
+            "tenant_id": tenant_id,
+            "name": "Existing IdP",
+            "provider_type": "generic",
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "slo_url": None,
+            "certificate_pem": "cert-pem",
+            "sp_entity_id": "https://sp.example.com/saml/metadata",
+            "metadata_url": None,
+            "metadata_last_fetched_at": None,
+            "metadata_fetch_error": None,
+            "attribute_mapping": {"email": "email"},
+            "is_enabled": True,
+            "is_default": False,
+            "require_platform_mfa": False,
+            "jit_provisioning": False,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+
+        with (
+            patch("services.saml.providers.database") as mock_db,
+            patch("services.saml.providers.track_activity"),
+        ):
+            mock_db.saml.get_identity_provider.return_value = existing_row
+
+            from schemas.saml import IdPUpdate
+
+            data = IdPUpdate()
+
+            result = update_identity_provider(requesting_user, idp_id, data)
+
+            mock_db.saml.update_identity_provider.assert_not_called()
+            assert result.name == "Existing IdP"
+
+
+class TestCreateIdpGroupConflict:
+    """Test IdP creation when base group name already exists."""
+
+    def test_idp_still_created_on_group_name_conflict(self, make_requesting_user):
+        from datetime import UTC, datetime
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.exceptions import ConflictError
+        from services.saml.providers import create_identity_provider
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        created_row = {
+            "id": idp_id,
+            "tenant_id": tenant_id,
+            "name": "Duplicate Group",
+            "provider_type": "generic",
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "slo_url": None,
+            "certificate_pem": "cert-pem",
+            "sp_entity_id": "https://sp.example.com/saml/metadata",
+            "metadata_url": None,
+            "metadata_last_fetched_at": None,
+            "metadata_fetch_error": None,
+            "attribute_mapping": {"email": "email"},
+            "is_enabled": True,
+            "is_default": False,
+            "require_platform_mfa": False,
+            "jit_provisioning": False,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+
+        from schemas.saml import IdPCreate
+
+        data = IdPCreate(
+            name="Duplicate Group",
+            provider_type="generic",
+            entity_id="https://idp.example.com",
+            sso_url="https://idp.example.com/sso",
+            certificate_pem="cert-pem",
+            is_enabled=True,
+        )
+
+        with (
+            patch("services.saml.providers.database") as mock_db,
+            patch("services.saml.providers.log_event"),
+            patch("services.saml.providers.track_activity"),
+            patch("services.saml.providers.get_or_create_sp_certificate"),
+            patch(
+                "services.saml.providers.groups_service.create_idp_base_group",
+                side_effect=ConflictError(message="Group name exists", code="conflict"),
+            ),
+        ):
+            mock_db.saml.get_identity_provider_by_entity_id.return_value = None
+            mock_db.saml.create_identity_provider.return_value = created_row
+
+            result = create_identity_provider(requesting_user, data, "https://sp.example.com")
+
+            assert result.name == "Duplicate Group"
+            assert result.id == idp_id
+
+
+class TestDeleteIdpWithBoundDomains:
+    """Test that IdP deletion is blocked when domains are bound."""
+
+    def test_raises_conflict_when_domains_bound(self, make_requesting_user):
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.exceptions import ConflictError
+        from services.saml.providers import delete_identity_provider
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.saml.providers.database") as mock_db,
+            patch("services.saml.providers.track_activity"),
+        ):
+            mock_db.saml.get_identity_provider.return_value = {
+                "id": idp_id,
+                "name": "Test IdP",
+            }
+            mock_db.saml.count_users_with_idp.return_value = 0
+            mock_db.saml.count_domain_bindings_for_idp.return_value = 2
+
+            with pytest.raises(ConflictError, match="2 domain.*bound"):
+                delete_identity_provider(requesting_user, idp_id)
+
+
+# =============================================================================
+# provisioning.py: JIT race condition
+# =============================================================================
+
+
+class TestJitProvisionRaceCondition:
+    """Test JIT provisioning when email appears between check and creation."""
+
+    def test_returns_existing_user_on_race(self):
+        """If email_exists returns True, fetch and return existing user."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from schemas.saml import SAMLAttributes, SAMLAuthResult
+        from services.saml.provisioning import jit_provision_user
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        saml_result = SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email="user@example.com",
+                first_name="Jane",
+                last_name="Doe",
+                name_id="user@example.com",
+                groups=[],
+            ),
+            session_index=None,
+            name_id_format=None,
+            idp_id=idp_id,
+            idp_name="Test IdP",
+            requires_mfa=False,
+            groups=[],
+        )
+
+        existing_user = {
+            "id": user_id,
+            "email": "user@example.com",
+            "email_id": str(uuid4()),
+            "email_verified": True,
+        }
+
+        idp = {"name": "Test IdP"}
+
+        with (
+            patch("services.saml.provisioning.database") as mock_db,
+            patch("services.users.email_exists", return_value=True),
+            patch("services.saml.provisioning.groups_service"),
+        ):
+            mock_db.users.get_user_by_email_for_saml.return_value = existing_user
+
+            result = jit_provision_user(tenant_id, saml_result, idp)
+
+            assert result["id"] == user_id
+            mock_db.users.get_user_by_email_for_saml.assert_called_once()
+
+    def test_verifies_unverified_email_on_race(self):
+        """If race user has unverified email, verify it (IdP is authoritative)."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from schemas.saml import SAMLAttributes, SAMLAuthResult
+        from services.saml.provisioning import jit_provision_user
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        email_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        saml_result = SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email="user@example.com",
+                first_name="Jane",
+                last_name="Doe",
+                name_id="user@example.com",
+                groups=[],
+            ),
+            session_index=None,
+            name_id_format=None,
+            idp_id=idp_id,
+            idp_name="Test IdP",
+            requires_mfa=False,
+            groups=[],
+        )
+
+        existing_user = {
+            "id": user_id,
+            "email": "user@example.com",
+            "email_id": email_id,
+            "email_verified": False,
+        }
+
+        idp = {"name": "Test IdP"}
+
+        with (
+            patch("services.saml.provisioning.database") as mock_db,
+            patch("services.users.email_exists", return_value=True),
+            patch("services.saml.provisioning.groups_service"),
+        ):
+            mock_db.users.get_user_by_email_for_saml.return_value = existing_user
+
+            result = jit_provision_user(tenant_id, saml_result, idp)
+
+            mock_db.user_emails.verify_email.assert_called_once_with(tenant_id, email_id)
+            assert result["id"] == user_id
+
+    def test_raises_when_race_user_not_found(self):
+        """If email_exists is True but get_user returns None, raise ValidationError."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from schemas.saml import SAMLAttributes, SAMLAuthResult
+        from services.exceptions import ValidationError
+        from services.saml.provisioning import jit_provision_user
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        saml_result = SAMLAuthResult(
+            attributes=SAMLAttributes(
+                email="ghost@example.com",
+                first_name="Ghost",
+                last_name="User",
+                name_id="ghost@example.com",
+                groups=[],
+            ),
+            session_index=None,
+            name_id_format=None,
+            idp_id=idp_id,
+            idp_name="Test IdP",
+            requires_mfa=False,
+            groups=[],
+        )
+
+        idp = {"name": "Test IdP"}
+
+        with (
+            patch("services.saml.provisioning.database") as mock_db,
+            patch("services.users.email_exists", return_value=True),
+        ):
+            mock_db.users.get_user_by_email_for_saml.return_value = None
+
+            with pytest.raises(ValidationError, match="race condition"):
+                jit_provision_user(tenant_id, saml_result, idp)

@@ -15,6 +15,7 @@ class SPCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     entity_id: str = Field(..., min_length=1)
     acs_url: str = Field(..., min_length=1)
+    description: str | None = None
 
 
 class SPMetadataImportXML(BaseModel):
@@ -41,6 +42,7 @@ class SPConfig(BaseModel):
 
     id: str
     name: str
+    description: str | None = None
     entity_id: str
     acs_url: str
     certificate_pem: str | None = None
@@ -57,6 +59,7 @@ class SPListItem(BaseModel):
     name: str
     entity_id: str
     signing_cert_expires_at: datetime | None = None
+    assigned_group_count: int = 0
     created_at: datetime
 
 
@@ -108,3 +111,76 @@ class SPMetadataURLInfo(BaseModel):
     sso_url: str
     sp_id: str
     sp_name: str
+
+
+# ============================================================================
+# SP Group Assignment Schemas
+# ============================================================================
+
+
+class SPGroupAssignment(BaseModel):
+    """A single SP-to-group assignment."""
+
+    id: str
+    sp_id: str
+    group_id: str
+    group_name: str
+    group_description: str | None = None
+    group_type: str
+    assigned_by: str
+    assigned_at: datetime
+
+
+class SPGroupAssignmentList(BaseModel):
+    """List of group assignments for an SP."""
+
+    items: list[SPGroupAssignment]
+    total: int
+
+
+class GroupSPAssignment(BaseModel):
+    """A single group-to-SP assignment (from the group's perspective)."""
+
+    id: str
+    sp_id: str
+    group_id: str
+    sp_name: str
+    sp_entity_id: str
+    sp_description: str | None = None
+    assigned_by: str
+    assigned_at: datetime
+
+
+class GroupSPAssignmentList(BaseModel):
+    """List of SP assignments for a group."""
+
+    items: list[GroupSPAssignment]
+    total: int
+
+
+class SPGroupAssignAdd(BaseModel):
+    """Request to assign a group to an SP."""
+
+    group_id: str = Field(..., min_length=1)
+
+
+class SPGroupBulkAssign(BaseModel):
+    """Request to bulk-assign groups to an SP."""
+
+    group_ids: list[str] = Field(..., min_length=1)
+
+
+class UserApp(BaseModel):
+    """An application accessible to the user."""
+
+    id: str
+    name: str
+    description: str | None = None
+    entity_id: str
+
+
+class UserAppList(BaseModel):
+    """List of apps accessible to a user."""
+
+    items: list[UserApp]
+    total: int

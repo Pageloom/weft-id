@@ -134,5 +134,5 @@ def test_favicon_svg_has_no_fixed_dimensions():
     """Favicon SVG uses viewBox only (no width/height) for browser scaling."""
     _, _, favicon = generate_mandala_svg("test-seed")
     assert 'viewBox="0 0 64 64"' in favicon
-    assert 'width=' not in favicon
-    assert 'height=' not in favicon
+    assert "width=" not in favicon
+    assert "height=" not in favicon

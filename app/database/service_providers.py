@@ -12,7 +12,7 @@ def list_service_providers(tenant_id: TenantArg) -> list[dict]:
     return fetchall(
         tenant_id,
         """
-        select id, tenant_id, name, entity_id, acs_url,
+        select id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml,
                created_by, created_at, updated_at
         from service_providers
@@ -31,7 +31,7 @@ def get_service_provider(tenant_id: TenantArg, sp_id: str) -> dict | None:
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, name, entity_id, acs_url,
+        select id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml,
                created_by, created_at, updated_at
         from service_providers
@@ -50,7 +50,7 @@ def get_service_provider_by_entity_id(tenant_id: TenantArg, entity_id: str) -> d
     return fetchone(
         tenant_id,
         """
-        select id, tenant_id, name, entity_id, acs_url,
+        select id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml,
                created_by, created_at, updated_at
         from service_providers
@@ -70,6 +70,7 @@ def create_service_provider(
     certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
+    description: str | None = None,
 ) -> dict | None:
     """Create a new service provider.
 
@@ -80,22 +81,23 @@ def create_service_provider(
         tenant_id,
         """
         insert into service_providers (
-            tenant_id, name, entity_id, acs_url,
+            tenant_id, name, description, entity_id, acs_url,
             certificate_pem, nameid_format, metadata_xml,
             created_by
         )
         values (
-            :tenant_id, :name, :entity_id, :acs_url,
+            :tenant_id, :name, :description, :entity_id, :acs_url,
             :certificate_pem, :nameid_format, :metadata_xml,
             :created_by
         )
-        returning id, tenant_id, name, entity_id, acs_url,
+        returning id, tenant_id, name, description, entity_id, acs_url,
                   certificate_pem, nameid_format, metadata_xml,
                   created_by, created_at, updated_at
         """,
         {
             "tenant_id": tenant_id_value,
             "name": name,
+            "description": description,
             "entity_id": entity_id,
             "acs_url": acs_url,
             "certificate_pem": certificate_pem,

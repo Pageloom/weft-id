@@ -4,6 +4,77 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Identity Provider - Phase 3: Dashboard & Group-Based App Assignment
+
+**Status:** Complete
+
+**Summary:** Implemented group-based access control for downstream Service Providers, a "My Apps" dashboard section, and IdP-initiated SSO. SP access is controlled exclusively via group-to-SP assignments, leveraging the existing group hierarchy (DAG with closure table). Users inherit access through their group memberships. If an SP has no group assignments, no users can access it (security-first model).
+
+**Completed Work:**
+
+**Group-Based App Assignment Model:**
+
+- [x] Super admins and admins can assign SPs to groups (both weftid and idp group types)
+- [x] Assignment UI on SP detail page: view assigned groups, add/remove group assignments
+- [x] Assignment UI on group detail page: view assigned SPs for the group (read-only)
+- [x] Remove group assignments (revokes access for all group members)
+- [x] Bulk assignment: assign an SP to multiple groups at once
+
+**Access Control:**
+
+- [x] Users can access an SP if any of their groups (or any ancestor of their groups) has an assignment to that SP
+- [x] Group hierarchy is respected: assigning an SP to a parent group grants access to members of all descendant groups
+- [x] If an SP has no group assignments, no users can access it (explicit grant required)
+- [x] SP-initiated SSO validates user has access (via group/ancestor membership) before showing consent screen
+- [x] Unauthorized access shows clear error message with "Return to Dashboard" and "Sign in as someone else" options
+- [x] Access is evaluated at SSO time (not cached), so group membership and hierarchy changes take effect immediately
+
+**User Dashboard - My Apps:**
+
+- [x] "My Apps" section on user dashboard (visible to all users)
+- [x] Shows all SPs the user can access via their group memberships
+- [x] App display: name, optional description
+- [x] Click app tile to launch (IdP-initiated SSO)
+- [x] Empty state when user has no accessible apps: "No applications available"
+
+**IdP-Initiated SSO:**
+
+- [x] Launching from dashboard generates SAML Response without prior AuthnRequest
+- [x] Same consent screen as SP-initiated flow
+- [x] POST assertion to SP's ACS URL
+
+**SP Enhancements:**
+
+- [x] Add description field to SPs (optional, shown in dashboard)
+- [x] SP list view shows assigned group count per SP
+
+**REST API Endpoints:**
+
+- [x] `GET /api/v1/service-providers/{sp_id}/groups` - list assigned groups
+- [x] `POST /api/v1/service-providers/{sp_id}/groups` - assign group
+- [x] `POST /api/v1/service-providers/{sp_id}/groups/bulk` - bulk assign
+- [x] `DELETE /api/v1/service-providers/{sp_id}/groups/{group_id}` - remove assignment
+- [x] `GET /api/v1/my-apps` - user's accessible apps (any authenticated role)
+- [x] `GET /api/v1/groups/{group_id}/service-providers` - group's assigned SPs
+
+**Technical Implementation:**
+
+- Database migration: `db-init/00031_sp_group_assignments.sql`
+  - `sp_group_assignments` table with RLS, indexes, and grants
+  - `description` column added to `service_providers`
+- Database layer: `app/database/sp_group_assignments.py` (assignment CRUD, access check via closure table, user accessible SPs)
+- Service layer: Group assignment functions with authorization, event logging, and activity tracking
+- SSO router: Access gate in consent page, IdP-initiated launch route (`GET /saml/idp/launch/{sp_id}`)
+- Admin UI: Group assignment cards on SP detail and group detail pages
+- Dashboard: My Apps section with launch tiles
+- Event types: `sp_group_assigned`, `sp_group_unassigned`, `sp_groups_bulk_assigned`
+- 87 new tests across service, admin router, SSO router, API, and dashboard layers (2612 total)
+
+**Effort:** M
+**Value:** High (User-facing feature, admin control over access via existing group infrastructure)
+
+---
+
 ## SAML Identity Provider - Phase 2: Per-SP Signing Certificates & Metadata
 
 **Status:** Complete

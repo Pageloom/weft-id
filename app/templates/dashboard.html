@@ -34,6 +34,34 @@
         </dl>
     </div>
 
+    <!-- My Apps Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mt-6">
+        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">My Apps</h2>
+
+        {% if user_apps %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for app in user_apps %}
+            <a href="/saml/idp/launch/{{ app.id }}"
+               class="group flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
+                <div class="min-w-0">
+                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        {{ app.name }}
+                    </span>
+                    {% if app.description %}
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ app.description }}</p>
+                    {% endif %}
+                </div>
+                <svg class="h-4 w-4 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                </svg>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">No applications available.</p>
+        {% endif %}
+    </div>
+
     <!-- My Groups Section -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mt-6">
         <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">My Groups</h2>

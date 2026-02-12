@@ -284,9 +284,7 @@ def generate_mandala_svg(seed: str, size: int = 40) -> str:
         for i in range(num_petals):
             angle = i * angle_step + offset
             d = shape_fn(cx, cy, angle, r_inner, r_outer, spread)
-            paths.append(
-                f'<path d="{d}" fill="{colors[layer]}" opacity="{opacity:.2f}"/>'
-            )
+            paths.append(f'<path d="{d}" fill="{colors[layer]}" opacity="{opacity:.2f}"/>')
 
     # Center circle
     center_r = rng.range(2.0, 4.0)
@@ -310,13 +308,12 @@ def generate_mandala_svg(seed: str, size: int = 40) -> str:
     # Browsers apply prefers-color-scheme inside SVG favicons.
     favicon_style = (
         "<style>"
-        f".backdrop{{display:none}}"
-        f"@media(prefers-color-scheme:dark){{.backdrop{{display:block}}}}"
+        ".backdrop{display:none}"
+        "@media(prefers-color-scheme:dark){.backdrop{display:block}}"
         "</style>"
     )
     backdrop_cls = (
-        f'<circle class="backdrop" cx="{cx}" cy="{cy}" '
-        f'r="{viewbox / 2}" fill="#e2e8f0"/>'
+        f'<circle class="backdrop" cx="{cx}" cy="{cy}" r="{viewbox / 2}" fill="#e2e8f0"/>'
     )
     favicon_svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" '

@@ -219,9 +219,17 @@ def test_dashboard_authenticated(test_user, mocker):
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_context = mocker.patch(f"{UTILS_TEMPLATE}.get_template_context")
     mock_template = mocker.patch(f"{AUTH_DASHBOARD}.templates.TemplateResponse")
+    mock_groups = mocker.patch(f"{AUTH_DASHBOARD}.groups_service.get_my_groups")
+    mock_apps = mocker.patch(f"{AUTH_DASHBOARD}.sp_service.get_user_accessible_apps")
 
     mock_user.return_value = test_user
     mock_get_email.return_value = test_user["email"]  # Service returns string
+    mock_groups_result = Mock()
+    mock_groups_result.items = []
+    mock_groups.return_value = mock_groups_result
+    mock_apps_result = Mock()
+    mock_apps_result.items = []
+    mock_apps.return_value = mock_apps_result
     mock_context.return_value = {
         "request": Mock(),
         "user": test_user,
@@ -248,9 +256,17 @@ def test_dashboard_authenticated_no_email(test_user, mocker):
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_context = mocker.patch(f"{UTILS_TEMPLATE}.get_template_context")
     mock_template = mocker.patch(f"{AUTH_DASHBOARD}.templates.TemplateResponse")
+    mock_groups = mocker.patch(f"{AUTH_DASHBOARD}.groups_service.get_my_groups")
+    mock_apps = mocker.patch(f"{AUTH_DASHBOARD}.sp_service.get_user_accessible_apps")
 
     mock_user.return_value = test_user
     mock_get_email.return_value = None  # No email
+    mock_groups_result = Mock()
+    mock_groups_result.items = []
+    mock_groups.return_value = mock_groups_result
+    mock_apps_result = Mock()
+    mock_apps_result.items = []
+    mock_apps.return_value = mock_apps_result
     mock_context.return_value = {
         "request": Mock(),
         "user": test_user,
@@ -1309,3 +1325,111 @@ def test_get_client_ip_returns_unknown_when_no_client():
     ip = _get_client_ip(mock_request)
 
     assert ip == "unknown"
+
+
+# =============================================================================
+# Dashboard My Apps Tests
+# =============================================================================
+
+
+def test_dashboard_shows_my_apps(test_user, mocker):
+    """Test dashboard passes user apps to template context."""
+    from fastapi.responses import HTMLResponse
+    from schemas.service_providers import UserApp, UserAppList
+
+    override_tenant(app, test_user["tenant_id"])
+
+    mock_user = mocker.patch(f"{DEPS_AUTH}.get_current_user")
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_context = mocker.patch(f"{UTILS_TEMPLATE}.get_template_context")
+    mock_template = mocker.patch(f"{AUTH_DASHBOARD}.templates.TemplateResponse")
+    mock_groups = mocker.patch(f"{AUTH_DASHBOARD}.groups_service.get_my_groups")
+    mock_apps = mocker.patch(f"{AUTH_DASHBOARD}.sp_service.get_user_accessible_apps")
+
+    mock_user.return_value = test_user
+    mock_get_email.return_value = test_user["email"]
+
+    # Set up mock groups (empty)
+    mock_groups_result = Mock()
+    mock_groups_result.items = []
+    mock_groups.return_value = mock_groups_result
+
+    # Set up mock apps with two entries
+    app_items = [
+        UserApp(id="sp-1", name="App One", description="First app", entity_id="urn:app:one"),
+        UserApp(id="sp-2", name="App Two", description=None, entity_id="urn:app:two"),
+    ]
+    mock_apps.return_value = UserAppList(items=app_items, total=2)
+
+    mock_context.return_value = {
+        "request": Mock(),
+        "user": test_user,
+        "nav_items": [],
+        "nav": {},
+        "user_groups": [],
+        "user_apps": app_items,
+    }
+    mock_template.return_value = HTMLResponse(content="<html>dashboard</html>")
+
+    client = TestClient(app)
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    # Verify get_user_accessible_apps was called
+    mock_apps.assert_called_once()
+    # Verify template context received the app items
+    mock_context.assert_called_once()
+    ctx_kwargs = mock_context.call_args
+    # Check keyword args for user_apps
+    assert "user_apps" in ctx_kwargs.kwargs
+    assert len(ctx_kwargs.kwargs["user_apps"]) == 2
+    assert ctx_kwargs.kwargs["user_apps"][0].name == "App One"
+    assert ctx_kwargs.kwargs["user_apps"][1].name == "App Two"
+
+
+def test_dashboard_shows_empty_my_apps(test_user, mocker):
+    """Test dashboard passes empty apps list when user has no accessible apps."""
+    from fastapi.responses import HTMLResponse
+    from schemas.service_providers import UserAppList
+
+    override_tenant(app, test_user["tenant_id"])
+
+    mock_user = mocker.patch(f"{DEPS_AUTH}.get_current_user")
+    mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
+    mock_context = mocker.patch(f"{UTILS_TEMPLATE}.get_template_context")
+    mock_template = mocker.patch(f"{AUTH_DASHBOARD}.templates.TemplateResponse")
+    mock_groups = mocker.patch(f"{AUTH_DASHBOARD}.groups_service.get_my_groups")
+    mock_apps = mocker.patch(f"{AUTH_DASHBOARD}.sp_service.get_user_accessible_apps")
+
+    mock_user.return_value = test_user
+    mock_get_email.return_value = test_user["email"]
+
+    # Set up mock groups (empty)
+    mock_groups_result = Mock()
+    mock_groups_result.items = []
+    mock_groups.return_value = mock_groups_result
+
+    # Set up mock apps as empty
+    mock_apps.return_value = UserAppList(items=[], total=0)
+
+    mock_context.return_value = {
+        "request": Mock(),
+        "user": test_user,
+        "nav_items": [],
+        "nav": {},
+        "user_groups": [],
+        "user_apps": [],
+    }
+    mock_template.return_value = HTMLResponse(content="<html>dashboard</html>")
+
+    client = TestClient(app)
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    # Verify get_user_accessible_apps was called
+    mock_apps.assert_called_once()
+    # Verify template context received empty apps list
+    mock_context.assert_called_once()
+    ctx_kwargs = mock_context.call_args
+    assert "user_apps" in ctx_kwargs.kwargs
+    assert ctx_kwargs.kwargs["user_apps"] == []

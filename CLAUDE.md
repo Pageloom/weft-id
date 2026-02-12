@@ -302,6 +302,14 @@ make watch-css   # Watch templates and auto-rebuild CSS (recommended for active 
 make help        # Show all available targets
 ```
 
+**Running a migration on demand:**
+
+Migrations in `db-init/` run automatically on first DB init. To run a new migration against a running dev database:
+```bash
+docker compose exec -T db psql -U postgres -d appdb < db-init/00031_example.sql
+```
+Replace the filename with the migration to run. The `-T` flag disables TTY allocation so the file pipes correctly.
+
 ### Frontend Development Workflow
 
 **Tailwind CSS is built locally** from `static/css/input.css` → `static/css/output.css`

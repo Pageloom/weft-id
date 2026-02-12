@@ -2,6 +2,8 @@
 
 Quick reminders to later build out into full backlog items.
 
+- Backoffice funtionality. How do we go about making it easy for someone who decides to host this for
+  customers or for sub-organisations?
 - Privileged domains should be possible to auto-connect to groups - so that any user with that email
   is automatically tied to those groups (not IdP groups).
 - I think that signin ratelimiting should be as aggressive as it is now at the tenant level, and much less

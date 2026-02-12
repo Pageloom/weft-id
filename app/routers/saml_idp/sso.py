@@ -10,6 +10,7 @@ Handles SP-Initiated SSO:
 """
 
 import logging
+from pathlib import Path
 from typing import Annotated
 
 from dependencies import get_tenant_id_from_request
@@ -26,7 +27,8 @@ from ._helpers import get_base_url
 
 logger = logging.getLogger(__name__)
 
-templates = Jinja2Templates(directory="app/templates")
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 router = APIRouter(
     prefix="/saml/idp",
@@ -232,6 +234,8 @@ def consent_respond(
 
     # Render auto-submit form to POST assertion to SP's ACS URL
     csp_nonce = get_csp_nonce(request)
+    # Allow form submission to the SP's ACS URL in CSP
+    request.state.csp_form_action_url = acs_url
     return templates.TemplateResponse(
         request,
         "saml_idp_sso_post.html",

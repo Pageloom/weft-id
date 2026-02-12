@@ -1,11 +1,14 @@
 """Template context helpers for adding common data to templates."""
 
+import base64
+
 from dependencies import get_current_user
 from fastapi import Request
 from middleware.csrf import get_csrf_token
 from pages import get_navigation_context
 from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter, create_relative_date_formatter
+from utils.mandala import generate_mandala_svg
 
 
 def get_template_context(request: Request, tenant_id: str, **kwargs):
@@ -31,6 +34,15 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         """Get the CSRF token for this request."""
         return get_csrf_token(request)
 
+    # Generate tenant mandala SVGs for navigation (light + dark + favicon)
+    mandala_light = ""
+    mandala_dark = ""
+    mandala_favicon = ""
+    if user and user.get("tenant_id"):
+        mandala_light, mandala_dark, favicon_svg = generate_mandala_svg(user["tenant_id"])
+        b64 = base64.b64encode(favicon_svg.encode()).decode()
+        mandala_favicon = f"data:image/svg+xml;base64,{b64}"
+
     context = {
         "request": request,
         "user": user,
@@ -40,6 +52,9 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "fmt_relative": fmt_relative,  # Relative date formatter function
         "csrf_token": csrf_token,  # CSRF token getter function
         "csp_nonce": get_csp_nonce(request),  # CSP nonce for inline scripts
+        "mandala_light": mandala_light,  # Light-mode mandala SVG
+        "mandala_dark": mandala_dark,  # Dark-mode mandala SVG (with backdrop)
+        "mandala_favicon": mandala_favicon,  # Favicon data URI
         **kwargs,
     }
 

@@ -293,3 +293,24 @@ So that I can use the data for auditing, compliance reporting, and operational t
 
 ---
 
+## Tenant Mandala SVG in Navigation Header
+
+**User Story:**
+As a tenant user
+I want to see a unique decorative mandala icon next to the WeftId product name
+So that my tenant has a distinct visual identity within the application
+
+**Acceptance Criteria:**
+- [ ] Small SVG mandala (28-32px) appears to the left of "WeftId" in the top nav bar
+- [ ] Mandala is deterministically generated from the tenant's UUID (same tenant always gets the same mandala)
+- [ ] Different tenants get visually distinct mandalas
+- [ ] Uses vibrant multi-color palette matching the Pageloom site repo style
+- [ ] Supports light and dark mode
+- [ ] Generated server-side in Python (no client-side JS dependency)
+- [ ] Unit tests cover determinism, uniqueness, and valid SVG output
+
+**Effort:** S
+**Value:** Medium
+
+---
+

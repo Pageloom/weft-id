@@ -212,14 +212,19 @@ def _build_assertion_element(
     audience = etree.SubElement(audience_restriction, f"{{{_SAML_NS}}}Audience")
     audience.text = sp_entity_id
 
-    # 5. AuthnStatement
-    etree.SubElement(
+    # 5. AuthnStatement (AuthnContext is required by saml-schema-assertion-2.0.xsd)
+    authn_statement = etree.SubElement(
         assertion,
         f"{{{_SAML_NS}}}AuthnStatement",
         attrib={
             "AuthnInstant": issue_instant,
             "SessionNotOnOrAfter": session_not_on_or_after,
         },
+    )
+    authn_context = etree.SubElement(authn_statement, f"{{{_SAML_NS}}}AuthnContext")
+    authn_context_class_ref = etree.SubElement(authn_context, f"{{{_SAML_NS}}}AuthnContextClassRef")
+    authn_context_class_ref.text = (
+        "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"
     )
 
     # 6. AttributeStatement

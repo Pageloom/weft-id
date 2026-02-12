@@ -56,6 +56,16 @@
                     </button>
                 </form>
             </div>
+
+            <div class="mt-4 text-center">
+                <form method="post" action="/saml/idp/consent/switch-account">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                            class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline">
+                        Use a different account
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

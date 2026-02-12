@@ -171,6 +171,44 @@ def consent_page(
     return templates.TemplateResponse(request, "saml_idp_sso_consent.html", context)
 
 
+@router.post("/consent/switch-account")
+def consent_switch_account(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Clear auth session but preserve SSO context, then redirect to login."""
+    # Save pending SSO context
+    sso_keys = (
+        "pending_sso_sp_id",
+        "pending_sso_sp_entity_id",
+        "pending_sso_authn_request_id",
+        "pending_sso_relay_state",
+        "pending_sso_sp_name",
+    )
+    saved = {k: request.session.get(k) for k in sso_keys if request.session.get(k) is not None}
+
+    # Log the sign-out event before clearing
+    user_id = request.session.get("user_id")
+    if user_id:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_signed_out",
+            metadata={"reason": "sso_switch_account"},
+        )
+
+    # Clear entire session (removes auth state)
+    request.session.clear()
+
+    # Restore SSO context so login redirects back to consent
+    for k, v in saved.items():
+        request.session[k] = v
+
+    return RedirectResponse(url="/login", status_code=303)
+
+
 @router.post("/consent")
 def consent_respond(
     request: Request,

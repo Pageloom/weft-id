@@ -983,3 +983,146 @@ class TestListSPCertEnrichment:
             result = sp_service.list_service_providers(requesting_user)
 
             assert result.items[0].signing_cert_expires_at is None
+
+
+# =============================================================================
+# import_sp_from_metadata_xml: duplicate entity_id
+# =============================================================================
+
+
+class TestImportSPFromMetadataXMLDuplicate:
+    """Test import_sp_from_metadata_xml with duplicate entity_id."""
+
+    def test_raises_conflict_for_duplicate_entity_id(self, make_requesting_user):
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        parsed = {
+            "entity_id": "https://dup.example.com",
+            "acs_url": "https://dup.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
+                "id": str(uuid4()),
+            }
+
+            with pytest.raises(ConflictError, match="already exists"):
+                sp_service.import_sp_from_metadata_xml(
+                    requesting_user, name="Dup App", metadata_xml="<xml/>"
+                )
+
+
+# =============================================================================
+# import_sp_from_metadata_url: parse error and duplicate entity_id
+# =============================================================================
+
+
+class TestImportSPFromMetadataURLParseError:
+    """Test import_sp_from_metadata_url when fetched XML is unparseable."""
+
+    def test_raises_validation_error_on_parse_failure(self, make_requesting_user):
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with (
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<bad/>"),
+            patch(
+                "utils.saml_idp.parse_sp_metadata_xml",
+                side_effect=ValueError("Missing entityID"),
+            ),
+        ):
+            with pytest.raises(ValidationError, match="Missing entityID"):
+                sp_service.import_sp_from_metadata_url(
+                    requesting_user,
+                    name="Bad Parse",
+                    metadata_url="https://bad.example.com/metadata",
+                )
+
+
+class TestImportSPFromMetadataURLDuplicate:
+    """Test import_sp_from_metadata_url with duplicate entity_id."""
+
+    def test_raises_conflict_for_duplicate_entity_id(self, make_requesting_user):
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        parsed = {
+            "entity_id": "https://dup-url.example.com",
+            "acs_url": "https://dup-url.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
+                "id": str(uuid4()),
+            }
+
+            with pytest.raises(ConflictError, match="already exists"):
+                sp_service.import_sp_from_metadata_url(
+                    requesting_user,
+                    name="Dup URL App",
+                    metadata_url="https://dup-url.example.com/metadata",
+                )
+
+
+# =============================================================================
+# get_sp_metadata_url_info: not found and success
+# =============================================================================
+
+
+class TestGetSPMetadataURLInfoNotFound:
+    """Test get_sp_metadata_url_info when SP not found."""
+
+    def test_raises_not_found(self, make_requesting_user):
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.get_sp_metadata_url_info(
+                    requesting_user, str(uuid4()), "https://idp.example.com"
+                )
+
+    def test_success_returns_urls(self, make_requesting_user):
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+
+            result = sp_service.get_sp_metadata_url_info(
+                requesting_user, sp_id, "https://idp.example.com"
+            )
+
+            assert result.sp_id == sp_id
+            assert f"/saml/idp/metadata/{sp_id}" in result.metadata_url
+            assert "/saml/idp/metadata" in result.entity_id
+            assert "/saml/idp/sso" in result.sso_url

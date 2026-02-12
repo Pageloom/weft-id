@@ -82,7 +82,7 @@ Weft ID also acts as a SAML Identity Provider, issuing assertions to registered 
 | `tests/test_services_service_providers.py` | SP service CRUD and certificate management |
 | `tests/test_services_service_providers_sso.py` | SSO assertion building and signing |
 | `tests/test_api_service_providers.py` | API endpoints for SP management |
-| `tests/test_utils_saml_idp.py` | IdP utility functions |
+| `tests/test_utils_saml_idp.py` | IdP utility functions, XML parsing edge cases |
 
 ### Manual SP Testing
 

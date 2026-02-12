@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## SSO-001: JIT-provisioned users not added to IdP base group when IdP lacks one
+
+**Status:** Resolved (2026-02-12)
+
+**Original Severity:** Medium
+
+**Original Description:**
+When a user authenticates via SAML SSO and gets JIT-provisioned, `ensure_user_in_base_group()` silently skipped group assignment if no base group existed for the IdP. The base group is normally created by the service layer when an IdP is added through the admin UI (`create_idp_base_group()`), but any IdP created by direct database insertion (dev scripts, migrations, API edge cases) lacked this group. JIT-provisioned users ended up with no group memberships.
+
+**Resolution:**
+Made `ensure_user_in_base_group()` self-healing: if no base group exists for the IdP, it now auto-creates one by calling `create_idp_base_group()` before adding the user. Also updated the SSO testbed script to create base groups explicitly during setup.
+
+**Files Changed:** `app/services/groups/idp.py`, `app/dev/sso_testbed.py`, `tests/test_services_groups.py`
+
+---
+
 ## ISSUE-001: Email MFA code not auto-sent on IDP/SAML sign-in
 
 **Status:** Resolved (2026-02-09)

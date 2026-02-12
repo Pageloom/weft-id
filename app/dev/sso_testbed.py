@@ -144,7 +144,7 @@ def step_3b_create_sp_signing_cert(dev_tenant_id: str, sp_id: str, dev_admin_id:
     existing = database.sp_signing_certificates.get_signing_certificate(dev_tenant_id, sp_id)
     if existing:
         log.info("Signing certificate already exists for SP %s", sp_id)
-        return existing["certificate_pem"]
+        return str(existing["certificate_pem"])
 
     cert_pem, key_pem = utils.saml.generate_sp_certificate(dev_tenant_id)
     encrypted_key = utils.saml.encrypt_private_key(key_pem)

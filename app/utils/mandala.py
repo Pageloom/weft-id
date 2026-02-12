@@ -229,7 +229,7 @@ _SHAPE_FUNCS = [
 ]
 
 
-def generate_mandala_svg(seed: str, size: int = 40) -> str:
+def generate_mandala_svg(seed: str, size: int = 40) -> tuple[str, str, str]:
     """Generate a deterministic mandala SVG string from a seed.
 
     Args:

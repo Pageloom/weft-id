@@ -2,6 +2,7 @@
 
 import secrets
 import time
+from pathlib import Path
 from typing import Annotated
 
 import oauth2
@@ -18,7 +19,8 @@ from utils.csp_nonce import get_csp_nonce
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
 
 router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
-templates = Jinja2Templates(directory="app/templates")
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 # ============================================================================

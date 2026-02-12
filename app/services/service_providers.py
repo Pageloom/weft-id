@@ -426,6 +426,26 @@ def delete_service_provider(
 # ============================================================================
 
 
+def get_user_consent_info(tenant_id: str, user_id: str) -> dict | None:
+    """Get user display info for the SSO consent screen.
+
+    Returns dict with email, first_name, last_name, or None if user or
+    primary email not found. No authorization check needed (user is
+    viewing their own info).
+    """
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if user is None:
+        return None
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    if primary_email is None:
+        return None
+    return {
+        "email": primary_email["email"],
+        "first_name": user.get("first_name", ""),
+        "last_name": user.get("last_name", ""),
+    }
+
+
 def get_sp_by_entity_id(tenant_id: str, entity_id: str) -> SPConfig | None:
     """Look up an SP by entity ID. No auth check required.
 

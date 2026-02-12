@@ -2324,3 +2324,46 @@ Replaced the f-string bulk insert with a parameterized loop. Each group ID is in
 - `app/database/groups/idp.py` - Replaced f-string SQL with parameterized loop
 
 ---
+
+## ISSUE-003: Router directly imports database in SAML IdP SSO consent
+
+**Status:** Resolved (2026-02-12)
+
+**Original Severity:** High
+
+**Principle Violated:** Service Layer Architecture
+
+**Original Description:**
+The `consent_page()` route handler in `app/routers/saml_idp/sso.py` imported `database` directly (as a local import) to fetch user info and primary email for the consent screen. Routers must never import database modules directly.
+
+**Resolution:**
+Added `get_user_consent_info()` service function to `app/services/service_providers.py` that fetches user display info (email, first_name, last_name). The router now calls this service function instead of importing the database layer.
+
+**Files Modified:**
+- `app/services/service_providers.py` - Added `get_user_consent_info()`
+- `app/routers/saml_idp/sso.py` - Replaced `import database` with service call
+- `tests/test_routers_saml_idp_sso.py` - Updated mock targets
+- `tests/test_services_service_providers_sso.py` - Added unit tests for new function
+
+---
+
+## ISSUE-004: sso_consent_denied event silently dropped due to empty artifact_id
+
+**Status:** Resolved (2026-02-12)
+
+**Original Severity:** High
+
+**Principle Violated:** Activity Logging
+
+**Original Description:**
+The `log_event()` call for `sso_consent_denied` in `consent_respond()` passed `artifact_id=""` (empty string). The `event_logs.artifact_id` column is `UUID NOT NULL`, so the empty string failed PostgreSQL UUID validation and the INSERT was silently rejected. SSO consent denials were never recorded in the audit log.
+
+**Resolution:**
+Store the SP's UUID (`sp.id`) in the session as `pending_sso_sp_id` alongside the existing entity_id. Use that UUID as `artifact_id` in the consent denied event. Added `pending_sso_sp_id` to `PENDING_SSO_KEYS` and the session cleanup list.
+
+**Files Modified:**
+- `app/routers/saml_idp/sso.py` - Store SP UUID in session, use as artifact_id
+- `app/routers/saml_idp/_helpers.py` - Added key to `PENDING_SSO_KEYS`
+- `tests/test_routers_saml_idp_sso.py` - Added SP ID to mock sessions, verified artifact_id
+
+---

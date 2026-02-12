@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 import pytest
 from services.exceptions import NotFoundError, ValidationError
-from services.service_providers import build_sso_response, get_sp_by_entity_id
+from services.service_providers import (
+    build_sso_response,
+    get_sp_by_entity_id,
+    get_user_consent_info,
+)
 
 # ============================================================================
 # get_sp_by_entity_id
@@ -266,3 +270,68 @@ class TestBuildSsoResponse:
                 authn_request_id=None,
                 base_url="https://idp.example.com",
             )
+
+
+# ============================================================================
+# get_user_consent_info
+# ============================================================================
+
+
+class TestGetUserConsentInfo:
+    @patch("services.service_providers.database")
+    def test_returns_user_info(self, mock_db):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.user_emails.get_primary_email.return_value = {
+            "email": "alice@example.com",
+        }
+
+        result = get_user_consent_info("tenant-1", "user-1")
+
+        assert result == {
+            "email": "alice@example.com",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.users.get_user_by_id.assert_called_once_with("tenant-1", "user-1")
+        mock_db.user_emails.get_primary_email.assert_called_once_with("tenant-1", "user-1")
+
+    @patch("services.service_providers.database")
+    def test_returns_none_when_user_not_found(self, mock_db):
+        mock_db.users.get_user_by_id.return_value = None
+
+        result = get_user_consent_info("tenant-1", "user-missing")
+
+        assert result is None
+        mock_db.user_emails.get_primary_email.assert_not_called()
+
+    @patch("services.service_providers.database")
+    def test_returns_none_when_no_primary_email(self, mock_db):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.user_emails.get_primary_email.return_value = None
+
+        result = get_user_consent_info("tenant-1", "user-1")
+
+        assert result is None
+
+    @patch("services.service_providers.database")
+    def test_handles_missing_name_fields(self, mock_db):
+        mock_db.users.get_user_by_id.return_value = {"id": "user-1"}
+        mock_db.user_emails.get_primary_email.return_value = {
+            "email": "user@example.com",
+        }
+
+        result = get_user_consent_info("tenant-1", "user-1")
+
+        assert result == {
+            "email": "user@example.com",
+            "first_name": "",
+            "last_name": "",
+        }

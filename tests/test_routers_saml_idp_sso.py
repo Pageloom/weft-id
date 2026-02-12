@@ -279,6 +279,7 @@ class TestConsentPage:
         """When session has user_id and pending SSO, consent page renders."""
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test Application",
             "pending_sso_authn_request_id": "_req123",
@@ -290,18 +291,15 @@ class TestConsentPage:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch("database.users.get_user_by_id") as mock_user,
-            patch("database.user_emails.get_primary_email") as mock_email,
+            patch(
+                "services.service_providers.get_user_consent_info",
+                return_value={
+                    "email": "alice@test.com",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            ),
         ):
-            mock_user.return_value = {
-                "id": sso_user["id"],
-                "first_name": "Alice",
-                "last_name": "Smith",
-            }
-            mock_email.return_value = {
-                "email": "alice@test.com",
-            }
-
             response = client.get(
                 "/saml/idp/consent",
                 headers={"Host": sso_host},
@@ -319,8 +317,10 @@ class TestConsentPage:
 
 class TestConsentRespond:
     def test_cancel_redirects_to_dashboard(self, client, sso_user, sso_host):
+        sp_id = str(uuid4())
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_sp_id": sp_id,
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
             "pending_sso_authn_request_id": "_req123",
@@ -346,8 +346,10 @@ class TestConsentRespond:
         assert "/dashboard" in response.headers["location"]
 
     def test_cancel_logs_consent_denied_event(self, client, sso_user, sso_host):
+        sp_id = str(uuid4())
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_sp_id": sp_id,
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
             "pending_sso_authn_request_id": "_req123",
@@ -371,10 +373,12 @@ class TestConsentRespond:
 
         mock_log.assert_called_once()
         assert mock_log.call_args[1]["event_type"] == "sso_consent_denied"
+        assert mock_log.call_args[1]["artifact_id"] == sp_id
 
     def test_continue_renders_auto_submit_form(self, client, sso_user, sso_host):
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_sp_id": str(uuid4()),
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
             "pending_sso_authn_request_id": "_req123",

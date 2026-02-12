@@ -19,7 +19,9 @@ from schemas.groups import (
     GroupSummary,
     GroupUpdate,
 )
+from schemas.service_providers import GroupSPAssignmentList
 from services import groups as groups_service
+from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
 
@@ -404,5 +406,33 @@ def list_idp_groups(
 
     try:
         return groups_service.list_groups_for_idp(requesting_user, idp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Group SP Assignments
+# =============================================================================
+
+
+@router.get("/{group_id}/service-providers", response_model=GroupSPAssignmentList)
+def list_group_service_providers(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+):
+    """
+    List service providers assigned to a group.
+
+    Requires admin role.
+
+    Returns:
+        List of SP assignments for the group
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        return sp_service.list_group_sp_assignments(requesting_user, group_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

@@ -8,6 +8,7 @@ import pytest
 from fastapi.responses import HTMLResponse
 from schemas.service_providers import (
     SPConfig,
+    SPGroupAssignmentList,
     SPListItem,
     SPListResponse,
     SPSigningCertificate,
@@ -573,6 +574,8 @@ class TestSPDetailPage:
             created_at=datetime.now(UTC),
         )
 
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
         with (
             patch(
                 "services.service_providers.get_service_provider",
@@ -581,6 +584,14 @@ class TestSPDetailPage:
             patch(
                 "services.service_providers.get_sp_signing_certificate",
                 return_value=signing_cert,
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
             ),
         ):
             response = sp_admin_session.get(
@@ -606,6 +617,8 @@ class TestSPDetailPage:
 
         from services.exceptions import NotFoundError
 
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
         with (
             patch(
                 "services.service_providers.get_service_provider",
@@ -614,6 +627,14 @@ class TestSPDetailPage:
             patch(
                 "services.service_providers.get_sp_signing_certificate",
                 side_effect=NotFoundError(message="not found"),
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
             ),
         ):
             response = sp_admin_session.get(
@@ -674,3 +695,570 @@ class TestSPRotateCertificate:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Add Group
+# =============================================================================
+
+
+class TestSPAddGroup:
+    """Tests for assigning a group to a service provider."""
+
+    def test_add_group_success(self, sp_admin_session, sp_host):
+        """Successful group assignment redirects with success."""
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch("services.service_providers.assign_sp_to_group"):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                data={"group_id": group_id},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=group_assigned" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_add_group_service_error(self, sp_admin_session, sp_host):
+        """ServiceError during group assignment redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.assign_sp_to_group",
+            side_effect=NotFoundError(message="Group not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                data={"group_id": group_id},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_add_group_validation_error(self, sp_admin_session, sp_host):
+        """ValidationError during group assignment redirects with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.assign_sp_to_group",
+            side_effect=ValidationError(message="Group already assigned"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/add",
+                data={"group_id": group_id},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_add_group_missing_group_id(self, sp_admin_session, sp_host):
+        """Missing group_id redirects with 'Please select a group' error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            data={"group_id": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert (
+            "error=Please+select+a+group" in response.headers["location"]
+            or "error=Please%20select%20a%20group" in response.headers["location"]
+        )
+        assert sp_id in response.headers["location"]
+
+    def test_add_group_no_group_id_field(self, sp_admin_session, sp_host):
+        """No group_id form field at all redirects with 'Please select a group' error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            data={},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_add_group_whitespace_group_id(self, sp_admin_session, sp_host):
+        """Whitespace-only group_id redirects with 'Please select a group' error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/groups/add",
+            data={"group_id": "   "},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Bulk Add Groups
+# =============================================================================
+
+
+class TestSPBulkAddGroups:
+    """Tests for bulk-assigning groups to a service provider."""
+
+    def test_bulk_add_groups_success(self, sp_admin_session, sp_host):
+        """Successful bulk group assignment redirects with success."""
+        from urllib.parse import urlencode
+
+        sp_id = str(uuid4())
+        group_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
+
+        body = urlencode([("group_ids", gid) for gid in group_ids])
+
+        with patch("services.service_providers.bulk_assign_sp_to_groups"):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                content=body,
+                headers={
+                    "Host": sp_host,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=groups_assigned" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_bulk_add_groups_single_group(self, sp_admin_session, sp_host):
+        """Bulk assignment with a single group still works."""
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch("services.service_providers.bulk_assign_sp_to_groups"):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                data={"group_ids": group_id},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=groups_assigned" in response.headers["location"]
+
+    def test_bulk_add_groups_service_error(self, sp_admin_session, sp_host):
+        """ServiceError during bulk assignment redirects with error."""
+        from urllib.parse import urlencode
+
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+        group_ids = [str(uuid4())]
+        body = urlencode([("group_ids", gid) for gid in group_ids])
+
+        with patch(
+            "services.service_providers.bulk_assign_sp_to_groups",
+            side_effect=ValidationError(message="Some groups already assigned"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                content=body,
+                headers={
+                    "Host": sp_host,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_bulk_add_groups_not_found(self, sp_admin_session, sp_host):
+        """NotFoundError during bulk assignment redirects with error."""
+        from urllib.parse import urlencode
+
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+        group_ids = [str(uuid4())]
+        body = urlencode([("group_ids", gid) for gid in group_ids])
+
+        with patch(
+            "services.service_providers.bulk_assign_sp_to_groups",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+                content=body,
+                headers={
+                    "Host": sp_host,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_bulk_add_groups_empty_list(self, sp_admin_session, sp_host):
+        """Empty group_ids list redirects with 'Please select groups' error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/groups/bulk",
+            data={},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+
+# =============================================================================
+# SP Remove Group
+# =============================================================================
+
+
+class TestSPRemoveGroup:
+    """Tests for removing a group assignment from a service provider."""
+
+    def test_remove_group_success(self, sp_admin_session, sp_host):
+        """Successful group removal redirects with success."""
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch("services.service_providers.remove_sp_group_assignment"):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=group_removed" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_remove_group_not_found(self, sp_admin_session, sp_host):
+        """Removing non-existent group assignment redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.remove_sp_group_assignment",
+            side_effect=NotFoundError(message="Group assignment not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert sp_id in response.headers["location"]
+
+    def test_remove_group_forbidden(self, sp_admin_session, sp_host):
+        """ForbiddenError during group removal redirects with error."""
+        from services.exceptions import ForbiddenError
+
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.remove_sp_group_assignment",
+            side_effect=ForbiddenError(message="Insufficient permissions"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_remove_group_validation_error(self, sp_admin_session, sp_host):
+        """ValidationError during group removal redirects with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.remove_sp_group_assignment",
+            side_effect=ValidationError(message="Cannot remove last group"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/groups/{group_id}/remove",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Detail Page with Groups
+# =============================================================================
+
+
+class TestSPDetailPageGroups:
+    """Tests for group data on the SP detail page."""
+
+    def test_detail_page_passes_groups_to_context(
+        self, sp_admin_session, sp_host, sample_sp_config, mocker
+    ):
+        """SP detail page passes assigned_groups and available_groups to template context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        from schemas.service_providers import SPGroupAssignment
+
+        assigned = SPGroupAssignmentList(
+            items=[
+                SPGroupAssignment(
+                    id=str(uuid4()),
+                    sp_id=sample_sp_config.id,
+                    group_id=str(uuid4()),
+                    group_name="Engineering",
+                    group_description="Engineering team",
+                    group_type="weftid",
+                    assigned_by=str(uuid4()),
+                    assigned_at=datetime.now(UTC),
+                ),
+            ],
+            total=1,
+        )
+        available = [
+            {"id": str(uuid4()), "name": "Marketing", "type": "weftid"},
+        ]
+
+        signing_cert = SPSigningCertificate(
+            id=str(uuid4()),
+            sp_id=sample_sp_config.id,
+            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            created_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                return_value=signing_cert,
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=assigned,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=available,
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert "assigned_groups" in ctx_kwargs
+        assert "available_groups" in ctx_kwargs
+        assert len(ctx_kwargs["assigned_groups"]) == 1
+        assert len(ctx_kwargs["available_groups"]) == 1
+
+    def test_detail_page_empty_groups(self, sp_admin_session, sp_host, sample_sp_config, mocker):
+        """SP detail page handles empty assigned and available groups."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
+        signing_cert = SPSigningCertificate(
+            id=str(uuid4()),
+            sp_id=sample_sp_config.id,
+            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            created_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                return_value=signing_cert,
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["assigned_groups"] == []
+        assert ctx_kwargs["available_groups"] == []
+
+    def test_detail_page_groups_service_error_still_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mocker
+    ):
+        """SP detail page still renders when group fetching fails (try/except pass)."""
+        from services.exceptions import ServiceError
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        signing_cert = SPSigningCertificate(
+            id=str(uuid4()),
+            sp_id=sample_sp_config.id,
+            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
+            created_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                return_value=signing_cert,
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                side_effect=ServiceError(message="Database error"),
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        # Falls back to empty lists when ServiceError occurs
+        assert ctx_kwargs["assigned_groups"] == []
+        assert ctx_kwargs["available_groups"] == []
+
+    def test_detail_page_groups_with_success_param(
+        self, sp_admin_session, sp_host, sample_sp_config, mocker
+    ):
+        """SP detail page passes success param after group operations."""
+        from services.exceptions import ServiceError
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                side_effect=ServiceError(message="not found"),
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}?success=group_assigned",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["success"] == "group_assigned"
+
+    def test_detail_page_groups_with_error_param(
+        self, sp_admin_session, sp_host, sample_sp_config, mocker
+    ):
+        """SP detail page passes error param after failed group operations."""
+        from services.exceptions import ServiceError
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sample_sp_config,
+            ),
+            patch(
+                "services.service_providers.get_sp_signing_certificate",
+                side_effect=ServiceError(message="not found"),
+            ),
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}?error=Group+not+found",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["error"] == "Group not found"

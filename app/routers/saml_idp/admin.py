@@ -196,7 +196,7 @@ def sp_detail(
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
 ):
-    """Show SP detail page with cert status and per-SP metadata URL."""
+    """Show SP detail page with cert status, per-SP metadata URL, and assigned groups."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -215,6 +215,16 @@ def sp_detail(
     except ServiceError:
         pass
 
+    # Get assigned groups and available groups for assignment
+    assigned_groups = []
+    available_groups = []
+    try:
+        result = sp_service.list_sp_group_assignments(requesting_user, sp_id)
+        assigned_groups = result.items
+        available_groups = sp_service.list_available_groups_for_sp(requesting_user, sp_id)
+    except ServiceError:
+        pass
+
     base_url = get_base_url(request)
     sp_metadata_url = f"{base_url}/saml/idp/metadata/{sp_id}"
 
@@ -224,6 +234,8 @@ def sp_detail(
         sp=sp_config,
         signing_cert=signing_cert,
         sp_metadata_url=sp_metadata_url,
+        assigned_groups=assigned_groups,
+        available_groups=available_groups,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
@@ -250,6 +262,86 @@ def sp_rotate_certificate(
         )
     except ServiceError as exc:
         logger.warning("Failed to rotate SP certificate: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/groups/add", response_class=HTMLResponse)
+def sp_add_group(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    group_id: str = Form(""),
+):
+    """Assign a group to a service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not group_id.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?error=Please select a group", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.assign_sp_to_group(requesting_user, sp_id, group_id.strip())
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?success=group_assigned", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to assign group to SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/groups/bulk", response_class=HTMLResponse)
+def sp_bulk_add_groups(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    group_ids: list[str] = Form(default=[]),
+):
+    """Bulk-assign groups to a service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not group_ids:
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?error=Please select groups", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.bulk_assign_sp_to_groups(requesting_user, sp_id, group_ids)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?success=groups_assigned", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to bulk assign groups to SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/groups/{group_id}/remove", response_class=HTMLResponse)
+def sp_remove_group(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    group_id: str,
+):
+    """Remove a group assignment from a service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=group_removed", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to remove group from SP: %s", exc)
         return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
 
 

@@ -106,6 +106,7 @@ app.include_router(oauth2_clients.router)
 app.include_router(reactivation_api.router)
 app.include_router(saml_api.router)
 app.include_router(service_providers_api.router)
+app.include_router(service_providers_api.my_apps_router)
 app.include_router(settings_api.router)
 app.include_router(users_api.router)
 

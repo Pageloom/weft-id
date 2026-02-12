@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from schemas.groups import GroupCreate, GroupUpdate
 from services import groups as groups_service
+from services import service_providers as sp_service
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -168,6 +169,14 @@ def group_detail(
         if group.child_count > 0:
             effective_members = groups_service.get_effective_members(requesting_user, group_id)
 
+        # Fetch assigned service providers
+        assigned_sps = []
+        try:
+            sp_result = sp_service.list_group_sp_assignments(requesting_user, group_id)
+            assigned_sps = sp_result.items
+        except ServiceError:
+            pass
+
     except NotFoundError:
         return render_error_page(
             request,
@@ -193,6 +202,7 @@ def group_detail(
             available_parents=available_parents,
             available_children=available_children,
             effective_members=effective_members,
+            assigned_sps=assigned_sps,
             success=success,
             error=error,
         ),

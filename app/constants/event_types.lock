@@ -53,6 +53,9 @@ saml_sp_certificate_created
 saml_sp_certificate_rotated
 service_provider_created
 service_provider_deleted
+sp_group_assigned
+sp_group_unassigned
+sp_groups_bulk_assigned
 sp_signing_certificate_created
 sp_signing_certificate_rotated
 sso_assertion_issued

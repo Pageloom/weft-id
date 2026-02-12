@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
+import database
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -152,7 +153,12 @@ def consent_page(
     if not sp_entity_id:
         return _render_sso_error(request, tenant_id, "no_pending_sso")
 
+    sp_id = request.session.get("pending_sso_sp_id", "")
     sp_name = request.session.get("pending_sso_sp_name", "Unknown Application")
+
+    # Check group-based access
+    if sp_id and not sp_service.check_user_sp_access(tenant_id, user_id, sp_id):
+        return _render_sso_error(request, tenant_id, "unauthorized_user")
 
     # Get user info for the consent screen
     user_info = sp_service.get_user_consent_info(tenant_id, user_id)
@@ -284,6 +290,47 @@ def consent_respond(
             "csp_nonce": csp_nonce,
         },
     )
+
+
+# ============================================================================
+# IdP-Initiated SSO (launch from dashboard)
+# ============================================================================
+
+
+@router.get("/launch/{sp_id}")
+def idp_initiated_launch(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    sp_id: str,
+):
+    """Launch IdP-initiated SSO for a service provider.
+
+    User clicks an app tile on the dashboard. We look up the SP, check access
+    via group assignments, store SSO context in session, and redirect to consent.
+    """
+    # Require authenticated session
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Look up SP by ID
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        return _render_sso_error(request, tenant_id, "unknown_sp")
+
+    # Check group-based access
+    if not sp_service.check_user_sp_access(tenant_id, user_id, sp_id):
+        return _render_sso_error(request, tenant_id, "unauthorized_user")
+
+    # Store SSO context in session (authn_request_id=None for IdP-initiated)
+    request.session["pending_sso_sp_id"] = sp_id
+    request.session["pending_sso_sp_entity_id"] = sp_row["entity_id"]
+    request.session["pending_sso_authn_request_id"] = None
+    request.session["pending_sso_relay_state"] = ""
+    request.session["pending_sso_sp_name"] = sp_row["name"]
+
+    # Redirect to consent page (reuses existing consent flow)
+    return RedirectResponse(url="/saml/idp/consent", status_code=303)
 
 
 # ============================================================================

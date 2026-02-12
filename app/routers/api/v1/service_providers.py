@@ -2,19 +2,23 @@
 
 from typing import Annotated
 
-from api_dependencies import require_super_admin_api
+from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, status
 from schemas.service_providers import (
     IdPMetadataInfo,
     SPConfig,
     SPCreate,
+    SPGroupAssignAdd,
+    SPGroupAssignmentList,
+    SPGroupBulkAssign,
     SPListResponse,
     SPMetadataImportURL,
     SPMetadataImportXML,
     SPMetadataURLInfo,
     SPSigningCertificate,
     SPSigningCertificateRotationResult,
+    UserAppList,
 )
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
@@ -58,6 +62,7 @@ def create_service_provider(
     - name: Display name for the SP
     - entity_id: SP's SAML Entity ID
     - acs_url: Assertion Consumer Service URL
+    - description: Optional description
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
@@ -241,5 +246,105 @@ def get_sp_metadata_url(
     base_url = _get_base_url(request)
     try:
         return sp_service.get_sp_metadata_url_info(requesting_user, sp_id, base_url)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# SP Group Assignments
+# =============================================================================
+
+
+@router.get("/{sp_id}/groups", response_model=SPGroupAssignmentList)
+def list_sp_groups(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+):
+    """List groups assigned to a Service Provider.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.list_sp_group_assignments(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/groups", status_code=status.HTTP_201_CREATED)
+def assign_group_to_sp(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    data: SPGroupAssignAdd,
+):
+    """Assign a group to a Service Provider.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.assign_sp_to_group(requesting_user, sp_id, data.group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/groups/bulk", status_code=status.HTTP_201_CREATED)
+def bulk_assign_groups_to_sp(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    data: SPGroupBulkAssign,
+):
+    """Bulk-assign groups to a Service Provider.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        count = sp_service.bulk_assign_sp_to_groups(requesting_user, sp_id, data.group_ids)
+        return {"status": "ok", "assigned": count}
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete("/{sp_id}/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_group_from_sp(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    sp_id: str,
+    group_id: str,
+):
+    """Remove a group assignment from a Service Provider.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# My Apps (user-facing)
+# =============================================================================
+
+my_apps_router = APIRouter(prefix="/api/v1", tags=["My Apps"])
+
+
+@my_apps_router.get("/my-apps", response_model=UserAppList)
+def get_my_apps(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user_api)],
+):
+    """Get applications accessible to the current user.
+
+    Any authenticated user can call this endpoint.
+    """
+    requesting_user = build_requesting_user(user, tenant_id, None)
+    try:
+        return sp_service.get_user_accessible_apps(requesting_user)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

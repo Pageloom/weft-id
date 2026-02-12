@@ -2,6 +2,12 @@
 
 Quick reminders to later build out into full backlog items.
 
+- Privileged domains should be possible to auto-connect to groups - so that any user with that email
+  is automatically tied to those groups (not IdP groups).
+- I think that signin ratelimiting should be as aggressive as it is now at the tenant level, and much less
+  aggressive on the global level. At least the IP rate limit.
+- Make it possible to brand the "WeftID" mandala - and the "WeftId" title.
+- Make WeftId into one of the default IdPs along side Entra ID etc.
 - "Does user X have access to app Y?" function for admins. Overview and export of apps available to a specific user.
   (Depends on SAML IdP Phase 2 delivering the app assignment model.)
 - Create an accessibility agent whose focus it is to make sure that the frontend has a good accessibility posture,

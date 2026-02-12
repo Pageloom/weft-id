@@ -40,15 +40,15 @@ Track when each area was last analyzed to identify gaps:
 
 | Area | Last Scanned | Last Deep Scan | Notes |
 |------|--------------|----------------|-------|
-| `app/services/` | 2026-02-07 | 2026-02-01 | RESOLVED - all files now <660 lines (users.py, groups.py split into packages) |
+| `app/services/` | 2026-02-12 | 2026-02-01 | service_providers.py at 1129 lines (REFACT-002 logged); rest <660 lines |
 | `app/database/` | 2026-02-06 | 2026-02-01 | RESOLVED - all files now <360 lines (split into packages) |
 | `app/routers/` | 2026-02-06 | 2026-02-01 | RESOLVED - 4 large files split into packages; log_event calls documented as intentional |
 | `app/routers/api/` | 2026-02-06 | 2026-02-01 | RESOLVED - dead code removed in router split |
 | `app/schemas/` | 2026-02-01 | 2026-02-01 | Clean - all files <500 lines |
 | `app/middleware/` | 2026-02-01 | 2026-02-01 | Clean - all files <220 lines |
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
-| `app/utils/` | 2026-02-07 | 2026-02-07 | Clean - largest file 649 lines (email.py) |
-| `app/worker.py` | 2026-02-07 | 2026-02-07 | Periodic task boilerplate duplication logged |
+| `app/utils/` | 2026-02-12 | 2026-02-07 | Clean - largest file 649 lines (email.py) |
+| `app/worker.py` | 2026-02-12 | 2026-02-07 | RESOLVED - refactored to PeriodicJob class, 200 lines |
 | `tests/` | 2026-02-06 | 2026-02-06 | Parametrization applied (commit 979c5f4), large files mirror app structure (accepted) |
 
 ## Recurring Patterns
@@ -59,13 +59,49 @@ Track issues that keep appearing to identify systemic problems:
 |---------|-------------|----------------|----------------------|
 | Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
 | Growing god modules | ~~1 (saml.py at 2658 lines)~~ → RESOLVED | services | FIXED: Split into `app/services/saml/` sub-modules |
-| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → 12 app files | services, routers, utils | All splits complete; no file exceeds 660 lines; 0 critical files |
+| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → 15 app files | services, routers, utils | 1 critical: service_providers.py at 1129 lines (grew with Phase 3 SP access control) |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-12 - Standard Full Scan
+
+**Scan type:** Standard
+**Areas analyzed:** Full codebase (app/, file sizes, architecture, new Phase 3 code)
+**Categories focused:** All (file structure, duplication, complexity, architecture)
+
+**Prior open items (all 4 resolved):**
+
+1. Super-admin count check uses wrong query - **RESOLVED** (now uses `count_active_super_admins()`)
+2. Worker periodic task boilerplate - **RESOLVED** (refactored to `PeriodicJob` class)
+3. Backwards-compat re-export in worker.py - **RESOLVED** (removed)
+4. Missing event log for export download - **RESOLVED** (now calls `log_event()`)
+
+**New findings:**
+
+1. **Dropdown pagination limits silently truncate results (High)** - `selection.py:52-56` uses `page_size=100` for users and `page_size=1000` for members. Silent data loss for larger tenants. Status: Open (REFACT-001)
+
+2. **service_providers.py exceeds 1100 lines (Medium)** - 1129 lines, 26 functions, 5 concerns. Contains duplicate code in metadata import and metadata generation functions. Status: Open (REFACT-002)
+
+**Architecture check (all pass):**
+- Router-to-database imports: 0 violations
+- Missing track_activity(): 0 violations
+- Missing log_event(): 0 violations
+
+**File size summary:** 15 files >500 lines (1 critical at 1129). No file except service_providers.py exceeds 660 lines.
+
+**Recommendations for next scan:**
+- After service_providers.py split, verify test mock targets updated
+- After selection.py fix, add test with >100 users to validate pagination behavior
+- Monitor if any other service files approach 700+ lines
+
+**Issues logged:** 2 new issues added to ISSUES.md (1 high, 1 medium)
+**Issues resolved since last scan:** 4 (all prior open items)
+
+---
 
 ### 2026-02-07 - Full Codebase Standard Scan
 

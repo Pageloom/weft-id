@@ -6,9 +6,35 @@ import pytest
 from services.exceptions import NotFoundError, ValidationError
 from services.service_providers import (
     build_sso_response,
+    get_service_provider_by_id,
     get_sp_by_entity_id,
     get_user_consent_info,
 )
+
+# ============================================================================
+# get_service_provider_by_id
+# ============================================================================
+
+
+class TestGetServiceProviderById:
+    @patch("services.service_providers.database")
+    def test_returns_row_when_found(self, mock_db):
+        row = {"id": "sp-1", "name": "Test SP", "entity_id": "https://sp.example.com"}
+        mock_db.service_providers.get_service_provider.return_value = row
+
+        result = get_service_provider_by_id("tenant-1", "sp-1")
+
+        assert result == row
+        mock_db.service_providers.get_service_provider.assert_called_once_with("tenant-1", "sp-1")
+
+    @patch("services.service_providers.database")
+    def test_returns_none_when_not_found(self, mock_db):
+        mock_db.service_providers.get_service_provider.return_value = None
+
+        result = get_service_provider_by_id("tenant-1", "nonexistent")
+
+        assert result is None
+
 
 # ============================================================================
 # get_sp_by_entity_id

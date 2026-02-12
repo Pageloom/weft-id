@@ -711,6 +711,25 @@ class TestListAvailableGroupsForSP:
         with pytest.raises(ForbiddenError):
             sp_service.list_available_groups_for_sp(requesting_user, str(uuid4()))
 
+    def test_tracks_activity(self, make_requesting_user):
+        """Admin activity is tracked for this read operation."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.track_activity") as mock_track,
+        ):
+            mock_db.groups.list_groups.return_value = []
+            mock_db.sp_group_assignments.list_assignments_for_sp.return_value = []
+
+            sp_service.list_available_groups_for_sp(requesting_user, sp_id)
+
+        mock_track.assert_called_once_with(tenant_id, requesting_user["id"])
+
 
 # =============================================================================
 # check_user_sp_access

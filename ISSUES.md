@@ -6,25 +6,9 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## High Severity
+No open issues.
 
-(None)
-
----
-
-## Medium Severity
-
-(None)
-
-# Summary
-
-| Severity | Count | Categories |
-|----------|-------|------------|
-| High | 0 | - |
-| Medium | 0 | - |
-| Low | 0 | - |
-
-**Last compliance scan:** 2026-02-12 (automated + manual five-principle review)
+**Last compliance scan:** 2026-02-12 (ARCH-001 and LOG-001 resolved)
 **Last dependency audit:** 2026-02-06 (pip CVE-2026-1703 accepted as low priority dev tool risk)
 **Last refactor scan:** 2026-02-07 (full codebase standard scan, no critical files remain)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)

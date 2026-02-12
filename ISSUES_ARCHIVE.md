@@ -4,6 +4,38 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## ARCH-001: SSO router imports database directly
+
+**Status:** Resolved (2026-02-12)
+
+**Original Severity:** High
+
+**Original Description:**
+The SSO router (`app/routers/saml_idp/sso.py`) imported `database` directly and called `database.service_providers.get_service_provider()` for IdP-initiated SSO, bypassing the Router -> Service -> Database architecture.
+
+**Resolution:**
+Added a thin `get_service_provider_by_id()` service function in `app/services/service_providers.py` that wraps the database call. Updated the router to call through the service layer and removed the direct database import. Updated all related tests to mock the service function instead of the database module.
+
+**Files Changed:** `app/routers/saml_idp/sso.py`, `app/services/service_providers.py`, `tests/test_routers_saml_idp_sso.py`, `tests/test_services_service_providers_sso.py`
+
+---
+
+## LOG-001: Missing track_activity() in list_available_groups_for_sp
+
+**Status:** Resolved (2026-02-12)
+
+**Original Severity:** Medium
+
+**Original Description:**
+The read-only service function `list_available_groups_for_sp()` in `app/services/service_providers.py` did not call `track_activity()`, so admin activity for this operation was not tracked.
+
+**Resolution:**
+Added `track_activity(requesting_user["tenant_id"], requesting_user["id"])` after the authorization check. Added a test to verify the call.
+
+**Files Changed:** `app/services/service_providers.py`, `tests/test_services_sp_group_assignments.py`
+
+---
+
 ## SSO-001: JIT-provisioned users not added to IdP base group when IdP lacks one
 
 **Status:** Resolved (2026-02-12)

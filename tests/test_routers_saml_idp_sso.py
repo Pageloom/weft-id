@@ -563,9 +563,11 @@ class TestIdPInitiatedLaunch:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=None,
+            ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = None
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -589,13 +591,15 @@ class TestIdPInitiatedLaunch:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=False,
             ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -619,13 +623,15 @@ class TestIdPInitiatedLaunch:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=True,
             ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -782,13 +788,15 @@ class TestSSOAccessScenarios:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=False,
             ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -812,13 +820,15 @@ class TestSSOAccessScenarios:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=True,
             ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -843,13 +853,15 @@ class TestSSOAccessScenarios:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=True,
             ) as mock_check,
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},
@@ -877,13 +889,15 @@ class TestSSOAccessScenarios:
                 "starlette.requests.Request.session",
                 new_callable=lambda: property(lambda self: mock_session),
             ),
-            patch(f"{ROUTER_MODULE}.database") as mock_db,
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value=sp_row,
+            ),
             patch(
                 "services.service_providers.check_user_sp_access",
                 return_value=False,
             ),
         ):
-            mock_db.service_providers.get_service_provider.return_value = sp_row
             response = client.get(
                 f"/saml/idp/launch/{sp_id}",
                 headers={"Host": sso_host},

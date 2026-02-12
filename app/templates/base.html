@@ -15,6 +15,7 @@
     })();
     </script>
     <title>{% block title %}WeftId{% endblock %}</title>
+    {% if mandala_favicon %}<link rel="icon" type="image/svg+xml" href="{{ mandala_favicon }}">{% endif %}
     <link rel="stylesheet" href="/static/css/output.css">
     <style nonce="{{ csp_nonce }}">
         /* Always show scrollbar gutter to prevent layout shift */
@@ -58,7 +59,11 @@
             <div class="flex justify-between items-center h-16">
                 <!-- Main navigation items -->
                 <div class="flex items-center space-x-8">
-                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100">WeftId</span>
+                    <div class="flex items-center space-x-2">
+                        <div class="dark:hidden">{{ mandala_light | safe }}</div>
+                        <div class="hidden dark:block">{{ mandala_dark | safe }}</div>
+                        <span class="text-xl font-bold text-gray-900 dark:text-gray-100">WeftId</span>
+                    </div>
                     {% for page in nav.top_level_items %}
                         <a href="{{ page.path }}"
                            class="px-3 py-2 rounded-md text-sm font-medium {% if nav.active_top_level and nav.active_top_level.path == page.path %}bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100{% else %}text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100{% endif %}">

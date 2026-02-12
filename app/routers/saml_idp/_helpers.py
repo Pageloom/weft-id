@@ -4,6 +4,7 @@ from fastapi import Request
 
 # Session keys for pending SSO context
 PENDING_SSO_KEYS = (
+    "pending_sso_sp_id",
     "pending_sso_sp_entity_id",
     "pending_sso_authn_request_id",
     "pending_sso_relay_state",

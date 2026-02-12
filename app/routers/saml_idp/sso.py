@@ -113,6 +113,7 @@ def _handle_sso_request(
         return _render_sso_error(request, tenant_id, "invalid_request", str(e))
 
     # 4. Store SSO context in session
+    request.session["pending_sso_sp_id"] = sp.id
     request.session["pending_sso_sp_entity_id"] = sp.entity_id
     request.session["pending_sso_authn_request_id"] = parsed["id"]
     request.session["pending_sso_relay_state"] = relay_state or ""
@@ -152,21 +153,17 @@ def consent_page(
     sp_name = request.session.get("pending_sso_sp_name", "Unknown Application")
 
     # Get user info for the consent screen
-    import database
-
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-
-    if not user or not primary_email:
+    user_info = sp_service.get_user_consent_info(tenant_id, user_id)
+    if not user_info:
         return _render_sso_error(request, tenant_id, "no_session")
 
     context = get_template_context(
         request,
         tenant_id,
         sp_name=sp_name,
-        user_email=primary_email["email"],
-        user_first_name=user.get("first_name", ""),
-        user_last_name=user.get("last_name", ""),
+        user_email=user_info["email"],
+        user_first_name=user_info["first_name"],
+        user_last_name=user_info["last_name"],
     )
 
     return templates.TemplateResponse(request, "saml_idp_sso_consent.html", context)
@@ -189,12 +186,14 @@ def consent_respond(
     if not sp_entity_id:
         return _render_sso_error(request, tenant_id, "no_pending_sso")
 
+    sp_id = request.session.get("pending_sso_sp_id", "")
     authn_request_id = request.session.get("pending_sso_authn_request_id")
     relay_state = request.session.get("pending_sso_relay_state", "")
     sp_name = request.session.get("pending_sso_sp_name", "")
 
     # Clear pending SSO context from session regardless of action
     for key in (
+        "pending_sso_sp_id",
         "pending_sso_sp_entity_id",
         "pending_sso_authn_request_id",
         "pending_sso_relay_state",
@@ -207,7 +206,7 @@ def consent_respond(
             tenant_id=tenant_id,
             actor_user_id=user_id,
             artifact_type="service_provider",
-            artifact_id="",
+            artifact_id=sp_id,
             event_type="sso_consent_denied",
             metadata={
                 "sp_entity_id": sp_entity_id,

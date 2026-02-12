@@ -13,7 +13,6 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-import database
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -314,7 +313,7 @@ def idp_initiated_launch(
         return RedirectResponse(url="/login", status_code=303)
 
     # Look up SP by ID
-    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    sp_row = sp_service.get_service_provider_by_id(tenant_id, sp_id)
     if sp_row is None:
         return _render_sso_error(request, tenant_id, "unknown_sp")
 

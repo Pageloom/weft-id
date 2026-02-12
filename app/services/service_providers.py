@@ -446,6 +446,18 @@ def delete_service_provider(
 # ============================================================================
 
 
+def get_service_provider_by_id(tenant_id: str, sp_id: str) -> dict | None:
+    """Look up an SP by ID. No auth check required.
+
+    Used by the SSO router for IdP-initiated flows.
+    Tenant scoping is enforced by RLS at the database layer.
+
+    Returns:
+        Raw database row dict, or None if not found.
+    """
+    return database.service_providers.get_service_provider(tenant_id, sp_id)
+
+
 def get_user_consent_info(tenant_id: str, user_id: str) -> dict | None:
     """Get user display info for the SSO consent screen.
 
@@ -1059,6 +1071,7 @@ def list_available_groups_for_sp(
         List of dicts with id, name, group_type for unassigned groups.
     """
     require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
 

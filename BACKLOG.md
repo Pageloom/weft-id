@@ -6,7 +6,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML Identity Provider - Phase 3: Dashboard & App Assignment
+## SAML Identity Provider - Phase 3: Dashboard & Group-Based App Assignment
 
 **User Story:**
 As a user
@@ -14,36 +14,40 @@ I want to see my assigned applications on my dashboard and launch them with a si
 So that I can access my work tools without remembering individual URLs
 
 As an admin
-I want to assign applications to specific users
-So that I can control which users have access to which downstream applications
+I want to assign applications to groups
+So that I can control which users have access to which downstream applications through group membership
 
 **Context:**
 
 Phases 1 and 2 established the core IdP infrastructure with SP-initiated SSO and per-SP signing certificates. This phase
 adds the user-facing experience: a "My Apps" dashboard section where users see and launch their assigned applications
-(IdP-initiated SSO), plus the assignment model for admins to control access.
+(IdP-initiated SSO), plus a group-based assignment model for admins to control access. SP access is controlled exclusively through group-to-SP assignments. There is no user-to-SP assignment table. At SSO time,
+access is resolved dynamically by checking the user's group memberships against the SP's group assignments (using the
+group hierarchy via the closure table). If an SP has no group assignments, no users can access it.
 
 **Acceptance Criteria:**
 
-**App Assignment Model:**
+**Group-Based App Assignment Model:**
 
-- [ ] Super admins and admins can assign SPs to individual users
-- [ ] Assignment UI: select SP, then select users to assign
-- [ ] View assignments per SP (list of assigned users)
-- [ ] Remove assignments
-- [ ] Bulk assignment: select multiple users at once
+- [ ] Super admins and admins can assign SPs to groups (both weftid and idp group types)
+- [ ] Assignment UI on SP detail page: view assigned groups, add/remove group assignments
+- [ ] Assignment UI on group detail page: view assigned SPs for the group
+- [ ] Remove group assignments (revokes access for all group members)
+- [ ] Bulk assignment: assign an SP to multiple groups at once
 
 **Access Control:**
 
-- [ ] If an SP has any assignments: only assigned users can access it
-- [ ] If an SP has no assignments: all authenticated tenant users can access it (backward compatible with Phase 1)
-- [ ] SP-initiated SSO validates user has access before showing consent screen
+- [ ] Users can access an SP if any of their groups (or any ancestor of their groups) has an assignment to that SP
+- [ ] Group hierarchy is respected: assigning an SP to a parent group grants access to members of all descendant groups
+- [ ] If an SP has no group assignments, no users can access it (explicit grant required)
+- [ ] SP-initiated SSO validates user has access (via group/ancestor membership) before showing consent screen
 - [ ] Unauthorized access shows clear error message
+- [ ] Access is evaluated at SSO time (not cached), so group membership and hierarchy changes take effect immediately
 
 **User Dashboard - My Apps:**
 
 - [ ] "My Apps" section on user dashboard (visible to all users)
-- [ ] Shows all SPs the user has access to (direct assignment or no-assignment-means-all)
+- [ ] Shows all SPs the user can access via their group memberships
 - [ ] App display: name, optional description
 - [ ] Click app tile to launch (IdP-initiated SSO)
 - [ ] Empty state when user has no accessible apps: "No applications available"
@@ -63,25 +67,28 @@ adds the user-facing experience: a "My Apps" dashboard section where users see a
 **Technical Implementation:**
 
 - Database migration:
-    - `sp_assignments`: id, sp_id, user_id, assigned_by, assigned_at
+    - `sp_group_assignments`: id, sp_id, group_id, assigned_by, assigned_at (unique on sp_id + group_id)
     - Add `description` column to `service_providers`
-- Update `app/services/saml_idp.py` with assignment logic
-- Update `app/database/service_providers.py` with assignment queries
+- Access check query: join `group_memberships` → `group_lineage` → `sp_group_assignments` to determine if a user can access an SP (user's group is descendant, assigned group is ancestor)
+- Update `app/services/service_providers.py` with group assignment logic
+- Update `app/database/service_providers.py` with group assignment queries
 - Dashboard template updates for My Apps section
-- Assignment management UI (admin pages)
+- Assignment management UI (admin pages, integrated into SP and group detail views)
 
 **Dependencies:**
 
 - SAML IdP Phase 2 complete (per-SP certificates)
 
 **Effort:** M
-**Value:** High (User-facing feature, admin control over access)
+**Value:** High (User-facing feature, admin control over access via existing group infrastructure)
 
 **Notes:**
 
-- The "no assignments means all users" model provides backward compatibility
-- Consider showing "Available to all" badge on unassigned SPs in admin view
+- Security-first model: no implicit access. All SP access must be explicitly granted via group assignment
+- Leverages the existing group system (weftid + idp groups), so no new membership infrastructure needed
+- Group hierarchy (DAG) is respected: assigning an SP to a parent group grants access to all descendant group members. The `group_lineage` closure table already precomputes these relationships, making the access check a single efficient query
 - Dashboard My Apps section is the foundation for other dashboard content later
+- Admin SP list view should show assigned group count per SP
 
 ---
 

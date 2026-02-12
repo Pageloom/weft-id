@@ -385,6 +385,37 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
+def _get_or_create_base_group_id(
+    tenant_id: str,
+    idp_id: str,
+    idp_name: str,
+) -> str:
+    """Get the base group ID for an IdP, creating it if it doesn't exist."""
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if base_group_id:
+        return base_group_id
+
+    # Base group missing (IdP created outside service layer). Auto-create it.
+    logger.info(
+        "Auto-creating missing base group for IdP %s (%s)",
+        idp_id,
+        idp_name,
+    )
+    try:
+        group = create_idp_base_group(tenant_id, idp_id, idp_name)
+        return str(group.id)
+    except ConflictError:
+        # Race condition: another request created it between our check and create.
+        # Re-query to get the existing group.
+        base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+        if base_group_id:
+            return base_group_id
+        raise ValidationError(
+            message=f"Failed to create or find base group for IdP {idp_name}",
+            code="base_group_creation_failed",
+        )
+
+
 def ensure_user_in_base_group(
     tenant_id: str,
     user_id: str,
@@ -397,14 +428,7 @@ def ensure_user_in_base_group(
     Called from all IdP assignment paths to guarantee every assigned user
     is in the base group.
     """
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
-    if not base_group_id:
-        logger.warning(
-            "No base group found for IdP %s (%s), skipping base group assignment",
-            idp_id,
-            idp_name,
-        )
-        return
+    base_group_id = _get_or_create_base_group_id(tenant_id, idp_id, idp_name)
 
     if database.groups.is_group_member(tenant_id, base_group_id, user_id):
         return
@@ -480,14 +504,7 @@ def ensure_users_in_base_group(
     if not user_ids:
         return 0
 
-    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
-    if not base_group_id:
-        logger.warning(
-            "No base group found for IdP %s (%s), skipping bulk base group assignment",
-            idp_id,
-            idp_name,
-        )
-        return 0
+    base_group_id = _get_or_create_base_group_id(tenant_id, idp_id, idp_name)
 
     total_added = 0
     for user_id in user_ids:

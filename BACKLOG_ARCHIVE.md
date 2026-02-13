@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML IdP: Per-SP Entity ID in Metadata and Assertions
+
+**Status:** Complete
+
+**Summary:** Fixed entity ID mismatch where per-SP metadata XML and SAML assertions used the tenant-level entity ID instead of the per-SP entity ID. Updated three locations (metadata generation, assertion Issuer, metadata URL info) to use `{base_url}/saml/idp/metadata/{sp_id}` for per-SP contexts. Tenant-level metadata remains unchanged.
+
+**Acceptance Criteria:**
+
+- [x] Per-SP metadata XML has `entityID="{base_url}/saml/idp/metadata/{sp_id}"`
+- [x] Tenant-level metadata XML keeps `entityID="{base_url}/saml/idp/metadata"` (unchanged)
+- [x] SAML assertion Issuer uses the per-SP entity ID when responding to an SP
+- [x] `get_sp_metadata_url_info()` returns the per-SP entity ID
+- [x] Existing tests updated to reflect per-SP entity ID
+- [x] All tests pass
+
+---
+
 ## SAML Identity Provider - Phase 3: Dashboard & Group-Based App Assignment
 
 **Status:** Complete

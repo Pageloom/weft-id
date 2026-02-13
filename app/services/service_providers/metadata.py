@@ -91,7 +91,7 @@ def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
 
     cert = _resolve_idp_certificate(tenant_id, sp_id=sp_id)
 
-    entity_id = f"{base_url}/saml/idp/metadata"
+    entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
     sso_url = f"{base_url}/saml/idp/sso"
 
     return generate_idp_metadata_xml(

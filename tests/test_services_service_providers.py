@@ -1126,7 +1126,7 @@ class TestGetSPMetadataURLInfoNotFound:
 
             assert result.sp_id == sp_id
             assert f"/saml/idp/metadata/{sp_id}" in result.metadata_url
-            assert "/saml/idp/metadata" in result.entity_id
+            assert f"/saml/idp/metadata/{sp_id}" in result.entity_id
             assert "/saml/idp/sso" in result.sso_url
 
 

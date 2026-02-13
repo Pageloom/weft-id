@@ -533,7 +533,7 @@ class TestGetSPMetadataURLAPI:
         sp_id = str(uuid4())
         metadata_info = SPMetadataURLInfo(
             metadata_url=f"https://test.example.com/saml/idp/metadata/{sp_id}",
-            entity_id="https://test.example.com/saml/idp/metadata",
+            entity_id=f"https://test.example.com/saml/idp/metadata/{sp_id}",
             sso_url="https://test.example.com/saml/idp/sso",
             sp_id=sp_id,
             sp_name="Test App",

@@ -6,39 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML IdP: Per-SP Entity ID in Metadata and Assertions
-
-**User Story:**
-As a super admin
-I want the SAML IdP entity ID to match the per-SP metadata URL
-So that downstream SPs can auto-discover metadata, validate assertions, and use the correct signing certificate without ambiguity
-
-**Context:**
-
-When an SP is given its per-SP metadata URL (e.g. `https://host/saml/idp/metadata/{sp_id}`), the entityID inside the metadata XML is `https://host/saml/idp/metadata` (without the SP ID). This mismatch causes problems: if an SP resolves the entityID URL to fetch metadata, it gets the tenant-level metadata with a potentially different signing certificate. The assertion Issuer also uses the tenant-level entity ID, which should match whatever metadata the SP consumed.
-
-Three places construct the entity ID and all need updating for the per-SP case:
-
-- `app/services/service_providers/metadata.py:94` (per-SP metadata XML generation)
-- `app/services/service_providers/sso.py:135` (SAML assertion Issuer)
-- `app/services/service_providers/signing_certs.py:167` (UI/API metadata URL info)
-
-The tenant-level metadata endpoint (`/saml/idp/metadata`) is correct as-is since its URL already matches its entityID.
-
-**Acceptance Criteria:**
-
-- [ ] Per-SP metadata XML has `entityID="{base_url}/saml/idp/metadata/{sp_id}"`
-- [ ] Tenant-level metadata XML keeps `entityID="{base_url}/saml/idp/metadata"` (unchanged)
-- [ ] SAML assertion Issuer uses the per-SP entity ID when responding to an SP
-- [ ] `get_sp_metadata_url_info()` returns the per-SP entity ID
-- [ ] Existing tests updated to reflect per-SP entity ID
-- [ ] All tests pass
-
-**Effort:** S
-**Value:** High (Fixes metadata/assertion mismatch that can break SP integrations)
-
----
-
 ## Group Membership UX Redesign
 
 **User Story:**

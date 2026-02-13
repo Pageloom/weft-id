@@ -132,7 +132,7 @@ def build_sso_response(
     }
 
     # 6. Build SAML Response
-    issuer_entity_id = f"{base_url}/saml/idp/metadata"
+    issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
     name_id_format = sp_row.get(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     )

@@ -166,120 +166,31 @@
 
     <!-- Members Section -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mb-6">
-        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            Members ({{ members|length }})
-        </h2>
-
-        {% if available_users and group.group_type == 'weftid' %}
-        <div class="mb-4 space-y-3">
-            <form method="post" action="/admin/groups/{{ group.id }}/members/add" class="flex gap-3">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <select name="user_id" required
-                        class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                    <option value="">Select user to add...</option>
-                    {% for u in available_users %}
-                    <option value="{{ u.id }}">{{ u.first_name }} {{ u.last_name }}{% if u.email %} ({{ u.email }}){% endif %}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm">
-                    Add Member
-                </button>
-            </form>
-            <form method="post" action="/admin/groups/{{ group.id }}/members/bulk" class="flex gap-3">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <select name="user_ids" multiple required
-                        class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        size="4">
-                    {% for u in available_users %}
-                    <option value="{{ u.id }}">{{ u.first_name }} {{ u.last_name }}{% if u.email %} ({{ u.email }}){% endif %}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm self-start">
-                    Bulk Add
-                </button>
-            </form>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Members ({{ group.member_count }})
+            </h2>
+            <a href="/admin/groups/{{ group.id }}/members"
+               class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
+                Manage Members
+            </a>
         </div>
-        {% elif group.group_type == 'idp' %}
-        <p class="text-sm text-amber-600 dark:text-amber-400 mb-4">
+
+        {% if group.group_type == 'idp' %}
+        <p class="text-sm text-amber-600 dark:text-amber-400">
             IdP groups are managed automatically. Members are synced from the identity provider.
         </p>
-        {% endif %}
-
-        {% if members %}
-        <div class="space-y-2">
-            {% for member in members %}
-            <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
-                <div>
-                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {{ member.first_name }} {{ member.last_name }}
-                    </span>
-                    {% if member.email %}
-                    <span class="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                        {{ member.email }}
-                    </span>
-                    {% endif %}
-                </div>
-                {% if group.group_type == 'weftid' %}
-                <form method="post" action="/admin/groups/{{ group.id }}/members/{{ member.user_id }}/remove">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
-                            data-confirm="Remove {{ member.first_name }} {{ member.last_name }} from this group?"
-                            data-destructive="true">
-                        Remove
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
+        {% elif group.member_count == 0 %}
         <p class="text-sm text-gray-500 dark:text-gray-400">No members in this group yet.</p>
-        {% endif %}
-    </div>
-
-    <!-- Effective Members Section (only shown when group has children) -->
-    {% if effective_members %}
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mb-6">
-        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            Effective Members ({{ effective_members.total }})
-        </h2>
-
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Users who are members of this group directly or via child groups.
-        </p>
-
-        {% if effective_members.items %}
-        <div class="space-y-2">
-            {% for member in effective_members.items %}
-            <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
-                <div>
-                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {{ member.first_name }} {{ member.last_name }}
-                    </span>
-                    {% if member.email %}
-                    <span class="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                        {{ member.email }}
-                    </span>
-                    {% endif %}
-                </div>
-                <span class="px-2 py-1 text-xs font-medium rounded-full
-                    {% if member.is_direct %}
-                    bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300
-                    {% else %}
-                    bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300
-                    {% endif %}">
-                    {% if member.is_direct %}Direct{% else %}Inherited{% endif %}
-                </span>
-            </div>
-            {% endfor %}
-        </div>
         {% else %}
-        <p class="text-sm text-gray-500 dark:text-gray-400">No effective members.</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            {{ group.member_count }} direct member{{ 's' if group.member_count != 1 else '' }}.
+            {% if effective_member_count is not none and effective_member_count > group.member_count %}
+            {{ effective_member_count }} effective members (including inherited).
+            {% endif %}
+        </p>
         {% endif %}
     </div>
-    {% endif %}
 
     <!-- Assigned Applications Section -->
     {% if assigned_sps %}

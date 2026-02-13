@@ -235,6 +235,46 @@ class EffectiveMemberList(BaseModel):
     limit: int = Field(..., description="Page size limit")
 
 
+class GroupMemberDetail(BaseModel):
+    """Extended group member information for the member list page."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Membership UUID")
+    user_id: str = Field(..., description="User UUID")
+    email: str | None = Field(None, description="User's primary email")
+    first_name: str = Field(..., description="User's first name")
+    last_name: str = Field(..., description="User's last name")
+    role: str = Field(..., description="User's role")
+    is_inactivated: bool = Field(False, description="Whether user is inactivated")
+    is_anonymized: bool = Field(False, description="Whether user is anonymized")
+    created_at: datetime = Field(..., description="When user joined the group")
+
+
+class GroupMemberDetailList(BaseModel):
+    """Paginated list of extended group members."""
+
+    items: list[GroupMemberDetail] = Field(..., description="List of members")
+    total: int = Field(..., description="Total number of matching members")
+    page: int = Field(..., description="Current page number (1-indexed)")
+    limit: int = Field(..., description="Page size limit")
+
+
+class AvailableUserList(BaseModel):
+    """Paginated list of available users for adding to a group."""
+
+    items: list[AvailableUserOption] = Field(..., description="List of available users")
+    total: int = Field(..., description="Total number of matching users")
+    page: int = Field(..., description="Current page number (1-indexed)")
+    limit: int = Field(..., description="Page size limit")
+
+
+class BulkMemberRemove(BaseModel):
+    """Request to remove multiple members from a group."""
+
+    user_ids: list[str] = Field(..., min_length=1, description="List of user UUIDs to remove")
+
+
 class BulkMemberAdd(BaseModel):
     """Request to add multiple members to a group."""
 

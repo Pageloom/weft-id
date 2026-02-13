@@ -22,6 +22,7 @@ Existing code using `from services import groups` will continue to work.
 from services.groups._converters import (
     _row_to_detail,
     _row_to_member,
+    _row_to_member_detail,
     _row_to_relationship,
     _row_to_summary,
 )
@@ -70,11 +71,13 @@ from services.groups.membership import (
     add_member,
     bulk_add_members,
     bulk_add_user_to_groups,
+    bulk_remove_members,
     get_direct_memberships,
     get_effective_members,
     get_effective_memberships,
     get_my_groups,
     list_members,
+    list_members_filtered,
     remove_member,
 )
 
@@ -84,6 +87,7 @@ from services.groups.selection import (
     list_available_groups_for_user,
     list_available_parents,
     list_available_users_for_group,
+    list_available_users_paginated,
 )
 
 # Re-export from utilities module
@@ -102,11 +106,13 @@ __all__ = [
     "add_member",
     "bulk_add_members",
     "bulk_add_user_to_groups",
+    "bulk_remove_members",
     "get_direct_memberships",
     "get_effective_members",
     "get_effective_memberships",
     "get_my_groups",
     "list_members",
+    "list_members_filtered",
     "remove_member",
     # Hierarchy
     "add_child",
@@ -118,6 +124,7 @@ __all__ = [
     "list_available_groups_for_user",
     "list_available_parents",
     "list_available_users_for_group",
+    "list_available_users_paginated",
     # Utilities
     "get_user_group_ids",
     # IdP
@@ -138,6 +145,7 @@ __all__ = [
     "_require_not_idp_group",
     "_row_to_detail",
     "_row_to_member",
+    "_row_to_member_detail",
     "_row_to_relationship",
     "_row_to_summary",
 ]

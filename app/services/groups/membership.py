@@ -21,6 +21,7 @@ from schemas.groups import (
     EffectiveMemberList,
     EffectiveMembership,
     EffectiveMembershipList,
+    GroupMemberDetailList,
     GroupMemberList,
     UserGroup,
     UserGroupsList,
@@ -29,7 +30,7 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError
-from services.groups._converters import _row_to_member
+from services.groups._converters import _row_to_member, _row_to_member_detail
 from services.groups._helpers import _require_not_idp_group
 from services.types import RequestingUser
 
@@ -325,6 +326,106 @@ def bulk_add_members(
             artifact_type="group_membership",
             artifact_id=group_id,
             event_type="group_members_bulk_added",
+            metadata={
+                "group_name": group["name"],
+                "count": count,
+                "user_ids": user_ids,
+            },
+        )
+
+    return count
+
+
+def list_members_filtered(
+    requesting_user: RequestingUser,
+    group_id: str,
+    search: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+    sort_field: str = "created_at",
+    sort_order: str = "desc",
+    page: int = 1,
+    page_size: int = 25,
+) -> GroupMemberDetailList:
+    """
+    List members of a group with search, filtering, sorting, and pagination.
+
+    Authorization: Requires admin role.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify group exists
+    if not database.groups.get_group_by_id(tenant_id, group_id):
+        raise NotFoundError(
+            message="Group not found",
+            code="group_not_found",
+        )
+
+    total = database.groups.count_group_members_filtered(
+        tenant_id, group_id, search, roles, statuses
+    )
+    rows = database.groups.search_group_members(
+        tenant_id,
+        group_id,
+        search,
+        roles,
+        statuses,
+        sort_field,
+        sort_order,
+        page,
+        page_size,
+    )
+
+    return GroupMemberDetailList(
+        items=[_row_to_member_detail(row) for row in rows],
+        total=total,
+        page=page,
+        limit=page_size,
+    )
+
+
+def bulk_remove_members(
+    requesting_user: RequestingUser,
+    group_id: str,
+    user_ids: list[str],
+) -> int:
+    """
+    Remove multiple users from a group in bulk.
+
+    Authorization: Requires admin role.
+
+    Returns:
+        Count of memberships removed.
+    """
+    require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify group exists
+    group = database.groups.get_group_by_id(tenant_id, group_id)
+    if not group:
+        raise NotFoundError(
+            message="Group not found",
+            code="group_not_found",
+        )
+
+    # IdP groups are managed by the identity provider
+    _require_not_idp_group(group, "bulk remove members")
+
+    # Remove members
+    count = database.groups.bulk_remove_group_members(tenant_id, group_id, user_ids)
+
+    # Log event
+    if count > 0:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="group_membership",
+            artifact_id=group_id,
+            event_type="group_members_bulk_removed",
             metadata={
                 "group_name": group["name"],
                 "count": count,

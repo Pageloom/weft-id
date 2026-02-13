@@ -86,6 +86,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "group_member_added": "User added to group",
     "group_member_removed": "User removed from group",
     "group_members_bulk_added": "Multiple users added to group in bulk",
+    "group_members_bulk_removed": "Multiple users removed from group in bulk",
     "user_groups_bulk_added": "User added to multiple groups in bulk",
     "group_relationship_created": "Group hierarchy relationship created",
     "group_relationship_deleted": "Group hierarchy relationship removed",

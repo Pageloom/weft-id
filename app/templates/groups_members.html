@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+
+{% block title %}Members - {{ group.name }} - WeftId{% endblock %}
+
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+<!-- Filter Params Macro -->
+{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% endmacro %}
+
+<!-- Pagination Controls Macro -->
+{% macro pagination_controls(border_class="border-t") %}
+{% if pagination.total_count > 0 %}
+<div class="flex items-center justify-between {{ border_class }} border-gray-200 dark:border-gray-700 py-4">
+    <div class="flex items-center gap-4">
+        <div class="text-sm text-gray-700 dark:text-gray-300">
+            Showing <span class="font-medium">{{ pagination.start_index }}</span> to
+            <span class="font-medium">{{ pagination.end_index }}</span> of
+            <span class="font-medium">{{ pagination.total_count }}</span> member{{ 's' if pagination.total_count != 1 else '' }}
+        </div>
+        <div class="flex items-center gap-2">
+            <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
+            <select id="page-size"
+                data-sort="{{ sort_field }}" data-order="{{ sort_order }}"
+                data-search="{% if search %}{{ search | urlencode }}{% endif %}"
+                data-filters="{{ filter_params() }}"
+                data-base-url="/admin/groups/{{ group.id }}/members"
+                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{% if pagination.has_previous %}/admin/groups/{{ group.id }}/members?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_previous %}aria-disabled="true"{% endif %}>Previous</a>
+        <span class="text-sm text-gray-700 dark:text-gray-300">
+            Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
+        </span>
+        <a href="{% if pagination.has_next %}/admin/groups/{{ group.id }}/members?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_next %}aria-disabled="true"{% endif %}>Next</a>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+<div class="w-full">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <a href="/admin/groups/{{ group.id }}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">&larr; Back to Group</a>
+                </div>
+                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                    Members of {{ group.name }}
+                </h1>
+            </div>
+            {% if group.group_type == 'weftid' %}
+            <a href="/admin/groups/{{ group.id }}/members/add"
+               class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
+                Add Members
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Success/Error Messages -->
+        {% if success %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
+                {% if success == 'member_removed' %}Member removed successfully.
+                {% elif success == 'members_removed' %}Members removed successfully.
+                {% elif success == 'members_added' %}Members added successfully.
+                {% else %}Operation completed successfully.{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+            <p class="text-sm text-red-800 dark:text-red-300">
+                {% if error == 'group_not_found' %}Group not found.
+                {% elif error == 'not_a_member' %}User is not a member of this group.
+                {% elif error == 'idp_group_read_only' %}IdP groups cannot be modified.
+                {% else %}An error occurred: {{ error }}{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
+        {% if group.group_type == 'idp' %}
+        <div class="mb-4 p-3 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+            <p class="text-sm text-amber-800 dark:text-amber-300">
+                IdP groups are managed automatically. Members are synced from the identity provider.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Search Form -->
+        <div class="mb-6">
+            <form method="get" action="/admin/groups/{{ group.id }}/members" class="flex gap-2">
+                <input type="hidden" name="sort" value="{{ sort_field }}">
+                <input type="hidden" name="order" value="{{ sort_order }}">
+                <input type="hidden" name="size" value="{{ pagination.page_size }}">
+                {% if roles %}<input type="hidden" name="role" value="{{ roles|join(',') }}">{% endif %}
+                {% if statuses %}<input type="hidden" name="status" value="{{ statuses|join(',') }}">{% endif %}
+                <input type="text" name="search" value="{{ search }}" placeholder="Search by name or email..."
+                    class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Search</button>
+                {% if search %}
+                <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
+                    class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Collapsible Filter Panel -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3">
+                <button type="button" id="toggle-filters-btn"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg id="filter-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    Filters
+                </button>
+                {% if roles or statuses %}
+                <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Filtered results</span>
+                <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                    id="clear-filters-link" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">Clear filters</a>
+                {% endif %}
+            </div>
+
+            <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-6 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
+                        <div class="flex gap-3">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-member" value="member" {% if 'member' in roles %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-admin" value="admin" {% if 'admin' in roles %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-super_admin" value="super_admin" {% if 'super_admin' in roles %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                        <div class="flex gap-3">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-active" value="active" {% if 'active' in statuses %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-inactivated" value="inactivated" {% if 'inactivated' in statuses %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-anonymized" value="anonymized" {% if 'anonymized' in statuses %}checked{% endif %}
+                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" id="apply-filters-btn"
+                            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Apply Filters</button>
+                        {% if roles or statuses %}
+                        <a href="/admin/groups/{{ group.id }}/members?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                            class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear Filters</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Filters Indicator -->
+        {% if roles or statuses %}
+        <div class="mb-4 flex flex-wrap gap-2 items-center">
+            <span class="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
+            {% for role in roles %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                {% elif role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ role }}</span>
+            {% endfor %}
+            {% for status in statuses %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300
+                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ status }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if search %}
+        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            Found {{ pagination.total_count }} result{{ 's' if pagination.total_count != 1 else '' }} for "{{ search }}"
+        </div>
+        {% endif %}
+
+        <!-- Pagination Controls - Top -->
+        {{ pagination_controls(border_class="border-b") }}
+
+        <!-- Bulk Remove Form wraps the table -->
+        {% if group.group_type == 'weftid' %}
+        <form id="bulk-remove-form" method="post" action="/admin/groups/{{ group.id }}/members/bulk-remove">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% endif %}
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        {% if group.group_type == 'weftid' %}
+                        <th scope="col" class="px-4 py-3 w-10">
+                            <input type="checkbox" id="select-all"
+                                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                        </th>
+                        {% endif %}
+
+                        {% macro sort_header(field, label, width_class="") %}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
+                            <a href="/admin/groups/{{ group.id }}/members?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+                               class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
+                                <span>{{ label }}</span>
+                                {% if sort_field == field %}
+                                    {% if sort_order == 'asc' %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                                    {% else %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    {% endif %}
+                                {% else %}
+                                <svg class="w-4 h-4 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% endmacro %}
+
+                        {{ sort_header('name', 'Name') }}
+                        {{ sort_header('email', 'Email') }}
+                        {{ sort_header('role', 'Role') }}
+                        {{ sort_header('status', 'Status') }}
+                        {{ sort_header('created_at', 'Joined') }}
+                        {% if group.group_type == 'weftid' %}
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% if members %}
+                        {% for m in members %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            {% if group.group_type == 'weftid' %}
+                            <td class="px-4 py-4">
+                                <input type="checkbox" name="user_ids" value="{{ m.user_id }}" form="bulk-remove-form"
+                                    class="member-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            </td>
+                            {% endif %}
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    {% if m.is_anonymized %}
+                                    <span class="text-gray-500 dark:text-gray-400 italic">[Anonymized User]</span>
+                                    {% else %}
+                                    {{ m.last_name }}, {{ m.first_name }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ m.email or '' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    {% if m.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                                    {% elif m.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ m.role }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if m.is_anonymized %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Anonymized</span>
+                                {% elif m.is_inactivated %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Inactivated</span>
+                                {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {% set rel = fmt_relative(m.created_at) %}
+                                <span title="{{ rel[1] }}">{{ rel[0] }}</span>
+                            </td>
+                            {% if group.group_type == 'weftid' %}
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <a href="#" class="confirm-link text-red-600 hover:text-red-800 dark:text-red-400"
+                                    data-confirm="Remove {{ m.first_name }} {{ m.last_name }} from this group?"
+                                    data-destructive="true"
+                                    data-action="/admin/groups/{{ group.id }}/members/{{ m.user_id }}/remove">Remove</a>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{% if group.group_type == 'weftid' %}7{% else %}5{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                {% if search %}No members found matching "{{ search }}"{% else %}No members in this group.{% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if group.group_type == 'weftid' %}
+        <!-- Bulk Action Bar -->
+        <div id="bulk-action-bar" class="hidden mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center justify-between">
+            <span class="text-sm text-gray-700 dark:text-gray-300">
+                <span id="selected-count">0</span> member(s) selected
+            </span>
+            <button type="submit" form="bulk-remove-form" id="bulk-remove-btn"
+                class="confirm-btn px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md"
+                data-confirm="Remove selected members from this group?"
+                data-destructive="true">
+                Remove Selected
+            </button>
+        </div>
+        </form>
+        {% endif %}
+
+        <!-- Pagination Controls - Bottom -->
+        <div class="mt-6">
+            {{ pagination_controls(border_class="border-t") }}
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var BASE_URL = '/admin/groups/{{ group.id }}/members';
+    var TENANT_ID = {{ user.tenant_id | string | tojson }};
+    var GROUP_ID = {{ group.id | tojson }};
+    var STORAGE_KEY = 'weftid_grp_members_filters_' + TENANT_ID + '_' + GROUP_ID;
+    var COLLAPSE_KEY = 'weftid_grp_members_collapsed_' + TENANT_ID + '_' + GROUP_ID;
+    var PAGE_SIZE_KEY = 'weftid_grp_members_size_' + TENANT_ID + '_' + GROUP_ID;
+
+    // Toggle filter panel
+    var toggleBtn = document.getElementById('toggle-filters-btn');
+    var filterPanel = document.getElementById('filter-panel');
+    var chevron = document.getElementById('filter-chevron');
+
+    function setFilterPanelState(collapsed) {
+        if (collapsed) {
+            filterPanel.classList.add('hidden');
+            chevron.style.transform = '';
+        } else {
+            filterPanel.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+        try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+    }
+
+    var hasActiveFilters = {{ 'true' if (roles or statuses) else 'false' }};
+    var savedCollapsed;
+    try { savedCollapsed = localStorage.getItem(COLLAPSE_KEY); } catch(e) {}
+    if (savedCollapsed !== null) {
+        setFilterPanelState(savedCollapsed === '1');
+    } else {
+        setFilterPanelState(!hasActiveFilters);
+    }
+
+    toggleBtn.addEventListener('click', function() {
+        setFilterPanelState(!filterPanel.classList.contains('hidden'));
+    });
+
+    // Apply filters
+    function applyFilters() {
+        var roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
+        var statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
+
+        var selectedRoles = roleCheckboxes
+            .filter(function(id) { return document.getElementById(id).checked; })
+            .map(function(id) { return document.getElementById(id).value; });
+
+        var selectedStatuses = statusCheckboxes
+            .filter(function(id) { return document.getElementById(id).checked; })
+            .map(function(id) { return document.getElementById(id).value; });
+
+        var url = BASE_URL + '?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
+        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+        if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
+        if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
+
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ roles: selectedRoles, statuses: selectedStatuses }));
+        } catch(e) {}
+
+        window.location.href = url;
+    }
+
+    var applyBtn = document.getElementById('apply-filters-btn');
+    if (applyBtn) applyBtn.addEventListener('click', applyFilters);
+
+    document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach(function(el) {
+        el.addEventListener('click', function() {
+            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        });
+    });
+
+    // Page size selector
+    document.querySelectorAll('#page-size').forEach(function(select) {
+        select.addEventListener('change', function() {
+            try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
+            var url = this.dataset.baseUrl + '?page=1&size=' + this.value;
+            url += '&sort=' + this.dataset.sort + '&order=' + this.dataset.order;
+            if (this.dataset.search) url += '&search=' + this.dataset.search;
+            url += this.dataset.filters;
+            window.location.href = url;
+        });
+    });
+
+    // Restore page size from localStorage
+    var effectivePageSize = '{{ pagination.page_size }}';
+    try {
+        var savedSize = localStorage.getItem(PAGE_SIZE_KEY);
+        if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
+            effectivePageSize = savedSize;
+        }
+    } catch(e) {}
+
+    var needsSizeRestore = !new URLSearchParams(window.location.search).has('size')
+        && effectivePageSize !== '25';
+
+    if (needsSizeRestore) {
+        var url = BASE_URL + '?page=1&size=' + effectivePageSize
+            + '&sort={{ sort_field }}&order={{ sort_order }}';
+        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+        {{ 'url += "&role={{ roles|join(",") }}";' if roles else '' }}
+        {{ 'url += "&status={{ statuses|join(",") }}";' if statuses else '' }}
+        window.location.href = url;
+    }
+
+    // Select-all checkbox and bulk action bar
+    var selectAll = document.getElementById('select-all');
+    var bulkBar = document.getElementById('bulk-action-bar');
+    var selectedCount = document.getElementById('selected-count');
+
+    function updateBulkBar() {
+        if (!bulkBar) return;
+        var checked = document.querySelectorAll('.member-checkbox:checked');
+        if (checked.length > 0) {
+            bulkBar.classList.remove('hidden');
+            selectedCount.textContent = checked.length;
+        } else {
+            bulkBar.classList.add('hidden');
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.member-checkbox').forEach(function(cb) {
+                cb.checked = selectAll.checked;
+            });
+            updateBulkBar();
+        });
+    }
+
+    document.querySelectorAll('.member-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updateBulkBar);
+    });
+
+    // Confirmation dialogs
+    document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var form = this.closest('form') || document.getElementById(this.getAttribute('form'));
+            var message = this.dataset.confirm;
+            var isDestructive = this.dataset.destructive === 'true';
+            WeftUtils.confirm(message, function() {
+                form.submit();
+            }, { destructive: isDestructive });
+        });
+    });
+
+    // Single-row remove links
+    document.querySelectorAll('.confirm-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var action = this.dataset.action;
+            var message = this.dataset.confirm;
+            var isDestructive = this.dataset.destructive === 'true';
+            WeftUtils.confirm(message, function() {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = action;
+                var csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = 'csrf_token';
+                csrf.value = '{{ csrf_token() }}';
+                form.appendChild(csrf);
+                document.body.appendChild(form);
+                form.submit();
+            }, { destructive: isDestructive });
+        });
+    });
+})();
+</script>
+{% endblock %}

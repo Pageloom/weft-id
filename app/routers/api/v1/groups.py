@@ -6,14 +6,16 @@ from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query, Request
 from schemas.groups import (
+    AvailableUserList,
     BulkMemberAdd,
+    BulkMemberRemove,
     EffectiveMemberList,
     GroupChildrenList,
     GroupCreate,
     GroupDetail,
     GroupListResponse,
     GroupMemberAdd,
-    GroupMemberList,
+    GroupMemberDetailList,
     GroupParentsList,
     GroupRelationshipAdd,
     GroupSummary,
@@ -168,27 +170,48 @@ def delete_group(
 # =============================================================================
 
 
-@router.get("/{group_id}/members", response_model=GroupMemberList)
+@router.get("/{group_id}/members", response_model=GroupMemberDetailList)
 def list_members(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     group_id: str,
+    search: Annotated[str | None, Query(description="Search by name or email")] = None,
+    role: Annotated[str | None, Query(description="Filter by roles (comma-separated)")] = None,
+    status: Annotated[str | None, Query(description="Filter by statuses (comma-separated)")] = None,
+    sort_field: Annotated[
+        str, Query(description="Sort by: name, email, role, status, created_at")
+    ] = "created_at",
+    sort_order: Annotated[str, Query(description="Sort order: asc or desc")] = "desc",
     page: Annotated[int, Query(ge=1)] = 1,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
 ):
     """
-    List members of a group.
+    List members of a group with search, filtering, sorting, and pagination.
 
     Requires admin role.
 
     Returns:
-        List of group members with user details
+        Paginated list of group members with extended user details
     """
     requesting_user = build_requesting_user(admin, tenant_id, request)
 
+    # Parse comma-separated filters
+    roles = [r.strip() for r in role.split(",") if r.strip()] if role else None
+    statuses = [s.strip() for s in status.split(",") if s.strip()] if status else None
+
     try:
-        return groups_service.list_members(requesting_user, group_id, page, limit)
+        return groups_service.list_members_filtered(
+            requesting_user,
+            group_id,
+            search=search,
+            roles=roles,
+            statuses=statuses,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            page=page,
+            page_size=limit,
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 
@@ -283,6 +306,78 @@ def bulk_add_members(
     try:
         count = groups_service.bulk_add_members(requesting_user, group_id, member_data.user_ids)
         return {"status": "ok", "added": count}
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{group_id}/members/bulk-remove", status_code=200)
+def bulk_remove_members(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    member_data: BulkMemberRemove,
+):
+    """
+    Remove multiple users from a group in bulk.
+
+    Requires admin role.
+
+    Returns:
+        Count of memberships removed
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        count = groups_service.bulk_remove_members(requesting_user, group_id, member_data.user_ids)
+        return {"status": "ok", "removed": count}
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/{group_id}/available-users", response_model=AvailableUserList)
+def list_available_users(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    search: Annotated[str | None, Query(description="Search by name or email")] = None,
+    role: Annotated[str | None, Query(description="Filter by roles (comma-separated)")] = None,
+    status: Annotated[str | None, Query(description="Filter by statuses (comma-separated)")] = None,
+    sort_field: Annotated[
+        str, Query(description="Sort by: name, email, role, status, created_at")
+    ] = "name",
+    sort_order: Annotated[str, Query(description="Sort order: asc or desc")] = "asc",
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+):
+    """
+    List users available to add to a group (not already members).
+
+    Excludes service accounts.
+    Requires admin role.
+
+    Returns:
+        Paginated list of available users
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    # Parse comma-separated filters
+    roles = [r.strip() for r in role.split(",") if r.strip()] if role else None
+    statuses = [s.strip() for s in status.split(",") if s.strip()] if status else None
+
+    try:
+        return groups_service.list_available_users_paginated(
+            requesting_user,
+            group_id,
+            search=search,
+            roles=roles,
+            statuses=statuses,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            page=page,
+            page_size=limit,
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

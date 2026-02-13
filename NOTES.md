@@ -14,6 +14,15 @@ Quick reminders to later build out into full backlog items.
 - Automation and administration benevolence. What areas of the app can be automated
   for the admin personas, and what typical admin tasks are arduous and work-intensive
   that can be helped by automation or benevolent UIs for special cases?
+- Add new Todo sub-section: "Users not in any group"
+- Make it possible to make apps (SPs) available to all users regardless of their group membership.
+- Add a feature that makes it possible to limit how many can sign in to an app. Like... seats. This will have
+  to be on a first-come-first-served basis. So if you have a 100 seats - and we're already at 100 people having
+  successfully authenticated to that app - then no more people will be able to authenticate. This also requires
+  that admins are made aware of a reached limit. Either cleanup of users is needed, or seat limit increased.
+  We already have the data in the event log - but I think it would be nice to have a table that actually tracks
+  which users have successfully authenticated to which apps and when. That way we can easily count and compare with
+  seats.
 
 ## Platform Operations & Security
 
@@ -36,3 +45,4 @@ Quick reminders to later build out into full backlog items.
 
 - Follow up on "Background Job Created" as an event type. Does it really need to
   exist? It doesn't change data.
+

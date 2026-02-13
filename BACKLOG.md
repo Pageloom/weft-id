@@ -6,6 +6,67 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Group Membership UX Redesign
+
+**User Story:**
+As an admin
+I want to manage group membership through a dedicated paginated member list with search and filtering
+So that I can effectively manage groups of any size without silent truncation or unwieldy dropdowns
+
+**Context:**
+
+The current group detail page loads all members inline and uses a dropdown (capped at 100 users)
+for adding members. This silently truncates results for tenants with more than 100 users and
+provides no way to search, filter, or sort the member list. The existing tenant-wide user list
+(`users_list.html`) provides a proven paginated pattern that should be replicated for group
+membership management.
+
+**Acceptance Criteria:**
+
+**Group Detail Page (simplified):**
+
+- [ ] Group detail shows member count, not the full member list
+- [ ] Remove the inline member list and dropdown-based add/bulk-add forms
+- [ ] Link/button to navigate to the dedicated group member list page
+
+**Dedicated Group Member List Page:**
+
+- [ ] Full-page paginated view of group members (modeled on users_list.html)
+- [ ] Search by member name or email
+- [ ] Filter by user role, status, auth method
+- [ ] Sortable columns: name, email, role, status, joined date
+- [ ] Per-page size selector (10, 25, 50, 100)
+- [ ] Pagination controls (previous/next, page info)
+- [ ] localStorage persistence for page size and filter preferences
+
+**Add Members (from member list page):**
+
+- [ ] "Add Members" action that opens a search/filter interface for eligible users
+- [ ] Search and filter users NOT currently in the group
+- [ ] Support adding single or multiple users
+- [ ] Confirmation of additions with count
+
+**Remove Members (from member list page):**
+
+- [ ] Remove button per member row with confirmation
+- [ ] Bulk remove option (select multiple, then remove)
+
+**API Endpoints:**
+
+- [ ] `GET /api/v1/groups/{group_id}/members` already exists (pagination supported)
+- [ ] New: `GET /api/v1/groups/{group_id}/available-users?search=&role=&status=` for eligible non-members
+- [ ] Existing bulk add/remove endpoints used by the new UI
+
+**Event Logging:**
+
+- [ ] Existing event logging for member add/remove continues to work
+- [ ] No new event types needed
+
+**Effort:** M
+**Value:** High (Fixes silent data truncation, scales to any tenant size)
+
+---
+
 ## SAML IdP: SP Lifecycle Management
 
 **User Story:**
@@ -360,3 +421,4 @@ So that I can use the data for auditing, compliance reporting, and operational t
 
 **Effort:** S
 **Value:** High (Frequently needed for compliance and operations, low implementation cost)
+

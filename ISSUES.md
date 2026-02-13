@@ -8,21 +8,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ## High Severity
 
-### REFACT-001: Dropdown pagination limits silently truncate results
-
-**Found in:** `app/services/groups/selection.py:52-56`
-**Severity:** High
-**Category:** Correctness / Data Loss
-**Description:** Two dropdown-population functions use hardcoded pagination limits that will silently truncate results for larger tenants:
-- `list_users(tenant_id, page=1, page_size=100)` at line 53 truncates user lists beyond 100
-- `get_group_members(tenant_id, group_id, page=1, page_size=1000)` at line 56 truncates member lists beyond 1000
-**Evidence:**
-```python
-all_users = database.users.list_users(tenant_id, page=1, page_size=100)
-member_rows = database.groups.get_group_members(tenant_id, group_id, page=1, page_size=1000)
-```
-**Impact:** Admins cannot assign users beyond the 100-user limit to a group via the UI dropdown. No error or warning is shown. This is a silent correctness bug that will affect any tenant with >100 users.
-**Suggested fix:** Add unpaginated list functions for dropdown use (e.g., `list_all_users_brief(tenant_id)` returning only id/name/email), or implement a loop that fetches all pages.
+(none)
 
 ---
 
@@ -44,7 +30,7 @@ member_rows = database.groups.get_group_members(tenant_id, group_id, page=1, pag
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Correctness |
+| High | 0 | - |
 | Medium | 1 | File Structure |
 | Low | 0 | - |
 

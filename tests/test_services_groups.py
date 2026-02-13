@@ -2026,6 +2026,55 @@ def test_list_members_filtered_requires_admin(make_requesting_user):
         groups_service.list_members_filtered(requesting_user, str(uuid4()))
 
 
+def test_list_members_filtered_forwards_all_params(make_requesting_user):
+    """Test that all search/filter/sort/pagination params are forwarded to database."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Engineering", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.count_group_members_filtered.return_value = 0
+        mock_db.groups.search_group_members.return_value = []
+
+        groups_service.list_members_filtered(
+            requesting_user,
+            group_id,
+            search="john",
+            roles=["admin", "member"],
+            statuses=["active"],
+            sort_field="email",
+            sort_order="desc",
+            page=3,
+            page_size=50,
+        )
+
+        # Verify count call got search/roles/statuses
+        mock_db.groups.count_group_members_filtered.assert_called_once_with(
+            tenant_id, group_id, "john", ["admin", "member"], ["active"]
+        )
+
+        # Verify search call got all params
+        mock_db.groups.search_group_members.assert_called_once_with(
+            tenant_id,
+            group_id,
+            "john",
+            ["admin", "member"],
+            ["active"],
+            "email",
+            "desc",
+            3,
+            50,
+        )
+
+
 # =============================================================================
 # Bulk Remove Members Tests
 # =============================================================================
@@ -2195,6 +2244,55 @@ def test_list_available_users_paginated_requires_admin(make_requesting_user):
 
     with pytest.raises(ForbiddenError):
         groups_service.list_available_users_paginated(requesting_user, str(uuid4()))
+
+
+def test_list_available_users_paginated_forwards_all_params(make_requesting_user):
+    """Test that all search/filter/sort/pagination params are forwarded to database."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Engineering", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.count_available_users.return_value = 0
+        mock_db.groups.search_available_users.return_value = []
+
+        groups_service.list_available_users_paginated(
+            requesting_user,
+            group_id,
+            search="jane",
+            roles=["member"],
+            statuses=["active", "inactivated"],
+            sort_field="role",
+            sort_order="desc",
+            page=2,
+            page_size=10,
+        )
+
+        # Verify count call got search/roles/statuses
+        mock_db.groups.count_available_users.assert_called_once_with(
+            tenant_id, group_id, "jane", ["member"], ["active", "inactivated"]
+        )
+
+        # Verify search call got all params
+        mock_db.groups.search_available_users.assert_called_once_with(
+            tenant_id,
+            group_id,
+            "jane",
+            ["member"],
+            ["active", "inactivated"],
+            "role",
+            "desc",
+            2,
+            10,
+        )
 
 
 # =============================================================================

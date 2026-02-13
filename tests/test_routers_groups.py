@@ -1648,3 +1648,457 @@ def test_bulk_remove_members_service_error(test_admin_user, override_auth, mocke
 
     assert response.status_code == 200
     mock_error.assert_called_once()
+
+
+# =============================================================================
+# _parse_member_query_params Unit Tests
+# =============================================================================
+
+
+class TestParseMemberQueryParams:
+    """Direct unit tests for _parse_member_query_params helper."""
+
+    @staticmethod
+    def _make_request(params: dict | None = None):
+        """Create a mock Request with given query params."""
+        from starlette.datastructures import QueryParams
+
+        request = MagicMock()
+        request.query_params = QueryParams(params or {})
+        return request
+
+    def test_defaults(self):
+        """No params returns correct defaults."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request())
+
+        assert result["page"] == 1
+        assert result["page_size"] == 25
+        assert result["sort_field"] == "name"
+        assert result["sort_order"] == "asc"
+        assert result["roles"] is None
+        assert result["statuses"] is None
+        assert result["search"] == ""
+
+    @pytest.mark.parametrize("bad_page", ["abc", "0", "-5", "1.5", ""])
+    def test_invalid_page(self, bad_page):
+        """Invalid page values fall back to 1."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"page": bad_page}))
+        assert result["page"] == 1
+
+    @pytest.mark.parametrize("bad_size", ["15", "abc", "0", "-1", "200", ""])
+    def test_invalid_page_size(self, bad_size):
+        """Invalid page_size values fall back to 25."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"size": bad_size}))
+        assert result["page_size"] == 25
+
+    @pytest.mark.parametrize("valid_size", [10, 25, 50, 100])
+    def test_valid_page_size(self, valid_size):
+        """Allowed page_size values are accepted."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"size": str(valid_size)}))
+        assert result["page_size"] == valid_size
+
+    def test_invalid_sort_field(self):
+        """Invalid sort field falls back to 'name'."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"sort": "invalid_field"}))
+        assert result["sort_field"] == "name"
+
+    def test_invalid_sort_order(self):
+        """Invalid sort order falls back to 'asc'."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"order": "random"}))
+        assert result["sort_order"] == "asc"
+
+    def test_valid_sort_fields(self):
+        """All allowed sort fields are accepted."""
+        from routers.groups.members import _parse_member_query_params
+
+        for field in ["name", "email", "role", "status", "created_at", "last_activity_at"]:
+            result = _parse_member_query_params(self._make_request({"sort": field}))
+            assert result["sort_field"] == field
+
+    def test_role_filter_valid(self):
+        """Comma-separated valid roles are parsed into a list."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"role": "member,admin"}))
+        assert sorted(result["roles"]) == ["admin", "member"]
+
+    def test_role_filter_all_invalid(self):
+        """All-invalid roles result in None."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"role": "invalid,bogus"}))
+        assert result["roles"] is None
+
+    def test_role_filter_mixed_valid_invalid(self):
+        """Mixed valid/invalid roles keep only valid ones."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"role": "member,bogus,admin"}))
+        assert sorted(result["roles"]) == ["admin", "member"]
+
+    def test_status_filter_valid(self):
+        """Comma-separated valid statuses are parsed into a list."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"status": "active,inactivated"}))
+        assert sorted(result["statuses"]) == ["active", "inactivated"]
+
+    def test_status_filter_all_invalid(self):
+        """All-invalid statuses result in None."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"status": "bogus"}))
+        assert result["statuses"] is None
+
+    def test_status_filter_includes_anonymized(self):
+        """'anonymized' is a valid status value."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"status": "anonymized"}))
+        assert result["statuses"] == ["anonymized"]
+
+    def test_search_trimmed(self):
+        """Search value is whitespace-trimmed."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"search": "  test  "}))
+        assert result["search"] == "test"
+
+    def test_valid_page_preserved(self):
+        """Valid page number is preserved."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"page": "3"}))
+        assert result["page"] == 3
+
+    def test_desc_sort_order(self):
+        """'desc' sort order is accepted."""
+        from routers.groups.members import _parse_member_query_params
+
+        result = _parse_member_query_params(self._make_request({"order": "desc"}))
+        assert result["sort_order"] == "desc"
+
+
+# =============================================================================
+# Pagination Metadata Tests
+# =============================================================================
+
+
+def _setup_member_list_mocks(mocker, group_id, total, page=1, page_size=25):
+    """Helper to set up mocks for member list pagination tests."""
+    from schemas.groups import GroupMemberDetailList
+
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+    mock_result = GroupMemberDetailList(items=[], total=total, page=page, limit=page_size)
+
+    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
+    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
+    mock_template = mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse")
+    mock_ctx = mocker.patch(
+        f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()}
+    )
+
+    mock_get.return_value = mock_group
+    mock_list.return_value = mock_result
+    mock_template.return_value = HTMLResponse(content="<html>members</html>")
+
+    return mock_ctx
+
+
+def test_member_list_pagination_metadata_middle_page(test_admin_user, override_auth, mocker):
+    """Test pagination metadata for a middle page (has_previous=True, has_next=True)."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members?page=2&size=25")
+
+    assert response.status_code == 200
+    pagination = mock_ctx.call_args[1]["pagination"]
+    assert pagination["page"] == 2
+    assert pagination["has_previous"] is True
+    assert pagination["has_next"] is True
+    assert pagination["start_index"] == 26
+    assert pagination["end_index"] == 50
+    assert pagination["total_count"] == 53
+    assert pagination["total_pages"] == 3
+
+
+def test_member_list_pagination_empty_results(test_admin_user, override_auth, mocker):
+    """Test pagination metadata with zero results."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=0)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members")
+
+    assert response.status_code == 200
+    pagination = mock_ctx.call_args[1]["pagination"]
+    assert pagination["start_index"] == 0
+    assert pagination["end_index"] == 0
+    assert pagination["has_previous"] is False
+    assert pagination["has_next"] is False
+    assert pagination["total_pages"] == 1
+
+
+def test_member_list_pagination_last_page(test_admin_user, override_auth, mocker):
+    """Test pagination metadata for the last page (has_next=False, partial page)."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members?page=3&size=25")
+
+    assert response.status_code == 200
+    pagination = mock_ctx.call_args[1]["pagination"]
+    assert pagination["page"] == 3
+    assert pagination["has_next"] is False
+    assert pagination["has_previous"] is True
+    assert pagination["end_index"] == 53
+    assert pagination["start_index"] == 51
+
+
+def test_member_list_page_clamped_to_total(test_admin_user, override_auth, mocker):
+    """Test that page is clamped when requested page exceeds total pages."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=10)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members?page=99&size=25")
+
+    assert response.status_code == 200
+    pagination = mock_ctx.call_args[1]["pagination"]
+    # total=10, page_size=25 => total_pages=1, page clamped to 1
+    assert pagination["page"] == 1
+    assert pagination["has_previous"] is False
+    assert pagination["has_next"] is False
+
+
+# =============================================================================
+# Filter/Sort Param Pass-Through Tests
+# =============================================================================
+
+
+def test_member_list_passes_filters_to_service(test_admin_user, override_auth, mocker):
+    """Test that role and status filters are correctly parsed and forwarded."""
+    from schemas.groups import GroupMemberDetailList
+
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+    mock_result = GroupMemberDetailList(items=[], total=0, page=1, limit=25)
+
+    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
+    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
+    mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mocker.patch(f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()})
+
+    mock_get.return_value = mock_group
+    mock_list.return_value = mock_result
+
+    client = TestClient(app)
+    response = client.get(
+        f"/admin/groups/{group_id}/members"
+        "?role=member,admin&status=active&sort=email&order=desc&page=2&size=50"
+    )
+
+    assert response.status_code == 200
+    call_kwargs = mock_list.call_args[1]
+    assert sorted(call_kwargs["roles"]) == ["admin", "member"]
+    assert call_kwargs["statuses"] == ["active"]
+    assert call_kwargs["sort_field"] == "email"
+    assert call_kwargs["sort_order"] == "desc"
+    assert call_kwargs["page"] == 2
+    assert call_kwargs["page_size"] == 50
+
+
+def test_add_members_page_passes_filters_to_service(test_admin_user, override_auth, mocker):
+    """Test that add members page correctly forwards filter params to service."""
+    from schemas.groups import AvailableUserList
+
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+    mock_result = AvailableUserList(items=[], total=0, page=1, limit=25)
+
+    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
+    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_available_users_paginated")
+    mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mocker.patch(f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()})
+
+    mock_get.return_value = mock_group
+    mock_list.return_value = mock_result
+
+    client = TestClient(app)
+    response = client.get(
+        f"/admin/groups/{group_id}/members/add"
+        "?role=super_admin&status=active,inactivated&sort=role&order=desc&size=10"
+    )
+
+    assert response.status_code == 200
+    call_kwargs = mock_list.call_args[1]
+    assert call_kwargs["roles"] == ["super_admin"]
+    assert sorted(call_kwargs["statuses"]) == ["active", "inactivated"]
+    assert call_kwargs["sort_field"] == "role"
+    assert call_kwargs["sort_order"] == "desc"
+    assert call_kwargs["page_size"] == 10
+
+
+# =============================================================================
+# add_members_submit Return State Preservation Tests
+# =============================================================================
+
+
+def test_add_members_submit_preserves_return_state(test_admin_user, override_auth, mocker):
+    """Test that POST add members preserves return state params in redirect URL."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk.return_value = 2
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/add",
+        data={
+            "user_ids": [str(uuid4())],
+            "r_page": "2",
+            "r_size": "50",
+            "r_sort": "email",
+            "r_order": "desc",
+            "r_search": "test",
+            "r_role": "admin",
+            "r_status": "active",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "page=2" in location
+    assert "size=50" in location
+    assert "sort=email" in location
+    assert "order=desc" in location
+    assert "search=test" in location
+    assert "role=admin" in location
+    assert "status=active" in location
+    assert "success=members_added" in location
+    assert "count=2" in location
+
+
+def test_add_members_submit_omits_empty_search_and_filters(test_admin_user, override_auth, mocker):
+    """Test that empty search/role/status are omitted from redirect URL."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk.return_value = 1
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/members/add",
+        data={
+            "user_ids": [str(uuid4())],
+            "r_page": "1",
+            "r_size": "25",
+            "r_sort": "name",
+            "r_order": "asc",
+            "r_search": "",
+            "r_role": "",
+            "r_status": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers["location"]
+    assert "search=" not in location
+    assert "role=" not in location
+    assert "status=" not in location
+    assert "success=members_added" in location
+
+
+# =============================================================================
+# Flash Message Pass-Through Tests
+# =============================================================================
+
+
+def test_member_list_success_message(test_admin_user, override_auth, mocker):
+    """Test that success/error query params are passed to template context."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members?success=members_removed&count=3")
+
+    assert response.status_code == 200
+    ctx_kwargs = mock_ctx.call_args[1]
+    assert ctx_kwargs["success"] == "members_removed"
+
+
+def test_member_list_error_message(test_admin_user, override_auth, mocker):
+    """Test that error query param is passed to template context."""
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members?error=idp_group_read_only")
+
+    assert response.status_code == 200
+    ctx_kwargs = mock_ctx.call_args[1]
+    assert ctx_kwargs["error"] == "idp_group_read_only"
+
+
+def test_add_members_page_success_count(test_admin_user, override_auth, mocker):
+    """Test that add members page passes success_count to template context."""
+    from schemas.groups import AvailableUserList
+
+    override_auth(test_admin_user, level="admin")
+    group_id = str(uuid4())
+
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+    mock_result = AvailableUserList(items=[], total=0, page=1, limit=25)
+
+    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
+    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_available_users_paginated")
+    mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mock_ctx = mocker.patch(
+        f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()}
+    )
+
+    mock_get.return_value = mock_group
+    mock_list.return_value = mock_result
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/members/add?success=members_added&count=5")
+
+    assert response.status_code == 200
+    ctx_kwargs = mock_ctx.call_args[1]
+    assert ctx_kwargs["success"] == "members_added"
+    assert ctx_kwargs["success_count"] == "5"

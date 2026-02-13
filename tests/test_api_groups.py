@@ -844,6 +844,63 @@ def test_api_list_available_users_with_filters(make_user_dict, override_api_auth
         mock_svc.list_available_users_paginated.assert_called_once()
 
 
+def test_api_list_members_comma_separated_filters(make_user_dict, override_api_auth):
+    """Test that comma-separated role/status filters are parsed into lists."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = GroupMemberDetailList(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_members_filtered.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/groups/{group_id}/members"
+            "?search=x&role=member,admin&status=active&sort_field=name&sort_order=asc"
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_members_filtered.call_args[1]
+        assert sorted(call_kwargs["roles"]) == ["admin", "member"]
+        assert call_kwargs["statuses"] == ["active"]
+        assert call_kwargs["search"] == "x"
+        assert call_kwargs["sort_field"] == "name"
+        assert call_kwargs["sort_order"] == "asc"
+
+
+def test_api_list_available_users_comma_separated_filters(make_user_dict, override_api_auth):
+    """Test that available-users endpoint parses comma-separated filters."""
+    from schemas.groups import AvailableUserList
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = AvailableUserList(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_available_users_paginated.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/groups/{group_id}/available-users"
+            "?search=jane&role=member,super_admin&status=active,inactivated"
+            "&sort_field=email&sort_order=desc"
+        )
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_available_users_paginated.call_args[1]
+        assert sorted(call_kwargs["roles"]) == ["member", "super_admin"]
+        assert sorted(call_kwargs["statuses"]) == ["active", "inactivated"]
+        assert call_kwargs["search"] == "jane"
+        assert call_kwargs["sort_field"] == "email"
+        assert call_kwargs["sort_order"] == "desc"
+
+
 def test_api_list_available_users_not_found(make_user_dict, override_api_auth):
     """Available users for non-existent group returns 404."""
     admin = make_user_dict(role="admin")

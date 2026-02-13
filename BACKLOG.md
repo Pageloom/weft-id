@@ -6,36 +6,152 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML Identity Provider - Phase 4: Attribute Mapping & SP Management
+## SAML IdP: SP Lifecycle Management
 
 **User Story:**
 As a super admin
-I want to customize attribute mappings per application and manage SP lifecycle
-So that I can integrate applications with non-standard attribute requirements and maintain SPs over time
+I want to edit SP configuration, enable/disable SPs, and delete SPs with proper safeguards
+So that I can manage the full lifecycle of downstream service providers without recreating them
+
+**Context:**
+
+Today there is no way to edit an SP after creation. If an ACS URL changes, the only option
+is to delete and recreate the SP, which loses all group assignments. There is also no way to
+temporarily disable an SP (e.g., during a security incident). These are basic lifecycle
+operations needed for any production deployment.
+
+**Acceptance Criteria:**
+
+**Edit SP Configuration:**
+
+- [ ] Edit SP name and description
+- [ ] Edit ACS URL
+- [ ] Re-import metadata (update SP config from new metadata XML or URL)
+- [ ] Event log entry for SP updates (`service_provider_updated`)
+
+**Enable/Disable:**
+
+- [ ] Add `enabled` column to `service_providers` table (default true)
+- [ ] Toggle enabled/disabled from SP detail page
+- [ ] Disabled SPs reject SSO requests with a clear error message
+- [ ] Disabled SPs shown with visual indicator in SP list
+- [ ] Event log entries for enable/disable (`service_provider_enabled`, `service_provider_disabled`)
+
+**Delete with Safeguards:**
+
+- [ ] Delete button with confirmation dialog
+- [ ] Confirmation warns about active group assignments (shows count)
+- [ ] Cascading cleanup: group assignments, signing certificates
+- [ ] Event log entry (`service_provider_deleted` already exists)
+
+**API Endpoints:**
+
+- [ ] `PATCH /api/v1/service-providers/{sp_id}` for updates
+- [ ] `POST /api/v1/service-providers/{sp_id}/enable` and `/disable`
+- [ ] `DELETE /api/v1/service-providers/{sp_id}` (already exists but needs router)
+
+**Effort:** S
+**Value:** High (Unblocks production SP lifecycle management)
+
+---
+
+## SAML IdP: Single Logout (SLO) for Downstream SPs
+
+**User Story:**
+As a super admin
+I want downstream SPs to be able to request logout from WeftId, and WeftId to propagate
+logout to SPs when a user signs out
+So that SSO sessions are properly terminated across all federated applications
+
+**Context:**
+
+The upstream SP side has full SLO support (both SP-initiated and IdP-initiated). But the
+downstream IdP has no SLO capability. The IdP metadata XML has no SingleLogoutService
+element. Enterprise SPs expect SLO. Without it, users remain logged into downstream SPs
+after logging out of WeftId.
+
+**Acceptance Criteria:**
+
+**IdP Metadata:**
+
+- [ ] Add `SingleLogoutService` element to IdP metadata (HTTP-Redirect and HTTP-POST bindings)
+- [ ] SLO URL: `{base_url}/saml/idp/slo`
+
+**SP-Initiated Logout (SP asks WeftId to log user out):**
+
+- [ ] Handle incoming LogoutRequest at `/saml/idp/slo` (GET and POST)
+- [ ] Validate LogoutRequest (issuer is a registered SP, signature if present)
+- [ ] Terminate user's WeftId session
+- [ ] Return LogoutResponse to SP's SLO URL
+- [ ] Event log entry for SLO events
+
+**IdP-Initiated Logout (WeftId propagates logout to SPs):**
+
+- [ ] When user signs out from WeftId dashboard, send LogoutRequest to all SPs with active sessions
+- [ ] Track which SPs have active SSO sessions per user (session store or DB)
+- [ ] Best-effort delivery (don't block logout if an SP is unreachable)
+
+**SP SLO Configuration:**
+
+- [ ] Store SLO URL per SP (from metadata import or manual entry)
+- [ ] SP detail page shows SLO URL
+
+**Effort:** M
+**Value:** High (Enterprise SP compliance, protocol completeness)
+
+---
+
+## SAML IdP: Include Group Membership in SSO Assertions
+
+**User Story:**
+As a super admin
+I want WeftId to include a user's group memberships as attributes in SAML assertions
+So that downstream SPs can use group claims for authorization decisions
+
+**Context:**
+
+Groups flow into WeftId from upstream IdPs (parsed and stored as IdP groups) but are not
+included when WeftId issues assertions to downstream SPs. This breaks the federation bridge.
+SPs that use group claims for role-based access cannot work with WeftId today.
+
+**Acceptance Criteria:**
+
+- [ ] Assertion includes group membership attribute (configurable attribute name, default `groups`)
+- [ ] Includes both direct and inherited group memberships (via closure table)
+- [ ] Configurable per SP: opt-in (some SPs don't want group claims)
+- [ ] Group names sent as multi-valued attribute
+- [ ] Toggle on SP detail page: "Include group memberships in assertions"
+- [ ] API support for enabling/disabling group claims per SP
+
+**Effort:** S
+**Value:** Medium-High (Closes federation bridge gap)
+
+---
+
+## SAML Identity Provider - Phase 4: Attribute Mapping & NameID Configuration
+
+**User Story:**
+As a super admin
+I want to customize attribute mappings and NameID format per application
+So that I can integrate applications with non-standard attribute requirements
 
 **Context:**
 
 Earlier phases established the IdP with default attribute mappings (email, firstName, lastName). Some applications
-expect different attribute names or formats. This phase adds per-SP customization and operational SP management
-features.
+expect different attribute names or formats. This phase adds per-SP customization for attribute mappings and
+NameID format selection.
 
 **Acceptance Criteria:**
 
 **Per-SP Attribute Mapping:**
 
-- [ ] Default attribute mappings remain: email → standard URI, firstName → standard URI, lastName → standard URI
+- [ ] Default attribute mappings remain: email, firstName, lastName with standard URIs
 - [ ] Per-SP attribute mapping overrides (e.g., map `email` to
   `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
 - [ ] Attribute mapping UI: list current mappings, add/edit/remove custom mappings
 - [ ] Support for common IdP attribute URI formats (SAML 2.0 standard, Azure AD claims, custom)
 - [ ] Preview: show what the assertion attributes will look like
-
-**SP Management:**
-
-- [ ] Edit SP configuration: name, description, ACS URL
-- [ ] Enable/disable SPs (disabled SPs reject SSO requests with clear error)
-- [ ] Re-import metadata (update SP config from new metadata XML or URL)
-- [ ] Delete SP with confirmation (warns about active assignments)
+- [ ] Attribute mapping presets for common SPs (Salesforce, ServiceNow, etc.)
 
 **NameID Configuration:**
 
@@ -53,10 +169,9 @@ features.
 
 - Database migration:
     - `sp_attribute_mappings`: id, sp_id, internal_attribute, saml_attribute_uri
-    - Add `enabled`, `nameid_format` columns to `service_providers`
+    - Add `nameid_format` column to `service_providers`
     - Add `persistent_nameid` table for persistent NameID storage (user_id, sp_id, nameid_value)
 - Update assertion generation to use custom mappings
-- SP edit/management UI
 - Event logging integration
 
 **Dependencies:**
@@ -68,9 +183,95 @@ features.
 
 **Notes:**
 
-- Attribute mapping presets for common SPs (Salesforce, ServiceNow, etc.) could be a future enhancement
 - NameID format is important for applications that use it as the primary user identifier
 - Consider SAML debugging tools (assertion viewer) as separate backlog item, similar to upstream SAML Phase 4
+
+---
+
+## Admin: User-App Access Query
+
+**User Story:**
+As an admin
+I want to check whether a specific user has access to a specific application, and see all
+apps available to a user
+So that I can troubleshoot access issues and audit permissions
+
+**Context:**
+
+`check_user_sp_access()` already exists in the database layer. This item adds a UI and
+API surface for it. The dependency on SAML IdP Phase 2 is resolved.
+
+**Acceptance Criteria:**
+
+- [ ] Admin page or widget: select a user, see all their accessible SPs
+- [ ] Shows which groups grant each SP access (traceability)
+- [ ] Search/filter by user
+- [ ] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
+
+**Effort:** XS
+**Value:** Medium (Admin troubleshooting, low implementation cost)
+
+---
+
+## Auto-assign Users to Groups Based on Privileged Email Domains
+
+**User Story:**
+As a super admin
+I want to configure privileged domains to automatically assign users with matching email
+addresses to specified groups
+So that I do not have to manually manage group memberships for users from known domains
+
+**Acceptance Criteria:**
+
+- [ ] Link one or more WeftId groups to a privileged domain
+- [ ] When a user is created or verified with an email matching the domain, auto-add to linked groups
+- [ ] Existing users can be bulk-processed when a domain-group link is added
+- [ ] Domain-group links shown on privileged domain detail page
+- [ ] Auto-assigned memberships are regular memberships (can be manually removed)
+- [ ] Event log entries for auto-assignments
+
+**Effort:** S-M
+**Value:** Medium (Reduces admin toil for common onboarding pattern)
+
+---
+
+## Baseline Schema & Forward-Only Migration System
+
+**User Story:**
+As a developer
+I want the database to be initialized from a single baseline schema with a forward-only
+migration runner
+So that I can set up a fresh database quickly, apply incremental changes automatically on
+startup, and never worry about replaying 30+ sequential migration files
+
+**Context:**
+
+The current `db-init/` setup has 32 sequential SQL files that only run on the first
+`docker-compose up` (PostgreSQL's `initdb.d` mechanism). After that, new migrations require
+a manual `docker compose exec -T db psql ...` command, and resetting the database means
+wiping the volume and replaying everything from scratch. This is fragile and error-prone.
+
+The replacement: a single `schema.sql` baseline (consolidated from all existing migrations),
+a lightweight Python migration runner (`migrate.py`), and a one-shot docker-compose service
+that runs automatically before the app starts.
+
+**Detailed technical plan:** [`.claude/references/migration-plan.md`](.claude/references/migration-plan.md)
+
+**Acceptance Criteria:**
+
+- [ ] `db-init/schema.sql` contains the complete current schema (roles, tables, indexes, RLS, grants)
+- [ ] `db-init/migrate.py` detects fresh vs existing database and applies baseline or incremental migrations
+- [ ] `schema_migrations` table tracks applied versions
+- [ ] `migrate` service in docker-compose runs automatically before app/worker start
+- [ ] `make migrate` runs pending migrations on a running database
+- [ ] `make db-init` wipes volume and reinitializes (baseline + migrations)
+- [ ] Old 32 migration files deleted (preserved in git history)
+- [ ] Schema equivalence verified (`pg_dump` comparison)
+- [ ] All existing tests pass
+- [ ] CLAUDE.md updated with new migration workflow
+
+**Effort:** M
+**Value:** High (Eliminates manual migration steps, faster DB setup, cleaner repo)
 
 ---
 

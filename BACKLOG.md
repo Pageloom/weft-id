@@ -74,58 +74,6 @@ features.
 
 ---
 
-## Multi-Region Tenant Routing Infrastructure
-
-**User Story:**
-As a platform operator
-I want to route tenant requests to their assigned datacenter based on subdomain
-So that I can guarantee data residency in specific regions and enable future geographic distribution
-
-**Acceptance Criteria:**
-
-- [ ] Global routing layer (Cloudflare Workers or similar) intercepts all `*.pageloom.com` requests
-- [ ] Routing layer queries tenant-to-region mapping to determine which datacenter hosts the tenant
-- [ ] Requests are proxied/routed to the appropriate regional application instance
-- [ ] Tenant-to-region mapping service is lightweight and globally accessible (e.g., Cloudflare KV, global database, or
-  API)
-- [ ] Each tenant is permanently assigned to one region (tenant-pinned strategy)
-- [ ] Support for manually moving a tenant to a different region (updates mapping, data migration handled separately)
-- [ ] All tenant data is isolated by `tenant_id` (already implemented) to enable clean regional separation
-- [ ] Health checks and fallback routing if a region is unavailable
-- [ ] Documentation on how to add a new region to the infrastructure
-- [ ] Wildcard SSL certificate for `*.pageloom.com` configured
-
-**Out of Scope (for this item):**
-
-- Actual data migration tooling when moving tenants between regions
-- GDPR/compliance documentation
-- Multi-region database replication
-
-**Technical Implementation:**
-
-- Cloudflare DNS with wildcard SSL (`*.pageloom.com`)
-- Cloudflare Workers for edge routing logic
-- Tenant-to-region mapping store (recommend: Cloudflare KV or lightweight API)
-- Regional application instances (DigitalOcean App Platform or Droplets)
-- Update nginx/application configuration for region awareness
-- Deployment automation for multiple regions
-
-**Dependencies:**
-
-- Cloudflare account with Workers capability
-- Multiple DigitalOcean regions provisioned
-
-**Effort:** XL (multi-week effort, significant infrastructure work)
-**Value:** High (Scalability, Data Sovereignty)
-
-**Notes:**
-
-- Foundation for data residency guarantees
-- Enables future compliance requirements (GDPR, etc.)
-- Tenant IDs are globally unique, facilitating future tenant migrations
-
----
-
 ## SAML Smoketest: Manual Testing Pattern & Future Automation
 
 **User Story:**
@@ -211,27 +159,3 @@ So that I can use the data for auditing, compliance reporting, and operational t
 
 **Effort:** S
 **Value:** High (Frequently needed for compliance and operations, low implementation cost)
-
----
-
-## Tenant Mandala SVG in Navigation Header
-
-**User Story:**
-As a tenant user
-I want to see a unique decorative mandala icon next to the WeftId product name
-So that my tenant has a distinct visual identity within the application
-
-**Acceptance Criteria:**
-- [ ] Small SVG mandala (28-32px) appears to the left of "WeftId" in the top nav bar
-- [ ] Mandala is deterministically generated from the tenant's UUID (same tenant always gets the same mandala)
-- [ ] Different tenants get visually distinct mandalas
-- [ ] Uses vibrant multi-color palette matching the Pageloom site repo style
-- [ ] Supports light and dark mode
-- [ ] Generated server-side in Python (no client-side JS dependency)
-- [ ] Unit tests cover determinism, uniqueness, and valid SVG output
-
-**Effort:** S
-**Value:** Medium
-
----
-

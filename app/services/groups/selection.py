@@ -14,7 +14,7 @@ All functions:
 """
 
 import database
-from schemas.groups import AvailableGroupOption, AvailableUserOption
+from schemas.groups import AvailableGroupOption, AvailableUserList, AvailableUserOption
 from services.activity import track_activity
 from services.auth import require_admin
 from services.exceptions import NotFoundError
@@ -69,6 +69,68 @@ def list_available_users_for_group(
     ]
 
     return available
+
+
+def list_available_users_paginated(
+    requesting_user: RequestingUser,
+    group_id: str,
+    search: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+    sort_field: str = "name",
+    sort_order: str = "asc",
+    page: int = 1,
+    page_size: int = 25,
+) -> AvailableUserList:
+    """
+    List users available to add to a group with search, filtering, and pagination.
+
+    Unlike list_available_users_for_group, this is paginated and uses
+    database-level filtering instead of in-memory filtering.
+
+    Authorization: Requires admin role.
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify group exists
+    if not database.groups.get_group_by_id(tenant_id, group_id):
+        raise NotFoundError(
+            message="Group not found",
+            code="group_not_found",
+        )
+
+    total = database.groups.count_available_users(tenant_id, group_id, search, roles, statuses)
+    rows = database.groups.search_available_users(
+        tenant_id,
+        group_id,
+        search,
+        roles,
+        statuses,
+        sort_field,
+        sort_order,
+        page,
+        page_size,
+    )
+
+    items = [
+        AvailableUserOption(
+            id=str(row["id"]),
+            email=row.get("email"),
+            first_name=row.get("first_name", ""),
+            last_name=row.get("last_name", ""),
+        )
+        for row in rows
+    ]
+
+    return AvailableUserList(
+        items=items,
+        total=total,
+        page=page,
+        limit=page_size,
+    )
 
 
 def list_available_groups_for_user(

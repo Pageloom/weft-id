@@ -12,8 +12,8 @@ from schemas.groups import (
     GroupChildrenList,
     GroupDetail,
     GroupListResponse,
-    GroupMember,
-    GroupMemberList,
+    GroupMemberDetail,
+    GroupMemberDetailList,
     GroupParentsList,
     GroupRelationship,
     GroupSummary,
@@ -304,28 +304,33 @@ def test_delete_group_not_found(make_user_dict, override_api_auth):
 
 
 def test_list_members_success(make_user_dict, override_api_auth):
-    """Admin can list group members."""
+    """Admin can list group members with search/filter/sort."""
     admin = make_user_dict(role="admin")
     group_id = str(uuid4())
 
-    mock_response = GroupMemberList(
+    mock_response = GroupMemberDetailList(
         items=[
-            GroupMember(
+            GroupMemberDetail(
                 id=str(uuid4()),
                 user_id=str(uuid4()),
                 email="user@example.com",
                 first_name="Test",
                 last_name="User",
+                role="member",
+                is_inactivated=False,
+                is_anonymized=False,
                 created_at=datetime.now(UTC),
             )
         ],
         total=1,
+        page=1,
+        limit=25,
     )
 
     override_api_auth(admin)
 
     with patch("routers.api.v1.groups.groups_service") as mock_svc:
-        mock_svc.list_members.return_value = mock_response
+        mock_svc.list_members_filtered.return_value = mock_response
 
         client = TestClient(app)
         response = client.get(f"/api/v1/groups/{group_id}/members")
@@ -334,6 +339,7 @@ def test_list_members_success(make_user_dict, override_api_auth):
         data = response.json()
         assert data["total"] == 1
         assert len(data["items"]) == 1
+        assert data["items"][0]["role"] == "member"
 
 
 def test_add_member_success(make_user_dict, override_api_auth):
@@ -717,6 +723,140 @@ def test_api_bulk_add_members_idp_forbidden(make_user_dict, override_api_auth):
         )
 
         assert response.status_code == 403
+
+
+# =============================================================================
+# Bulk Remove Members API Tests
+# =============================================================================
+
+
+def test_api_bulk_remove_members_success(make_user_dict, override_api_auth):
+    """Admin can bulk remove members from a group."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.bulk_remove_members.return_value = 2
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/members/bulk-remove",
+            json={"user_ids": user_ids},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["removed"] == 2
+
+
+def test_api_bulk_remove_members_idp_forbidden(make_user_dict, override_api_auth):
+    """Bulk removing from IdP group returns 403."""
+    from services.exceptions import ForbiddenError
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.bulk_remove_members.side_effect = ForbiddenError(
+            message="IdP groups cannot be modified", code="idp_group_readonly"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/members/bulk-remove",
+            json={"user_ids": [str(uuid4())]},
+        )
+
+        assert response.status_code == 403
+
+
+# =============================================================================
+# Available Users API Tests
+# =============================================================================
+
+
+def test_api_list_available_users_success(make_user_dict, override_api_auth):
+    """Admin can list users available to add to a group."""
+    from schemas.groups import AvailableUserList, AvailableUserOption
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = AvailableUserList(
+        items=[
+            AvailableUserOption(
+                id=str(uuid4()),
+                email="available@example.com",
+                first_name="Available",
+                last_name="User",
+            )
+        ],
+        total=1,
+        page=1,
+        limit=25,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_available_users_paginated.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/available-users")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["email"] == "available@example.com"
+
+
+def test_api_list_available_users_with_filters(make_user_dict, override_api_auth):
+    """Available users endpoint accepts search and filter params."""
+    from schemas.groups import AvailableUserList
+
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_response = AvailableUserList(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_available_users_paginated.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get(
+            f"/api/v1/groups/{group_id}/available-users"
+            "?search=test&role=admin&status=active&sort_field=name&sort_order=asc"
+        )
+
+        assert response.status_code == 200
+        mock_svc.list_available_users_paginated.assert_called_once()
+
+
+def test_api_list_available_users_not_found(make_user_dict, override_api_auth):
+    """Available users for non-existent group returns 404."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_available_users_paginated.side_effect = NotFoundError(
+            message="Group not found", code="group_not_found"
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/available-users")
+
+        assert response.status_code == 404
 
 
 # =============================================================================

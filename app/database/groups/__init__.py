@@ -33,11 +33,16 @@ from database.groups.listing import count_groups, list_groups
 from database.groups.memberships import (
     add_group_member,
     bulk_add_group_members,
+    bulk_remove_group_members,
+    count_available_users,
     count_group_members,
+    count_group_members_filtered,
     get_group_members,
     get_user_groups,
     is_group_member,
     remove_group_member,
+    search_available_users,
+    search_group_members,
 )
 from database.groups.relationships import (
     add_group_relationship,
@@ -72,6 +77,11 @@ __all__ = [
     "bulk_add_group_members",
     "remove_group_member",
     "get_user_groups",
+    "search_group_members",
+    "count_group_members_filtered",
+    "search_available_users",
+    "count_available_users",
+    "bulk_remove_group_members",
     # effective membership
     "get_user_groups_with_context",
     "get_effective_memberships",

@@ -43,19 +43,20 @@ def group_detail(
 
     try:
         group = groups_service.get_group(requesting_user, group_id)
-        members = groups_service.list_members(requesting_user, group_id)
         parents = groups_service.list_parents(requesting_user, group_id)
         children = groups_service.list_children(requesting_user, group_id)
 
-        # Get available options for dropdowns (via service layer)
-        available_users = groups_service.list_available_users_for_group(requesting_user, group_id)
+        # Get available options for hierarchy dropdowns (via service layer)
         available_parents = groups_service.list_available_parents(requesting_user, group_id)
         available_children = groups_service.list_available_children(requesting_user, group_id)
 
-        # Fetch effective members only if the group has children
-        effective_members = None
+        # Fetch effective member count only if the group has children
+        effective_member_count = None
         if group.child_count > 0:
-            effective_members = groups_service.get_effective_members(requesting_user, group_id)
+            eff = groups_service.get_effective_members(
+                requesting_user, group_id, page=1, page_size=1
+            )
+            effective_member_count = eff.total
 
         # Fetch assigned service providers
         assigned_sps = []
@@ -83,13 +84,11 @@ def group_detail(
             request,
             tenant_id,
             group=group,
-            members=members.items,
             parents=parents.items,
             children=children.items,
-            available_users=available_users,
             available_parents=available_parents,
             available_children=available_children,
-            effective_members=effective_members,
+            effective_member_count=effective_member_count,
             assigned_sps=assigned_sps,
             success=success,
             error=error,

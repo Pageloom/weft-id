@@ -7,6 +7,7 @@ They are used by multiple modules in the groups package.
 from schemas.groups import (
     GroupDetail,
     GroupMember,
+    GroupMemberDetail,
     GroupRelationship,
     GroupSummary,
 )
@@ -54,6 +55,21 @@ def _row_to_member(row: dict) -> GroupMember:
         email=row.get("email"),
         first_name=row.get("first_name", ""),
         last_name=row.get("last_name", ""),
+        created_at=row["created_at"],
+    )
+
+
+def _row_to_member_detail(row: dict) -> GroupMemberDetail:
+    """Convert database row to GroupMemberDetail."""
+    return GroupMemberDetail(
+        id=str(row["id"]),
+        user_id=str(row["user_id"]),
+        email=row.get("email"),
+        first_name=row.get("first_name", ""),
+        last_name=row.get("last_name", ""),
+        role=row.get("role", "member"),
+        is_inactivated=row.get("is_inactivated", False),
+        is_anonymized=row.get("is_anonymized", False),
         created_at=row["created_at"],
     )
 

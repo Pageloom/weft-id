@@ -1939,6 +1939,257 @@ def test_bulk_add_members_group_not_found(make_requesting_user):
 
 
 # =============================================================================
+# List Members Filtered Tests
+# =============================================================================
+
+
+def test_list_members_filtered_success(make_requesting_user):
+    """Test listing members with search, filters, sorting, and pagination."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Engineering", "group_type": "weftid"}
+    mock_rows = [
+        {
+            "id": str(uuid4()),
+            "user_id": str(uuid4()),
+            "email": "user@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "role": "member",
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "created_at": datetime.now(UTC),
+        }
+    ]
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.count_group_members_filtered.return_value = 1
+        mock_db.groups.search_group_members.return_value = mock_rows
+
+        result = groups_service.list_members_filtered(
+            requesting_user,
+            group_id,
+            search="test",
+            roles=["member"],
+            statuses=["active"],
+            sort_field="name",
+            sort_order="asc",
+            page=1,
+            page_size=25,
+        )
+
+        assert result.total == 1
+        assert len(result.items) == 1
+        assert result.items[0].email == "user@example.com"
+        assert result.items[0].role == "member"
+        assert result.page == 1
+        assert result.limit == 25
+        mock_db.groups.search_group_members.assert_called_once()
+        mock_db.groups.count_group_members_filtered.assert_called_once()
+
+
+def test_list_members_filtered_group_not_found(make_requesting_user):
+    """Test listing members for non-existent group raises NotFoundError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_members_filtered(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_list_members_filtered_requires_admin(make_requesting_user):
+    """Test listing members requires admin role."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.list_members_filtered(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# Bulk Remove Members Tests
+# =============================================================================
+
+
+def test_bulk_remove_members_success(make_requesting_user):
+    """Test bulk removing members from a group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    user_ids = [str(uuid4()), str(uuid4())]
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Test Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.bulk_remove_group_members.return_value = 2
+
+        count = groups_service.bulk_remove_members(requesting_user, group_id, user_ids)
+
+        assert count == 2
+        mock_db.groups.bulk_remove_group_members.assert_called_once()
+        mock_log.assert_called_once()
+        call_kwargs = mock_log.call_args[1]
+        assert call_kwargs["event_type"] == "group_members_bulk_removed"
+        assert call_kwargs["metadata"]["count"] == 2
+
+
+def test_bulk_remove_members_idp_group_blocked(make_requesting_user):
+    """Test bulk removing members from IdP group is forbidden."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "IdP Group", "group_type": "idp"}
+
+    with patch("services.groups.membership.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_group
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.bulk_remove_members(requesting_user, group_id, [str(uuid4())])
+
+        assert exc_info.value.code == "idp_group_readonly"
+
+
+def test_bulk_remove_members_no_event_when_zero_removed(make_requesting_user):
+    """Test that no event is logged when no members are removed."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Test Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.membership.database") as mock_db,
+        patch("services.groups.membership.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.bulk_remove_group_members.return_value = 0
+
+        count = groups_service.bulk_remove_members(requesting_user, group_id, [str(uuid4())])
+
+        assert count == 0
+        mock_log.assert_not_called()
+
+
+def test_bulk_remove_members_group_not_found(make_requesting_user):
+    """Test bulk remove from non-existent group raises NotFoundError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with patch("services.groups.membership.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.bulk_remove_members(requesting_user, str(uuid4()), [str(uuid4())])
+
+        assert exc_info.value.code == "group_not_found"
+
+
+# =============================================================================
+# List Available Users Paginated Tests
+# =============================================================================
+
+
+def test_list_available_users_paginated_success(make_requesting_user):
+    """Test listing available users for a group with pagination."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Engineering", "group_type": "weftid"}
+    mock_rows = [
+        {
+            "id": str(uuid4()),
+            "email": "available@example.com",
+            "first_name": "Available",
+            "last_name": "User",
+        }
+    ]
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.count_available_users.return_value = 1
+        mock_db.groups.search_available_users.return_value = mock_rows
+
+        result = groups_service.list_available_users_paginated(
+            requesting_user,
+            group_id,
+            search="available",
+            page=1,
+            page_size=25,
+        )
+
+        assert result.total == 1
+        assert len(result.items) == 1
+        assert result.items[0].email == "available@example.com"
+        assert result.page == 1
+        assert result.limit == 25
+        mock_db.groups.search_available_users.assert_called_once()
+
+
+def test_list_available_users_paginated_group_not_found(make_requesting_user):
+    """Test available users for non-existent group raises NotFoundError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with (
+        patch("services.groups.selection.database") as mock_db,
+        patch("services.groups.selection.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_available_users_paginated(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_list_available_users_paginated_requires_admin(make_requesting_user):
+    """Test available users requires admin role."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError):
+        groups_service.list_available_users_paginated(requesting_user, str(uuid4()))
+
+
+# =============================================================================
 # List Available Groups for User Tests
 # =============================================================================
 

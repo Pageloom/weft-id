@@ -57,6 +57,8 @@ service_provider_deleted
 service_provider_disabled
 service_provider_enabled
 service_provider_updated
+slo_idp_propagated
+slo_sp_initiated
 sp_group_assigned
 sp_group_unassigned
 sp_groups_bulk_assigned

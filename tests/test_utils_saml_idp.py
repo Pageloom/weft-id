@@ -286,6 +286,39 @@ class TestGenerateIdPMetadataXML:
         for svc in sso_services:
             assert svc.attrib["Location"] == "https://idp.example.com/saml/idp/sso"
 
+    def test_no_slo_elements_by_default(self):
+        """No SLO elements when slo_url is not provided."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        slo_services = idp_desc.findall(f"{{{md_ns}}}SingleLogoutService")
+        assert len(slo_services) == 0
+
+    def test_slo_elements_when_url_provided(self):
+        """SLO elements included when slo_url is provided."""
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+            slo_url="https://idp.example.com/saml/idp/slo",
+        )
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        slo_services = idp_desc.findall(f"{{{md_ns}}}SingleLogoutService")
+
+        assert len(slo_services) == 2
+        bindings = [svc.attrib["Binding"] for svc in slo_services]
+        assert "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" in bindings
+        assert "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" in bindings
+        for svc in slo_services:
+            assert svc.attrib["Location"] == "https://idp.example.com/saml/idp/slo"
+
 
 # =============================================================================
 # parse_sp_metadata_xml: fallback ACS and PEM header edge cases
@@ -334,6 +367,92 @@ class TestParseSPMetadataFallbackACS:
 
         result = parse_sp_metadata_xml(xml)
         assert result["acs_url"] == "https://both.example.com/acs-post"
+
+
+# =============================================================================
+# parse_sp_metadata_xml: SLO URL extraction
+# =============================================================================
+
+
+SAMPLE_SP_METADATA_WITH_SLO_POST = """<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://slo-post.example.com">
+  <md:SPSSODescriptor
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://slo-post.example.com/saml/slo" />
+    <md:AssertionConsumerService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://slo-post.example.com/acs"
+        index="0" />
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>"""
+
+SAMPLE_SP_METADATA_WITH_SLO_REDIRECT = """<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://slo-redirect.example.com">
+  <md:SPSSODescriptor
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://slo-redirect.example.com/saml/slo" />
+    <md:AssertionConsumerService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://slo-redirect.example.com/acs"
+        index="0" />
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>"""
+
+SAMPLE_SP_METADATA_WITH_SLO_BOTH = """<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://slo-both.example.com">
+  <md:SPSSODescriptor
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://slo-both.example.com/saml/slo-redirect" />
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://slo-both.example.com/saml/slo-post" />
+    <md:AssertionConsumerService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://slo-both.example.com/acs"
+        index="0" />
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
+class TestParseSPMetadataSLOURL:
+    """Tests for SLO URL extraction from SP metadata."""
+
+    def test_extracts_slo_url_http_post(self):
+        """Extracts SLO URL with HTTP-POST binding."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_SLO_POST)
+        assert result["slo_url"] == "https://slo-post.example.com/saml/slo"
+
+    def test_extracts_slo_url_http_redirect_fallback(self):
+        """Falls back to HTTP-Redirect binding when no HTTP-POST."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_SLO_REDIRECT)
+        assert result["slo_url"] == "https://slo-redirect.example.com/saml/slo"
+
+    def test_prefers_http_post_over_redirect(self):
+        """When both bindings exist, HTTP-POST is preferred."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_SLO_BOTH)
+        assert result["slo_url"] == "https://slo-both.example.com/saml/slo-post"
+
+    def test_no_slo_url_returns_none(self):
+        """Returns None when no SingleLogoutService element exists."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_MINIMAL)
+        assert result["slo_url"] is None
+
+    def test_full_metadata_no_slo(self):
+        """Full metadata without SLO returns None for slo_url."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA)
+        assert result["slo_url"] is None
 
 
 class TestParseSPMetadataCertificateWithPEMHeaders:

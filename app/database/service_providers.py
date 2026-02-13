@@ -3,7 +3,7 @@
 from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml,
+               certificate_pem, nameid_format, metadata_xml, slo_url,
                enabled, created_by, created_at, updated_at"""
 
 
@@ -69,6 +69,7 @@ def create_service_provider(
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
     description: str | None = None,
+    slo_url: str | None = None,
 ) -> dict | None:
     """Create a new service provider.
 
@@ -80,12 +81,12 @@ def create_service_provider(
         f"""
         insert into service_providers (
             tenant_id, name, description, entity_id, acs_url,
-            certificate_pem, nameid_format, metadata_xml,
+            certificate_pem, nameid_format, metadata_xml, slo_url,
             created_by
         )
         values (
             :tenant_id, :name, :description, :entity_id, :acs_url,
-            :certificate_pem, :nameid_format, :metadata_xml,
+            :certificate_pem, :nameid_format, :metadata_xml, :slo_url,
             :created_by
         )
         returning {_SP_COLUMNS}
@@ -99,6 +100,7 @@ def create_service_provider(
             "certificate_pem": certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
+            "slo_url": slo_url,
             "created_by": created_by,
         },
     )
@@ -117,7 +119,7 @@ def update_service_provider(
     Returns:
         Updated SP dict, or None if not found
     """
-    allowed = {"name", "description", "acs_url", "enabled"}
+    allowed = {"name", "description", "acs_url", "slo_url", "enabled"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_service_provider(tenant_id, sp_id)

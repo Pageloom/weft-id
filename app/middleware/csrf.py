@@ -25,6 +25,7 @@ CSRF_EXEMPT_PATHS = [
     "/api/",  # All API routes (prefix match)
     "/saml/acs",  # SAML Assertion Consumer Service
     "/saml/idp/sso",  # SAML IdP SSO endpoint (receives POST from external SPs)
+    "/saml/idp/slo",  # SAML IdP SLO endpoint (receives POST from external SPs)
     "/oauth2/token",  # OAuth2 token endpoint
 ]
 

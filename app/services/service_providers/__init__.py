@@ -62,6 +62,12 @@ from services.service_providers.signing_certs import (
     rotate_sp_signing_certificate,
 )
 
+# Re-export from slo module
+from services.service_providers.slo import (
+    process_sp_logout_request,
+    propagate_logout_to_sps,
+)
+
 # Re-export from sso module
 from services.service_providers.sso import (
     build_sso_response,
@@ -81,6 +87,9 @@ __all__ = [
     "import_sp_from_metadata_xml",
     "list_service_providers",
     "update_service_provider",
+    # SLO
+    "process_sp_logout_request",
+    "propagate_logout_to_sps",
     # SSO
     "build_sso_response",
     "get_service_provider_by_id",

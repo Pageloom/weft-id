@@ -399,7 +399,7 @@ class TestConsentRespond:
             ),
             patch(
                 "services.service_providers.build_sso_response",
-                return_value=("base64-saml-response", "https://sp.example.com/acs"),
+                return_value=("base64-saml-response", "https://sp.example.com/acs", "_sess123"),
             ),
         ):
             response = client.post(
@@ -760,7 +760,7 @@ class TestSSOAccessScenarios:
             ),
             patch(
                 "services.service_providers.build_sso_response",
-                return_value=("base64-saml-response", "https://sp.example.com/acs"),
+                return_value=("base64-saml-response", "https://sp.example.com/acs", "_sess123"),
             ),
         ):
             response = client.post(

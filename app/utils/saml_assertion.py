@@ -47,7 +47,8 @@ def build_saml_response(
     user_attributes: dict[str, str],
     certificate_pem: str,
     private_key_pem: str,
-) -> str:
+    session_index: str | None = None,
+) -> tuple[str, str]:
     """Build and sign a SAML 2.0 Response containing a signed Assertion.
 
     Args:
@@ -60,13 +61,18 @@ def build_saml_response(
         user_attributes: Dict of user attributes {email, firstName, lastName}
         certificate_pem: PEM-encoded signing certificate
         private_key_pem: PEM-encoded private key (decrypted)
+        session_index: Optional session index for SLO correlation
 
     Returns:
-        Base64-encoded signed SAML Response XML string
+        Tuple of (base64_encoded_response, session_index)
     """
     now = datetime.datetime.now(datetime.UTC)
     response_id = _generate_id()
     assertion_id = _generate_id()
+
+    # Generate session index if not provided
+    if session_index is None:
+        session_index = _generate_id()
 
     # Build Assertion element
     assertion = _build_assertion_element(
@@ -79,6 +85,7 @@ def build_saml_response(
         authn_request_id=authn_request_id,
         user_attributes=user_attributes,
         now=now,
+        session_index=session_index,
     )
 
     # Sign the Assertion
@@ -96,7 +103,7 @@ def build_saml_response(
 
     # Serialize to XML and base64-encode
     xml_bytes = etree.tostring(response, xml_declaration=True, encoding="UTF-8")
-    return base64.b64encode(xml_bytes).decode("utf-8")
+    return base64.b64encode(xml_bytes).decode("utf-8"), session_index
 
 
 def _build_response_element(
@@ -146,6 +153,7 @@ def _build_assertion_element(
     authn_request_id: str | None,
     user_attributes: dict[str, str],
     now: datetime.datetime,
+    session_index: str | None = None,
 ) -> etree._Element:
     """Build an unsigned SAML Assertion element."""
     issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -213,13 +221,16 @@ def _build_assertion_element(
     audience.text = sp_entity_id
 
     # 5. AuthnStatement (AuthnContext is required by saml-schema-assertion-2.0.xsd)
+    authn_attribs: dict[str, str] = {
+        "AuthnInstant": issue_instant,
+        "SessionNotOnOrAfter": session_not_on_or_after,
+    }
+    if session_index:
+        authn_attribs["SessionIndex"] = session_index
     authn_statement = etree.SubElement(
         assertion,
         f"{{{_SAML_NS}}}AuthnStatement",
-        attrib={
-            "AuthnInstant": issue_instant,
-            "SessionNotOnOrAfter": session_not_on_or_after,
-        },
+        attrib=authn_attribs,
     )
     authn_context = etree.SubElement(authn_statement, f"{{{_SAML_NS}}}AuthnContext")
     authn_context_class_ref = etree.SubElement(authn_context, f"{{{_SAML_NS}}}AuthnContextClassRef")

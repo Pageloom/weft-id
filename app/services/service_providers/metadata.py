@@ -56,11 +56,13 @@ def get_tenant_idp_metadata_xml(tenant_id: str, base_url: str) -> str:
 
     entity_id = f"{base_url}/saml/idp/metadata"
     sso_url = f"{base_url}/saml/idp/sso"
+    slo_url = f"{base_url}/saml/idp/slo"
 
     return generate_idp_metadata_xml(
         entity_id=entity_id,
         sso_url=sso_url,
         certificate_pem=cert["certificate_pem"],
+        slo_url=slo_url,
     )
 
 
@@ -93,9 +95,11 @@ def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
 
     entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
     sso_url = f"{base_url}/saml/idp/sso"
+    slo_url = f"{base_url}/saml/idp/slo"
 
     return generate_idp_metadata_xml(
         entity_id=entity_id,
         sso_url=sso_url,
         certificate_pem=cert["certificate_pem"],
+        slo_url=slo_url,
     )

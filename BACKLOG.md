@@ -6,52 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML IdP: Single Logout (SLO) for Downstream SPs
-
-**User Story:**
-As a super admin
-I want downstream SPs to be able to request logout from WeftId, and WeftId to propagate
-logout to SPs when a user signs out
-So that SSO sessions are properly terminated across all federated applications
-
-**Context:**
-
-The upstream SP side has full SLO support (both SP-initiated and IdP-initiated). But the
-downstream IdP has no SLO capability. The IdP metadata XML has no SingleLogoutService
-element. Enterprise SPs expect SLO. Without it, users remain logged into downstream SPs
-after logging out of WeftId.
-
-**Acceptance Criteria:**
-
-**IdP Metadata:**
-
-- [ ] Add `SingleLogoutService` element to IdP metadata (HTTP-Redirect and HTTP-POST bindings)
-- [ ] SLO URL: `{base_url}/saml/idp/slo`
-
-**SP-Initiated Logout (SP asks WeftId to log user out):**
-
-- [ ] Handle incoming LogoutRequest at `/saml/idp/slo` (GET and POST)
-- [ ] Validate LogoutRequest (issuer is a registered SP, signature if present)
-- [ ] Terminate user's WeftId session
-- [ ] Return LogoutResponse to SP's SLO URL
-- [ ] Event log entry for SLO events
-
-**IdP-Initiated Logout (WeftId propagates logout to SPs):**
-
-- [ ] When user signs out from WeftId dashboard, send LogoutRequest to all SPs with active sessions
-- [ ] Track which SPs have active SSO sessions per user (session store or DB)
-- [ ] Best-effort delivery (don't block logout if an SP is unreachable)
-
-**SP SLO Configuration:**
-
-- [ ] Store SLO URL per SP (from metadata import or manual entry)
-- [ ] SP detail page shows SLO URL
-
-**Effort:** M
-**Value:** High (Enterprise SP compliance, protocol completeness)
-
----
-
 ## SAML IdP: Include Group Membership in SSO Assertions
 
 **User Story:**

@@ -89,6 +89,10 @@
                 <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ sp.nameid_format }}</dd>
             </div>
             <div>
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SLO URL</dt>
+                <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ sp.slo_url or 'Not configured' }}</dd>
+            </div>
+            <div>
                 <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
                 <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(sp.created_at) }}</dd>
             </div>
@@ -115,6 +119,12 @@
                 <label for="edit-acs-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ACS URL</label>
                 <input type="url" id="edit-acs-url" name="acs_url" value="{{ sp.acs_url }}"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="edit-slo-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SLO URL</label>
+                <input type="url" id="edit-slo-url" name="slo_url" value="{{ sp.slo_url or '' }}"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="Optional Single Logout Service URL">
             </div>
             <div>
                 <button type="submit"

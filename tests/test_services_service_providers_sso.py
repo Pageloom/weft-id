@@ -120,10 +120,10 @@ class TestBuildSsoResponse:
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
                 "utils.saml_assertion.build_saml_response",
-                return_value="base64-response",
+                return_value=("base64-response", "_session123"),
             ),
         ):
-            result_b64, acs_url = build_sso_response(
+            result_b64, acs_url, session_idx = build_sso_response(
                 tenant_id="tenant-1",
                 user_id="user-1",
                 sp_entity_id="https://sp.example.com",
@@ -143,7 +143,7 @@ class TestBuildSsoResponse:
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
                 "utils.saml_assertion.build_saml_response",
-                return_value="base64-response",
+                return_value=("base64-response", "_session123"),
             ),
         ):
             build_sso_response(
@@ -235,10 +235,10 @@ class TestBuildSsoResponse:
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
                 "utils.saml_assertion.build_saml_response",
-                return_value="base64-response",
+                return_value=("base64-response", "_session123"),
             ),
         ):
-            result_b64, acs_url = build_sso_response(
+            result_b64, acs_url, session_idx = build_sso_response(
                 tenant_id="tenant-1",
                 user_id="user-1",
                 sp_entity_id="https://sp.example.com",
@@ -260,10 +260,10 @@ class TestBuildSsoResponse:
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
                 "utils.saml_assertion.build_saml_response",
-                return_value="base64-response",
+                return_value=("base64-response", "_session123"),
             ),
         ):
-            result_b64, acs_url = build_sso_response(
+            result_b64, acs_url, session_idx = build_sso_response(
                 tenant_id="tenant-1",
                 user_id="user-1",
                 sp_entity_id="https://sp.example.com",

@@ -269,7 +269,7 @@ def consent_respond(
     base_url = get_base_url(request)
 
     try:
-        saml_response_b64, acs_url = sp_service.build_sso_response(
+        saml_response_b64, acs_url, session_index = sp_service.build_sso_response(
             tenant_id=tenant_id,
             user_id=user_id,
             sp_entity_id=sp_entity_id,
@@ -279,6 +279,18 @@ def consent_respond(
     except Exception as e:
         logger.error("Failed to build SSO response: %s", e)
         return _render_sso_error(request, tenant_id, "no_certificate", str(e))
+
+    # Track active SP session for SLO propagation
+    active_sps = request.session.get("sso_active_sps", [])
+    active_sps.append(
+        {
+            "sp_id": sp_id,
+            "sp_entity_id": sp_entity_id,
+            "name_id": user_id,
+            "session_index": session_index,
+        }
+    )
+    request.session["sso_active_sps"] = active_sps
 
     # Render auto-submit form to POST assertion to SP's ACS URL
     csp_nonce = get_csp_nonce(request)

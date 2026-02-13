@@ -100,6 +100,7 @@ def sp_create_manual(
     name: str = Form(""),
     entity_id: str = Form(""),
     acs_url: str = Form(""),
+    slo_url: str = Form(""),
 ):
     """Create an SP from manual entry."""
     if not has_page_access("/admin/settings/service-providers", user.get("role")):
@@ -119,7 +120,12 @@ def sp_create_manual(
     try:
         from schemas.service_providers import SPCreate
 
-        data = SPCreate(name=name.strip(), entity_id=entity_id.strip(), acs_url=acs_url.strip())
+        data = SPCreate(
+            name=name.strip(),
+            entity_id=entity_id.strip(),
+            acs_url=acs_url.strip(),
+            slo_url=slo_url.strip() or None,
+        )
         sp_service.create_service_provider(requesting_user, data)
         return RedirectResponse(url=f"{SP_LIST_URL}?success=created", status_code=303)
     except ServiceError as exc:
@@ -354,6 +360,7 @@ def sp_edit(
     name: str = Form(""),
     description: str = Form(""),
     acs_url: str = Form(""),
+    slo_url: str = Form(""),
 ):
     """Update an SP's configuration from the detail page form."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
@@ -371,6 +378,8 @@ def sp_edit(
         update_fields["description"] = description.strip()
     if acs_url.strip():
         update_fields["acs_url"] = acs_url.strip()
+    if slo_url.strip():
+        update_fields["slo_url"] = slo_url.strip()
 
     if not update_fields:
         return RedirectResponse(

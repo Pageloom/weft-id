@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Logging out...</title>
+</head>
+<body>
+    <form id="slo-form" method="post" action="{{ slo_url }}">
+        <input type="hidden" name="SAMLResponse" value="{{ saml_response }}">
+        {% if relay_state %}
+        <input type="hidden" name="RelayState" value="{{ relay_state }}">
+        {% endif %}
+        <noscript>
+            <p>Your browser has JavaScript disabled. Click the button below to continue.</p>
+            <input type="submit" value="Continue">
+        </noscript>
+    </form>
+    <script nonce="{{ csp_nonce }}">document.getElementById('slo-form').submit();</script>
+</body>
+</html>

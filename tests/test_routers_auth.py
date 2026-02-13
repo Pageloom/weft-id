@@ -1104,6 +1104,162 @@ def test_logout_succeeds_even_if_propagation_fails(test_tenant, test_user, mocke
     assert response.headers["location"] == "/login"
 
 
+# ============================================================================
+# Upstream SAML SLO (redirect to IdP during logout)
+# ============================================================================
+
+
+def test_logout_initiates_upstream_slo_redirect(test_tenant, test_user, mocker):
+    """Test that logout redirects to IdP SLO URL when SAML session is active."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "saml_idp_id": "idp-123",
+        "saml_name_id": "user@example.com",
+        "saml_name_id_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        "saml_session_index": "_session_abc",
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mocker.patch(
+        "services.saml.initiate_sp_logout",
+        return_value="https://idp.example.com/slo?SAMLRequest=abc",
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "https://idp.example.com/slo?SAMLRequest=abc"
+
+
+def test_logout_no_upstream_slo_when_service_returns_none(test_tenant, test_user, mocker):
+    """Test that logout falls through to /login when initiate_sp_logout returns None."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "saml_idp_id": "idp-123",
+        "saml_name_id": "user@example.com",
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mocker.patch("services.saml.initiate_sp_logout", return_value=None)
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_logout_succeeds_even_if_upstream_slo_fails(test_tenant, test_user, mocker):
+    """Test that logout redirects to /login even when upstream SLO raises an exception."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "saml_idp_id": "idp-123",
+        "saml_name_id": "user@example.com",
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mocker.patch(
+        "services.saml.initiate_sp_logout",
+        side_effect=Exception("IdP unreachable"),
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_logout_passes_correct_slo_params(test_tenant, test_user, mocker):
+    """Test that all SAML session values are passed correctly to initiate_sp_logout."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "saml_idp_id": "idp-456",
+        "saml_name_id": "admin@corp.example.com",
+        "saml_name_id_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+        "saml_session_index": "_session_xyz",
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mock_slo = mocker.patch(
+        "services.saml.initiate_sp_logout",
+        return_value="https://idp.example.com/slo",
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    client.post("/logout", follow_redirects=False)
+
+    mock_slo.assert_called_once()
+    call_kwargs = mock_slo.call_args[1]
+    assert str(call_kwargs["tenant_id"]) == str(test_tenant["id"])
+    assert call_kwargs["saml_idp_id"] == "idp-456"
+    assert call_kwargs["name_id"] == "admin@corp.example.com"
+    assert call_kwargs["name_id_format"] == "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+    assert call_kwargs["session_index"] == "_session_xyz"
+
+
+def test_logout_with_both_downstream_and_upstream_slo(test_tenant, test_user, mocker):
+    """Test that both downstream propagation and upstream SLO are triggered.
+
+    When both active downstream SPs and SAML session fields are present,
+    propagate_logout_to_sps is called AND initiate_sp_logout is called.
+    The upstream redirect takes precedence over /login.
+    """
+    override_tenant(app, test_tenant["id"])
+
+    active_sps = [
+        {
+            "sp_id": "sp-1",
+            "sp_entity_id": "https://sp1.example.com",
+            "name_id": str(test_user["id"]),
+            "session_index": "_session_1",
+        }
+    ]
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "sso_active_sps": active_sps,
+        "saml_idp_id": "idp-789",
+        "saml_name_id": "user@example.com",
+        "saml_name_id_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        "saml_session_index": "_session_abc",
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mock_propagate = mocker.patch(
+        "services.service_providers.slo.propagate_logout_to_sps",
+        return_value=1,
+    )
+    mock_slo = mocker.patch(
+        "services.saml.initiate_sp_logout",
+        return_value="https://idp.example.com/slo?SAMLRequest=xyz",
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    # Both downstream and upstream SLO should be called
+    mock_propagate.assert_called_once()
+    mock_slo.assert_called_once()
+
+    # Upstream redirect takes precedence
+    assert response.status_code == 303
+    assert response.headers["location"] == "https://idp.example.com/slo?SAMLRequest=xyz"
+
+
 def test_set_password_logs_event(test_tenant, mocker):
     """Test that setting password logs an event."""
     from datetime import UTC, datetime

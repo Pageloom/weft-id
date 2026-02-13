@@ -65,7 +65,7 @@ def _parse_member_query_params(request: Request) -> dict:
         page_size = 25
 
     # Validate sort field and order
-    allowed_sort_fields = ["name", "email", "role", "status", "created_at"]
+    allowed_sort_fields = ["name", "email", "role", "status", "created_at", "last_activity_at"]
     if sort_field not in allowed_sort_fields:
         sort_field = "name"
     if sort_order not in ("asc", "desc"):
@@ -206,6 +206,9 @@ def add_members_page(
         "end_index": min(offset + page_size, total_count),
     }
 
+    success = request.query_params.get("success")
+    success_count = request.query_params.get("count")
+
     return templates.TemplateResponse(
         "groups_members_add.html",
         get_template_context(
@@ -219,6 +222,8 @@ def add_members_page(
             sort_order=params["sort_order"],
             roles=params["roles"] or [],
             statuses=params["statuses"] or [],
+            success=success,
+            success_count=success_count,
         ),
     )
 
@@ -230,6 +235,13 @@ def add_members_submit(
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
     user_ids: Annotated[list[str], Form()],
+    return_page: Annotated[str, Form(alias="r_page")] = "1",
+    return_size: Annotated[str, Form(alias="r_size")] = "25",
+    return_sort: Annotated[str, Form(alias="r_sort")] = "name",
+    return_order: Annotated[str, Form(alias="r_order")] = "asc",
+    return_search: Annotated[str, Form(alias="r_search")] = "",
+    return_role: Annotated[str, Form(alias="r_role")] = "",
+    return_status: Annotated[str, Form(alias="r_status")] = "",
 ):
     """Add selected users to the group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -244,10 +256,16 @@ def add_members_submit(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(
-        url=f"/admin/groups/{group_id}/members?success=members_added&count={count}",
-        status_code=303,
-    )
+    # Redirect back to add page preserving current view state
+    url = f"/admin/groups/{group_id}/members/add?success=members_added&count={count}"
+    url += f"&page={return_page}&size={return_size}&sort={return_sort}&order={return_order}"
+    if return_search:
+        url += f"&search={return_search}"
+    if return_role:
+        url += f"&role={return_role}"
+    if return_status:
+        url += f"&status={return_status}"
+    return RedirectResponse(url=url, status_code=303)
 
 
 @router.post("/{group_id}/members/bulk-remove")

@@ -256,6 +256,7 @@
                         {{ sort_header('role', 'Role') }}
                         {{ sort_header('status', 'Status') }}
                         {{ sort_header('created_at', 'Joined') }}
+                        {{ sort_header('last_activity_at', 'Last Activity') }}
                         {% if group.group_type == 'weftid' %}
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         {% endif %}
@@ -300,6 +301,10 @@
                                 {% set rel = fmt_relative(m.created_at) %}
                                 <span title="{{ rel[1] }}">{{ rel[0] }}</span>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {% set rel_activity = fmt_relative(m.last_activity_at) %}
+                                <span title="{{ rel_activity[1] }}">{{ rel_activity[0] }}</span>
+                            </td>
                             {% if group.group_type == 'weftid' %}
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
                                 <a href="#" class="confirm-link text-red-600 hover:text-red-800 dark:text-red-400"
@@ -312,7 +317,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if group.group_type == 'weftid' %}7{% else %}5{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            <td colspan="{% if group.group_type == 'weftid' %}8{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                 {% if search %}No members found matching "{{ search }}"{% else %}No members in this group.{% endif %}
                             </td>
                         </tr>
@@ -512,6 +517,13 @@
             }, { destructive: isDestructive });
         });
     });
+
 })();
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}">
+    WeftUtils.stickyActionBar('bulk-action-bar');
 </script>
 {% endblock %}

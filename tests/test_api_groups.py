@@ -795,6 +795,9 @@ def test_api_list_available_users_success(make_user_dict, override_api_auth):
                 email="available@example.com",
                 first_name="Available",
                 last_name="User",
+                role="member",
+                is_inactivated=False,
+                is_anonymized=False,
             )
         ],
         total=1,

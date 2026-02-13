@@ -63,6 +63,10 @@ def list_available_users_for_group(
             email=u.get("email"),
             first_name=u.get("first_name", ""),
             last_name=u.get("last_name", ""),
+            role=u.get("role", "member"),
+            is_inactivated=u.get("is_inactivated", False),
+            is_anonymized=u.get("is_anonymized", False),
+            last_activity_at=u.get("last_activity_at"),
         )
         for u in all_users
         if str(u["id"]) not in member_user_ids
@@ -121,6 +125,10 @@ def list_available_users_paginated(
             email=row.get("email"),
             first_name=row.get("first_name", ""),
             last_name=row.get("last_name", ""),
+            role=row.get("role", "member"),
+            is_inactivated=row.get("is_inactivated", False),
+            is_anonymized=row.get("is_anonymized", False),
+            last_activity_at=row.get("last_activity_at"),
         )
         for row in rows
     ]

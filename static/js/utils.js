@@ -134,6 +134,74 @@ const WeftUtils = {
         return locale.replace('-', '_');
     },
 
+    /**
+     * Make a bulk action bar sticky at the bottom of the viewport when visible.
+     *
+     * When the bar becomes visible (has its .hidden class removed), it is
+     * positioned fixed at the bottom with a shadow. A spacer element prevents
+     * content jump. When the bar is hidden again, styles are cleaned up.
+     *
+     * @param {string|HTMLElement} elementOrId - Element or element ID
+     */
+    stickyActionBar: function(elementOrId) {
+        var el = typeof elementOrId === 'string'
+            ? document.getElementById(elementOrId)
+            : elementOrId;
+        if (!el) return;
+
+        var spacer = document.createElement('div');
+        spacer.style.display = 'none';
+        el.parentNode.insertBefore(spacer, el.nextSibling);
+
+        function applySticky() {
+            // Defer to next frame so the browser has laid out the element
+            requestAnimationFrame(function() {
+                if (el.classList.contains('hidden')) return;
+                // Temporarily remove fixed positioning to measure natural height
+                el.style.position = '';
+                var rect = el.getBoundingClientRect();
+                var h = Math.max(rect.height, 48);
+                spacer.style.display = 'block';
+                spacer.style.height = h + 'px';
+                el.style.position = 'fixed';
+                el.style.bottom = '0';
+                el.style.left = '0';
+                el.style.right = '0';
+                el.style.zIndex = '40';
+                el.style.borderRadius = '0';
+                el.style.boxShadow = '0 -2px 8px rgba(0,0,0,0.15)';
+                el.style.padding = '0.75rem 2rem';
+            });
+        }
+
+        function removeSticky() {
+            spacer.style.display = 'none';
+            el.style.position = '';
+            el.style.bottom = '';
+            el.style.left = '';
+            el.style.right = '';
+            el.style.zIndex = '';
+            el.style.borderRadius = '';
+            el.style.boxShadow = '';
+            el.style.padding = '';
+        }
+
+        // Observe class changes to detect show/hide
+        var observer = new MutationObserver(function() {
+            if (el.classList.contains('hidden')) {
+                removeSticky();
+            } else {
+                applySticky();
+            }
+        });
+        observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+
+        // Apply immediately if already visible
+        if (!el.classList.contains('hidden')) {
+            applySticky();
+        }
+    },
+
     // Internal: callback storage for confirm modal
     _confirmCallback: null,
 

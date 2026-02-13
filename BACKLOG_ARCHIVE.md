@@ -4,6 +4,18 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Group Membership UX Redesign
+
+**Status:** Complete
+
+**Resolution:** Replaced inline member list on group detail page with dedicated paginated member list and add-members pages. Added search, filtering (role/status), sortable columns, pagination, and bulk add/remove. Full-stack implementation across database, service, router, API, and template layers. New `group_members_bulk_removed` event type for audit trail. API enhanced with search/filter params on members endpoint, new available-users endpoint, and bulk-remove endpoint.
+
+**Commits:**
+- `d0a7229` Split groups.py router into package (REFACT-003)
+- `14f9e75` Add dedicated group membership management pages
+
+---
+
 ## SAML IdP: Per-SP Entity ID in Metadata and Assertions
 
 **Status:** Complete

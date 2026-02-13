@@ -223,6 +223,7 @@ def search_group_members(
         "role": "u.role {order}",
         "status": f"{status_case} {{order}}",
         "created_at": "gm.created_at {order}",
+        "last_activity_at": "ua.last_activity_at {order}",
     }
 
     if sort_field not in sort_field_map:
@@ -240,10 +241,12 @@ def search_group_members(
         select gm.id, gm.user_id, gm.created_at,
                u.first_name, u.last_name, u.role,
                u.is_inactivated, u.is_anonymized,
-               ue.email
+               ue.email,
+               ua.last_activity_at
         from group_memberships gm
         join users u on gm.user_id = u.id
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        left join user_activity ua on u.id = ua.user_id
         {where_clause}
         order by {order_by_clause}
         limit :limit offset :offset
@@ -323,6 +326,7 @@ def search_available_users(
         "role": "u.role {order}",
         "status": f"{status_case} {{order}}",
         "created_at": "u.created_at {order}",
+        "last_activity_at": "ua.last_activity_at {order}",
     }
 
     if sort_field not in sort_field_map:
@@ -339,9 +343,11 @@ def search_available_users(
     query = f"""
         select u.id, u.first_name, u.last_name, u.role,
                u.is_inactivated, u.is_anonymized,
-               ue.email
+               ue.email,
+               ua.last_activity_at
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        left join user_activity ua on u.id = ua.user_id
         {where_clause}
         order by {order_by_clause}
         limit :limit offset :offset

@@ -32,6 +32,14 @@ class SPMetadataImportURL(BaseModel):
     metadata_url: str = Field(..., min_length=1)
 
 
+class SPUpdate(BaseModel):
+    """Update SP configuration. At least one field must be provided."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    acs_url: str | None = Field(None, min_length=1)
+
+
 # ============================================================================
 # Response Schemas
 # ============================================================================
@@ -47,6 +55,7 @@ class SPConfig(BaseModel):
     acs_url: str
     certificate_pem: str | None = None
     nameid_format: str
+    enabled: bool = True
     signing_cert_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -58,6 +67,7 @@ class SPListItem(BaseModel):
     id: str
     name: str
     entity_id: str
+    enabled: bool = True
     signing_cert_expires_at: datetime | None = None
     assigned_group_count: int = 0
     created_at: datetime

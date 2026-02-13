@@ -345,6 +345,89 @@ def sp_remove_group(
         return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
 
 
+@router.post("/{sp_id}/edit", response_class=HTMLResponse)
+def sp_edit(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    name: str = Form(""),
+    description: str = Form(""),
+    acs_url: str = Form(""),
+):
+    """Update an SP's configuration from the detail page form."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    # Build update data from non-empty fields
+    from schemas.service_providers import SPUpdate
+
+    update_fields: dict = {}
+    if name.strip():
+        update_fields["name"] = name.strip()
+    if description.strip():
+        update_fields["description"] = description.strip()
+    if acs_url.strip():
+        update_fields["acs_url"] = acs_url.strip()
+
+    if not update_fields:
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?error=No changes provided", status_code=303
+        )
+
+    try:
+        data = SPUpdate(**update_fields)
+        sp_service.update_service_provider(requesting_user, sp_id, data)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=updated", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to update SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/enable", response_class=HTMLResponse)
+def sp_enable(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Enable a disabled service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.enable_service_provider(requesting_user, sp_id)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=enabled", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to enable SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/disable", response_class=HTMLResponse)
+def sp_disable(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Disable a service provider. SSO will stop working immediately."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.disable_service_provider(requesting_user, sp_id)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=disabled", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to disable SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
 @router.post("/{sp_id}/delete", response_class=HTMLResponse)
 def sp_delete(
     request: Request,

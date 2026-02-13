@@ -905,3 +905,90 @@ class TestSSOAccessScenarios:
 
         assert response.status_code == 400
         assert "Dashboard" in response.text
+
+
+# ============================================================================
+# Disabled SP Rejection
+# ============================================================================
+
+
+class TestDisabledSPRejection:
+    """Tests that disabled SPs reject SSO requests."""
+
+    def test_sp_initiated_sso_rejects_disabled_sp(self, client, sso_host):
+        """SP-initiated SSO returns error for disabled SP."""
+        xml = _make_authn_request_xml(issuer="https://disabled-sp.example.com")
+        saml_request = _encode_redirect(xml)
+
+        disabled_sp = _sample_sp_config(
+            entity_id="https://disabled-sp.example.com",
+        )
+        disabled_sp.enabled = False
+
+        with patch(
+            "services.service_providers.get_sp_by_entity_id",
+            return_value=disabled_sp,
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+        assert "Application Unavailable" in response.text
+
+    def test_idp_initiated_launch_rejects_disabled_sp(self, client, sso_user, sso_host):
+        """IdP-initiated launch returns error for disabled SP."""
+        sp_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.get_service_provider_by_id",
+                return_value={
+                    "id": sp_id,
+                    "entity_id": "https://disabled-sp.example.com",
+                    "name": "Disabled SP",
+                    "enabled": False,
+                },
+            ),
+        ):
+            response = client.get(
+                f"/saml/idp/launch/{sp_id}",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+        assert "Application Unavailable" in response.text
+
+    def test_sp_initiated_sso_allows_enabled_sp(self, client, sso_host):
+        """SP-initiated SSO proceeds for enabled SP."""
+        xml = _make_authn_request_xml(issuer="https://enabled-sp.example.com")
+        saml_request = _encode_redirect(xml)
+
+        enabled_sp = _sample_sp_config(
+            entity_id="https://enabled-sp.example.com",
+        )
+        enabled_sp.enabled = True
+
+        with patch(
+            "services.service_providers.get_sp_by_entity_id",
+            return_value=enabled_sp,
+        ):
+            response = client.get(
+                "/saml/idp/sso",
+                params={"SAMLRequest": saml_request},
+                headers={"Host": sso_host},
+                follow_redirects=False,
+            )
+
+        # Enabled SP should redirect to login (not error)
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]

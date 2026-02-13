@@ -67,55 +67,6 @@ membership management.
 
 ---
 
-## SAML IdP: SP Lifecycle Management
-
-**User Story:**
-As a super admin
-I want to edit SP configuration, enable/disable SPs, and delete SPs with proper safeguards
-So that I can manage the full lifecycle of downstream service providers without recreating them
-
-**Context:**
-
-Today there is no way to edit an SP after creation. If an ACS URL changes, the only option
-is to delete and recreate the SP, which loses all group assignments. There is also no way to
-temporarily disable an SP (e.g., during a security incident). These are basic lifecycle
-operations needed for any production deployment.
-
-**Acceptance Criteria:**
-
-**Edit SP Configuration:**
-
-- [ ] Edit SP name and description
-- [ ] Edit ACS URL
-- [ ] Re-import metadata (update SP config from new metadata XML or URL)
-- [ ] Event log entry for SP updates (`service_provider_updated`)
-
-**Enable/Disable:**
-
-- [ ] Add `enabled` column to `service_providers` table (default true)
-- [ ] Toggle enabled/disabled from SP detail page
-- [ ] Disabled SPs reject SSO requests with a clear error message
-- [ ] Disabled SPs shown with visual indicator in SP list
-- [ ] Event log entries for enable/disable (`service_provider_enabled`, `service_provider_disabled`)
-
-**Delete with Safeguards:**
-
-- [ ] Delete button with confirmation dialog
-- [ ] Confirmation warns about active group assignments (shows count)
-- [ ] Cascading cleanup: group assignments, signing certificates
-- [ ] Event log entry (`service_provider_deleted` already exists)
-
-**API Endpoints:**
-
-- [ ] `PATCH /api/v1/service-providers/{sp_id}` for updates
-- [ ] `POST /api/v1/service-providers/{sp_id}/enable` and `/disable`
-- [ ] `DELETE /api/v1/service-providers/{sp_id}` (already exists but needs router)
-
-**Effort:** S
-**Value:** High (Unblocks production SP lifecycle management)
-
----
-
 ## SAML IdP: Single Logout (SLO) for Downstream SPs
 
 **User Story:**

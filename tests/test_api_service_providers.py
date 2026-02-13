@@ -578,3 +578,182 @@ class TestGetSPMetadataURLAPI:
         )
 
         assert response.status_code == 401
+
+
+# =============================================================================
+# Update (PATCH) Endpoint
+# =============================================================================
+
+
+class TestUpdateAPI:
+    """Tests for PATCH /api/v1/service-providers/{sp_id}."""
+
+    def test_patch_success(self, sp_api_client, api_host, sample_sp):
+        """Super admin can update SP via API."""
+        updated_sp = sample_sp.model_copy(update={"name": "Updated App"})
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=updated_sp,
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+                json={"name": "Updated App"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Updated App"
+
+    def test_patch_not_found(self, sp_api_client, api_host):
+        """Non-existent SP returns 404."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{uuid4()}",
+                headers={"Host": api_host},
+                json={"name": "Updated"},
+            )
+
+        assert response.status_code == 404
+
+    def test_patch_validation_error(self, sp_api_client, api_host):
+        """No fields provided returns 400."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=ValidationError(message="At least one field must be provided"),
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{uuid4()}",
+                headers={"Host": api_host},
+                json={},
+            )
+
+        assert response.status_code == 400
+
+    def test_patch_unauthenticated(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.patch(
+            f"/api/v1/service-providers/{uuid4()}",
+            headers={"Host": api_host},
+            json={"name": "Updated"},
+        )
+
+        assert response.status_code == 401
+
+
+# =============================================================================
+# Enable Endpoint
+# =============================================================================
+
+
+class TestEnableAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/enable."""
+
+    def test_enable_success(self, sp_api_client, api_host, sample_sp):
+        """Super admin can enable SP via API."""
+        enabled_sp = sample_sp.model_copy(update={"enabled": True})
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            return_value=enabled_sp,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/enable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["enabled"] is True
+
+    def test_enable_already_enabled(self, sp_api_client, api_host):
+        """Already enabled SP returns 400."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            side_effect=ValidationError(message="Service provider is already enabled"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/enable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_enable_not_found(self, sp_api_client, api_host):
+        """Non-existent SP returns 404."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/enable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+
+# =============================================================================
+# Disable Endpoint
+# =============================================================================
+
+
+class TestDisableAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/disable."""
+
+    def test_disable_success(self, sp_api_client, api_host, sample_sp):
+        """Super admin can disable SP via API."""
+        disabled_sp = sample_sp.model_copy(update={"enabled": False})
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            return_value=disabled_sp,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/disable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["enabled"] is False
+
+    def test_disable_already_disabled(self, sp_api_client, api_host):
+        """Already disabled SP returns 400."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            side_effect=ValidationError(message="Service provider is already disabled"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/disable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_disable_not_found(self, sp_api_client, api_host):
+        """Non-existent SP returns 404."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/disable",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404

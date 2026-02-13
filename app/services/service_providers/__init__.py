@@ -28,10 +28,13 @@ from services.service_providers._converters import (
 from services.service_providers.crud import (
     create_service_provider,
     delete_service_provider,
+    disable_service_provider,
+    enable_service_provider,
     get_service_provider,
     import_sp_from_metadata_url,
     import_sp_from_metadata_xml,
     list_service_providers,
+    update_service_provider,
 )
 
 # Re-export from group_assignments module
@@ -71,10 +74,13 @@ __all__ = [
     # CRUD
     "create_service_provider",
     "delete_service_provider",
+    "disable_service_provider",
+    "enable_service_provider",
     "get_service_provider",
     "import_sp_from_metadata_url",
     "import_sp_from_metadata_xml",
     "list_service_providers",
+    "update_service_provider",
     # SSO
     "build_sso_response",
     "get_service_provider_by_id",

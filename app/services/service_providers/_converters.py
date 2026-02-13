@@ -17,6 +17,7 @@ def _row_to_config(row: dict) -> SPConfig:
         acs_url=row["acs_url"],
         certificate_pem=row.get("certificate_pem"),
         nameid_format=row["nameid_format"],
+        enabled=row.get("enabled", True),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -30,6 +31,7 @@ def _row_to_list_item(
         id=str(row["id"]),
         name=row["name"],
         entity_id=row["entity_id"],
+        enabled=row.get("enabled", True),
         signing_cert_expires_at=signing_cert_expires_at,
         assigned_group_count=assigned_group_count,
         created_at=row["created_at"],

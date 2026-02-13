@@ -37,6 +37,7 @@ def _make_sp_row(
     name: str = "Test App",
     entity_id: str = "https://app.example.com/saml/metadata",
     acs_url: str = "https://app.example.com/saml/acs",
+    enabled: bool = True,
 ) -> dict:
     """Create a mock SP database row."""
     return {
@@ -48,6 +49,7 @@ def _make_sp_row(
         "certificate_pem": None,
         "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         "metadata_xml": None,
+        "enabled": enabled,
         "created_by": str(uuid4()),
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
@@ -1126,3 +1128,273 @@ class TestGetSPMetadataURLInfoNotFound:
             assert f"/saml/idp/metadata/{sp_id}" in result.metadata_url
             assert "/saml/idp/metadata" in result.entity_id
             assert "/saml/idp/sso" in result.sso_url
+
+
+# =============================================================================
+# update_service_provider
+# =============================================================================
+
+
+class TestUpdateServiceProvider:
+    """Tests for update_service_provider."""
+
+    def test_success(self, make_requesting_user):
+        """Super admin can update an SP."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(name="Updated Name")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="Updated Name")
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.name == "Updated Name"
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id, sp_id, name="Updated Name"
+            )
+
+    def test_partial_update(self, make_requesting_user):
+        """Can update only the ACS URL."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(acs_url="https://new.example.com/acs")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, acs_url="https://new.example.com/acs")
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.acs_url == "https://new.example.com/acs"
+
+    def test_not_found(self, make_requesting_user):
+        """Raises NotFoundError for non-existent SP."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+        data = SPUpdate(name="New Name")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.update_service_provider(requesting_user, str(uuid4()), data)
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot update SPs."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+        data = SPUpdate(name="New Name")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.update_service_provider(requesting_user, str(uuid4()), data)
+
+    def test_no_fields_raises_validation_error(self, make_requesting_user):
+        """Raises ValidationError when no update fields provided."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate()  # No fields set
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+
+            with pytest.raises(ValidationError, match="At least one field"):
+                sp_service.update_service_provider(requesting_user, sp_id, data)
+
+    def test_logs_event(self, make_requesting_user):
+        """Updating an SP logs a service_provider_updated event."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(name="Updated", acs_url="https://updated.example.com/acs")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="Updated")
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "service_provider_updated"
+            assert set(call_kwargs["metadata"]["changed_fields"]) == {"name", "acs_url"}
+
+
+# =============================================================================
+# enable_service_provider
+# =============================================================================
+
+
+class TestEnableServiceProvider:
+    """Tests for enable_service_provider."""
+
+    def test_success(self, make_requesting_user):
+        """Super admin can enable a disabled SP."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        disabled_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=False)
+        enabled_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = disabled_row
+            mock_db.service_providers.set_service_provider_enabled.return_value = enabled_row
+
+            result = sp_service.enable_service_provider(requesting_user, sp_id)
+
+            assert result.enabled is True
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "service_provider_enabled"
+
+    def test_already_enabled(self, make_requesting_user):
+        """Raises ValidationError if SP is already enabled."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, enabled=True
+            )
+
+            with pytest.raises(ValidationError, match="already enabled"):
+                sp_service.enable_service_provider(requesting_user, sp_id)
+
+    def test_not_found(self, make_requesting_user):
+        """Raises NotFoundError for non-existent SP."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.enable_service_provider(requesting_user, str(uuid4()))
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot enable SPs."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.enable_service_provider(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# disable_service_provider
+# =============================================================================
+
+
+class TestDisableServiceProvider:
+    """Tests for disable_service_provider."""
+
+    def test_success(self, make_requesting_user):
+        """Super admin can disable an enabled SP."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        enabled_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=True)
+        disabled_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=False)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = enabled_row
+            mock_db.service_providers.set_service_provider_enabled.return_value = disabled_row
+
+            result = sp_service.disable_service_provider(requesting_user, sp_id)
+
+            assert result.enabled is False
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "service_provider_disabled"
+
+    def test_already_disabled(self, make_requesting_user):
+        """Raises ValidationError if SP is already disabled."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, enabled=False
+            )
+
+            with pytest.raises(ValidationError, match="already disabled"):
+                sp_service.disable_service_provider(requesting_user, sp_id)
+
+    def test_not_found(self, make_requesting_user):
+        """Raises NotFoundError for non-existent SP."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.disable_service_provider(requesting_user, str(uuid4()))
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot disable SPs."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.disable_service_provider(requesting_user, str(uuid4()))

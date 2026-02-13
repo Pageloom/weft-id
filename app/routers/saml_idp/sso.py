@@ -106,6 +106,11 @@ def _handle_sso_request(
         logger.warning("Unknown SP entity_id: %s", issuer)
         return _render_sso_error(request, tenant_id, "unknown_sp")
 
+    # 2b. Reject disabled SPs
+    if not sp.enabled:
+        logger.warning("SSO request for disabled SP: %s", issuer)
+        return _render_sso_error(request, tenant_id, "sp_disabled")
+
     # 3. Validate request against registered SP (ACS URL match etc.)
     sp_dict = {"entity_id": sp.entity_id, "acs_url": sp.acs_url}
     try:
@@ -316,6 +321,10 @@ def idp_initiated_launch(
     sp_row = sp_service.get_service_provider_by_id(tenant_id, sp_id)
     if sp_row is None:
         return _render_sso_error(request, tenant_id, "unknown_sp")
+
+    # Reject disabled SPs
+    if not sp_row.get("enabled", True):
+        return _render_sso_error(request, tenant_id, "sp_disabled")
 
     # Check group-based access
     if not sp_service.check_user_sp_access(tenant_id, user_id, sp_id):

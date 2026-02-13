@@ -2079,3 +2079,47 @@ So that I understand my organizational context and access rights
 **Value:** Medium (User visibility, API for downstream apps)
 
 ---
+
+## SAML IdP: SP Lifecycle Management
+
+**Status:** Complete
+
+**Summary:** Added edit, enable/disable, and improved delete safeguards for downstream service providers. Admins can now update SP name, description, and ACS URL without recreating the SP. SPs can be temporarily disabled (rejecting SSO requests) while preserving group assignments. Delete confirmation now shows the number of group assignments that will be lost.
+
+**Completed Work:**
+
+**Edit SP Configuration:**
+
+- [x] Edit SP name, description, and ACS URL from detail page form
+- [x] PATCH API endpoint for programmatic updates
+- [x] Event log entry for SP updates (`service_provider_updated`) with changed fields in metadata
+
+**Enable/Disable:**
+
+- [x] `enabled` column added to `service_providers` table (default true)
+- [x] Toggle enabled/disabled from SP detail page with status badge
+- [x] Disabled SPs reject SSO requests (both SP-initiated and IdP-initiated) with "Application Unavailable" error
+- [x] Disabled SPs shown with muted styling and red "Disabled" badge in SP list
+- [x] Event log entries for enable/disable (`service_provider_enabled`, `service_provider_disabled`)
+- [x] API endpoints: `POST /enable` and `POST /disable`
+
+**Delete with Safeguards:**
+
+- [x] Delete confirmation dialog shows group assignment count
+- [x] Cascading cleanup of group assignments and signing certificates (already existed)
+- [x] Event log entry (`service_provider_deleted` already existed)
+
+**API Endpoints:**
+
+- [x] `PATCH /api/v1/service-providers/{sp_id}` for updates
+- [x] `POST /api/v1/service-providers/{sp_id}/enable` and `/disable`
+- [x] `DELETE /api/v1/service-providers/{sp_id}` (already existed)
+
+**Not Implemented (deferred):**
+
+- Re-import metadata (update SP config from new metadata XML or URL). Can be added later as a separate item.
+
+**Effort:** S
+**Value:** High (Unblocks production SP lifecycle management)
+
+---

@@ -1015,6 +1015,95 @@ def test_logout_no_log_when_no_session(test_tenant, mocker):
     mock_log.assert_not_called()
 
 
+def test_logout_propagates_slo_to_active_sps(test_tenant, test_user, mocker):
+    """Test that logout propagates SLO to downstream SPs with active sessions."""
+    override_tenant(app, test_tenant["id"])
+
+    active_sps = [
+        {
+            "sp_id": "sp-1",
+            "sp_entity_id": "https://sp1.example.com",
+            "name_id": str(test_user["id"]),
+            "session_index": "_session_1",
+        }
+    ]
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "sso_active_sps": active_sps,
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mock_propagate = mocker.patch(
+        "services.service_providers.slo.propagate_logout_to_sps",
+        return_value=1,
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+    mock_propagate.assert_called_once()
+    call_kwargs = mock_propagate.call_args[1]
+    assert str(call_kwargs["tenant_id"]) == str(test_tenant["id"])
+    assert call_kwargs["user_id"] == str(test_user["id"])
+    assert call_kwargs["active_sps"] == active_sps
+
+
+def test_logout_does_not_propagate_when_no_active_sps(test_tenant, test_user, mocker):
+    """Test that logout does not propagate SLO when no active downstream SPs."""
+    override_tenant(app, test_tenant["id"])
+
+    mock_session = {
+        "user_id": str(test_user["id"]),
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mock_propagate = mocker.patch(
+        "services.service_providers.slo.propagate_logout_to_sps",
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    mock_propagate.assert_not_called()
+
+
+def test_logout_succeeds_even_if_propagation_fails(test_tenant, test_user, mocker):
+    """Test that logout succeeds even if SLO propagation raises an exception."""
+    override_tenant(app, test_tenant["id"])
+
+    active_sps = [
+        {
+            "sp_id": "sp-1",
+            "sp_entity_id": "https://sp1.example.com",
+            "name_id": str(test_user["id"]),
+            "session_index": "_session_1",
+        }
+    ]
+    mock_session = {
+        "user_id": str(test_user["id"]),
+        "sso_active_sps": active_sps,
+    }
+
+    mocker.patch(f"{AUTH_LOGOUT}.log_event")
+    mocker.patch(
+        "services.service_providers.slo.propagate_logout_to_sps",
+        side_effect=Exception("Propagation boom"),
+    )
+    mocker.patch("starlette.requests.Request.session", mock_session)
+
+    client = TestClient(app)
+    response = client.post("/logout", follow_redirects=False)
+
+    # Logout should still succeed
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
 def test_set_password_logs_event(test_tenant, mocker):
     """Test that setting password logs an event."""
     from datetime import UTC, datetime

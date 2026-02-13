@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML IdP: Single Logout (SLO) for Downstream SPs
+
+**Status:** Complete
+
+**Resolution:** Full SLO implementation across 4 phases. Added `slo_url` column to `service_providers` with metadata extraction and admin UI. IdP metadata now advertises `SingleLogoutService` endpoints. SSO assertions include `SessionIndex` for session correlation. SP-initiated SLO handles incoming `LogoutRequest` at `/saml/idp/slo` (GET and POST), clears the session, and returns a signed `LogoutResponse`. IdP-initiated SLO propagates `LogoutRequest` to all downstream SPs with active sessions when a user signs out (best-effort, non-blocking). New `slo_sp_initiated` and `slo_idp_propagated` event types for audit trail.
+
+**Acceptance Criteria:**
+
+- [x] Add `SingleLogoutService` element to IdP metadata (HTTP-Redirect and HTTP-POST bindings)
+- [x] SLO URL: `{base_url}/saml/idp/slo`
+- [x] Handle incoming LogoutRequest at `/saml/idp/slo` (GET and POST)
+- [x] Validate LogoutRequest (issuer is a registered SP)
+- [x] Terminate user's WeftId session
+- [x] Return LogoutResponse to SP's SLO URL
+- [x] Event log entry for SLO events
+- [x] When user signs out from WeftId, send LogoutRequest to all SPs with active sessions
+- [x] Track which SPs have active SSO sessions per user (session cookie)
+- [x] Best-effort delivery (don't block logout if an SP is unreachable)
+- [x] Store SLO URL per SP (from metadata import or manual entry)
+- [x] SP detail page shows SLO URL
+
+---
+
 ## Group Membership UX Redesign
 
 **Status:** Complete

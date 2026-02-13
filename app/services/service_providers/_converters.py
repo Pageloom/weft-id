@@ -15,6 +15,7 @@ def _row_to_config(row: dict) -> SPConfig:
         description=row.get("description"),
         entity_id=row["entity_id"],
         acs_url=row["acs_url"],
+        slo_url=row.get("slo_url"),
         certificate_pem=row.get("certificate_pem"),
         nameid_format=row["nameid_format"],
         enabled=row.get("enabled", True),

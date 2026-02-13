@@ -152,6 +152,7 @@ def get_idp_metadata_url(
         metadata_url=f"{base_url}/saml/idp/metadata",
         entity_id=f"{base_url}/saml/idp/metadata",
         sso_url=f"{base_url}/saml/idp/sso",
+        slo_url=f"{base_url}/saml/idp/slo",
     )
 
 

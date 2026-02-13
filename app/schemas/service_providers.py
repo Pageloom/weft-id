@@ -16,6 +16,7 @@ class SPCreate(BaseModel):
     entity_id: str = Field(..., min_length=1)
     acs_url: str = Field(..., min_length=1)
     description: str | None = None
+    slo_url: str | None = None
 
 
 class SPMetadataImportXML(BaseModel):
@@ -38,6 +39,7 @@ class SPUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     acs_url: str | None = Field(None, min_length=1)
+    slo_url: str | None = Field(None, min_length=1)
 
 
 # ============================================================================
@@ -53,6 +55,7 @@ class SPConfig(BaseModel):
     description: str | None = None
     entity_id: str
     acs_url: str
+    slo_url: str | None = None
     certificate_pem: str | None = None
     nameid_format: str
     enabled: bool = True
@@ -86,6 +89,7 @@ class IdPMetadataInfo(BaseModel):
     metadata_url: str
     entity_id: str
     sso_url: str
+    slo_url: str
 
 
 # ============================================================================

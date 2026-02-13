@@ -71,11 +71,28 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
     if nameid_elem is not None and nameid_elem.text:
         nameid_format = nameid_elem.text.strip()
 
+    # Extract SingleLogoutService URL (optional)
+    # Prefer HTTP-POST binding, fall back to HTTP-Redirect
+    slo_url = None
+    for sls in sp_descriptor.findall(f"{{{_MD_NS}}}SingleLogoutService"):
+        binding = sls.attrib.get("Binding", "")
+        location = sls.attrib.get("Location")
+        if location and "HTTP-POST" in binding:
+            slo_url = location
+            break
+    if not slo_url:
+        for sls in sp_descriptor.findall(f"{{{_MD_NS}}}SingleLogoutService"):
+            location = sls.attrib.get("Location")
+            if location:
+                slo_url = location
+                break
+
     return {
         "entity_id": entity_id,
         "acs_url": acs_url,
         "certificate_pem": certificate_pem,
         "nameid_format": nameid_format,
+        "slo_url": slo_url,
     }
 
 
@@ -83,6 +100,7 @@ def generate_idp_metadata_xml(
     entity_id: str,
     sso_url: str,
     certificate_pem: str,
+    slo_url: str | None = None,
 ) -> str:
     """Generate SAML IdP metadata XML for downstream SPs to consume.
 
@@ -90,6 +108,7 @@ def generate_idp_metadata_xml(
         entity_id: IdP entity ID (metadata URL)
         sso_url: Single Sign-On service URL
         certificate_pem: PEM-encoded IdP signing certificate
+        slo_url: Optional Single Logout service URL
 
     Returns:
         XML metadata string
@@ -97,6 +116,16 @@ def generate_idp_metadata_xml(
     # Extract the raw certificate data (without PEM headers)
     cert_lines = certificate_pem.strip().split("\n")
     cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
+
+    slo_elements = ""
+    if slo_url:
+        slo_elements = f"""
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="{slo_url}" />
+    <md:SingleLogoutService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="{slo_url}" />"""
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
@@ -112,7 +141,7 @@ def generate_idp_metadata_xml(
           <ds:X509Certificate>{cert_data}</ds:X509Certificate>
         </ds:X509Data>
       </ds:KeyInfo>
-    </md:KeyDescriptor>
+    </md:KeyDescriptor>{slo_elements}
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
     <md:SingleSignOnService

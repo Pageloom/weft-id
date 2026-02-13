@@ -65,7 +65,7 @@ def build_sso_response(
     sp_entity_id: str,
     authn_request_id: str | None,
     base_url: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Build a signed SAML Response for an SSO assertion.
 
     Args:
@@ -76,7 +76,7 @@ def build_sso_response(
         base_url: Base URL for building entity ID
 
     Returns:
-        Tuple of (base64_encoded_response, acs_url)
+        Tuple of (base64_encoded_response, acs_url, session_index)
 
     Raises:
         NotFoundError: If SP or signing certificate not found
@@ -137,7 +137,7 @@ def build_sso_response(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     )
 
-    saml_response_b64 = build_saml_response(
+    saml_response_b64, session_index = build_saml_response(
         issuer_entity_id=issuer_entity_id,
         sp_entity_id=sp_entity_id,
         sp_acs_url=sp_row["acs_url"],
@@ -162,4 +162,4 @@ def build_sso_response(
         },
     )
 
-    return saml_response_b64, sp_row["acs_url"]
+    return saml_response_b64, sp_row["acs_url"], session_index

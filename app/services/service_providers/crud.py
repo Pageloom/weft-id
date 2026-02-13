@@ -100,6 +100,7 @@ def _create_sp_from_parsed_metadata(
             "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
         ),
         metadata_xml=metadata_xml,
+        slo_url=parsed.get("slo_url"),
         created_by=requesting_user["id"],
     )
 
@@ -228,6 +229,7 @@ def create_service_provider(
         acs_url=data.acs_url,
         created_by=requesting_user["id"],
         description=data.description,
+        slo_url=data.slo_url,
     )
 
     if row is None:
@@ -363,6 +365,8 @@ def update_service_provider(
         update_fields["description"] = data.description
     if data.acs_url is not None:
         update_fields["acs_url"] = data.acs_url
+    if data.slo_url is not None:
+        update_fields["slo_url"] = data.slo_url
 
     if not update_fields:
         raise ValidationError(

@@ -178,6 +178,7 @@ class TestCSRFRouteCoverage:
             "/api/": "API routes use Bearer token authentication",
             "/saml/acs": "SAML Assertion Consumer Service receives POST from external IdPs",
             "/saml/idp/sso": "SAML IdP SSO endpoint receives POST from external SPs",
+            "/saml/idp/slo": "SAML IdP SLO endpoint receives POST from external SPs",
             "/oauth2/token": "OAuth2 token endpoint is called by OAuth clients",
         }
 

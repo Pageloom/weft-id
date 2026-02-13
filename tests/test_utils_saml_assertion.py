@@ -56,7 +56,7 @@ def _decode_response(b64_response: str) -> etree._Element:
 class TestBuildSamlResponse:
     def test_returns_valid_base64(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -73,7 +73,7 @@ class TestBuildSamlResponse:
 
     def test_response_structure(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -104,7 +104,7 @@ class TestBuildSamlResponse:
 
     def test_assertion_issuer(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -125,7 +125,7 @@ class TestBuildSamlResponse:
 
     def test_name_id(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -145,7 +145,7 @@ class TestBuildSamlResponse:
 
     def test_audience_restriction(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -163,7 +163,7 @@ class TestBuildSamlResponse:
 
     def test_authn_statement_exists(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -182,7 +182,7 @@ class TestBuildSamlResponse:
 
     def test_attribute_values(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -210,7 +210,7 @@ class TestBuildSamlResponse:
 
     def test_in_response_to_present_when_provided(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -230,7 +230,7 @@ class TestBuildSamlResponse:
 
     def test_in_response_to_absent_when_none(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -249,7 +249,7 @@ class TestBuildSamlResponse:
 
     def test_not_on_or_after_is_in_future(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -270,7 +270,7 @@ class TestBuildSamlResponse:
 
     def test_issue_instant_is_utc(self, signing_keys):
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -301,7 +301,7 @@ class TestSignatureVerification:
     def test_signature_is_valid(self, signing_keys):
         """Verify the Assertion signature round-trips correctly."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -333,7 +333,7 @@ class TestSignatureVerification:
     def test_uses_rsa_sha256(self, signing_keys):
         """Verify that RSA-SHA256 is used for signing."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -352,7 +352,7 @@ class TestSignatureVerification:
     def test_uses_enveloped_transform(self, signing_keys):
         """Verify enveloped signature transform is used."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -374,7 +374,7 @@ class TestSignatureVerification:
     def test_uses_exclusive_c14n(self, signing_keys):
         """Verify Exclusive C14N canonicalization is used."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -395,7 +395,7 @@ class TestSignatureVerification:
     def test_x509_certificate_included(self, signing_keys):
         """Verify the signing certificate is included in the Signature."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,
@@ -415,7 +415,7 @@ class TestSignatureVerification:
     def test_signature_position_after_issuer(self, signing_keys):
         """Signature should be the second child of Assertion (after Issuer)."""
         cert_pem, key_pem = signing_keys
-        result = build_saml_response(
+        result, _ = build_saml_response(
             issuer_entity_id=_ISSUER,
             sp_entity_id=_SP_ENTITY_ID,
             sp_acs_url=_SP_ACS_URL,

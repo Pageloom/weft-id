@@ -71,8 +71,8 @@ class TestListServiceProviders:
         row = _make_sp_row(tenant_id=tenant_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row]
 
@@ -89,8 +89,8 @@ class TestListServiceProviders:
         requesting_user = make_requesting_user(role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = []
 
@@ -136,8 +136,8 @@ class TestGetServiceProvider:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = row
 
@@ -153,8 +153,8 @@ class TestGetServiceProvider:
         requesting_user = make_requesting_user(role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = None
 
@@ -192,8 +192,8 @@ class TestCreateServiceProvider:
         )
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
             mock_db.service_providers.create_service_provider.return_value = row
@@ -217,7 +217,7 @@ class TestCreateServiceProvider:
             acs_url="https://existing.example.com/acs",
         )
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.crud.database") as mock_db:
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
                 "id": str(uuid4())
             }
@@ -237,7 +237,7 @@ class TestCreateServiceProvider:
             acs_url="https://fail.example.com/acs",
         )
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.crud.database") as mock_db:
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
             mock_db.service_providers.create_service_provider.return_value = None
 
@@ -259,8 +259,8 @@ class TestCreateServiceProvider:
         row = _make_sp_row(tenant_id=tenant_id, name="Logged App")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
             mock_db.service_providers.create_service_provider.return_value = row
@@ -300,8 +300,8 @@ class TestImportSPFromMetadataXML:
         )
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
@@ -343,8 +343,8 @@ class TestImportSPFromMetadataXML:
         row = _make_sp_row(tenant_id=tenant_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
@@ -381,8 +381,8 @@ class TestImportSPFromMetadataURL:
         row = _make_sp_row(tenant_id=tenant_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -429,8 +429,8 @@ class TestImportSPFromMetadataURL:
         row = _make_sp_row(tenant_id=tenant_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -468,8 +468,8 @@ class TestDeleteServiceProvider:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = row
             mock_db.service_providers.delete_service_provider.return_value = 1
@@ -489,7 +489,7 @@ class TestDeleteServiceProvider:
 
         requesting_user = make_requesting_user(role="super_admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.crud.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -519,7 +519,7 @@ class TestGetTenantIdPMetadataXML:
 
         tenant_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.saml.get_sp_certificate.return_value = {
                 "certificate_pem": SAMPLE_CERT_PEM,
             }
@@ -536,7 +536,7 @@ class TestGetTenantIdPMetadataXML:
 
         tenant_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.saml.get_sp_certificate.return_value = None
 
             with pytest.raises(NotFoundError, match="IdP certificate not configured"):
@@ -548,7 +548,7 @@ class TestGetTenantIdPMetadataXML:
 
         tenant_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.saml.get_sp_certificate.return_value = {
                 "certificate_pem": SAMPLE_CERT_PEM,
             }
@@ -563,7 +563,7 @@ class TestGetTenantIdPMetadataXML:
 
         tenant_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.saml.get_sp_certificate.return_value = {
                 "certificate_pem": SAMPLE_CERT_PEM,
             }
@@ -597,8 +597,8 @@ class TestCreateSPGeneratesSigningCert:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
             mock_db.service_providers.create_service_provider.return_value = row
@@ -633,8 +633,8 @@ class TestImportXMLGeneratesSigningCert:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
@@ -671,8 +671,8 @@ class TestImportURLGeneratesSigningCert:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -710,8 +710,8 @@ class TestGetSPSigningCertificate:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
@@ -734,8 +734,8 @@ class TestGetSPSigningCertificate:
         requesting_user = make_requesting_user(role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = None
 
@@ -751,8 +751,8 @@ class TestGetSPSigningCertificate:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
@@ -789,8 +789,8 @@ class TestRotateSPSigningCertificate:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
@@ -819,7 +819,7 @@ class TestRotateSPSigningCertificate:
 
         requesting_user = make_requesting_user(role="super_admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.signing_certs.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -833,7 +833,7 @@ class TestRotateSPSigningCertificate:
         sp_id = str(uuid4())
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.signing_certs.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -867,7 +867,7 @@ class TestGetSPIdPMetadataXML:
         tenant_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -888,7 +888,7 @@ class TestGetSPIdPMetadataXML:
         tenant_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -908,7 +908,7 @@ class TestGetSPIdPMetadataXML:
 
         tenant_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -923,7 +923,7 @@ class TestGetSPIdPMetadataXML:
         tenant_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.metadata.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -953,8 +953,8 @@ class TestListSPCertEnrichment:
         cert_expires = datetime(2036, 1, 1, tzinfo=UTC)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row]
             mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
@@ -974,8 +974,8 @@ class TestListSPCertEnrichment:
         row = _make_sp_row(tenant_id=tenant_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row]
             mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
@@ -1006,7 +1006,7 @@ class TestImportSPFromMetadataXMLDuplicate:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.crud.database") as mock_db,
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
@@ -1063,7 +1063,7 @@ class TestImportSPFromMetadataURLDuplicate:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
+            patch("services.service_providers.crud.database") as mock_db,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -1093,8 +1093,8 @@ class TestGetSPMetadataURLInfoNotFound:
         requesting_user = make_requesting_user(role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = None
 
@@ -1111,8 +1111,8 @@ class TestGetSPMetadataURLInfoNotFound:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.signing_certs.database") as mock_db,
+            patch("services.service_providers.signing_certs.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id

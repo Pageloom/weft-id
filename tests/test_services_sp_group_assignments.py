@@ -123,8 +123,8 @@ class TestListSPGroupAssignments:
         assignment_row = _make_assignment_row(sp_id=sp_id, group_id=group_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.list_assignments_for_sp.return_value = [assignment_row]
@@ -146,8 +146,8 @@ class TestListSPGroupAssignments:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.list_assignments_for_sp.return_value = []
@@ -173,8 +173,8 @@ class TestListSPGroupAssignments:
         requesting_user = make_requesting_user(role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.service_providers.get_service_provider.return_value = None
 
@@ -190,8 +190,8 @@ class TestListSPGroupAssignments:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity") as mock_track,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
@@ -230,8 +230,8 @@ class TestAssignSPToGroup:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event"),
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.groups.get_group_by_id.return_value = group_row
@@ -250,7 +250,7 @@ class TestAssignSPToGroup:
 
         requesting_user = make_requesting_user(role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -264,7 +264,7 @@ class TestAssignSPToGroup:
         sp_id = str(uuid4())
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -282,7 +282,7 @@ class TestAssignSPToGroup:
         group_id = str(uuid4())
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -313,8 +313,8 @@ class TestAssignSPToGroup:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.groups.get_group_by_id.return_value = group_row
@@ -359,8 +359,8 @@ class TestRemoveSPGroupAssignment:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="My App")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event"),
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.delete_assignment.return_value = 1
@@ -377,7 +377,7 @@ class TestRemoveSPGroupAssignment:
 
         requesting_user = make_requesting_user(role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -391,7 +391,7 @@ class TestRemoveSPGroupAssignment:
         sp_id = str(uuid4())
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
             )
@@ -411,8 +411,8 @@ class TestRemoveSPGroupAssignment:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="My App")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.delete_assignment.return_value = 1
@@ -455,8 +455,8 @@ class TestBulkAssignSPToGroups:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="My App")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event"),
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.bulk_create_assignments.return_value = 3
@@ -478,7 +478,7 @@ class TestBulkAssignSPToGroups:
 
         requesting_user = make_requesting_user(role="admin")
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -495,8 +495,8 @@ class TestBulkAssignSPToGroups:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, name="My App")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = sp_row
             mock_db.sp_group_assignments.bulk_create_assignments.return_value = 2
@@ -520,8 +520,8 @@ class TestBulkAssignSPToGroups:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event") as mock_log,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
                 tenant_id=tenant_id, sp_id=sp_id
@@ -565,8 +565,8 @@ class TestListGroupSPAssignments:
         )
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.groups.get_group_by_id.return_value = group_row
             mock_db.sp_group_assignments.list_assignments_for_group.return_value = [assignment_row]
@@ -585,8 +585,8 @@ class TestListGroupSPAssignments:
         requesting_user = make_requesting_user(role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.groups.get_group_by_id.return_value = None
 
@@ -611,8 +611,8 @@ class TestListGroupSPAssignments:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity") as mock_track,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.groups.get_group_by_id.return_value = _make_group_row(
                 tenant_id=tenant_id, group_id=group_id
@@ -666,7 +666,7 @@ class TestListAvailableGroupsForSP:
             _make_assignment_row(sp_id=sp_id, group_id=group_b_id),
         ]
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.groups.list_groups.return_value = all_groups
             mock_db.sp_group_assignments.list_assignments_for_sp.return_value = assigned_rows
 
@@ -694,7 +694,7 @@ class TestListAvailableGroupsForSP:
             _make_assignment_row(sp_id=sp_id, group_id=group_id),
         ]
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.groups.list_groups.return_value = all_groups
             mock_db.sp_group_assignments.list_assignments_for_sp.return_value = assigned_rows
 
@@ -720,8 +720,8 @@ class TestListAvailableGroupsForSP:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity") as mock_track,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.groups.list_groups.return_value = []
             mock_db.sp_group_assignments.list_assignments_for_sp.return_value = []
@@ -747,7 +747,7 @@ class TestCheckUserSPAccess:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.sp_group_assignments.user_can_access_sp.return_value = True
 
             result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
@@ -765,7 +765,7 @@ class TestCheckUserSPAccess:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.sp_group_assignments.user_can_access_sp.return_value = False
 
             result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
@@ -795,7 +795,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.sp_group_assignments.user_can_access_sp.return_value = True
 
             result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
@@ -813,7 +813,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             # DB query joins group_lineage, so child membership resolves to True
             mock_db.sp_group_assignments.user_can_access_sp.return_value = True
 
@@ -829,7 +829,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             # Deep hierarchy: grandchild membership resolves via closure table
             mock_db.sp_group_assignments.user_can_access_sp.return_value = True
 
@@ -845,7 +845,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             mock_db.sp_group_assignments.user_can_access_sp.return_value = False
 
             result = sp_service.check_user_sp_access(tenant_id, user_id, sp_id)
@@ -860,7 +860,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             # User's group has no lineage relationship to the assigned group
             mock_db.sp_group_assignments.user_can_access_sp.return_value = False
 
@@ -880,8 +880,8 @@ class TestCheckUserSPAccessScenarios:
         sp_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.log_event"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.log_event"),
         ):
             # Step 1: remove the group assignment
             mock_db.service_providers.get_service_provider.return_value = sp_row
@@ -904,7 +904,7 @@ class TestCheckUserSPAccessScenarios:
         user_id = str(uuid4())
         sp_id = str(uuid4())
 
-        with patch("services.service_providers.database") as mock_db:
+        with patch("services.service_providers.group_assignments.database") as mock_db:
             # Group is still assigned to SP, but user is no longer a member
             mock_db.sp_group_assignments.user_can_access_sp.return_value = False
 
@@ -931,8 +931,8 @@ class TestListSPAssignmentCounts:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row]
             mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {sp_id: 5}
@@ -952,8 +952,8 @@ class TestListSPAssignmentCounts:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row]
             mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
@@ -975,8 +975,8 @@ class TestListSPAssignmentCounts:
         row_2 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_2, name="App 2")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row_1, row_2]
             mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {
@@ -1002,8 +1002,8 @@ class TestListSPAssignmentCounts:
         row_2 = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id_2, name="Unlisted")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = [row_1, row_2]
             # Only sp_id_1 in the count map
@@ -1023,8 +1023,8 @@ class TestListSPAssignmentCounts:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
         ):
             mock_db.service_providers.list_service_providers.return_value = []
             mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
@@ -1060,8 +1060,8 @@ class TestGetUserAccessibleApps:
         ]
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
 
@@ -1080,8 +1080,8 @@ class TestGetUserAccessibleApps:
         requesting_user = make_requesting_user(role="user")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
 
@@ -1098,8 +1098,8 @@ class TestGetUserAccessibleApps:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="user")
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity") as mock_track,
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
 
@@ -1115,8 +1115,8 @@ class TestGetUserAccessibleApps:
             requesting_user = make_requesting_user(role=role)
 
             with (
-                patch("services.service_providers.database") as mock_db,
-                patch("services.service_providers.track_activity"),
+                patch("services.service_providers.group_assignments.database") as mock_db,
+                patch("services.service_providers.group_assignments.track_activity"),
             ):
                 mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = []
 
@@ -1146,8 +1146,8 @@ class TestGetUserAccessibleAppsExtended:
         ]
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
 
@@ -1166,8 +1166,8 @@ class TestGetUserAccessibleAppsExtended:
         app_rows = [_make_app_row(sp_id=sp_id, name="Shared App")]
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
 
@@ -1192,8 +1192,8 @@ class TestGetUserAccessibleAppsExtended:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
 
@@ -1218,8 +1218,8 @@ class TestGetUserAccessibleAppsExtended:
         }
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = [app_row]
 
@@ -1240,8 +1240,8 @@ class TestGetUserAccessibleAppsExtended:
         ]
 
         with (
-            patch("services.service_providers.database") as mock_db,
-            patch("services.service_providers.track_activity"),
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
         ):
             mock_db.sp_group_assignments.get_accessible_sps_for_user.return_value = app_rows
 

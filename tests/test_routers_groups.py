@@ -1,4 +1,4 @@
-"""Tests for routers/groups.py endpoints (frontend group management)."""
+"""Tests for routers/groups/ package endpoints (frontend group management)."""
 
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
@@ -70,8 +70,12 @@ def _make_relationship_list(items=None, list_type="parents"):
     return GroupChildrenList(items=items or [], total=len(items) if items else 0)
 
 
-# Module path constant for cleaner patch targets
-GROUPS_MODULE = "routers.groups"
+# Module path constants for patch targets (one per sub-module)
+LISTING_MODULE = "routers.groups.listing"
+CREATION_MODULE = "routers.groups.creation"
+DETAIL_MODULE = "routers.groups.detail"
+MEMBERS_MODULE = "routers.groups.members"
+RELATIONSHIPS_MODULE = "routers.groups.relationships"
 
 
 # =============================================================================
@@ -94,7 +98,7 @@ def test_groups_index_fallback_when_no_children(test_admin_user, override_auth, 
     """Test groups index falls back to /admin when no accessible children."""
     override_auth(test_admin_user, level="admin")
 
-    mock_first = mocker.patch(f"{GROUPS_MODULE}.get_first_accessible_child")
+    mock_first = mocker.patch(f"{LISTING_MODULE}.get_first_accessible_child")
     mock_first.return_value = None
 
     client = TestClient(app)
@@ -113,9 +117,9 @@ def test_groups_list_renders(test_admin_user, override_auth, mocker):
     """Test groups list page renders successfully."""
     override_auth(test_admin_user, level="admin")
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_ctx = mocker.patch(f"{LISTING_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{LISTING_MODULE}.templates.TemplateResponse")
 
     mock_list.return_value = _make_group_list_response()
     mock_ctx.return_value = {"request": MagicMock()}
@@ -135,9 +139,9 @@ def test_groups_list_with_search(test_admin_user, override_auth, mocker):
     """Test groups list page with search parameter."""
     override_auth(test_admin_user, level="admin")
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_ctx = mocker.patch(f"{LISTING_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{LISTING_MODULE}.templates.TemplateResponse")
 
     mock_list.return_value = _make_group_list_response()
     mock_ctx.return_value = {"request": MagicMock()}
@@ -155,9 +159,9 @@ def test_groups_list_with_pagination(test_admin_user, override_auth, mocker):
     """Test groups list page with pagination parameters."""
     override_auth(test_admin_user, level="admin")
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_ctx = mocker.patch(f"{LISTING_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{LISTING_MODULE}.templates.TemplateResponse")
 
     mock_list.return_value = _make_group_list_response()
     mock_ctx.return_value = {"request": MagicMock()}
@@ -181,9 +185,9 @@ def test_groups_list_with_groups(test_admin_user, override_auth, mocker):
         _make_group_summary(name="Sales"),
     ]
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_ctx = mocker.patch(f"{LISTING_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{LISTING_MODULE}.templates.TemplateResponse")
 
     mock_list.return_value = _make_group_list_response(items=mock_groups, total=2)
     mock_ctx.return_value = {"request": MagicMock()}
@@ -201,9 +205,9 @@ def test_groups_list_shows_success_message(test_admin_user, override_auth, mocke
     """Test groups list page shows success query param."""
     override_auth(test_admin_user, level="admin")
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_ctx = mocker.patch(f"{LISTING_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{LISTING_MODULE}.templates.TemplateResponse")
 
     mock_list.return_value = _make_group_list_response()
     mock_ctx.return_value = {"request": MagicMock()}
@@ -223,8 +227,8 @@ def test_groups_list_service_error(test_admin_user, override_auth, mocker):
 
     override_auth(test_admin_user, level="admin")
 
-    mock_list = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_groups")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_list = mocker.patch(f"{LISTING_MODULE}.groups_service.list_groups")
+    mock_error = mocker.patch(f"{LISTING_MODULE}.render_error_page")
 
     mock_list.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -263,8 +267,8 @@ def test_new_group_form_renders(test_admin_user, override_auth, mocker):
     """Test new group form renders successfully."""
     override_auth(test_admin_user, level="admin")
 
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_ctx = mocker.patch(f"{CREATION_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{CREATION_MODULE}.templates.TemplateResponse")
 
     mock_ctx.return_value = {"request": MagicMock()}
     mock_tmpl.return_value = HTMLResponse(content="<html>new group</html>")
@@ -282,8 +286,8 @@ def test_new_group_form_preserves_values_on_error(test_admin_user, override_auth
     """Test new group form preserves values when redirected with error."""
     override_auth(test_admin_user, level="admin")
 
-    mock_ctx = mocker.patch(f"{GROUPS_MODULE}.get_template_context")
-    mock_tmpl = mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse")
+    mock_ctx = mocker.patch(f"{CREATION_MODULE}.get_template_context")
+    mock_tmpl = mocker.patch(f"{CREATION_MODULE}.templates.TemplateResponse")
 
     mock_ctx.return_value = {"request": MagicMock()}
     mock_tmpl.return_value = HTMLResponse(content="<html>new group</html>")
@@ -312,7 +316,7 @@ def test_create_group_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
 
-    mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
+    mock_create = mocker.patch(f"{CREATION_MODULE}.groups_service.create_group")
     mock_create.return_value = mock_group
 
     client = TestClient(app)
@@ -335,7 +339,7 @@ def test_create_group_without_description(test_admin_user, override_auth, mocker
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Sales")
 
-    mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
+    mock_create = mocker.patch(f"{CREATION_MODULE}.groups_service.create_group")
     mock_create.return_value = mock_group
 
     client = TestClient(app)
@@ -355,7 +359,7 @@ def test_create_group_validation_error(test_admin_user, override_auth, mocker):
 
     override_auth(test_admin_user, level="admin")
 
-    mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
+    mock_create = mocker.patch(f"{CREATION_MODULE}.groups_service.create_group")
     mock_create.side_effect = ValidationError("Name too short", code="name_too_short")
 
     client = TestClient(app)
@@ -376,7 +380,7 @@ def test_create_group_conflict_error(test_admin_user, override_auth, mocker):
 
     override_auth(test_admin_user, level="admin")
 
-    mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
+    mock_create = mocker.patch(f"{CREATION_MODULE}.groups_service.create_group")
     mock_create.side_effect = ConflictError("Group already exists", code="duplicate_name")
 
     client = TestClient(app)
@@ -396,8 +400,8 @@ def test_create_group_service_error(test_admin_user, override_auth, mocker):
 
     override_auth(test_admin_user, level="admin")
 
-    mock_create = mocker.patch(f"{GROUPS_MODULE}.groups_service.create_group")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_create = mocker.patch(f"{CREATION_MODULE}.groups_service.create_group")
+    mock_error = mocker.patch(f"{CREATION_MODULE}.render_error_page")
 
     mock_create.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -423,24 +427,24 @@ def test_create_group_service_error(test_admin_user, override_auth, mocker):
 def mock_group_detail_deps(mocker):
     """Fixture to set up common mocks for group detail page."""
     mocks = {
-        "get_group": mocker.patch(f"{GROUPS_MODULE}.groups_service.get_group"),
-        "list_members": mocker.patch(f"{GROUPS_MODULE}.groups_service.list_members"),
-        "list_parents": mocker.patch(f"{GROUPS_MODULE}.groups_service.list_parents"),
-        "list_children": mocker.patch(f"{GROUPS_MODULE}.groups_service.list_children"),
+        "get_group": mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group"),
+        "list_members": mocker.patch(f"{DETAIL_MODULE}.groups_service.list_members"),
+        "list_parents": mocker.patch(f"{DETAIL_MODULE}.groups_service.list_parents"),
+        "list_children": mocker.patch(f"{DETAIL_MODULE}.groups_service.list_children"),
         "list_available_users": mocker.patch(
-            f"{GROUPS_MODULE}.groups_service.list_available_users_for_group"
+            f"{DETAIL_MODULE}.groups_service.list_available_users_for_group"
         ),
         "list_available_parents": mocker.patch(
-            f"{GROUPS_MODULE}.groups_service.list_available_parents"
+            f"{DETAIL_MODULE}.groups_service.list_available_parents"
         ),
         "list_available_children": mocker.patch(
-            f"{GROUPS_MODULE}.groups_service.list_available_children"
+            f"{DETAIL_MODULE}.groups_service.list_available_children"
         ),
         "get_effective_members": mocker.patch(
-            f"{GROUPS_MODULE}.groups_service.get_effective_members"
+            f"{DETAIL_MODULE}.groups_service.get_effective_members"
         ),
-        "get_context": mocker.patch(f"{GROUPS_MODULE}.get_template_context"),
-        "template": mocker.patch(f"{GROUPS_MODULE}.templates.TemplateResponse"),
+        "get_context": mocker.patch(f"{DETAIL_MODULE}.get_template_context"),
+        "template": mocker.patch(f"{DETAIL_MODULE}.templates.TemplateResponse"),
     }
     return mocks
 
@@ -483,8 +487,8 @@ def test_group_detail_not_found(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_get = mocker.patch(f"{GROUPS_MODULE}.groups_service.get_group")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
 
     mock_get.side_effect = NotFoundError("Group not found")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -506,9 +510,9 @@ def test_group_detail_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
 
-    mock_get = mocker.patch(f"{GROUPS_MODULE}.groups_service.get_group")
-    mock_members = mocker.patch(f"{GROUPS_MODULE}.groups_service.list_members")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_members = mocker.patch(f"{DETAIL_MODULE}.groups_service.list_members")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
 
     # get_group succeeds, but list_members raises ServiceError
     mock_get.return_value = mock_group
@@ -563,7 +567,7 @@ def test_update_group_success(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_update = mocker.patch(f"{GROUPS_MODULE}.groups_service.update_group")
+    mock_update = mocker.patch(f"{DETAIL_MODULE}.groups_service.update_group")
     mock_update.return_value = _make_group_detail(group_id=group_id, name="Updated Name")
 
     client = TestClient(app)
@@ -586,7 +590,7 @@ def test_update_group_validation_error(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_update = mocker.patch(f"{GROUPS_MODULE}.groups_service.update_group")
+    mock_update = mocker.patch(f"{DETAIL_MODULE}.groups_service.update_group")
     # Service can reject names for other reasons (e.g., invalid characters)
     mock_update.side_effect = ValidationError("Invalid name format", code="invalid_name")
 
@@ -609,7 +613,7 @@ def test_update_group_not_found(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_update = mocker.patch(f"{GROUPS_MODULE}.groups_service.update_group")
+    mock_update = mocker.patch(f"{DETAIL_MODULE}.groups_service.update_group")
     mock_update.side_effect = NotFoundError("Group not found", code="group_not_found")
 
     client = TestClient(app)
@@ -631,7 +635,7 @@ def test_update_group_conflict_error(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_update = mocker.patch(f"{GROUPS_MODULE}.groups_service.update_group")
+    mock_update = mocker.patch(f"{DETAIL_MODULE}.groups_service.update_group")
     mock_update.side_effect = ConflictError("Name already exists", code="duplicate_name")
 
     client = TestClient(app)
@@ -653,8 +657,8 @@ def test_update_group_service_error(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_update = mocker.patch(f"{GROUPS_MODULE}.groups_service.update_group")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_update = mocker.patch(f"{DETAIL_MODULE}.groups_service.update_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
 
     mock_update.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -681,7 +685,7 @@ def test_delete_group_success(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_delete = mocker.patch(f"{GROUPS_MODULE}.groups_service.delete_group")
+    mock_delete = mocker.patch(f"{DETAIL_MODULE}.groups_service.delete_group")
     mock_delete.return_value = None
 
     client = TestClient(app)
@@ -703,7 +707,7 @@ def test_delete_group_not_found(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_delete = mocker.patch(f"{GROUPS_MODULE}.groups_service.delete_group")
+    mock_delete = mocker.patch(f"{DETAIL_MODULE}.groups_service.delete_group")
     mock_delete.side_effect = NotFoundError("Group not found")
 
     client = TestClient(app)
@@ -725,8 +729,8 @@ def test_delete_group_service_error(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_delete = mocker.patch(f"{GROUPS_MODULE}.groups_service.delete_group")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_delete = mocker.patch(f"{DETAIL_MODULE}.groups_service.delete_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
 
     mock_delete.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -751,7 +755,7 @@ def test_add_member_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_member")
+    mock_add = mocker.patch(f"{MEMBERS_MODULE}.groups_service.add_member")
     mock_add.return_value = None
 
     client = TestClient(app)
@@ -776,7 +780,7 @@ def test_add_member_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_member")
+    mock_add = mocker.patch(f"{MEMBERS_MODULE}.groups_service.add_member")
     mock_add.side_effect = NotFoundError("Group not found", code="group_not_found")
 
     client = TestClient(app)
@@ -799,7 +803,7 @@ def test_add_member_user_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_member")
+    mock_add = mocker.patch(f"{MEMBERS_MODULE}.groups_service.add_member")
     mock_add.side_effect = NotFoundError("User not found", code="user_not_found")
 
     client = TestClient(app)
@@ -822,7 +826,7 @@ def test_add_member_already_member(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_member")
+    mock_add = mocker.patch(f"{MEMBERS_MODULE}.groups_service.add_member")
     mock_add.side_effect = ConflictError("Already a member", code="already_member")
 
     client = TestClient(app)
@@ -845,8 +849,8 @@ def test_add_member_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_member")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_add = mocker.patch(f"{MEMBERS_MODULE}.groups_service.add_member")
+    mock_error = mocker.patch(f"{MEMBERS_MODULE}.render_error_page")
 
     mock_add.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -869,7 +873,7 @@ def test_remove_member_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_member")
+    mock_remove = mocker.patch(f"{MEMBERS_MODULE}.groups_service.remove_member")
     mock_remove.return_value = None
 
     client = TestClient(app)
@@ -892,7 +896,7 @@ def test_remove_member_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_member")
+    mock_remove = mocker.patch(f"{MEMBERS_MODULE}.groups_service.remove_member")
     mock_remove.side_effect = NotFoundError("Not a member", code="not_a_member")
 
     client = TestClient(app)
@@ -914,8 +918,8 @@ def test_remove_member_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_member")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_remove = mocker.patch(f"{MEMBERS_MODULE}.groups_service.remove_member")
+    mock_error = mocker.patch(f"{MEMBERS_MODULE}.render_error_page")
 
     mock_remove.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -940,7 +944,7 @@ def test_add_child_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.return_value = None
 
     client = TestClient(app)
@@ -965,7 +969,7 @@ def test_add_child_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = NotFoundError("Child group not found", code="child_not_found")
 
     client = TestClient(app)
@@ -988,7 +992,7 @@ def test_add_child_would_create_cycle(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = ValidationError("Would create cycle", code="would_create_cycle")
 
     client = TestClient(app)
@@ -1011,7 +1015,7 @@ def test_add_child_already_exists(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = ConflictError("Already a child", code="relationship_exists")
 
     client = TestClient(app)
@@ -1034,8 +1038,8 @@ def test_add_child_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
+    mock_error = mocker.patch(f"{RELATIONSHIPS_MODULE}.render_error_page")
 
     mock_add.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -1058,7 +1062,7 @@ def test_remove_child_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
     mock_remove.return_value = None
 
     client = TestClient(app)
@@ -1081,7 +1085,7 @@ def test_remove_child_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
     mock_remove.side_effect = NotFoundError("Relationship not found", code="relationship_not_found")
 
     client = TestClient(app)
@@ -1103,8 +1107,8 @@ def test_remove_child_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     child_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
+    mock_error = mocker.patch(f"{RELATIONSHIPS_MODULE}.render_error_page")
 
     mock_remove.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -1129,7 +1133,7 @@ def test_add_parent_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.return_value = None
 
     client = TestClient(app)
@@ -1155,7 +1159,7 @@ def test_add_parent_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = NotFoundError("Parent group not found", code="parent_not_found")
 
     client = TestClient(app)
@@ -1178,7 +1182,7 @@ def test_add_parent_would_create_cycle(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = ValidationError("Would create cycle", code="would_create_cycle")
 
     client = TestClient(app)
@@ -1201,7 +1205,7 @@ def test_add_parent_already_exists(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
     mock_add.side_effect = ConflictError("Already a parent", code="relationship_exists")
 
     client = TestClient(app)
@@ -1224,8 +1228,8 @@ def test_add_parent_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_add = mocker.patch(f"{GROUPS_MODULE}.groups_service.add_child")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_add = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.add_child")
+    mock_error = mocker.patch(f"{RELATIONSHIPS_MODULE}.render_error_page")
 
     mock_add.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -1248,7 +1252,7 @@ def test_remove_parent_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
     mock_remove.return_value = None
 
     client = TestClient(app)
@@ -1271,7 +1275,7 @@ def test_remove_parent_not_found(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
     mock_remove.side_effect = NotFoundError("Relationship not found", code="relationship_not_found")
 
     client = TestClient(app)
@@ -1293,8 +1297,8 @@ def test_remove_parent_service_error(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     parent_group_id = str(uuid4())
 
-    mock_remove = mocker.patch(f"{GROUPS_MODULE}.groups_service.remove_child")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
+    mock_error = mocker.patch(f"{RELATIONSHIPS_MODULE}.render_error_page")
 
     mock_remove.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
@@ -1409,7 +1413,7 @@ def test_bulk_add_members_success(test_admin_user, override_auth, mocker):
     group_id = str(uuid4())
     user_ids = [str(uuid4()), str(uuid4())]
 
-    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
     mock_bulk.return_value = 2
 
     client = TestClient(app)
@@ -1433,7 +1437,7 @@ def test_bulk_add_members_not_found(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
     mock_bulk.side_effect = NotFoundError("Group not found", code="group_not_found")
 
     client = TestClient(app)
@@ -1455,7 +1459,7 @@ def test_bulk_add_members_idp_forbidden(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
     mock_bulk.side_effect = ForbiddenError("IdP group", code="idp_group_readonly")
 
     client = TestClient(app)
@@ -1477,8 +1481,8 @@ def test_bulk_add_members_service_error(test_admin_user, override_auth, mocker):
 
     group_id = str(uuid4())
 
-    mock_bulk = mocker.patch(f"{GROUPS_MODULE}.groups_service.bulk_add_members")
-    mock_error = mocker.patch(f"{GROUPS_MODULE}.render_error_page")
+    mock_bulk = mocker.patch(f"{MEMBERS_MODULE}.groups_service.bulk_add_members")
+    mock_error = mocker.patch(f"{MEMBERS_MODULE}.render_error_page")
 
     mock_bulk.side_effect = ServiceError("Database error")
     mock_error.return_value = HTMLResponse(content="<html>error</html>")

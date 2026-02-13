@@ -133,6 +133,66 @@ class TestParseSpLogoutRequest:
         with pytest.raises(ValueError, match="missing ID"):
             parse_sp_logout_request(encoded, "post")
 
+    def test_parse_missing_issuer_element(self):
+        """LogoutRequest without <saml:Issuer> yields issuer=None."""
+        xml = (
+            f'<samlp:LogoutRequest xmlns:samlp="{_SAMLP_NS}"'
+            f' xmlns:saml="{_SAML_NS}"'
+            f' ID="_req_no_issuer" Version="2.0" IssueInstant="2026-01-01T00:00:00Z">'
+            f'<saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">'
+            f"user@example.com</saml:NameID>"
+            f"</samlp:LogoutRequest>"
+        )
+        encoded = _encode_post(xml)
+        result = parse_sp_logout_request(encoded, "post")
+        assert result["issuer"] is None
+        assert result["name_id"] == "user@example.com"
+
+    def test_parse_missing_name_id_element(self):
+        """LogoutRequest without <saml:NameID> yields name_id=None and name_id_format=None."""
+        xml = (
+            f'<samlp:LogoutRequest xmlns:samlp="{_SAMLP_NS}"'
+            f' xmlns:saml="{_SAML_NS}"'
+            f' ID="_req_no_nameid" Version="2.0" IssueInstant="2026-01-01T00:00:00Z">'
+            f"<saml:Issuer>https://sp.example.com</saml:Issuer>"
+            f"</samlp:LogoutRequest>"
+        )
+        encoded = _encode_post(xml)
+        result = parse_sp_logout_request(encoded, "post")
+        assert result["name_id"] is None
+        assert result["name_id_format"] is None
+        assert result["issuer"] == "https://sp.example.com"
+
+    def test_parse_whitespace_only_issuer(self):
+        """Issuer element with only whitespace text yields empty string after strip."""
+        xml = (
+            f'<samlp:LogoutRequest xmlns:samlp="{_SAMLP_NS}"'
+            f' xmlns:saml="{_SAML_NS}"'
+            f' ID="_req_ws_issuer" Version="2.0" IssueInstant="2026-01-01T00:00:00Z">'
+            f"<saml:Issuer>   </saml:Issuer>"
+            f'<saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">'
+            f"user@example.com</saml:NameID>"
+            f"</samlp:LogoutRequest>"
+        )
+        encoded = _encode_post(xml)
+        result = parse_sp_logout_request(encoded, "post")
+        assert result["issuer"] == ""
+
+    def test_parse_whitespace_only_name_id(self):
+        """NameID element with only whitespace text yields empty string after strip."""
+        xml = (
+            f'<samlp:LogoutRequest xmlns:samlp="{_SAMLP_NS}"'
+            f' xmlns:saml="{_SAML_NS}"'
+            f' ID="_req_ws_nameid" Version="2.0" IssueInstant="2026-01-01T00:00:00Z">'
+            f"<saml:Issuer>https://sp.example.com</saml:Issuer>"
+            f'<saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">'
+            f"   </saml:NameID>"
+            f"</samlp:LogoutRequest>"
+        )
+        encoded = _encode_post(xml)
+        result = parse_sp_logout_request(encoded, "post")
+        assert result["name_id"] == ""
+
 
 # ============================================================================
 # build_idp_logout_response

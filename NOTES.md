@@ -2,6 +2,8 @@
 
 Quick reminders to later build out into full backlog items.
 
+- Documentation of the entire app.
+- We need to let group attributes come through to service providers.
 - Rethink from the ground up how to view groups - we want a hiearchical view. And we want a nice big list view within each group of users. And we want a nice big view for app relation..
 - Backoffice funtionality. How do we go about making it easy for someone who decides to host this for
   customers or for sub-organisations?

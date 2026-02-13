@@ -168,6 +168,10 @@ class AvailableUserOption(BaseModel):
     email: str | None = Field(None, description="User's primary email")
     first_name: str = Field(..., description="User's first name")
     last_name: str = Field(..., description="User's last name")
+    role: str = Field("member", description="User's role")
+    is_inactivated: bool = Field(False, description="Whether user is inactivated")
+    is_anonymized: bool = Field(False, description="Whether user is anonymized")
+    last_activity_at: datetime | None = Field(None, description="Last activity timestamp")
 
 
 # ============================================================================
@@ -249,6 +253,7 @@ class GroupMemberDetail(BaseModel):
     is_inactivated: bool = Field(False, description="Whether user is inactivated")
     is_anonymized: bool = Field(False, description="Whether user is anonymized")
     created_at: datetime = Field(..., description="When user joined the group")
+    last_activity_at: datetime | None = Field(None, description="Last activity timestamp")
 
 
 class GroupMemberDetailList(BaseModel):

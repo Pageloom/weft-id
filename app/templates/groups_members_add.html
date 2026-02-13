@@ -63,6 +63,16 @@
             </p>
         </div>
 
+        <!-- Success Message -->
+        {% if success %}
+        <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">
+                {% if success == 'members_added' %}{{ success_count or 0 }} member(s) added successfully.
+                {% else %}Operation completed successfully.{% endif %}
+            </p>
+        </div>
+        {% endif %}
+
         <!-- Search Form -->
         <div class="mb-6">
             <form method="get" action="/admin/groups/{{ group.id }}/members/add" class="flex gap-2">
@@ -164,6 +174,13 @@
         <!-- Add Members Form -->
         <form id="add-members-form" method="post" action="/admin/groups/{{ group.id }}/members/add">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="r_page" value="{{ pagination.page }}">
+            <input type="hidden" name="r_size" value="{{ pagination.page_size }}">
+            <input type="hidden" name="r_sort" value="{{ sort_field }}">
+            <input type="hidden" name="r_order" value="{{ sort_order }}">
+            <input type="hidden" name="r_search" value="{{ search }}">
+            <input type="hidden" name="r_role" value="{{ roles|join(',') }}">
+            <input type="hidden" name="r_status" value="{{ statuses|join(',') }}">
 
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -196,6 +213,7 @@
                             {{ sort_header('email', 'Email') }}
                             {{ sort_header('role', 'Role') }}
                             {{ sort_header('status', 'Status') }}
+                            {{ sort_header('last_activity_at', 'Last Activity') }}
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -208,21 +226,38 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {% if u.is_anonymized %}
+                                        <span class="text-gray-500 dark:text-gray-400 italic">[Anonymized User]</span>
+                                        {% else %}
                                         {{ u.last_name }}, {{ u.first_name }}
+                                        {% endif %}
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ u.email or '' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <!-- Role info not available in AvailableUserOption, skip -->
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                        {% if u.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                                        {% elif u.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                                        {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ u.role }}</span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <!-- Status info not available in AvailableUserOption, skip -->
+                                    {% if u.is_anonymized %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Anonymized</span>
+                                    {% elif u.is_inactivated %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Inactivated</span>
+                                    {% else %}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Active</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {% set rel_activity = fmt_relative(u.last_activity_at) %}
+                                    <span title="{{ rel_activity[1] }}">{{ rel_activity[0] }}</span>
                                 </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                     {% if search %}No users found matching "{{ search }}"{% else %}No available users to add.{% endif %}
                                 </td>
                             </tr>
@@ -348,6 +383,13 @@
             }, { destructive: isDestructive });
         });
     });
+
 })();
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}">
+    WeftUtils.stickyActionBar('bulk-action-bar');
 </script>
 {% endblock %}

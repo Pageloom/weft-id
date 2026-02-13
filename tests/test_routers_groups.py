@@ -883,6 +883,9 @@ def test_add_members_page_renders(test_admin_user, override_auth, mocker):
                 email="available@example.com",
                 first_name="Available",
                 last_name="User",
+                role="member",
+                is_inactivated=False,
+                is_anonymized=False,
             )
         ],
         total=1,
@@ -935,7 +938,7 @@ def test_add_members_page_not_found(test_admin_user, override_auth, mocker):
 
 
 def test_add_members_submit_success(test_admin_user, override_auth, mocker):
-    """Test adding members to a group succeeds."""
+    """Test adding members to a group succeeds and redirects back to add page."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -952,8 +955,10 @@ def test_add_members_submit_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/members" in response.headers["location"]
-    assert "success=members_added" in response.headers["location"]
+    location = response.headers["location"]
+    assert f"/admin/groups/{group_id}/members/add" in location
+    assert "success=members_added" in location
+    assert "count=2" in location
     mock_bulk.assert_called_once()
 
 

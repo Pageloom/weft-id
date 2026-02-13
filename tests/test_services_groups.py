@@ -1963,6 +1963,7 @@ def test_list_members_filtered_success(make_requesting_user):
             "is_inactivated": False,
             "is_anonymized": False,
             "created_at": datetime.now(UTC),
+            "last_activity_at": datetime.now(UTC),
         }
     ]
 
@@ -1990,6 +1991,7 @@ def test_list_members_filtered_success(make_requesting_user):
         assert len(result.items) == 1
         assert result.items[0].email == "user@example.com"
         assert result.items[0].role == "member"
+        assert result.items[0].last_activity_at is not None
         assert result.page == 1
         assert result.limit == 25
         mock_db.groups.search_group_members.assert_called_once()
@@ -2134,6 +2136,10 @@ def test_list_available_users_paginated_success(make_requesting_user):
             "email": "available@example.com",
             "first_name": "Available",
             "last_name": "User",
+            "role": "member",
+            "is_inactivated": False,
+            "is_anonymized": False,
+            "last_activity_at": datetime.now(UTC),
         }
     ]
 
@@ -2156,6 +2162,8 @@ def test_list_available_users_paginated_success(make_requesting_user):
         assert result.total == 1
         assert len(result.items) == 1
         assert result.items[0].email == "available@example.com"
+        assert result.items[0].role == "member"
+        assert result.items[0].last_activity_at is not None
         assert result.page == 1
         assert result.limit == 25
         mock_db.groups.search_available_users.assert_called_once()

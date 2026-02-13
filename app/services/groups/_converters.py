@@ -71,6 +71,7 @@ def _row_to_member_detail(row: dict) -> GroupMemberDetail:
         is_inactivated=row.get("is_inactivated", False),
         is_anonymized=row.get("is_anonymized", False),
         created_at=row["created_at"],
+        last_activity_at=row.get("last_activity_at"),
     )
 
 

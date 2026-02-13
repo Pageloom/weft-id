@@ -4,6 +4,25 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## REFACT-002: service_providers.py exceeds 1100 lines (package split candidate)
+
+**Status:** Resolved (2026-02-13)
+
+**Original Severity:** Medium
+
+**Original Description:**
+`app/services/service_providers.py` was 1129 lines with 26 functions handling 5 distinct concerns: SP CRUD, SSO flow lookups, IdP metadata generation, per-SP signing certificates, and group assignments. Contained duplicate code between import functions and between metadata functions.
+
+**Resolution:**
+Split into `app/services/service_providers/` package with 6 submodules: `_converters.py`, `crud.py`, `sso.py`, `metadata.py`, `signing_certs.py`, `group_assignments.py`. Extracted `_create_sp_from_parsed_metadata()` to deduplicate import functions and `_resolve_idp_certificate()` to deduplicate metadata functions. Updated mock targets in 3 service test files. All 2640 tests pass.
+
+**Files Changed:**
+- New: `app/services/service_providers/__init__.py`, `_converters.py`, `crud.py`, `sso.py`, `metadata.py`, `signing_certs.py`, `group_assignments.py`
+- Deleted: `app/services/service_providers.py`
+- Updated mocks: `tests/test_services_service_providers.py`, `tests/test_services_service_providers_sso.py`, `tests/test_services_sp_group_assignments.py`
+
+---
+
 ## REFACT-001: Dropdown pagination limits silently truncate results
 
 **Status:** Superseded (2026-02-13)

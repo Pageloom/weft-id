@@ -1019,6 +1019,238 @@ class TestSPRemoveGroup:
 
 
 # =============================================================================
+# SP Edit
+# =============================================================================
+
+
+class TestSPEdit:
+    """Tests for SP edit (update) via admin UI."""
+
+    def test_edit_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """All fields submitted, redirects with success=updated."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={
+                    "name": "Updated App",
+                    "description": "New description",
+                    "acs_url": "https://updated.example.com/acs",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=updated" in response.headers["location"]
+
+    def test_edit_partial_fields(self, sp_admin_session, sp_host, sample_sp_config):
+        """Only name submitted (description & acs_url empty), still succeeds."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={"name": "Just Name", "description": "", "acs_url": ""},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=updated" in response.headers["location"]
+
+    def test_edit_no_changes(self, sp_admin_session, sp_host):
+        """All form fields empty, redirects with error=No changes provided."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/edit",
+            data={"name": "", "description": "", "acs_url": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+        assert "No" in response.headers["location"]
+
+    def test_edit_not_found(self, sp_admin_session, sp_host):
+        """SP doesn't exist, redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={"name": "Updated"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_edit_service_error(self, sp_admin_session, sp_host):
+        """Service raises ValidationError, redirects with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=ValidationError(message="Invalid ACS URL"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={"acs_url": "not-a-url"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Enable
+# =============================================================================
+
+
+class TestSPEnable:
+    """Tests for enabling a service provider via admin UI."""
+
+    def test_enable_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Redirects with success=enabled."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/enable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=enabled" in response.headers["location"]
+
+    def test_enable_already_enabled(self, sp_admin_session, sp_host):
+        """Already enabled SP redirects with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            side_effect=ValidationError(message="Service provider is already enabled"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/enable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_enable_not_found(self, sp_admin_session, sp_host):
+        """Non-existent SP redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/enable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Disable
+# =============================================================================
+
+
+class TestSPDisable:
+    """Tests for disabling a service provider via admin UI."""
+
+    def test_disable_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Redirects with success=disabled."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/disable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=disabled" in response.headers["location"]
+
+    def test_disable_already_disabled(self, sp_admin_session, sp_host):
+        """Already disabled SP redirects with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            side_effect=ValidationError(message="Service provider is already disabled"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/disable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_disable_not_found(self, sp_admin_session, sp_host):
+        """Non-existent SP redirects with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/disable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
 # SP Detail Page with Groups
 # =============================================================================
 

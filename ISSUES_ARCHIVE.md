@@ -4,6 +4,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+## REFACT-001: Dropdown pagination limits silently truncate results
+
+**Status:** Superseded (2026-02-13)
+
+**Original Severity:** High
+
+**Original Description:**
+Two dropdown-population functions in `app/services/groups/selection.py` use hardcoded pagination limits (`page_size=100` for users, `page_size=1000` for members) that silently truncate results for larger tenants. Admins cannot assign users beyond the 100-user limit to a group via the UI dropdown.
+
+**Resolution:**
+Superseded by backlog item "Group Membership UX Redesign". Rather than patching the pagination limits, the entire group membership UX will be rebuilt with a dedicated paginated member list page, search, filtering, and a proper add-member interface that replaces the dropdown approach entirely.
+
+**Files Changed:** None (architectural redesign planned)
+
+---
+
 ## ARCH-001: SSO router imports database directly
 
 **Status:** Resolved (2026-02-12)

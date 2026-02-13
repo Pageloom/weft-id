@@ -7,7 +7,7 @@ including import from metadata XML/URL.
 import logging
 
 import database
-from schemas.service_providers import SPConfig, SPCreate, SPListResponse
+from schemas.service_providers import SPConfig, SPCreate, SPListResponse, SPUpdate
 from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
@@ -331,6 +331,172 @@ def import_sp_from_metadata_url(
         method="metadata_url",
         extra_metadata={"metadata_url": metadata_url},
     )
+
+
+def update_service_provider(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    data: SPUpdate,
+) -> SPConfig:
+    """Update an SP's mutable configuration fields.
+
+    Authorization: Requires super_admin role.
+    Logs: service_provider_updated event.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify SP exists
+    existing = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if existing is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    # Build update kwargs from provided (non-None) fields
+    update_fields: dict = {}
+    if data.name is not None:
+        update_fields["name"] = data.name
+    if data.description is not None:
+        update_fields["description"] = data.description
+    if data.acs_url is not None:
+        update_fields["acs_url"] = data.acs_url
+
+    if not update_fields:
+        raise ValidationError(
+            message="At least one field must be provided for update",
+            code="sp_update_no_fields",
+        )
+
+    row = database.service_providers.update_service_provider(tenant_id, sp_id, **update_fields)
+
+    if row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        event_type="service_provider_updated",
+        metadata={"changed_fields": list(update_fields.keys())},
+    )
+
+    config = _row_to_config(row)
+
+    # Enrich with signing cert expiry
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert:
+        config.signing_cert_expires_at = cert["expires_at"]
+
+    return config
+
+
+def enable_service_provider(
+    requesting_user: RequestingUser,
+    sp_id: str,
+) -> SPConfig:
+    """Enable a disabled SP.
+
+    Authorization: Requires super_admin role.
+    Logs: service_provider_enabled event.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if existing is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    if existing.get("enabled", True):
+        raise ValidationError(
+            message="Service provider is already enabled",
+            code="sp_already_enabled",
+        )
+
+    row = database.service_providers.set_service_provider_enabled(tenant_id, sp_id, True)
+
+    if row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        event_type="service_provider_enabled",
+        metadata={"name": row["name"]},
+    )
+
+    config = _row_to_config(row)
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert:
+        config.signing_cert_expires_at = cert["expires_at"]
+
+    return config
+
+
+def disable_service_provider(
+    requesting_user: RequestingUser,
+    sp_id: str,
+) -> SPConfig:
+    """Disable an enabled SP. Disabled SPs reject SSO requests.
+
+    Authorization: Requires super_admin role.
+    Logs: service_provider_disabled event.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if existing is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    if not existing.get("enabled", True):
+        raise ValidationError(
+            message="Service provider is already disabled",
+            code="sp_already_disabled",
+        )
+
+    row = database.service_providers.set_service_provider_enabled(tenant_id, sp_id, False)
+
+    if row is None:
+        raise NotFoundError(
+            message="Service provider not found",
+            code="sp_not_found",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        event_type="service_provider_disabled",
+        metadata={"name": row["name"]},
+    )
+
+    config = _row_to_config(row)
+    cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
+    if cert:
+        config.signing_cert_expires_at = cert["expires_at"]
+
+    return config
 
 
 def delete_service_provider(

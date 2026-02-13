@@ -23,6 +23,8 @@
                     Session Expired
                 {% elif error_type == 'no_pending_sso' %}
                     No Pending Sign-In
+                {% elif error_type == 'sp_disabled' %}
+                    Application Unavailable
                 {% elif error_type == 'unauthorized_user' %}
                     Access Denied
                 {% else %}
@@ -43,6 +45,9 @@
                     Your session has expired. Please try signing in again from the application.
                 {% elif error_type == 'no_pending_sso' %}
                     There is no pending sign-in request. Please try again from the application.
+                {% elif error_type == 'sp_disabled' %}
+                    This application has been temporarily disabled by your administrator.
+                    Please contact your administrator for more information.
                 {% elif error_type == 'unauthorized_user' %}
                     You do not have access to this application. Access is controlled by group membership.
                     Please contact your administrator if you believe you should have access.

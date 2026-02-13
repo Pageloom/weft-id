@@ -91,6 +91,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "group_relationship_deleted": "Group hierarchy relationship removed",
     # SAML IdP / Service Providers
     "service_provider_created": "Downstream service provider registered",
+    "service_provider_updated": "Downstream service provider configuration updated",
+    "service_provider_enabled": "Downstream service provider enabled",
+    "service_provider_disabled": "Downstream service provider disabled",
     "service_provider_deleted": "Downstream service provider removed",
     "sp_signing_certificate_created": "Per-SP signing certificate generated",
     "sp_signing_certificate_rotated": "Per-SP signing certificate rotated",

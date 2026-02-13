@@ -53,6 +53,9 @@ saml_sp_certificate_created
 saml_sp_certificate_rotated
 service_provider_created
 service_provider_deleted
+service_provider_disabled
+service_provider_enabled
+service_provider_updated
 sp_group_assigned
 sp_group_unassigned
 sp_groups_bulk_assigned

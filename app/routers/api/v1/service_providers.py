@@ -18,6 +18,7 @@ from schemas.service_providers import (
     SPMetadataURLInfo,
     SPSigningCertificate,
     SPSigningCertificateRotationResult,
+    SPUpdate,
     UserAppList,
 )
 from services import service_providers as sp_service
@@ -167,6 +168,63 @@ def get_service_provider(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return sp_service.get_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.patch("/{sp_id}", response_model=SPConfig)
+def update_service_provider(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    sp_data: SPUpdate,
+):
+    """Update a Service Provider's configuration.
+
+    Requires super_admin role.
+
+    Request body (all fields optional, at least one required):
+    - name: Display name
+    - description: Description
+    - acs_url: Assertion Consumer Service URL
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.update_service_provider(requesting_user, sp_id, sp_data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/enable", response_model=SPConfig)
+def enable_service_provider(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Enable a disabled Service Provider.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.enable_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/disable", response_model=SPConfig)
+def disable_service_provider(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Disable a Service Provider. Disabled SPs reject SSO requests.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.disable_service_provider(requesting_user, sp_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

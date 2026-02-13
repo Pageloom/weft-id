@@ -2,6 +2,10 @@
 
 from database._core import TenantArg, execute, fetchall, fetchone
 
+_SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
+               certificate_pem, nameid_format, metadata_xml,
+               enabled, created_by, created_at, updated_at"""
+
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
     """List all service providers for a tenant.
@@ -11,10 +15,8 @@ def list_service_providers(tenant_id: TenantArg) -> list[dict]:
     """
     return fetchall(
         tenant_id,
-        """
-        select id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml,
-               created_by, created_at, updated_at
+        f"""
+        select {_SP_COLUMNS}
         from service_providers
         order by created_at desc
         """,
@@ -30,10 +32,8 @@ def get_service_provider(tenant_id: TenantArg, sp_id: str) -> dict | None:
     """
     return fetchone(
         tenant_id,
-        """
-        select id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml,
-               created_by, created_at, updated_at
+        f"""
+        select {_SP_COLUMNS}
         from service_providers
         where id = :sp_id
         """,
@@ -49,10 +49,8 @@ def get_service_provider_by_entity_id(tenant_id: TenantArg, entity_id: str) -> d
     """
     return fetchone(
         tenant_id,
-        """
-        select id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml,
-               created_by, created_at, updated_at
+        f"""
+        select {_SP_COLUMNS}
         from service_providers
         where entity_id = :entity_id
         """,
@@ -79,7 +77,7 @@ def create_service_provider(
     """
     return fetchone(
         tenant_id,
-        """
+        f"""
         insert into service_providers (
             tenant_id, name, description, entity_id, acs_url,
             certificate_pem, nameid_format, metadata_xml,
@@ -90,9 +88,7 @@ def create_service_provider(
             :certificate_pem, :nameid_format, :metadata_xml,
             :created_by
         )
-        returning id, tenant_id, name, description, entity_id, acs_url,
-                  certificate_pem, nameid_format, metadata_xml,
-                  created_by, created_at, updated_at
+        returning {_SP_COLUMNS}
         """,
         {
             "tenant_id": tenant_id_value,
@@ -106,6 +102,48 @@ def create_service_provider(
             "created_by": created_by,
         },
     )
+
+
+def update_service_provider(
+    tenant_id: TenantArg,
+    sp_id: str,
+    **fields: str | bool | None,
+) -> dict | None:
+    """Update a service provider's mutable fields.
+
+    Only the provided keyword arguments are updated. Allowed keys:
+    name, description, acs_url, enabled.
+
+    Returns:
+        Updated SP dict, or None if not found
+    """
+    allowed = {"name", "description", "acs_url", "enabled"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_service_provider(tenant_id, sp_id)
+
+    set_clause = ", ".join(f"{k} = :{k}" for k in updates)
+    params = {**updates, "sp_id": sp_id}
+
+    return fetchone(
+        tenant_id,
+        f"""
+        update service_providers
+        set {set_clause}, updated_at = now()
+        where id = :sp_id
+        returning {_SP_COLUMNS}
+        """,
+        params,
+    )
+
+
+def set_service_provider_enabled(tenant_id: TenantArg, sp_id: str, enabled: bool) -> dict | None:
+    """Toggle the enabled flag on a service provider.
+
+    Returns:
+        Updated SP dict, or None if not found
+    """
+    return update_service_provider(tenant_id, sp_id, enabled=enabled)
 
 
 def delete_service_provider(tenant_id: TenantArg, sp_id: str) -> int:

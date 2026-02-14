@@ -6,55 +6,123 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SP Metadata Management and Attribute Mapping UX
+## SP Metadata Lifecycle Management
 
 **User Story:**
 As a super admin
-I want a way to manage SP metadata lifecycle and have a clearer attribute mapping experience
-So that I can keep SP configurations up to date and understand how user attributes are communicated during sign-in
+I want to refresh SP metadata from its original source and review what changed
+So that I can keep SP configurations up to date without re-entering everything manually
 
 **Context:**
 
-Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). This item covers the remaining UX improvements, metadata lifecycle management, and default attribute name changes that build on that foundation.
+SP metadata XML is already stored on import, but the source URL is not persisted. Admins have no way to refresh metadata or review stored XML after initial import. This item adds metadata URL persistence, a read-only XML viewer, and refresh workflows with change previews.
 
 **Acceptance Criteria:**
 
-**Metadata Persistence and Refresh:**
-
-- [ ] On SP creation via metadata URL: persist the metadata URL itself (new column) alongside the fetched metadata XML
+- [ ] DB migration: add `metadata_url` column to service providers table
+- [ ] On SP creation via metadata URL: persist the metadata URL alongside the fetched metadata XML
 - [ ] On SP creation via pasted XML: persist the pasted metadata XML (already done via `metadata_xml` column)
 - [ ] On manual entry: no metadata to store
 - [ ] SP detail page: view the full stored metadata XML (read-only, collapsible code block)
 - [ ] SP with stored metadata URL: "Refresh from URL" action that re-fetches metadata and shows a preview/diff of what would change (ACS URL, SLO URL, certificate, requested attributes, attribute mapping) before applying
 - [ ] SP with stored XML but no URL: "Re-import metadata" action where admin can paste new XML and preview changes before applying
 - [ ] SP with neither: no metadata refresh available, manual editing only
+- [ ] API endpoints for metadata refresh and re-import
 
-**Attribute Mapping UX Improvements:**
+**Effort:** M
+**Value:** High (Keeps SP configurations current without manual re-entry)
+
+---
+
+## Attribute Mapping UX Improvements
+
+**User Story:**
+As a super admin
+I want clearer labels and smarter layout on the attribute mapping screen
+So that I can understand how user attributes are communicated to the SP without needing SAML expertise
+
+**Context:**
+
+Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). The current labels use technical SAML terminology and the layout shows an empty "SP Expectation" column even when no metadata is on file.
+
+**Acceptance Criteria:**
 
 - [ ] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
 - [ ] Use friendlier description: "Configure how user attributes are communicated to the service provider during sign-in." instead of technical SAML jargon
+- [ ] If no SP expectations are on file, hide the "SP Expectation" column entirely rather than showing "None declared" for every row
 - [ ] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
-- [ ] If no SP expectations are on file, remove the "SP Expectation" column entirely rather than showing "None declared" for every row
 
-**Default Attribute Names:**
+**Effort:** XS
+**Value:** High (Reduces admin confusion on a frequently used screen)
 
-- [ ] Change Weft ID's default attribute URIs (both as IdP and SP) from OID-based URIs (`urn:oid:0.9.2342.19200300.100.1.3`, etc.) to friendly names: `email`, `firstName`, `lastName`, `groups`
-- [ ] This affects `SAML_ATTRIBUTE_URIS` in `saml_assertion.py` and IdP metadata attribute declarations
+---
 
-**Discourage Manual SP Entry:**
+## Default Attribute Names
 
-- [ ] In the SP registration UI, make metadata import (URL or XML) the primary/recommended path
-- [ ] Manual entry should still be available but visually de-emphasized (e.g., collapsed section, secondary styling, or "Advanced" label)
-- [ ] Goal: guide admins toward metadata-based registration which produces better results
+**User Story:**
+As a super admin
+I want attribute names to use friendly labels like `email` and `firstName` by default
+So that attribute mapping is intuitive and matches what most service providers expect
 
-**NameID Configuration (from Phase 4):**
+**Context:**
+
+Weft ID currently uses OID-based URIs (`urn:oid:0.9.2342.19200300.100.1.3`, etc.) as default attribute names. Most modern SPs expect simpler names. This change affects both the IdP assertion builder and the IdP metadata attribute declarations.
+
+**Acceptance Criteria:**
+
+- [ ] Change `SAML_ATTRIBUTE_URIS` in `saml_assertion.py` from OID-based URIs to friendly names: `email`, `firstName`, `lastName`, `groups`
+- [ ] Update IdP metadata attribute declarations in `saml_idp.py` to match
+- [ ] Existing per-SP attribute overrides continue to work (only the defaults change)
+
+**Effort:** XS
+**Value:** Medium (Better out-of-the-box experience for new SP registrations)
+
+---
+
+## De-emphasize Manual SP Entry
+
+**User Story:**
+As a super admin
+I want metadata import to be the primary path when registering a new SP
+So that I am guided toward the approach that produces better, more complete configurations
+
+**Context:**
+
+The current SP registration UI presents manual entry, URL import, and XML import as equal options. Metadata-based registration produces significantly better results (auto-populates ACS URL, certificates, requested attributes). Manual entry should still be available but visually secondary.
+
+**Acceptance Criteria:**
+
+- [ ] SP registration UI: metadata import tabs (URL and XML) are the primary/default view
+- [ ] Manual entry is available but visually de-emphasized (e.g., collapsed section, secondary styling, or "Advanced" label)
+- [ ] No functional changes to manual entry, only UI prominence
+
+**Effort:** XS
+**Value:** Medium (Guides admins toward metadata-based registration)
+
+---
+
+## Per-SP NameID Configuration
+
+**User Story:**
+As a super admin
+I want to configure the NameID format for each service provider
+So that each SP receives user identifiers in the format it expects
+
+**Context:**
+
+Currently all SPs receive emailAddress as the NameID format. Some SPs require persistent (stable opaque identifier) or transient (per-session) NameIDs. Persistent NameID requires a new database table to store stable user-SP identifier pairs.
+
+**Acceptance Criteria:**
 
 - [ ] Per-SP NameID format selection: emailAddress (default), persistent, transient, unspecified
-- [ ] Persistent NameID generates stable opaque identifier per user-SP pair
-- [ ] Transient NameID generates new identifier per session
+- [ ] Persistent NameID: generates a stable opaque identifier per user-SP pair, stored in a new `sp_nameid_mappings` table
+- [ ] Transient NameID: generates a new identifier per session (not persisted)
+- [ ] DB migration: add NameID format column to service providers, create `sp_nameid_mappings` table
+- [ ] SSO assertion builder uses the configured NameID format
+- [ ] API support for NameID configuration on SP endpoints
 
-**Effort:** L
-**Value:** High (Completes the SP management experience, reduces admin confusion)
+**Effort:** M
+**Value:** Medium (Required for SPs that mandate non-email NameID formats)
 
 ---
 

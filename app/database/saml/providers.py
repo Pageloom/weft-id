@@ -17,7 +17,7 @@ def list_identity_providers(tenant_id: TenantArg) -> list[dict]:
         tenant_id,
         """
         select id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-               certificate_pem, metadata_url, metadata_last_fetched_at,
+               certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
                created_by, created_at, updated_at
@@ -39,7 +39,7 @@ def get_identity_provider(tenant_id: TenantArg, idp_id: str) -> dict | None:
         tenant_id,
         """
         select id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-               certificate_pem, metadata_url, metadata_last_fetched_at,
+               certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
                created_by, created_at, updated_at
@@ -61,7 +61,7 @@ def get_identity_provider_by_entity_id(tenant_id: TenantArg, entity_id: str) -> 
         tenant_id,
         """
         select id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-               certificate_pem, metadata_url, metadata_last_fetched_at,
+               certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
                created_by, created_at, updated_at
@@ -84,6 +84,7 @@ def create_identity_provider(
     created_by: str,
     slo_url: str | None = None,
     metadata_url: str | None = None,
+    metadata_xml: str | None = None,
     attribute_mapping: dict[str, str] | None = None,
     is_enabled: bool = False,
     is_default: bool = False,
@@ -122,13 +123,13 @@ def create_identity_provider(
         """
         insert into saml_identity_providers (
             tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-            certificate_pem, metadata_url, sp_entity_id,
+            certificate_pem, metadata_url, metadata_xml, sp_entity_id,
             attribute_mapping, is_enabled, is_default, require_platform_mfa,
             jit_provisioning, created_by
         )
         values (
             :tenant_id, :name, :provider_type, :entity_id, :sso_url, :slo_url,
-            :certificate_pem, :metadata_url, :sp_entity_id,
+            :certificate_pem, :metadata_url, :metadata_xml, :sp_entity_id,
             :attribute_mapping, :is_enabled, :is_default, :require_platform_mfa,
             :jit_provisioning, :created_by
         )
@@ -147,6 +148,7 @@ def create_identity_provider(
             "slo_url": slo_url,
             "certificate_pem": certificate_pem,
             "metadata_url": metadata_url,
+            "metadata_xml": metadata_xml,
             "sp_entity_id": sp_entity_id,
             "attribute_mapping": json.dumps(attribute_mapping),
             "is_enabled": is_enabled,
@@ -237,11 +239,13 @@ def update_idp_metadata_fields(
     sso_url: str,
     certificate_pem: str,
     slo_url: str | None = None,
+    metadata_xml: str | None = None,
 ) -> dict | None:
     """
     Update IdP fields from metadata refresh.
 
-    Updates entity_id, sso_url, slo_url, certificate_pem and clears fetch error.
+    Updates entity_id, sso_url, slo_url, certificate_pem, metadata_xml
+    and clears fetch error.
 
     Returns:
         Dict with updated IdP details
@@ -254,6 +258,7 @@ def update_idp_metadata_fields(
             sso_url = :sso_url,
             slo_url = :slo_url,
             certificate_pem = :certificate_pem,
+            metadata_xml = :metadata_xml,
             metadata_last_fetched_at = now(),
             metadata_fetch_error = null
         where id = :idp_id
@@ -269,6 +274,7 @@ def update_idp_metadata_fields(
             "sso_url": sso_url,
             "slo_url": slo_url,
             "certificate_pem": certificate_pem,
+            "metadata_xml": metadata_xml,
         },
     )
 
@@ -399,7 +405,7 @@ def get_default_identity_provider(tenant_id: TenantArg) -> dict | None:
         tenant_id,
         """
         select id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-               certificate_pem, metadata_url, metadata_last_fetched_at,
+               certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
                created_by, created_at, updated_at
@@ -422,7 +428,7 @@ def get_user_assigned_idp(tenant_id: TenantArg, user_id: str) -> dict | None:
         """
         select idp.id, idp.tenant_id, idp.name, idp.provider_type, idp.entity_id,
                idp.sso_url, idp.slo_url, idp.certificate_pem, idp.metadata_url,
-               idp.metadata_last_fetched_at, idp.metadata_fetch_error,
+               idp.metadata_xml, idp.metadata_last_fetched_at, idp.metadata_fetch_error,
                idp.sp_entity_id, idp.attribute_mapping,
                idp.is_enabled, idp.is_default, idp.require_platform_mfa,
                idp.jit_provisioning, idp.created_by, idp.created_at, idp.updated_at

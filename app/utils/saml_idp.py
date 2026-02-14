@@ -156,13 +156,13 @@ def generate_idp_metadata_xml(
       </ds:KeyInfo>
     </md:KeyDescriptor>{slo_elements}
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>{attr_elements}
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
     <md:SingleSignOnService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
         Location="{sso_url}" />
     <md:SingleSignOnService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-        Location="{sso_url}" />
+        Location="{sso_url}" />{attr_elements}
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>"""
 

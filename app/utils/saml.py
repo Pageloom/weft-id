@@ -132,6 +132,44 @@ def get_certificate_expiry(certificate_pem: str) -> datetime.datetime:
         return cert.not_valid_after
 
 
+def extract_idp_advertised_attributes(metadata_xml: str) -> list[dict[str, str]]:
+    """Extract attribute declarations from IdP metadata XML.
+
+    Parses <saml:Attribute> elements from the IDPSSODescriptor to find
+    what attributes the IdP advertises. Returns an empty list if no
+    attributes are declared (common for many IdPs).
+
+    Args:
+        metadata_xml: Raw XML metadata string
+
+    Returns:
+        List of dicts with 'name' and 'friendly_name' keys.
+    """
+    from defusedxml import ElementTree as DefusedET
+
+    saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+
+    try:
+        root = DefusedET.fromstring(metadata_xml)
+    except Exception:
+        return []
+
+    # Find IDPSSODescriptor, then its <saml:Attribute> children
+    idp_descriptor = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+    if idp_descriptor is None:
+        return []
+
+    attributes = []
+    for attr_elem in idp_descriptor.findall(f"{{{saml_ns}}}Attribute"):
+        name = attr_elem.attrib.get("Name", "")
+        friendly_name = attr_elem.attrib.get("FriendlyName", "")
+        if name:
+            attributes.append({"name": name, "friendly_name": friendly_name})
+
+    return attributes
+
+
 def parse_idp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
     """
     Parse SAML IdP metadata XML and extract configuration.

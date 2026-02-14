@@ -22,6 +22,7 @@ def idp_row_to_config(row: dict) -> IdPConfig:
         slo_url=row["slo_url"],
         certificate_pem=row["certificate_pem"],
         metadata_url=row["metadata_url"],
+        metadata_xml=row.get("metadata_xml"),
         metadata_last_fetched_at=row["metadata_last_fetched_at"],
         metadata_fetch_error=row["metadata_fetch_error"],
         sp_entity_id=sp_entity_id,

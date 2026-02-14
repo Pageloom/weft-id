@@ -64,6 +64,7 @@ class IdPCreate(BaseModel):
     slo_url: str | None = None
     certificate_pem: str = Field(..., min_length=1)
     metadata_url: str | None = Field(None, description="Optional IdP metadata URL for auto-refresh")
+    metadata_xml: str | None = Field(None, description="Raw metadata XML from import")
     attribute_mapping: dict[str, str] = Field(default_factory=lambda: DEFAULT_ATTRIBUTE_MAPPING)
     is_enabled: bool = False
     is_default: bool = False
@@ -97,6 +98,7 @@ class IdPConfig(BaseModel):
     slo_url: str | None
     certificate_pem: str
     metadata_url: str | None
+    metadata_xml: str | None
     metadata_last_fetched_at: datetime | None
     metadata_fetch_error: str | None
     sp_entity_id: str
@@ -171,6 +173,7 @@ class IdPMetadataParsed(BaseModel):
     sso_url: str
     slo_url: str | None
     certificate_pem: str
+    metadata_xml: str | None = None
 
 
 class IdPMetadataImport(BaseModel):

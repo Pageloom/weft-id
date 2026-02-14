@@ -42,6 +42,27 @@ def _build_requesting_user(user: dict, tenant_id: str) -> RequestingUser:
     )
 
 
+def _load_sp_common(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    sp_id: str,
+):
+    """Load SP config and group count for the tab bar.
+
+    Returns (sp_config, group_count, requesting_user) or redirects on error.
+    """
+    requesting_user = _build_requesting_user(user, tenant_id)
+    sp_config = sp_service.get_service_provider(requesting_user, sp_id)
+    group_count = sp_service.count_sp_group_assignments(requesting_user, sp_id)
+    return sp_config, group_count, requesting_user
+
+
+# =============================================================================
+# SP List, New, Create, Import
+# =============================================================================
+
+
 @router.get("/", response_class=HTMLResponse)
 def sp_list(
     request: Request,
@@ -192,33 +213,105 @@ def sp_import_url(
         return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
 
 
+# =============================================================================
+# SP Detail - Redirect + Tab Routes
+# =============================================================================
+
+
 @router.get("/{sp_id}", response_class=HTMLResponse)
-def sp_detail(
+def sp_detail_redirect(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
 ):
-    """Show SP detail page with cert status, per-SP metadata URL, and assigned groups."""
+    """Redirect to the Details tab."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
-    requesting_user = _build_requesting_user(user, tenant_id)
+    return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}/details", status_code=303)
+
+
+@router.get("/{sp_id}/details", response_class=HTMLResponse)
+def sp_tab_details(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Details tab: name, description, entity ID, ACS URL, SLO URL, metadata URL."""
+    if not has_page_access("/admin/settings/service-providers/detail/details", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
-        sp_config = sp_service.get_service_provider(requesting_user, sp_id)
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
     except ServiceError as exc:
         logger.warning("Failed to get SP: %s", exc)
         return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
 
-    # Get signing cert info
-    signing_cert = None
-    try:
-        signing_cert = sp_service.get_sp_signing_certificate(requesting_user, sp_id)
-    except ServiceError:
-        pass
+    base_url = get_base_url(request)
+    sp_metadata_url = f"{base_url}/saml/idp/metadata/{sp_id}"
 
-    # Get assigned groups and available groups for assignment
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        group_count=group_count,
+        sp_metadata_url=sp_metadata_url,
+        active_tab="details",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_tab_details.html", context)
+
+
+@router.get("/{sp_id}/attributes", response_class=HTMLResponse)
+def sp_tab_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Attributes tab: attribute mapping and include_group_claims toggle."""
+    if not has_page_access("/admin/settings/service-providers/detail/attributes", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        group_count=group_count,
+        saml_attributes=SAML_ATTRIBUTE_URIS,
+        active_tab="attributes",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_tab_attributes.html", context)
+
+
+@router.get("/{sp_id}/groups", response_class=HTMLResponse)
+def sp_tab_groups(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Groups tab: assigned groups with add/remove controls."""
+    if not has_page_access("/admin/settings/service-providers/detail/groups", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
     assigned_groups = []
     available_groups = []
     try:
@@ -228,22 +321,215 @@ def sp_detail(
     except ServiceError:
         pass
 
-    base_url = get_base_url(request)
-    sp_metadata_url = f"{base_url}/saml/idp/metadata/{sp_id}"
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        group_count=group_count,
+        assigned_groups=assigned_groups,
+        available_groups=available_groups,
+        active_tab="groups",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_tab_groups.html", context)
+
+
+@router.get("/{sp_id}/certificates", response_class=HTMLResponse)
+def sp_tab_certificates(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Certificates tab: signing certificate status and rotation."""
+    if not has_page_access(
+        "/admin/settings/service-providers/detail/certificates", user.get("role")
+    ):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+    signing_cert = None
+    try:
+        signing_cert = sp_service.get_sp_signing_certificate(requesting_user, sp_id)
+    except ServiceError:
+        pass
 
     context = get_template_context(
         request,
         tenant_id,
         sp=sp_config,
+        group_count=group_count,
         signing_cert=signing_cert,
-        sp_metadata_url=sp_metadata_url,
-        assigned_groups=assigned_groups,
-        available_groups=available_groups,
-        saml_attributes=SAML_ATTRIBUTE_URIS,
+        active_tab="certificates",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_detail.html", context)
+    return templates.TemplateResponse("saml_idp_sp_tab_certificates.html", context)
+
+
+@router.get("/{sp_id}/metadata", response_class=HTMLResponse)
+def sp_tab_metadata(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Metadata tab: stored XML viewer, refresh/reimport controls."""
+    if not has_page_access("/admin/settings/service-providers/detail/metadata", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        group_count=group_count,
+        active_tab="metadata",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_tab_metadata.html", context)
+
+
+@router.get("/{sp_id}/danger", response_class=HTMLResponse)
+def sp_tab_danger(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Danger tab: enable/disable toggle and delete."""
+    if not has_page_access("/admin/settings/service-providers/detail/danger", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        sp_config, group_count, requesting_user = _load_sp_common(request, tenant_id, user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to get SP: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        sp=sp_config,
+        group_count=group_count,
+        assigned_group_count=group_count,
+        active_tab="danger",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse("saml_idp_sp_tab_danger.html", context)
+
+
+# =============================================================================
+# POST Handlers
+# =============================================================================
+
+
+@router.post("/{sp_id}/edit", response_class=HTMLResponse)
+def sp_edit(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    name: str = Form(""),
+    description: str = Form(""),
+    acs_url: str = Form(""),
+    slo_url: str = Form(""),
+):
+    """Update an SP's name, description, and optionally ACS/SLO URLs (manual SPs)."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    from schemas.service_providers import SPUpdate
+
+    update_fields: dict = {}
+    if name.strip():
+        update_fields["name"] = name.strip()
+    if description.strip():
+        update_fields["description"] = description.strip()
+    if acs_url.strip():
+        update_fields["acs_url"] = acs_url.strip()
+    if slo_url.strip():
+        update_fields["slo_url"] = slo_url.strip()
+
+    if not update_fields:
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=No changes provided", status_code=303
+        )
+
+    try:
+        data = SPUpdate(**update_fields)
+        sp_service.update_service_provider(requesting_user, sp_id, data)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=updated", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to update SP: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )
+
+
+@router.post("/{sp_id}/edit-attributes", response_class=HTMLResponse)
+def sp_edit_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    include_group_claims: str | None = Form(None),
+    attr_map_email: str = Form(""),
+    attr_map_firstName: str = Form(""),  # noqa: N803
+    attr_map_lastName: str = Form(""),  # noqa: N803
+    attr_map_groups: str = Form(""),
+):
+    """Update an SP's attribute mapping and include_group_claims setting."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    from schemas.service_providers import SPUpdate
+
+    update_fields: dict = {}
+    update_fields["include_group_claims"] = include_group_claims == "true"
+
+    attr_mapping: dict[str, str] = {}
+    if attr_map_email.strip():
+        attr_mapping["email"] = attr_map_email.strip()
+    if attr_map_firstName.strip():
+        attr_mapping["firstName"] = attr_map_firstName.strip()
+    if attr_map_lastName.strip():
+        attr_mapping["lastName"] = attr_map_lastName.strip()
+    if attr_map_groups.strip():
+        attr_mapping["groups"] = attr_map_groups.strip()
+    if attr_mapping:
+        update_fields["attribute_mapping"] = attr_mapping
+
+    try:
+        data = SPUpdate(**update_fields)
+        sp_service.update_service_provider(requesting_user, sp_id, data)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/attributes?success=attributes_updated", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to update SP attributes: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/attributes?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/refresh-metadata-preview", response_class=HTMLResponse)
@@ -263,7 +549,9 @@ def sp_refresh_metadata_preview(
         preview = sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
     except ServiceError as exc:
         logger.warning("Failed to preview metadata refresh: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
+        )
 
     context = get_template_context(
         request,
@@ -290,11 +578,13 @@ def sp_refresh_metadata_apply(
     try:
         sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?success=metadata_refreshed", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_refreshed", status_code=303
         )
     except ServiceError as exc:
         logger.warning("Failed to apply metadata refresh: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/reimport-metadata-preview", response_class=HTMLResponse)
@@ -311,7 +601,7 @@ def sp_reimport_metadata_preview(
 
     if not metadata_xml.strip():
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?error=Metadata XML is required", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required", status_code=303
         )
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -322,7 +612,9 @@ def sp_reimport_metadata_preview(
         )
     except ServiceError as exc:
         logger.warning("Failed to preview metadata reimport: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
+        )
 
     context = get_template_context(
         request,
@@ -347,7 +639,7 @@ def sp_reimport_metadata_apply(
 
     if not metadata_xml.strip():
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?error=Metadata XML is required", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error=Metadata XML is required", status_code=303
         )
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -355,11 +647,13 @@ def sp_reimport_metadata_apply(
     try:
         sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, metadata_xml.strip())
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?success=metadata_reimported", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?success=metadata_reimported", status_code=303
         )
     except ServiceError as exc:
         logger.warning("Failed to apply metadata reimport: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/rotate-certificate", response_class=HTMLResponse)
@@ -378,11 +672,13 @@ def sp_rotate_certificate(
     try:
         sp_service.rotate_sp_signing_certificate(requesting_user, sp_id)
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?success=certificate_rotated", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/certificates?success=certificate_rotated", status_code=303
         )
     except ServiceError as exc:
         logger.warning("Failed to rotate SP certificate: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/certificates?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/groups/add", response_class=HTMLResponse)
@@ -399,7 +695,7 @@ def sp_add_group(
 
     if not group_id.strip():
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?error=Please select a group", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error=Please select a group", status_code=303
         )
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -407,11 +703,13 @@ def sp_add_group(
     try:
         sp_service.assign_sp_to_group(requesting_user, sp_id, group_id.strip())
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?success=group_assigned", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/groups?success=group_assigned", status_code=303
         )
     except ServiceError as exc:
         logger.warning("Failed to assign group to SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/groups/bulk", response_class=HTMLResponse)
@@ -428,7 +726,7 @@ def sp_bulk_add_groups(
 
     if not group_ids:
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?error=Please select groups", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error=Please select groups", status_code=303
         )
 
     requesting_user = _build_requesting_user(user, tenant_id)
@@ -436,11 +734,13 @@ def sp_bulk_add_groups(
     try:
         sp_service.bulk_assign_sp_to_groups(requesting_user, sp_id, group_ids)
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?success=groups_assigned", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/groups?success=groups_assigned", status_code=303
         )
     except ServiceError as exc:
         logger.warning("Failed to bulk assign groups to SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/groups/{group_id}/remove", response_class=HTMLResponse)
@@ -459,74 +759,14 @@ def sp_remove_group(
 
     try:
         sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=group_removed", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/groups?success=group_removed", status_code=303
+        )
     except ServiceError as exc:
         logger.warning("Failed to remove group from SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
-
-
-@router.post("/{sp_id}/edit", response_class=HTMLResponse)
-def sp_edit(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    sp_id: str,
-    name: str = Form(""),
-    description: str = Form(""),
-    acs_url: str = Form(""),
-    slo_url: str = Form(""),
-    include_group_claims: str | None = Form(None),
-    attr_map_email: str = Form(""),
-    attr_map_firstName: str = Form(""),  # noqa: N803
-    attr_map_lastName: str = Form(""),  # noqa: N803
-    attr_map_groups: str = Form(""),
-):
-    """Update an SP's configuration from the detail page form."""
-    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
-        return RedirectResponse(url="/dashboard", status_code=303)
-
-    requesting_user = _build_requesting_user(user, tenant_id)
-
-    # Build update data from non-empty fields
-    from schemas.service_providers import SPUpdate
-
-    update_fields: dict = {}
-    if name.strip():
-        update_fields["name"] = name.strip()
-    if description.strip():
-        update_fields["description"] = description.strip()
-    if acs_url.strip():
-        update_fields["acs_url"] = acs_url.strip()
-    if slo_url.strip():
-        update_fields["slo_url"] = slo_url.strip()
-    # Checkbox: present means true, absent means false
-    update_fields["include_group_claims"] = include_group_claims == "true"
-
-    # Build attribute mapping from form inputs
-    attr_mapping: dict[str, str] = {}
-    if attr_map_email.strip():
-        attr_mapping["email"] = attr_map_email.strip()
-    if attr_map_firstName.strip():
-        attr_mapping["firstName"] = attr_map_firstName.strip()
-    if attr_map_lastName.strip():
-        attr_mapping["lastName"] = attr_map_lastName.strip()
-    if attr_map_groups.strip():
-        attr_mapping["groups"] = attr_map_groups.strip()
-    if attr_mapping:
-        update_fields["attribute_mapping"] = attr_mapping
-
-    if not update_fields:
         return RedirectResponse(
-            url=f"{SP_LIST_URL}/{sp_id}?error=No changes provided", status_code=303
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
         )
-
-    try:
-        data = SPUpdate(**update_fields)
-        sp_service.update_service_provider(requesting_user, sp_id, data)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=updated", status_code=303)
-    except ServiceError as exc:
-        logger.warning("Failed to update SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
 
 
 @router.post("/{sp_id}/enable", response_class=HTMLResponse)
@@ -544,10 +784,14 @@ def sp_enable(
 
     try:
         sp_service.enable_service_provider(requesting_user, sp_id)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=enabled", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/danger?success=enabled", status_code=303
+        )
     except ServiceError as exc:
         logger.warning("Failed to enable SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/disable", response_class=HTMLResponse)
@@ -565,10 +809,14 @@ def sp_disable(
 
     try:
         sp_service.disable_service_provider(requesting_user, sp_id)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?success=disabled", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/danger?success=disabled", status_code=303
+        )
     except ServiceError as exc:
         logger.warning("Failed to disable SP: %s", exc)
-        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/danger?error={exc.message}", status_code=303
+        )
 
 
 @router.post("/{sp_id}/delete", response_class=HTMLResponse)

@@ -472,13 +472,13 @@ class TestDeleteServiceProvider:
     """Tests for delete_service_provider."""
 
     def test_success(self, make_requesting_user):
-        """Super admin can delete an SP."""
+        """Super admin can delete a disabled SP."""
         from services import service_providers as sp_service
 
         tenant_id = str(uuid4())
         sp_id = str(uuid4())
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
-        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=False)
 
         with (
             patch("services.service_providers.crud.database") as mock_db,
@@ -495,6 +495,23 @@ class TestDeleteServiceProvider:
             mock_log.assert_called_once()
             call_kwargs = mock_log.call_args[1]
             assert call_kwargs["event_type"] == "service_provider_deleted"
+
+    def test_reject_delete_enabled_sp(self, make_requesting_user):
+        """Cannot delete an SP that is still enabled."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, enabled=True)
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="must be disabled"):
+                sp_service.delete_service_provider(requesting_user, sp_id)
+
+            mock_db.service_providers.delete_service_provider.assert_not_called()
 
     def test_not_found(self, make_requesting_user):
         """Raises NotFoundError for non-existent SP."""

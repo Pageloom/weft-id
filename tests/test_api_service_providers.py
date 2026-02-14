@@ -397,6 +397,23 @@ class TestDeleteAPI:
 
         assert response.status_code == 404
 
+    def test_delete_enabled_sp_rejected(self, sp_api_client, api_host):
+        """Deleting an enabled SP returns 400."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "services.service_providers.delete_service_provider",
+            side_effect=ValidationError(
+                message="Service provider must be disabled before it can be deleted"
+            ),
+        ):
+            response = sp_api_client.delete(
+                f"/api/v1/service-providers/{uuid4()}",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 400
+
 
 # =============================================================================
 # IdP Metadata Info Endpoint

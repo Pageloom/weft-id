@@ -550,6 +550,12 @@ def delete_service_provider(
             code="sp_not_found",
         )
 
+    if existing.get("enabled", False):
+        raise ValidationError(
+            message="Service provider must be disabled before it can be deleted",
+            code="sp_must_be_disabled",
+        )
+
     database.service_providers.delete_service_provider(tenant_id, sp_id)
 
     log_event(

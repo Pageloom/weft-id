@@ -1,0 +1,63 @@
+{% extends "saml_idp_sp_base.html" %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        Assigned Groups ({{ assigned_groups|length }})
+    </h2>
+
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Users in these groups (or their descendant groups) can access this application via SSO.
+    </p>
+
+    {% if available_groups %}
+    <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/groups/add" class="mb-4 flex gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="group_id" required
+                class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="">Select group to assign...</option>
+            {% for g in available_groups %}
+            <option value="{{ g.id }}">{{ g.name }}{% if g.group_type == 'idp' %} (IdP){% endif %}</option>
+            {% endfor %}
+        </select>
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm">
+            Assign
+        </button>
+    </form>
+    {% endif %}
+
+    {% if assigned_groups %}
+    <div class="space-y-2">
+        {% for ag in assigned_groups %}
+        <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+            <div>
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ ag.group_name }}</span>
+                <span class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full
+                    {% if ag.group_type == 'idp' %}
+                    bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300
+                    {% else %}
+                    bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
+                    {% endif %}">
+                    {{ ag.group_type|upper }}
+                </span>
+                {% if ag.group_description %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ ag.group_description }}</p>
+                {% endif %}
+            </div>
+            <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/groups/{{ ag.group_id }}/remove">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
+                        data-confirm="Remove group '{{ ag.group_name }}' from {{ sp.name }}?&#10;&#10;Users in this group will lose access to this application."
+                        data-destructive="true">
+                    Remove
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No groups assigned. Assign groups to control user access.</p>
+    {% endif %}
+</div>
+{% endblock %}

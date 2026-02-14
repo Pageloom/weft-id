@@ -1,0 +1,63 @@
+{% extends "saml_idp_sp_base.html" %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Each service provider has its own signing certificate. SAML assertions sent to this SP are signed with this certificate, allowing the SP to verify they came from this identity provider. The certificate is included in the sharable metadata URL on the Details tab.
+    </p>
+
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Signing Certificate</h2>
+        {% if signing_cert %}
+        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/rotate-certificate" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="confirm-btn px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-600 rounded hover:bg-amber-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    data-confirm="Rotate the signing certificate for {{ sp.name }}?&#10;&#10;A new certificate will be generated immediately. The SP must update its trust configuration with the new certificate from the metadata URL before SSO will work again."
+                    data-destructive="false">
+                Rotate Certificate
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if signing_cert %}
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expires</dt>
+            <dd class="mt-1 text-sm">
+                {% set now = signing_cert.expires_at.__class__.now(signing_cert.expires_at.tzinfo) %}
+                {% set days_until = (signing_cert.expires_at - now).days %}
+                {% if days_until < 30 %}
+                <span class="text-red-600 dark:text-red-400 font-medium">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                {% elif days_until < 90 %}
+                <span class="text-amber-600 dark:text-amber-400 font-medium">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                {% else %}
+                <span class="text-green-600 dark:text-green-400">{{ fmt_datetime(signing_cert.expires_at) }}</span>
+                {% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(signing_cert.created_at) }}</dd>
+        </div>
+        {% if signing_cert.has_previous_certificate %}
+        <div class="sm:col-span-2">
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rotation Grace Period</dt>
+            <dd class="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                Previous certificate valid until {{ fmt_datetime(signing_cert.rotation_grace_period_ends_at) }}
+            </dd>
+        </div>
+        {% endif %}
+    </dl>
+
+    <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+            After rotating, update the downstream SP with the new metadata. The SP will need the new certificate to verify SAML assertions.
+        </p>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No signing certificate generated yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

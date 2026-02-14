@@ -1,0 +1,111 @@
+{% extends "saml_idp_sp_base.html" %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Assertion Attribute Mapping</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Configure how IdP attributes map to URIs in SAML assertions sent to this SP.
+        {% if not sp.sp_requested_attributes %}
+        This SP did not declare attribute expectations in its metadata. Using default OID-based URIs.
+        {% endif %}
+    </p>
+
+    <form id="attr-form" method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit-attributes" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="flex items-start gap-3 mb-4">
+            <input type="checkbox" id="edit-include-group-claims" name="include_group_claims" value="true"
+                   {% if sp.include_group_claims %}checked{% endif %}
+                   class="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+            <div>
+                <label for="edit-include-group-claims" class="text-sm font-medium text-gray-700 dark:text-gray-300">Include group memberships in assertions</label>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">When enabled, the user's group memberships will be sent as a multi-valued attribute in SAML assertions.</p>
+            </div>
+        </div>
+
+        <table class="w-full text-sm mb-4">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IdP Attribute</th>
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SP Expectation</th>
+                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assertion URI</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for attr_key, default_uri in saml_attributes.items() %}
+                {% set current_uri = sp.attribute_mapping[attr_key] if sp.attribute_mapping and attr_key in sp.attribute_mapping else default_uri %}
+                {% set sp_attr = namespace(found=false, name='', friendly='', required=false) %}
+                {% if sp.sp_requested_attributes %}
+                    {% for ra in sp.sp_requested_attributes %}
+                        {% if sp.attribute_mapping and attr_key in sp.attribute_mapping and ra.name == sp.attribute_mapping[attr_key] %}
+                            {% set sp_attr.found = true %}
+                            {% set sp_attr.name = ra.name %}
+                            {% set sp_attr.friendly = ra.friendly_name or '' %}
+                            {% set sp_attr.required = ra.is_required %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                <tr>
+                    <td class="py-2 pr-4">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ attr_key }}</span>
+                        {% if attr_key == 'groups' %}
+                        <br>
+                        {% if sp.include_group_claims %}
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Enabled</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Disabled</span>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="py-2 pr-4">
+                        {% if sp_attr.found %}
+                        <span class="font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{{ sp_attr.name }}</span>
+                        {% if sp_attr.friendly %}
+                        <br><span class="text-xs text-gray-500 dark:text-gray-400">({{ sp_attr.friendly }})</span>
+                        {% endif %}
+                        {% if sp_attr.required %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">Required</span>
+                        {% else %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Optional</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-xs text-gray-400 dark:text-gray-500 italic">None declared</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-2">
+                        <input type="text" name="attr_map_{{ attr_key }}" value="{{ current_uri }}"
+                               class="attr-map-input w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               data-default="{{ default_uri }}">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="flex items-center gap-4">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Save Attributes
+            </button>
+            <a href="#" id="reset-attr-defaults" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reset to defaults</a>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+            The <strong>groups</strong> attribute is controlled by the "Include group memberships in assertions" setting above.
+        </p>
+    </form>
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}">
+var resetLink = document.getElementById('reset-attr-defaults');
+if (resetLink) {
+    resetLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.attr-map-input').forEach(function(input) {
+            input.value = input.dataset.default;
+        });
+    });
+}
+</script>
+{% endblock %}

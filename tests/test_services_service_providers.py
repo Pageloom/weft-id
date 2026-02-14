@@ -1259,6 +1259,34 @@ class TestUpdateServiceProvider:
             assert call_kwargs["event_type"] == "service_provider_updated"
             assert set(call_kwargs["metadata"]["changed_fields"]) == {"name", "acs_url"}
 
+    def test_update_include_group_claims(self, make_requesting_user):
+        """Can update include_group_claims flag."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(include_group_claims=True)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        row["include_group_claims"] = True
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.include_group_claims is True
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id, sp_id, include_group_claims=True
+            )
+
 
 # =============================================================================
 # enable_service_provider

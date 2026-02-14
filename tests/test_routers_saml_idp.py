@@ -1066,20 +1066,78 @@ class TestSPEdit:
         assert response.status_code == 303
         assert "success=updated" in response.headers["location"]
 
-    def test_edit_no_changes(self, sp_admin_session, sp_host):
-        """All form fields empty, redirects with error=No changes provided."""
+    def test_edit_include_group_claims_on(self, sp_admin_session, sp_host, sample_sp_config):
+        """Submitting include_group_claims checkbox passes True to service."""
         sp_id = str(uuid4())
 
-        response = sp_admin_session.post(
-            f"/admin/settings/service-providers/{sp_id}/edit",
-            data={"name": "", "description": "", "acs_url": ""},
-            headers={"Host": sp_host},
-            follow_redirects=False,
-        )
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={
+                    "name": "Test",
+                    "description": "",
+                    "acs_url": "",
+                    "slo_url": "",
+                    "include_group_claims": "true",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
 
         assert response.status_code == 303
-        assert "error=" in response.headers["location"]
-        assert "No" in response.headers["location"]
+        assert "success=updated" in response.headers["location"]
+        # Verify the SPUpdate was created with include_group_claims=True
+        call_args = mock_update.call_args
+        sp_update = call_args[0][2]  # third positional arg is the SPUpdate
+        assert sp_update.include_group_claims is True
+
+    def test_edit_include_group_claims_off(self, sp_admin_session, sp_host, sample_sp_config):
+        """Omitting include_group_claims checkbox passes False to service."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={
+                    "name": "Test",
+                    "description": "",
+                    "acs_url": "",
+                    "slo_url": "",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=updated" in response.headers["location"]
+        call_args = mock_update.call_args
+        sp_update = call_args[0][2]
+        assert sp_update.include_group_claims is False
+
+    def test_edit_no_changes(self, sp_admin_session, sp_host, sample_sp_config):
+        """All text fields empty still sends include_group_claims=False."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit",
+                data={"name": "", "description": "", "acs_url": ""},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        # include_group_claims=False is always submitted, so update proceeds
+        assert "success=updated" in response.headers["location"]
 
     def test_edit_not_found(self, sp_admin_session, sp_host):
         """SP doesn't exist, redirects with error."""

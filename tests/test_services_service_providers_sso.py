@@ -275,6 +275,88 @@ class TestBuildSsoResponse:
         # Tenant cert was used as fallback
         mock_db.saml.get_sp_certificate.assert_called_once()
 
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_includes_group_claims_when_enabled(self, mock_db, mock_log_event):
+        """build_sso_response includes groups in user_attributes when flag is on."""
+        self._setup_mocks(mock_db)
+        # Enable group claims on the SP row
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value[
+            "include_group_claims"
+        ] = True
+        mock_db.groups.get_effective_group_names.return_value = ["Engineering", "All Staff"]
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        # Check that groups were passed to the assertion builder
+        call_kwargs = mock_build.call_args[1]
+        assert call_kwargs["user_attributes"]["groups"] == ["Engineering", "All Staff"]
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_excludes_group_claims_when_disabled(self, mock_db, mock_log_event):
+        """build_sso_response does not include groups when flag is off."""
+        self._setup_mocks(mock_db)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        call_kwargs = mock_build.call_args[1]
+        assert "groups" not in call_kwargs["user_attributes"]
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_excludes_empty_group_list(self, mock_db, mock_log_event):
+        """build_sso_response omits groups key when user has no groups."""
+        self._setup_mocks(mock_db)
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value[
+            "include_group_claims"
+        ] = True
+        mock_db.groups.get_effective_group_names.return_value = []
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        call_kwargs = mock_build.call_args[1]
+        assert "groups" not in call_kwargs["user_attributes"]
+
     @patch("services.service_providers.sso.database")
     def test_fails_when_neither_cert_exists(self, mock_db):
         """build_sso_response fails when neither per-SP nor tenant cert exists."""

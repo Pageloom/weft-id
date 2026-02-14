@@ -126,6 +126,15 @@
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                        placeholder="Optional Single Logout Service URL">
             </div>
+            <div class="flex items-start gap-3">
+                <input type="checkbox" id="edit-include-group-claims" name="include_group_claims" value="true"
+                       {% if sp.include_group_claims %}checked{% endif %}
+                       class="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
+                <div>
+                    <label for="edit-include-group-claims" class="text-sm font-medium text-gray-700 dark:text-gray-300">Include group memberships in assertions</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">When enabled, the user's group memberships will be sent as a multi-valued attribute in SAML assertions.</p>
+                </div>
+            </div>
             <div>
                 <button type="submit"
                         class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">

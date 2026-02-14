@@ -10,6 +10,7 @@ from database.groups.core import (
 )
 from database.groups.effective import (
     count_effective_members,
+    get_effective_group_names,
     get_effective_members,
     get_effective_memberships,
     get_user_groups_with_context,
@@ -84,6 +85,7 @@ __all__ = [
     "bulk_remove_group_members",
     # effective membership
     "get_user_groups_with_context",
+    "get_effective_group_names",
     "get_effective_memberships",
     "get_effective_members",
     "count_effective_members",

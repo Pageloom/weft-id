@@ -208,6 +208,74 @@ class TestBuildSamlResponse:
         assert attr_map["firstName"] == (SAML_ATTRIBUTE_URIS["firstName"], "Alice")
         assert attr_map["lastName"] == (SAML_ATTRIBUTE_URIS["lastName"], "Smith")
 
+    def test_multi_valued_attribute(self, signing_keys):
+        """List values produce multiple AttributeValue elements."""
+        cert_pem, key_pem = signing_keys
+        attrs_with_groups = {
+            **_USER_ATTRS,
+            "groups": ["Engineering", "DevOps", "All Staff"],
+        }
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id=None,
+            user_attributes=attrs_with_groups,
+            certificate_pem=cert_pem,
+            private_key_pem=key_pem,
+        )
+        root = _decode_response(result)
+
+        # Find the groups attribute
+        attrs = root.findall(".//saml:AttributeStatement/saml:Attribute", _NS)
+        groups_attr = None
+        for attr in attrs:
+            if attr.get("FriendlyName") == "groups":
+                groups_attr = attr
+                break
+
+        assert groups_attr is not None
+        assert groups_attr.get("Name") == SAML_ATTRIBUTE_URIS["groups"]
+
+        values = groups_attr.findall("saml:AttributeValue", _NS)
+        assert len(values) == 3
+        group_names = sorted([v.text for v in values])
+        assert group_names == ["All Staff", "DevOps", "Engineering"]
+
+    def test_empty_list_attribute_omitted(self, signing_keys):
+        """An attribute with an empty list still creates the Attribute element."""
+        cert_pem, key_pem = signing_keys
+        attrs_with_empty = {
+            **_USER_ATTRS,
+            "groups": [],
+        }
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id=None,
+            user_attributes=attrs_with_empty,
+            certificate_pem=cert_pem,
+            private_key_pem=key_pem,
+        )
+        root = _decode_response(result)
+
+        attrs = root.findall(".//saml:AttributeStatement/saml:Attribute", _NS)
+        # groups attribute is present but has no values
+        groups_attr = None
+        for attr in attrs:
+            if attr.get("FriendlyName") == "groups":
+                groups_attr = attr
+                break
+
+        assert groups_attr is not None
+        values = groups_attr.findall("saml:AttributeValue", _NS)
+        assert len(values) == 0
+
     def test_in_response_to_present_when_provided(self, signing_keys):
         cert_pem, key_pem = signing_keys
         result, _ = build_saml_response(

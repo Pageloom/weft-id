@@ -266,4 +266,38 @@ So that I can use the data for auditing, compliance reporting, and operational t
 **Effort:** S
 **Value:** High (Frequently needed for compliance and operations, low implementation cost)
 
+---
+
+## Branding: Custom Site Title & Nav Bar Title Visibility
+
+**User Story:**
+As an admin
+I want to replace "WeftId" with my own title in the navigation header and browser tab
+So that the platform feels like my own product when my users interact with it
+
+As an admin
+I want to optionally hide the title text from the navigation bar
+So that I can show only my logo without a text label, while keeping a meaningful browser tab title
+
+**Context:**
+
+"WeftId" currently appears in two places: the nav bar header (next to the logo) and the HTML `<title>` tag (as a suffix on every page, e.g. "Users - WeftId"). Both are hardcoded. The branding settings page already manages logo customization. This feature extends it with title customization.
+
+The nav bar visibility toggle is independent of the custom title. An admin might want to hide the title even when using the default "WeftId" name (logo-only nav bar), or show a custom title in both places.
+
+**Acceptance Criteria:**
+
+- [ ] New "Site Title" section on the existing branding settings page (`/admin/settings/branding`)
+- [ ] Text field: "Site title" with 30-character max length (default: "WeftId")
+- [ ] Custom title replaces "WeftId" in the nav bar header
+- [ ] Custom title replaces "WeftId" in the HTML `<title>` suffix on all pages (e.g. "Users - My Platform")
+- [ ] Toggle: "Show title in navigation bar" (default: on)
+- [ ] When toggled off, the title text is hidden from the nav bar but still used in `<title>`
+- [ ] Empty or whitespace-only title field falls back to "WeftId" (never leave `<title>` blank)
+- [ ] API support: `GET/PUT /api/v1/branding` includes `site_title` and `show_title_in_nav` fields
+- [ ] Event log entry when settings are changed (existing `branding_settings_updated` event, add new fields to metadata)
+- [ ] Database: add `site_title` (text, nullable) and `show_title_in_nav` (boolean, default true) columns to `tenant_branding`
+
+**Effort:** S
+**Value:** Medium (Brand consistency for white-label deployments)
 

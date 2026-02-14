@@ -113,6 +113,8 @@ def generate_idp_metadata_xml(
     Returns:
         XML metadata string
     """
+    from utils.saml_assertion import SAML_ATTRIBUTE_URIS
+
     # Extract the raw certificate data (without PEM headers)
     cert_lines = certificate_pem.strip().split("\n")
     cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
@@ -127,10 +129,21 @@ def generate_idp_metadata_xml(
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
         Location="{slo_url}" />"""
 
+    # Build attribute declarations so SPs know what to expect
+    attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+    attr_elements = ""
+    for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
+        attr_elements += f"""
+    <saml:Attribute
+        Name="{uri}"
+        NameFormat="{attr_format}"
+        FriendlyName="{friendly_name}" />"""
+
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
     xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
     entityID="{entity_id}">
   <md:IDPSSODescriptor
       WantAuthnRequestsSigned="false"
@@ -143,7 +156,7 @@ def generate_idp_metadata_xml(
       </ds:KeyInfo>
     </md:KeyDescriptor>{slo_elements}
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>{attr_elements}
     <md:SingleSignOnService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
         Location="{sso_url}" />
@@ -169,15 +182,32 @@ def fetch_sp_metadata(url: str, timeout: int = 10) -> str:
     Raises:
         ValueError: If fetch fails or returns non-XML content
     """
+    import ssl
     import urllib.request
     from urllib.error import HTTPError, URLError
+    from urllib.parse import urlparse, urlunparse
+
+    import settings
 
     try:
-        req = urllib.request.Request(
-            url,
-            headers={"Accept": "application/xml, text/xml, application/samlmetadata+xml"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as response:  # noqa: S310
+        headers = {"Accept": "application/xml, text/xml, application/samlmetadata+xml"}
+        ssl_ctx = None
+
+        # Route internal URLs through the reverse-proxy container so that
+        # *.BASE_DOMAIN hostnames (unresolvable inside Docker) reach nginx.
+        parsed = urlparse(url)
+        base = settings.BASE_DOMAIN
+        if base and parsed.hostname and parsed.hostname.endswith(base):
+            original_host = parsed.hostname
+            port = parsed.port or 443
+            parsed = parsed._replace(netloc=f"reverse-proxy:{port}")
+            headers["Host"] = original_host
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        req = urllib.request.Request(urlunparse(parsed), headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:  # noqa: S310
             content: str = response.read().decode("utf-8")
 
             # Basic validation that it looks like XML

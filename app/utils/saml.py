@@ -201,15 +201,30 @@ def fetch_idp_metadata(url: str, timeout: int = 10) -> str:
     Raises:
         ValueError: If fetch fails or returns non-XML content
     """
+    import ssl
     import urllib.request
     from urllib.error import HTTPError, URLError
+    from urllib.parse import urlparse, urlunparse
 
     try:
-        req = urllib.request.Request(
-            url,
-            headers={"Accept": "application/xml, text/xml, application/samlmetadata+xml"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as response:
+        headers = {"Accept": "application/xml, text/xml, application/samlmetadata+xml"}
+        ssl_ctx = None
+
+        # Route internal URLs through the reverse-proxy container so that
+        # *.BASE_DOMAIN hostnames (unresolvable inside Docker) reach nginx.
+        parsed = urlparse(url)
+        base = settings.BASE_DOMAIN
+        if base and parsed.hostname and parsed.hostname.endswith(base):
+            original_host = parsed.hostname
+            port = parsed.port or 443
+            parsed = parsed._replace(netloc=f"reverse-proxy:{port}")
+            headers["Host"] = original_host
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        req = urllib.request.Request(urlunparse(parsed), headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
             content: str = response.read().decode("utf-8")
 
             # Basic validation that it looks like XML
@@ -248,12 +263,27 @@ def generate_sp_metadata_xml(
     cert_lines = certificate_pem.strip().split("\n")
     cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
 
+    from utils.saml_assertion import SAML_ATTRIBUTE_URIS
+
     slo_section = ""
     if slo_url:
         slo_section = f"""
     <md:SingleLogoutService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
         Location="{slo_url}" />"""
+
+    # Build requested attributes for AttributeConsumingService
+    attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+    required_attrs = {"email"}  # only email is required
+    attr_elements = ""
+    for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
+        is_required = "true" if friendly_name in required_attrs else "false"
+        attr_elements += f"""
+      <md:RequestedAttribute
+          Name="{uri}"
+          NameFormat="{attr_format}"
+          FriendlyName="{friendly_name}"
+          isRequired="{is_required}" />"""
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
@@ -277,6 +307,9 @@ def generate_sp_metadata_xml(
         Location="{acs_url}"
         index="0"
         isDefault="true" />{slo_section}
+    <md:AttributeConsumingService index="0" isDefault="true">
+      <md:ServiceName xml:lang="en">Weft ID</md:ServiceName>{attr_elements}
+    </md:AttributeConsumingService>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>"""
 

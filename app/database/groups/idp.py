@@ -123,6 +123,26 @@ def invalidate_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
     )
 
 
+def delete_groups_by_idp(tenant_id: TenantArg, idp_id: str) -> int:
+    """
+    Delete all groups for an IdP.
+
+    Called before an IdP is deleted to avoid unique constraint violations.
+    The groups FK has ON DELETE SET NULL, which would set idp_id to NULL and
+    collide with existing weftid groups sharing the same name.
+
+    Cascading deletes handle memberships, relationships, and lineage.
+
+    Returns:
+        Number of groups deleted
+    """
+    return execute(
+        tenant_id,
+        "delete from groups where idp_id = :idp_id",
+        {"idp_id": idp_id},
+    )
+
+
 def get_user_idp_group_ids(tenant_id: TenantArg, user_id: str, idp_id: str) -> list[str]:
     """
     Get all IdP group IDs a user belongs to for a specific IdP.

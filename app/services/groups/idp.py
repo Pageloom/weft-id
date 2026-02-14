@@ -332,10 +332,12 @@ def invalidate_idp_groups(
     idp_name: str,
 ) -> int:
     """
-    Mark all groups for an IdP as invalid.
+    Delete all groups for an IdP.
 
-    Called when an IdP is deleted. Groups are preserved for historical reference
-    but marked as invalid so they cannot be used for future operations.
+    Called before an IdP is deleted. Groups must be deleted rather than just
+    invalidated because the FK has ON DELETE SET NULL, which would set
+    idp_id to NULL and collide with existing weftid groups that share the
+    same name (violating idx_groups_weftid_name_unique).
 
     This is a system operation, so it uses SYSTEM_ACTOR_ID.
 
@@ -345,34 +347,33 @@ def invalidate_idp_groups(
         idp_name: The IdP name (for logging)
 
     Returns:
-        Number of groups invalidated
+        Number of groups deleted
     """
-    # Get groups before invalidation for logging
+    # Get groups before deletion for logging
     groups = database.groups.get_groups_by_idp(tenant_id, idp_id)
 
     if not groups:
         return 0
 
-    # Invalidate all groups for this IdP
-    count = database.groups.invalidate_groups_by_idp(tenant_id, idp_id)
-
-    # Log invalidation for each group
+    # Log deletion for each group before removing them
     with system_context():
         for group in groups:
-            if group.get("is_valid", True):  # Only log if was valid
-                log_event(
-                    tenant_id=tenant_id,
-                    actor_user_id=SYSTEM_ACTOR_ID,
-                    artifact_type="group",
-                    artifact_id=str(group["id"]),
-                    event_type="idp_group_invalidated",
-                    metadata={
-                        "idp_id": idp_id,
-                        "idp_name": idp_name,
-                        "group_name": group["name"],
-                        "reason": "idp_deleted",
-                    },
-                )
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=SYSTEM_ACTOR_ID,
+                artifact_type="group",
+                artifact_id=str(group["id"]),
+                event_type="idp_group_invalidated",
+                metadata={
+                    "idp_id": idp_id,
+                    "idp_name": idp_name,
+                    "group_name": group["name"],
+                    "reason": "idp_deleted",
+                },
+            )
+
+    # Delete all groups for this IdP
+    count = database.groups.delete_groups_by_idp(tenant_id, idp_id)
 
     return count
 

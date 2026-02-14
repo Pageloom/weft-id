@@ -6,33 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML IdP: Include Group Membership in SSO Assertions
-
-**User Story:**
-As a super admin
-I want WeftId to include a user's group memberships as attributes in SAML assertions
-So that downstream SPs can use group claims for authorization decisions
-
-**Context:**
-
-Groups flow into WeftId from upstream IdPs (parsed and stored as IdP groups) but are not
-included when WeftId issues assertions to downstream SPs. This breaks the federation bridge.
-SPs that use group claims for role-based access cannot work with WeftId today.
-
-**Acceptance Criteria:**
-
-- [ ] Assertion includes group membership attribute (configurable attribute name, default `groups`)
-- [ ] Includes both direct and inherited group memberships (via closure table)
-- [ ] Configurable per SP: opt-in (some SPs don't want group claims)
-- [ ] Group names sent as multi-valued attribute
-- [ ] Toggle on SP detail page: "Include group memberships in assertions"
-- [ ] API support for enabling/disabling group claims per SP
-
-**Effort:** S
-**Value:** Medium-High (Closes federation bridge gap)
-
----
-
 ## SAML IdP: SP Attribute Mapping from Metadata
 
 **User Story:**

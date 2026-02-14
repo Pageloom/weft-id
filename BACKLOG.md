@@ -35,28 +35,6 @@ Additionally, there is no automatic cleanup of expired previous certificates. Th
 
 ---
 
-## Default Attribute Names
-
-**User Story:**
-As a super admin
-I want attribute names to use friendly labels like `email` and `firstName` by default
-So that attribute mapping is intuitive and matches what most service providers expect
-
-**Context:**
-
-Weft ID currently uses OID-based URIs (`urn:oid:0.9.2342.19200300.100.1.3`, etc.) as default attribute names. Most modern SPs expect simpler names. This change affects both the IdP assertion builder and the IdP metadata attribute declarations.
-
-**Acceptance Criteria:**
-
-- [ ] Change `SAML_ATTRIBUTE_URIS` in `saml_assertion.py` from OID-based URIs to friendly names: `email`, `firstName`, `lastName`, `groups`
-- [ ] Update IdP metadata attribute declarations in `saml_idp.py` to match
-- [ ] Existing per-SP attribute overrides continue to work (only the defaults change)
-
-**Effort:** XS
-**Value:** Medium (Better out-of-the-box experience for new SP registrations)
-
----
-
 ## De-emphasize Manual SP Entry
 
 **User Story:**

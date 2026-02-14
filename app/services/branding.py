@@ -15,6 +15,12 @@ from services.types import RequestingUser
 # Maximum logo file size: 256 KB
 MAX_LOGO_SIZE = 256 * 1024
 
+# Maximum site title length
+MAX_SITE_TITLE_LENGTH = 30
+
+# Default site title when none is configured
+DEFAULT_SITE_TITLE = "WeftId"
+
 # PNG magic bytes
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -276,9 +282,17 @@ def get_branding_settings(requesting_user: RequestingUser) -> BrandingSettings:
     if row is None:
         return BrandingSettings()
 
+    # If custom mode is set but the light logo was deleted, fall back to mandala
+    # to avoid an unsubmittable form state.
+    logo_mode = LogoMode(row["logo_mode"])
+    if logo_mode == LogoMode.CUSTOM and not row["has_logo_light"]:
+        logo_mode = LogoMode.MANDALA
+
     return BrandingSettings(
-        logo_mode=LogoMode(row["logo_mode"]),
+        logo_mode=logo_mode,
         use_logo_as_favicon=row["use_logo_as_favicon"],
+        site_title=row["site_title"],
+        show_title_in_nav=row["show_title_in_nav"],
         has_logo_light=row["has_logo_light"],
         has_logo_dark=row["has_logo_dark"],
         logo_light_mime=row["logo_light_mime"],
@@ -393,11 +407,28 @@ def update_branding_settings(
                 field="logo_mode",
             )
 
+    # Normalize site_title: strip whitespace, treat empty/whitespace-only as None
+    site_title = settings.site_title
+    if site_title is not None:
+        site_title = site_title.strip()
+        if not site_title:
+            site_title = None
+
+    # Validate title length
+    if site_title is not None and len(site_title) > MAX_SITE_TITLE_LENGTH:
+        raise ValidationError(
+            message=f"Site title must be {MAX_SITE_TITLE_LENGTH} characters or fewer",
+            code="site_title_too_long",
+            field="site_title",
+        )
+
     database.branding.update_branding_settings(
         tenant_id=requesting_user["tenant_id"],
         tenant_id_value=requesting_user["tenant_id"],
         logo_mode=settings.logo_mode.value,
         use_logo_as_favicon=settings.use_logo_as_favicon,
+        site_title=site_title,
+        show_title_in_nav=settings.show_title_in_nav,
     )
 
     log_event(
@@ -409,6 +440,8 @@ def update_branding_settings(
         metadata={
             "logo_mode": settings.logo_mode.value,
             "use_logo_as_favicon": settings.use_logo_as_favicon,
+            "site_title": site_title,
+            "show_title_in_nav": settings.show_title_in_nav,
         },
     )
 
@@ -447,6 +480,8 @@ def get_branding_for_template(tenant_id: str) -> dict:
             "use_logo_as_favicon": False,
             "has_logo_light": False,
             "has_logo_dark": False,
+            "site_title": DEFAULT_SITE_TITLE,
+            "show_title_in_nav": True,
         }
 
     return {
@@ -454,4 +489,6 @@ def get_branding_for_template(tenant_id: str) -> dict:
         "use_logo_as_favicon": row["use_logo_as_favicon"],
         "has_logo_light": row["has_logo_light"],
         "has_logo_dark": row["has_logo_dark"],
+        "site_title": row["site_title"] or DEFAULT_SITE_TITLE,
+        "show_title_in_nav": row["show_title_in_nav"],
     }

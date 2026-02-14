@@ -380,14 +380,18 @@ def update_branding_settings(
     user: Annotated[dict, Depends(get_current_user)],
     logo_mode: Annotated[str, Form()],
     use_logo_as_favicon: Annotated[str, Form()] = "",
+    site_title: Annotated[str, Form()] = "",
+    show_title_in_nav: Annotated[str, Form()] = "",
 ):
-    """Update branding display settings (logo mode, favicon preference)."""
+    """Update branding display settings (logo mode, favicon, title)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         settings_data = BrandingSettingsUpdate(
             logo_mode=LogoMode(logo_mode),
             use_logo_as_favicon=use_logo_as_favicon == "true",
+            site_title=site_title or None,
+            show_title_in_nav=show_title_in_nav == "true",
         )
     except (ValueError, PydanticValidationError):
         exc = ValidationError(

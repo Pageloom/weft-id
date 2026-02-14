@@ -6,33 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SP List Page UX Improvements
-
-**User Story:**
-As a super admin
-I want the service providers list page to be cleaner and more consistent with other list views
-So that I can quickly scan SP status without visual clutter or misleading information
-
-**Context:**
-
-The current SP list page at `/admin/settings/service-providers/` has several UX issues: it uses a narrow table layout instead of the full-width pattern used elsewhere, displays an incorrect global metadata URL message, shows Entity IDs that break the table layout, and offers delete actions directly in the list. This item brings the SP list in line with other list views (e.g., user list).
-
-**Acceptance Criteria:**
-
-- [ ] Full-width table layout, consistent with user list views
-- [ ] Remove the "Share this URL with downstream service providers to configure SAML trust" message (incorrect; each SP has its own metadata URL)
-- [ ] Remove Entity ID column from the table (too long, breaks layout)
-- [ ] Certificate expiration column shows relative time (e.g., "in 342 days") with exact date/time on mouseover
-- [ ] Created column shows relative time (e.g., "3 days ago") with exact date/time on mouseover, consistent with user list views
-- [ ] Remove delete action from the list rows
-- [ ] Remove separate "Details" link. SP name is clickable and navigates to the detail view
-- [ ] Remaining columns: Name (clickable), Status, Groups (count), Certificate Expiry, Created
-
-**Effort:** S
-**Value:** High (Consistency with existing list patterns, removes misleading info)
-
----
-
 ## SP Detail View: Tabbed Page Design
 
 **User Story:**

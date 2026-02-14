@@ -238,11 +238,59 @@ class TestFormatRelativeDate:
         rel, _ = format_relative_date(dt, reference=ref)
         assert rel == "2 years ago"
 
-    def test_future_date(self):
+    def test_future_tomorrow(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 16, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "Tomorrow"
+
+    def test_future_days(self):
         ref = date(2025, 6, 15)
         dt = datetime(2025, 6, 20, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
         rel, _ = format_relative_date(dt, reference=ref)
-        assert rel == "In the future"
+        assert rel == "in 5 days"
+
+    def test_future_boundary_13_days(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 28, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 13 days"
+
+    def test_future_boundary_14_days_switches_to_weeks(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 6, 29, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 2 weeks"
+
+    def test_future_weeks(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 7, 6, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 3 weeks"
+
+    def test_future_boundary_60_days_switches_to_months(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 8, 14, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 2 months"
+
+    def test_future_months(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2025, 10, 15, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 4 months"
+
+    def test_future_boundary_365_days_switches_to_years(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2026, 6, 16, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 1 year"
+
+    def test_future_years(self):
+        ref = date(2025, 6, 15)
+        dt = datetime(2027, 12, 1, 10, 30, 0, tzinfo=ZoneInfo("UTC"))
+        rel, _ = format_relative_date(dt, reference=ref)
+        assert rel == "in 2 years"
 
     def test_timezone_edge_case(self):
         """A datetime that is 'yesterday' in UTC but 'today' in a +12 timezone."""

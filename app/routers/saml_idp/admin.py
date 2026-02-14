@@ -61,14 +61,10 @@ def sp_list(
         logger.warning("Failed to list service providers: %s", exc)
         service_providers = []
 
-    base_url = get_base_url(request)
-    idp_metadata_url = f"{base_url}/saml/idp/metadata" if service_providers else None
-
     context = get_template_context(
         request,
         tenant_id,
         service_providers=service_providers,
-        idp_metadata_url=idp_metadata_url,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )

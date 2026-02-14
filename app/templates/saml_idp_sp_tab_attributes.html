@@ -46,15 +46,17 @@
             {% for attr_key, default_uri in saml_attributes.items() %}
             {% set current_uri = sp.attribute_mapping[attr_key] if sp.attribute_mapping and attr_key in
             sp.attribute_mapping else default_uri %}
-            {% set sp_attr = namespace(found=false, name='', friendly='', required=false) %}
-            {% if sp.sp_requested_attributes %}
+            {% set sp_attr = namespace(found=false, name='', friendly='', required=false, matched=false) %}
+            {% if sp.sp_requested_attributes and expected_mapping and attr_key in expected_mapping %}
+            {# Find the SP requested attribute that matches the expected mapping for this IdP key #}
+            {% set expected_uri = expected_mapping[attr_key] %}
             {% for ra in sp.sp_requested_attributes %}
-            {% if sp.attribute_mapping and attr_key in sp.attribute_mapping and ra.name ==
-            sp.attribute_mapping[attr_key] %}
+            {% if ra.name == expected_uri %}
             {% set sp_attr.found = true %}
             {% set sp_attr.name = ra.name %}
             {% set sp_attr.friendly = ra.friendly_name or '' %}
             {% set sp_attr.required = ra.is_required %}
+            {% set sp_attr.matched = (current_uri == expected_uri) %}
             {% endif %}
             {% endfor %}
             {% endif %}
@@ -82,10 +84,13 @@
                     {% else %}
                     <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Optional</span>
                     {% endif %}
+                    {% if sp_attr.matched %}
                     <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Matched</span>
                     {% else %}
-                    <span class="text-xs text-amber-600 dark:text-amber-400">No matching expectation</span>
                     <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">Unmatched</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-xs text-gray-500 dark:text-gray-400">No expectation declared</span>
                     {% endif %}
                 </td>
                 {% endif %}

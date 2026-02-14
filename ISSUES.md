@@ -35,35 +35,6 @@ actor_user_id=SYSTEM_ACTOR_ID,
 
 ---
 
-## Medium Severity
-
-### API-002: Group parent management missing from API
-
-**Found in:** `app/routers/api/v1/groups.py`
-**Severity:** Medium
-**Principle Violated:** API-First
-**Description:** The web UI exposes parent relationship management (add parent, remove parent) but the API only provides read access to parents and write access via the child direction.
-**Evidence:**
-```
-Web UI:
-  POST /{group_id}/parents/add          -> app/routers/groups/relationships.py:83
-  POST /{group_id}/parents/{pid}/remove -> app/routers/groups/relationships.py:111
-
-API:
-  GET  /api/v1/groups/{group_id}/parents   (read only)
-  POST /api/v1/groups/{group_id}/children  (add child - opposite direction)
-  DELETE /api/v1/groups/{group_id}/children/{cid} (remove child)
-```
-**Impact:** API consumers cannot manage parent relationships from the child's perspective. They must know the parent group ID and use the children endpoint, which is a different mental model from the web UI.
-**Root Cause:** Parent management endpoints were added to the web UI but not mirrored in the API layer.
-**Suggested fix:** Add two API endpoints:
-```python
-# POST /api/v1/groups/{group_id}/parents
-# DELETE /api/v1/groups/{group_id}/parents/{parent_group_id}
-```
-
----
-
 # Summary
 
 | Severity | Count | Categories |

@@ -17,7 +17,8 @@ from schemas.groups import (
     GroupMemberAdd,
     GroupMemberDetailList,
     GroupParentsList,
-    GroupRelationshipAdd,
+    GroupChildAdd,
+    GroupParentAdd,
     GroupSummary,
     GroupUpdate,
 )
@@ -407,6 +408,56 @@ def list_parents(
         raise translate_to_http_exception(exc)
 
 
+@router.post("/{group_id}/parents", status_code=201)
+def add_parent(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    relationship_data: GroupParentAdd,
+):
+    """
+    Add a parent group.
+
+    Requires admin role.
+
+    Raises:
+        400: If would create a cycle or self-reference
+        409: If relationship already exists
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        groups_service.add_child(requesting_user, group_id, relationship_data.parent_group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+    return {"status": "ok"}
+
+
+@router.delete("/{group_id}/parents/{parent_group_id}", status_code=204)
+def remove_parent(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    parent_group_id: str,
+):
+    """
+    Remove a parent group.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        groups_service.remove_child(requesting_user, parent_group_id, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+    return {"status": "ok"}
+
+
 @router.get("/{group_id}/children", response_model=GroupChildrenList)
 def list_children(
     request: Request,
@@ -433,7 +484,7 @@ def add_child(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     group_id: str,
-    relationship_data: GroupRelationshipAdd,
+    relationship_data: GroupChildAdd,
 ):
     """
     Add a child group.

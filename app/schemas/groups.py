@@ -119,10 +119,15 @@ class GroupRelationship(BaseModel):
     created_at: datetime = Field(..., description="When relationship was created")
 
 
-class GroupRelationshipAdd(BaseModel):
+class GroupChildAdd(BaseModel):
     """Request to add a child group."""
 
     child_group_id: str = Field(..., description="Child group UUID to add")
+
+
+class GroupParentAdd(BaseModel):
+    """ Request to add a parent to a group. """
+    parent_group_id: str = Field(..., description="Parent group UUID to add")
 
 
 class GroupParentsList(BaseModel):

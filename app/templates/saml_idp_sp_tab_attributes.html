@@ -19,10 +19,12 @@
                    {% if sp.include_group_claims %}checked{% endif %}
                    class="mt-1 h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500">
             <div>
-                <label for="edit-include-group-claims" class="text-sm font-medium text-gray-700 dark:text-gray-300">Include
-                    group memberships in assertions</label>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">When enabled, the user's group memberships
-                    will be sent as a multi-valued attribute in SAML assertions.</p>
+                <label for="edit-include-group-claims" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Share group membership information to the service provider
+                </label>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    When enabled, the user's group memberships will be communicated to the service provider during sign-in.
+                </p>
             </div>
         </div>
 
@@ -63,14 +65,6 @@
             <tr>
                 <td class="py-2 pr-4">
                     <span class="font-medium text-gray-900 dark:text-gray-100">{{ attr_key }}</span>
-                    {% if attr_key == 'groups' %}
-                    <br>
-                    {% if sp.include_group_claims %}
-                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Enabled</span>
-                    {% else %}
-                    <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Disabled</span>
-                    {% endif %}
-                    {% endif %}
                 </td>
                 {% if sp.sp_requested_attributes %}
                 <td class="py-2 pr-4">
@@ -107,7 +101,8 @@
         {% if sp.sp_requested_attributes %}
         <div class="mb-4 p-3 bg-blue-50 dark:bg-gray-700/50 border border-blue-200 dark:border-gray-600 rounded-md">
             <p class="text-xs text-blue-800 dark:text-gray-200">
-                💡 <strong>Tip:</strong> For SSO to work, "What You're Sending" should match "What They Expect" (look for the green "Matched" badge).
+                💡 <strong>Tip:</strong> For SSO to work, "What You're Sending" should match "What They Expect" (look for
+                the green "Matched" badge).
             </p>
         </div>
         {% endif %}
@@ -120,10 +115,6 @@
             <a href="#" id="reset-attr-defaults" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reset
                 to defaults</a>
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">
-            The <strong>groups</strong> attribute is controlled by the "Include group memberships in assertions" setting
-            above.
-        </p>
     </form>
 </div>
 {% endblock %}

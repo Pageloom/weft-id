@@ -364,6 +364,10 @@ def sp_edit(
     acs_url: str = Form(""),
     slo_url: str = Form(""),
     include_group_claims: str | None = Form(None),
+    attr_map_email: str = Form(""),
+    attr_map_firstName: str = Form(""),  # noqa: N803
+    attr_map_lastName: str = Form(""),  # noqa: N803
+    attr_map_groups: str = Form(""),
 ):
     """Update an SP's configuration from the detail page form."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
@@ -385,6 +389,19 @@ def sp_edit(
         update_fields["slo_url"] = slo_url.strip()
     # Checkbox: present means true, absent means false
     update_fields["include_group_claims"] = include_group_claims == "true"
+
+    # Build attribute mapping from form inputs
+    attr_mapping: dict[str, str] = {}
+    if attr_map_email.strip():
+        attr_mapping["email"] = attr_map_email.strip()
+    if attr_map_firstName.strip():
+        attr_mapping["firstName"] = attr_map_firstName.strip()
+    if attr_map_lastName.strip():
+        attr_mapping["lastName"] = attr_map_lastName.strip()
+    if attr_map_groups.strip():
+        attr_mapping["groups"] = attr_map_groups.strip()
+    if attr_mapping:
+        update_fields["attribute_mapping"] = attr_mapping
 
     if not update_fields:
         return RedirectResponse(

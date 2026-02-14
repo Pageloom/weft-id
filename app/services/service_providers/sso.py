@@ -143,6 +143,9 @@ def build_sso_response(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     )
 
+    # 6b. Get per-SP attribute mapping (if configured)
+    attribute_mapping = sp_row.get("attribute_mapping")
+
     saml_response_b64, session_index = build_saml_response(
         issuer_entity_id=issuer_entity_id,
         sp_entity_id=sp_entity_id,
@@ -153,6 +156,7 @@ def build_sso_response(
         user_attributes=user_attributes,
         certificate_pem=cert["certificate_pem"],
         private_key_pem=private_key_pem,
+        attribute_mapping=attribute_mapping,
     )
 
     # 7. Log event

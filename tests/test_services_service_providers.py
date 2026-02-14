@@ -38,6 +38,8 @@ def _make_sp_row(
     entity_id: str = "https://app.example.com/saml/metadata",
     acs_url: str = "https://app.example.com/saml/acs",
     enabled: bool = True,
+    sp_requested_attributes: list[dict] | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> dict:
     """Create a mock SP database row."""
     return {
@@ -49,6 +51,8 @@ def _make_sp_row(
         "certificate_pem": None,
         "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         "metadata_xml": None,
+        "sp_requested_attributes": sp_requested_attributes,
+        "attribute_mapping": attribute_mapping,
         "enabled": enabled,
         "created_by": str(uuid4()),
         "created_at": datetime.now(UTC),
@@ -1426,3 +1430,138 @@ class TestDisableServiceProvider:
 
         with pytest.raises(ForbiddenError):
             sp_service.disable_service_provider(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# Metadata import stores attribute mapping
+# =============================================================================
+
+
+class TestImportSPStoresAttributeMapping:
+    """Tests that metadata import stores sp_requested_attributes and auto-detected mapping."""
+
+    def test_import_xml_stores_requested_attributes(self, make_requesting_user):
+        """Import from XML stores sp_requested_attributes when metadata has them."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        requested_attrs = [
+            {
+                "name": "urn:oid:0.9.2342.19200300.100.1.3",
+                "friendly_name": "mail",
+                "is_required": True,
+            },
+            {"name": "urn:oid:2.5.4.42", "friendly_name": "givenName", "is_required": False},
+        ]
+        parsed = {
+            "entity_id": "https://attrs.example.com",
+            "acs_url": "https://attrs.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "requested_attributes": requested_attrs,
+        }
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            sp_requested_attributes=requested_attrs,
+            attribute_mapping={
+                "email": "urn:oid:0.9.2342.19200300.100.1.3",
+                "firstName": "urn:oid:2.5.4.42",
+            },
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+
+            sp_service.import_sp_from_metadata_xml(
+                requesting_user, name="Attrs App", metadata_xml="<xml/>"
+            )
+
+            # Verify create was called with the attributes
+            call_kwargs = mock_db.service_providers.create_service_provider.call_args[1]
+            assert call_kwargs["sp_requested_attributes"] == requested_attrs
+            assert "email" in call_kwargs["attribute_mapping"]
+            assert "firstName" in call_kwargs["attribute_mapping"]
+
+    def test_import_xml_no_requested_attributes(self, make_requesting_user):
+        """Import from XML passes None when metadata has no RequestedAttribute."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        parsed = {
+            "entity_id": "https://no-attrs.example.com",
+            "acs_url": "https://no-attrs.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "requested_attributes": None,
+        }
+        row = _make_sp_row(tenant_id=tenant_id)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+
+            sp_service.import_sp_from_metadata_xml(
+                requesting_user, name="No Attrs", metadata_xml="<xml/>"
+            )
+
+            call_kwargs = mock_db.service_providers.create_service_provider.call_args[1]
+            assert call_kwargs["sp_requested_attributes"] is None
+            assert call_kwargs["attribute_mapping"] is None
+
+
+# =============================================================================
+# update_service_provider with attribute_mapping
+# =============================================================================
+
+
+class TestUpdateSPAttributeMapping:
+    """Tests for updating attribute_mapping via update_service_provider."""
+
+    def test_update_attribute_mapping(self, make_requesting_user):
+        """Can update attribute_mapping field."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        new_mapping = {
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        }
+        data = SPUpdate(attribute_mapping=new_mapping)
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            attribute_mapping=new_mapping,
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.attribute_mapping == new_mapping
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id, sp_id, attribute_mapping=new_mapping
+            )

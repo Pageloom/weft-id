@@ -443,3 +443,92 @@ class TestGetUserConsentInfo:
             "first_name": "",
             "last_name": "",
         }
+
+
+# ============================================================================
+# build_sso_response: attribute_mapping passthrough
+# ============================================================================
+
+
+class TestBuildSsoResponseAttributeMapping:
+    """Tests that build_sso_response passes attribute_mapping to assertion builder."""
+
+    def _setup_mocks(self, mock_db, attribute_mapping=None):
+        """Set up standard mocks with optional attribute_mapping on SP row."""
+        sp_row = {
+            "id": "sp-1",
+            "name": "Test SP",
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+        if attribute_mapping is not None:
+            sp_row["attribute_mapping"] = attribute_mapping
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value = sp_row
+        mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+        mock_db.saml.get_sp_certificate.return_value = {
+            "certificate_pem": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            "private_key_pem_enc": "encrypted-key",
+        }
+        mock_db.users.get_user_by_id.return_value = {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.user_emails.get_primary_email.return_value = {
+            "email": "alice@example.com",
+        }
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_passes_attribute_mapping_to_builder(self, mock_db, mock_log_event):
+        """build_sso_response passes attribute_mapping kwarg to build_saml_response."""
+        custom_mapping = {
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        }
+        self._setup_mocks(mock_db, attribute_mapping=custom_mapping)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        call_kwargs = mock_build.call_args[1]
+        assert call_kwargs["attribute_mapping"] == custom_mapping
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_passes_none_when_no_mapping(self, mock_db, mock_log_event):
+        """build_sso_response passes None when SP has no attribute_mapping."""
+        self._setup_mocks(mock_db)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        call_kwargs = mock_build.call_args[1]
+        assert call_kwargs["attribute_mapping"] is None

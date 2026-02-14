@@ -2,7 +2,11 @@
 
 import pytest
 from defusedxml import ElementTree as DefusedET
-from utils.saml_idp import generate_idp_metadata_xml, parse_sp_metadata_xml
+from utils.saml_idp import (
+    auto_detect_attribute_mapping,
+    generate_idp_metadata_xml,
+    parse_sp_metadata_xml,
+)
 
 # =============================================================================
 # Sample Metadata
@@ -489,3 +493,223 @@ MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=
         assert cert.endswith("-----END CERTIFICATE-----")
         # Should not double-wrap
         assert cert.count("-----BEGIN CERTIFICATE-----") == 1
+
+
+# =============================================================================
+# parse_sp_metadata_xml: RequestedAttribute extraction
+# =============================================================================
+
+SAMPLE_SP_METADATA_WITH_ATTRS = """<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    entityID="https://attrs.example.com">
+  <md:SPSSODescriptor
+      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:AssertionConsumerService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        Location="https://attrs.example.com/acs"
+        index="0" />
+    <md:AttributeConsumingService index="0">
+      <md:ServiceName xml:lang="en">Test Service</md:ServiceName>
+      <md:RequestedAttribute
+          Name="urn:oid:0.9.2342.19200300.100.1.3"
+          FriendlyName="mail"
+          isRequired="true" />
+      <md:RequestedAttribute
+          Name="urn:oid:2.5.4.42"
+          FriendlyName="givenName"
+          isRequired="false" />
+      <md:RequestedAttribute
+          Name="urn:oid:2.5.4.4"
+          isRequired="true" />
+    </md:AttributeConsumingService>
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>"""
+
+
+class TestParseSPMetadataRequestedAttributes:
+    """Tests for RequestedAttribute extraction from SP metadata."""
+
+    def test_extracts_requested_attributes(self):
+        """Parses multiple RequestedAttribute elements."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_ATTRS)
+        attrs = result["requested_attributes"]
+
+        assert attrs is not None
+        assert len(attrs) == 3
+
+    def test_attribute_name_and_friendly_name(self):
+        """Extracts Name and FriendlyName correctly."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_ATTRS)
+        attrs = result["requested_attributes"]
+
+        assert attrs[0]["name"] == "urn:oid:0.9.2342.19200300.100.1.3"
+        assert attrs[0]["friendly_name"] == "mail"
+
+    def test_is_required_flag(self):
+        """Parses isRequired flag correctly."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_ATTRS)
+        attrs = result["requested_attributes"]
+
+        assert attrs[0]["is_required"] is True
+        assert attrs[1]["is_required"] is False
+        assert attrs[2]["is_required"] is True
+
+    def test_missing_friendly_name(self):
+        """FriendlyName is None when not present."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_WITH_ATTRS)
+        attrs = result["requested_attributes"]
+
+        assert attrs[2]["friendly_name"] is None
+
+    def test_no_attribute_consuming_service(self):
+        """Returns None when no AttributeConsumingService exists."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA_MINIMAL)
+
+        assert result["requested_attributes"] is None
+
+    def test_full_metadata_without_attrs(self):
+        """Full metadata without AttributeConsumingService returns None."""
+        result = parse_sp_metadata_xml(SAMPLE_SP_METADATA)
+
+        assert result["requested_attributes"] is None
+
+
+# =============================================================================
+# auto_detect_attribute_mapping
+# =============================================================================
+
+
+class TestAutoDetectAttributeMapping:
+    """Tests for auto_detect_attribute_mapping."""
+
+    def test_standard_oid_matching(self):
+        """Matches standard OID URIs to IdP attributes."""
+        attrs = [
+            {
+                "name": "urn:oid:0.9.2342.19200300.100.1.3",
+                "friendly_name": "mail",
+                "is_required": True,
+            },
+            {"name": "urn:oid:2.5.4.42", "friendly_name": "givenName", "is_required": False},
+            {"name": "urn:oid:2.5.4.4", "friendly_name": "sn", "is_required": False},
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert result == {
+            "email": "urn:oid:0.9.2342.19200300.100.1.3",
+            "firstName": "urn:oid:2.5.4.42",
+            "lastName": "urn:oid:2.5.4.4",
+        }
+
+    def test_azure_claims_matching(self):
+        """Matches Azure AD / WS-Federation claim URIs."""
+        attrs = [
+            {
+                "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+                "friendly_name": None,
+                "is_required": True,
+            },
+            {
+                "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+                "friendly_name": None,
+                "is_required": False,
+            },
+            {
+                "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+                "friendly_name": None,
+                "is_required": False,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert (
+            result["email"] == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+        )
+        assert (
+            result["firstName"] == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+        )
+        assert result["lastName"] == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
+
+    def test_friendly_name_fallback(self):
+        """Falls back to friendly name when URI is not recognized."""
+        attrs = [
+            {
+                "name": "https://custom.example.com/email",
+                "friendly_name": "mail",
+                "is_required": True,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert result == {"email": "https://custom.example.com/email"}
+
+    def test_case_insensitive_friendly_name(self):
+        """Friendly name matching is case-insensitive."""
+        attrs = [
+            {
+                "name": "https://custom.example.com/mail",
+                "friendly_name": "Mail",
+                "is_required": True,
+            },
+            {
+                "name": "https://custom.example.com/gn",
+                "friendly_name": "GivenName",
+                "is_required": False,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert result["email"] == "https://custom.example.com/mail"
+        assert result["firstName"] == "https://custom.example.com/gn"
+
+    def test_no_matches_returns_empty(self):
+        """Returns empty dict when nothing matches."""
+        attrs = [
+            {
+                "name": "https://unknown.example.com/foo",
+                "friendly_name": "unknown",
+                "is_required": True,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert result == {}
+
+    def test_empty_input(self):
+        """Returns empty dict for empty input."""
+        result = auto_detect_attribute_mapping([])
+
+        assert result == {}
+
+    def test_first_match_wins(self):
+        """If two SP attrs map to the same IdP key, first wins."""
+        attrs = [
+            {
+                "name": "urn:oid:0.9.2342.19200300.100.1.3",
+                "friendly_name": "mail",
+                "is_required": True,
+            },
+            {
+                "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+                "friendly_name": None,
+                "is_required": False,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        # First match (OID) should win
+        assert result["email"] == "urn:oid:0.9.2342.19200300.100.1.3"
+
+    def test_groups_oid_matching(self):
+        """Matches eduPersonEntitlement OID to groups."""
+        attrs = [
+            {
+                "name": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",
+                "friendly_name": "eduPersonEntitlement",
+                "is_required": False,
+            },
+        ]
+        result = auto_detect_attribute_mapping(attrs)
+
+        assert result == {"groups": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7"}

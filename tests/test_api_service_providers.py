@@ -311,6 +311,36 @@ class TestGetAPI:
         assert data["id"] == sample_sp.id
         assert data["acs_url"] == "https://api.example.com/acs"
 
+    def test_get_returns_new_fields(self, sp_api_client, api_host, sample_sp):
+        """GET returns sp_requested_attributes and attribute_mapping fields."""
+        sp_with_mapping = sample_sp.model_copy(
+            update={
+                "sp_requested_attributes": [
+                    {
+                        "name": "urn:oid:0.9.2342.19200300.100.1.3",
+                        "friendly_name": "mail",
+                        "is_required": True,
+                    }
+                ],
+                "attribute_mapping": {"email": "urn:oid:0.9.2342.19200300.100.1.3"},
+            }
+        )
+
+        with patch(
+            "services.service_providers.get_service_provider",
+            return_value=sp_with_mapping,
+        ):
+            response = sp_api_client.get(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sp_requested_attributes"] is not None
+        assert len(data["sp_requested_attributes"]) == 1
+        assert data["attribute_mapping"] == {"email": "urn:oid:0.9.2342.19200300.100.1.3"}
+
     def test_get_not_found(self, sp_api_client, api_host):
         """Non-existent SP returns 404."""
         from services.exceptions import NotFoundError
@@ -637,6 +667,27 @@ class TestUpdateAPI:
             )
 
         assert response.status_code == 400
+
+    def test_patch_attribute_mapping(self, sp_api_client, api_host, sample_sp):
+        """Can update attribute_mapping via PATCH."""
+        new_mapping = {
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        }
+        updated_sp = sample_sp.model_copy(update={"attribute_mapping": new_mapping})
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=updated_sp,
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+                json={"attribute_mapping": new_mapping},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["attribute_mapping"] == new_mapping
 
     def test_patch_unauthenticated(self, client, api_host):
         """Unauthenticated requests return 401."""

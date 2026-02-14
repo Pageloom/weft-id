@@ -89,6 +89,14 @@ def _create_sp_from_parsed_metadata(
             code="sp_entity_id_exists",
         )
 
+    # Extract and auto-detect attribute mapping from SP metadata
+    sp_requested_attributes = parsed.get("requested_attributes")
+    attribute_mapping = None
+    if sp_requested_attributes:
+        from utils.saml_idp import auto_detect_attribute_mapping
+
+        attribute_mapping = auto_detect_attribute_mapping(sp_requested_attributes) or None
+
     row = database.service_providers.create_service_provider(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
@@ -101,6 +109,8 @@ def _create_sp_from_parsed_metadata(
         ),
         metadata_xml=metadata_xml,
         slo_url=parsed.get("slo_url"),
+        sp_requested_attributes=sp_requested_attributes,
+        attribute_mapping=attribute_mapping,
         created_by=requesting_user["id"],
     )
 
@@ -369,6 +379,8 @@ def update_service_provider(
         update_fields["slo_url"] = data.slo_url
     if data.include_group_claims is not None:
         update_fields["include_group_claims"] = data.include_group_claims
+    if data.attribute_mapping is not None:
+        update_fields["attribute_mapping"] = data.attribute_mapping
 
     if not update_fields:
         raise ValidationError(

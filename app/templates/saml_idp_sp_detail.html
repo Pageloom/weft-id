@@ -102,7 +102,7 @@
     {# Edit Configuration Card #}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Configuration</h2>
-        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit" class="space-y-4">
+        <form id="sp-edit-form" method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label for="edit-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -144,43 +144,79 @@
         </form>
     </div>
 
-    {# Assertion Attributes Card #}
+    {# Assertion Attribute Mapping Card #}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Assertion Attributes</h2>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Assertion Attribute Mapping</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-            Attributes included in SAML assertions sent to this service provider.
+            Configure how IdP attributes map to URIs in SAML assertions sent to this SP.
+            {% if not sp.sp_requested_attributes %}
+            This SP did not declare attribute expectations in its metadata. Using default OID-based URIs.
+            {% endif %}
         </p>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm mb-4">
             <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700">
-                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attribute</th>
-                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">OID URI</th>
-                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IdP Attribute</th>
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SP Expectation</th>
+                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assertion URI</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                {% for attr_name, attr_uri in saml_attributes.items() %}
+                {% for attr_key, default_uri in saml_attributes.items() %}
+                {% set current_uri = sp.attribute_mapping[attr_key] if sp.attribute_mapping and attr_key in sp.attribute_mapping else default_uri %}
+                {% set sp_attr = namespace(found=false, name='', friendly='', required=false) %}
+                {% if sp.sp_requested_attributes %}
+                    {% for ra in sp.sp_requested_attributes %}
+                        {% if sp.attribute_mapping and attr_key in sp.attribute_mapping and ra.name == sp.attribute_mapping[attr_key] %}
+                            {% set sp_attr.found = true %}
+                            {% set sp_attr.name = ra.name %}
+                            {% set sp_attr.friendly = ra.friendly_name or '' %}
+                            {% set sp_attr.required = ra.is_required %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
                 <tr>
-                    <td class="py-2 pr-4 font-medium text-gray-900 dark:text-gray-100">{{ attr_name }}</td>
-                    <td class="py-2 pr-4 font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{{ attr_uri }}</td>
-                    <td class="py-2">
-                        {% if attr_name == 'groups' %}
+                    <td class="py-2 pr-4">
+                        <span class="font-medium text-gray-900 dark:text-gray-100">{{ attr_key }}</span>
+                        {% if attr_key == 'groups' %}
+                        <br>
                         {% if sp.include_group_claims %}
                         <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Enabled</span>
                         {% else %}
                         <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Disabled</span>
                         {% endif %}
-                        {% else %}
-                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">Always sent</span>
                         {% endif %}
+                    </td>
+                    <td class="py-2 pr-4">
+                        {% if sp_attr.found %}
+                        <span class="font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{{ sp_attr.name }}</span>
+                        {% if sp_attr.friendly %}
+                        <br><span class="text-xs text-gray-500 dark:text-gray-400">({{ sp_attr.friendly }})</span>
+                        {% endif %}
+                        {% if sp_attr.required %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">Required</span>
+                        {% else %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Optional</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-xs text-gray-400 dark:text-gray-500 italic">None declared</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-2">
+                        <input type="text" name="attr_map_{{ attr_key }}" value="{{ current_uri }}" form="sp-edit-form"
+                               class="attr-map-input w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               data-default="{{ default_uri }}">
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            The <strong>groups</strong> attribute is controlled by the "Include group memberships in assertions" setting above.
-        </p>
+        <div class="flex items-center gap-4">
+            <a href="#" id="reset-attr-defaults" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reset to defaults</a>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                The <strong>groups</strong> attribute is controlled by the "Include group memberships in assertions" setting above.
+            </p>
+        </div>
     </div>
 
     {# Signing Certificate Card #}
@@ -344,6 +380,16 @@ document.querySelectorAll('.confirm-btn').forEach(function(btn) {
         }, { destructive: isDestructive });
     });
 });
+
+var resetLink = document.getElementById('reset-attr-defaults');
+if (resetLink) {
+    resetLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.attr-map-input').forEach(function(input) {
+            input.value = input.dataset.default;
+        });
+    });
+}
 
 var copyBtn = document.getElementById('copy-sp-metadata-url');
 if (copyBtn) {

@@ -1,10 +1,13 @@
 """Downstream SAML Service Provider database operations."""
 
+import json
+
 from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml, slo_url,
-               include_group_claims, enabled, created_by, created_at, updated_at"""
+               include_group_claims, sp_requested_attributes, attribute_mapping,
+               enabled, created_by, created_at, updated_at"""
 
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
@@ -70,6 +73,8 @@ def create_service_provider(
     metadata_xml: str | None = None,
     description: str | None = None,
     slo_url: str | None = None,
+    sp_requested_attributes: list[dict] | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> dict | None:
     """Create a new service provider.
 
@@ -82,11 +87,13 @@ def create_service_provider(
         insert into service_providers (
             tenant_id, name, description, entity_id, acs_url,
             certificate_pem, nameid_format, metadata_xml, slo_url,
+            sp_requested_attributes, attribute_mapping,
             created_by
         )
         values (
             :tenant_id, :name, :description, :entity_id, :acs_url,
             :certificate_pem, :nameid_format, :metadata_xml, :slo_url,
+            :sp_requested_attributes, :attribute_mapping,
             :created_by
         )
         returning {_SP_COLUMNS}
@@ -101,6 +108,10 @@ def create_service_provider(
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
             "slo_url": slo_url,
+            "sp_requested_attributes": json.dumps(sp_requested_attributes)
+            if sp_requested_attributes
+            else None,
+            "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
             "created_by": created_by,
         },
     )
@@ -119,10 +130,22 @@ def update_service_provider(
     Returns:
         Updated SP dict, or None if not found
     """
-    allowed = {"name", "description", "acs_url", "slo_url", "include_group_claims", "enabled"}
+    allowed = {
+        "name",
+        "description",
+        "acs_url",
+        "slo_url",
+        "include_group_claims",
+        "attribute_mapping",
+        "enabled",
+    }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_service_provider(tenant_id, sp_id)
+
+    # Serialize JSONB fields
+    if "attribute_mapping" in updates:
+        updates["attribute_mapping"] = json.dumps(updates["attribute_mapping"])
 
     set_clause = ", ".join(f"{k} = :{k}" for k in updates)
     params = {**updates, "sp_id": sp_id}

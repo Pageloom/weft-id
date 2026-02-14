@@ -49,6 +49,7 @@ def build_saml_response(
     certificate_pem: str,
     private_key_pem: str,
     session_index: str | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     """Build and sign a SAML 2.0 Response containing a signed Assertion.
 
@@ -88,6 +89,7 @@ def build_saml_response(
         user_attributes=user_attributes,
         now=now,
         session_index=session_index,
+        attribute_mapping=attribute_mapping,
     )
 
     # Sign the Assertion
@@ -156,6 +158,7 @@ def _build_assertion_element(
     user_attributes: dict[str, str | list[str]],
     now: datetime.datetime,
     session_index: str | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> etree._Element:
     """Build an unsigned SAML Assertion element."""
     issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -244,7 +247,10 @@ def _build_assertion_element(
     if user_attributes:
         attr_stmt = etree.SubElement(assertion, f"{{{_SAML_NS}}}AttributeStatement")
         for attr_name, attr_value in user_attributes.items():
-            uri = SAML_ATTRIBUTE_URIS.get(attr_name, attr_name)
+            if attribute_mapping and attr_name in attribute_mapping:
+                uri = attribute_mapping[attr_name]
+            else:
+                uri = SAML_ATTRIBUTE_URIS.get(attr_name, attr_name)
             attr = etree.SubElement(
                 attr_stmt,
                 f"{{{_SAML_NS}}}Attribute",

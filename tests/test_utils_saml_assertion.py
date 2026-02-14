@@ -502,3 +502,91 @@ class TestSignatureVerification:
         assert children[0].tag == f"{{{_SAML_NS}}}Issuer"
         assert children[1].tag == f"{{{_DS_NS}}}Signature"
         assert children[2].tag == f"{{{_SAML_NS}}}Subject"
+
+
+# ============================================================================
+# Custom Attribute Mapping Tests
+# ============================================================================
+
+
+class TestCustomAttributeMapping:
+    """Tests for per-SP attribute mapping in assertions."""
+
+    def test_custom_mapping_overrides_defaults(self, signing_keys):
+        """Custom attribute_mapping replaces default OID URIs."""
+        cert_pem, key_pem = signing_keys
+        custom_mapping = {
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+            "firstName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+            "lastName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+        }
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id=None,
+            user_attributes=_USER_ATTRS,
+            certificate_pem=cert_pem,
+            private_key_pem=key_pem,
+            attribute_mapping=custom_mapping,
+        )
+        root = _decode_response(result)
+        attrs = root.findall(".//saml:AttributeStatement/saml:Attribute", _NS)
+
+        attr_map = {attr.get("FriendlyName"): attr.get("Name") for attr in attrs}
+        assert attr_map["email"] == custom_mapping["email"]
+        assert attr_map["firstName"] == custom_mapping["firstName"]
+        assert attr_map["lastName"] == custom_mapping["lastName"]
+
+    def test_none_mapping_uses_defaults(self, signing_keys):
+        """When attribute_mapping is None, default OID URIs are used."""
+        cert_pem, key_pem = signing_keys
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id=None,
+            user_attributes=_USER_ATTRS,
+            certificate_pem=cert_pem,
+            private_key_pem=key_pem,
+            attribute_mapping=None,
+        )
+        root = _decode_response(result)
+        attrs = root.findall(".//saml:AttributeStatement/saml:Attribute", _NS)
+
+        attr_map = {attr.get("FriendlyName"): attr.get("Name") for attr in attrs}
+        assert attr_map["email"] == SAML_ATTRIBUTE_URIS["email"]
+        assert attr_map["firstName"] == SAML_ATTRIBUTE_URIS["firstName"]
+        assert attr_map["lastName"] == SAML_ATTRIBUTE_URIS["lastName"]
+
+    def test_partial_mapping_mixes_custom_and_default(self, signing_keys):
+        """Partial mapping uses custom for matched attrs, default for others."""
+        cert_pem, key_pem = signing_keys
+        partial_mapping = {
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+        }
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id=None,
+            user_attributes=_USER_ATTRS,
+            certificate_pem=cert_pem,
+            private_key_pem=key_pem,
+            attribute_mapping=partial_mapping,
+        )
+        root = _decode_response(result)
+        attrs = root.findall(".//saml:AttributeStatement/saml:Attribute", _NS)
+
+        attr_map = {attr.get("FriendlyName"): attr.get("Name") for attr in attrs}
+        # Email uses custom
+        assert attr_map["email"] == partial_mapping["email"]
+        # Others use defaults
+        assert attr_map["firstName"] == SAML_ATTRIBUTE_URIS["firstName"]
+        assert attr_map["lastName"] == SAML_ATTRIBUTE_URIS["lastName"]

@@ -41,6 +41,7 @@ class SPUpdate(BaseModel):
     acs_url: str | None = Field(None, min_length=1)
     slo_url: str | None = Field(None, min_length=1)
     include_group_claims: bool | None = None
+    attribute_mapping: dict[str, str] | None = None
 
 
 # ============================================================================
@@ -60,6 +61,8 @@ class SPConfig(BaseModel):
     certificate_pem: str | None = None
     nameid_format: str
     include_group_claims: bool = False
+    sp_requested_attributes: list[dict] | None = None
+    attribute_mapping: dict[str, str] | None = None
     enabled: bool = True
     signing_cert_expires_at: datetime | None = None
     created_at: datetime

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Metadata Change Preview - {{ preview.sp_name }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <div class="mb-4">
+        <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+           class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to {{ preview.sp_name }}</a>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Metadata Change Preview</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            {% if preview.source == 'url' %}
+            Changes detected from refreshing metadata from the stored URL.
+            {% else %}
+            Changes detected from the provided metadata XML.
+            {% endif %}
+        </p>
+
+        {% if preview.has_changes %}
+        <table class="w-full text-sm mb-6">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Field</th>
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Current Value</th>
+                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">New Value</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for change in preview.changes %}
+                <tr>
+                    <td class="py-2 pr-4 font-medium text-gray-900 dark:text-gray-100">{{ change.field }}</td>
+                    <td class="py-2 pr-4 font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{{ change.old_value or 'Not set' }}</td>
+                    <td class="py-2 font-mono text-xs text-blue-600 dark:text-blue-400 break-all">{{ change.new_value or 'Not set' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if preview.source == 'url' %}
+        <form method="post" action="/admin/settings/service-providers/{{ preview.sp_id }}/refresh-metadata-apply" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    data-confirm="Apply metadata changes to {{ preview.sp_name }}?&#10;&#10;This will update the metadata-derived fields shown above."
+                    data-destructive="false">
+                Apply Changes
+            </button>
+        </form>
+        {% else %}
+        <form method="post" action="/admin/settings/service-providers/{{ preview.sp_id }}/reimport-metadata-apply" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <textarea name="metadata_xml" class="hidden">{{ metadata_xml }}</textarea>
+            <button type="submit"
+                    class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    data-confirm="Apply metadata changes to {{ preview.sp_name }}?&#10;&#10;This will update the metadata-derived fields shown above."
+                    data-destructive="false">
+                Apply Changes
+            </button>
+        </form>
+        {% endif %}
+        <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+           class="ml-3 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+            Cancel
+        </a>
+        {% else %}
+        <div class="p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+            <p class="text-sm text-green-800 dark:text-green-300">No changes detected. The stored metadata matches the source.</p>
+        </div>
+        <div class="mt-4">
+            <a href="/admin/settings/service-providers/{{ preview.sp_id }}"
+               class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                Back to SP Detail
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var form = this.closest('form');
+        var message = this.dataset.confirm;
+        var isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, function() {
+            form.submit();
+        }, { destructive: isDestructive });
+    });
+});
+</script>
+{% endblock %}

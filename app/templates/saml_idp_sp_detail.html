@@ -9,7 +9,7 @@
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Service Providers</a>
     </div>
 
-    {% if success == 'certificate_rotated' or success == 'group_assigned' or success == 'groups_assigned' or success == 'group_removed' or success == 'updated' or success == 'enabled' or success == 'disabled' %}
+    {% if success == 'certificate_rotated' or success == 'group_assigned' or success == 'groups_assigned' or success == 'group_removed' or success == 'updated' or success == 'enabled' or success == 'disabled' or success == 'metadata_refreshed' or success == 'metadata_reimported' %}
     <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
         <p class="text-sm text-green-800 dark:text-green-300">
             {% if success == 'certificate_rotated' %}
@@ -26,6 +26,10 @@
             Service provider enabled. SSO is now active.
             {% elif success == 'disabled' %}
             Service provider disabled. SSO requests will be rejected.
+            {% elif success == 'metadata_refreshed' %}
+            Metadata refreshed successfully from URL.
+            {% elif success == 'metadata_reimported' %}
+            Metadata re-imported successfully from XML.
             {% endif %}
         </p>
     </div>
@@ -98,6 +102,80 @@
             </div>
         </dl>
     </div>
+
+    {# Metadata XML Viewer Card #}
+    {% if sp.metadata_xml %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <details>
+            <summary class="cursor-pointer text-lg font-semibold text-gray-900 dark:text-gray-100">Stored Metadata XML</summary>
+            <pre class="mt-3 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md overflow-x-auto text-xs text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap break-all"><code>{{ sp.metadata_xml }}</code></pre>
+        </details>
+    </div>
+    {% endif %}
+
+    {# Metadata Lifecycle Card #}
+    {% if sp.metadata_url or sp.metadata_xml %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Metadata Lifecycle</h2>
+
+        {% if sp.metadata_url %}
+        <div class="mb-4">
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Metadata Source URL</dt>
+            <dd class="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ sp.metadata_url }}</dd>
+        </div>
+        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/refresh-metadata-preview">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Refresh from URL
+            </button>
+            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Re-fetch metadata from the source URL and preview changes before applying.
+            </p>
+        </form>
+        {% endif %}
+
+        {% if sp.metadata_xml and not sp.metadata_url %}
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            This SP was imported from metadata XML. Paste updated metadata below to preview and apply changes.
+        </p>
+        <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/reimport-metadata-preview" class="space-y-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label for="reimport-xml" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Updated Metadata XML</label>
+                <textarea id="reimport-xml" name="metadata_xml" rows="6"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Paste updated SAML metadata XML here..."></textarea>
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Preview Changes
+            </button>
+        </form>
+        {% endif %}
+
+        {% if sp.metadata_url and sp.metadata_xml %}
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Or paste updated metadata XML directly to preview and apply changes.
+            </p>
+            <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/reimport-metadata-preview" class="space-y-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="reimport-xml-alt" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Updated Metadata XML</label>
+                    <textarea id="reimport-xml-alt" name="metadata_xml" rows="6"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Paste updated SAML metadata XML here..."></textarea>
+                </div>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Preview Changes
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 
     {# Edit Configuration Card #}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">

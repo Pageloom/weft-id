@@ -9,7 +9,7 @@ from typing import Any
 
 import database
 from database._core import session
-from services.event_log import log_event
+from services.event_log import SYSTEM_ACTOR_ID, log_event
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
             # Log the event (with system as actor since this is automated)
             log_event(
                 tenant_id=tenant_id,
-                actor_user_id="system",  # System action (no real user)
+                actor_user_id=SYSTEM_ACTOR_ID,
                 artifact_type="user",
                 artifact_id=user_id,
                 event_type="user_auto_inactivated",

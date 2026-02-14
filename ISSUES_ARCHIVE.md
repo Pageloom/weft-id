@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### LOG-002: Silent audit log loss from invalid actor_user_id
+
+**Status:** Resolved (2026-02-14)
+**Original Severity:** High
+
+**Original Description:**
+Two call sites passed `actor_user_id="system"` instead of `SYSTEM_ACTOR_ID` UUID constant. The `event_logs.actor_user_id` column is `UUID NOT NULL`, so the plain string failed Postgres validation and `log_event()` silently discarded the events.
+
+**Resolution:** Imported `SYSTEM_ACTOR_ID` from `services.event_log` in both `services/service_providers/slo.py` and `jobs/inactivate_idle_users.py`, replacing the invalid `"system"` string. Updated corresponding test assertion. SLO and auto-inactivation events are now properly recorded in the audit log.
+
+---
+
 ### API-002: Group parent management missing from API
 
 **Status:** Resolved (2026-02-13)

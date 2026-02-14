@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### SEC-001: Uploaded SVG content is not sanitized
+
+**Status:** Resolved (2026-02-14)
+**Original Severity:** Medium
+
+**Original Description:**
+SVG uploads were validated for dimensions and size but not content safety. SVGs could contain `<script>` tags, event handlers, `javascript:` URLs, `<foreignObject>`, and XXE entity declarations.
+
+**Resolution:** Added `_validate_svg_content()` to `app/services/branding.py` that parses uploaded SVGs with `xml.etree.ElementTree` and rejects dangerous content. Uses an element allowlist of safe drawing primitives, rejects event handler attributes (`on*`), `javascript:`/`data:text/html` URLs, `<script>`, `<foreignObject>`, and DOCTYPE/ENTITY declarations. Rejects rather than silently strips, so admins get clear error messages. Added 9 new tests covering each attack vector and safe content.
+
+---
+
 ### LOG-002: Silent audit log loss from invalid actor_user_id
 
 **Status:** Resolved (2026-02-14)

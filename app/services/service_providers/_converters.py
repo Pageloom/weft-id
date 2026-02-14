@@ -21,6 +21,8 @@ def _row_to_config(row: dict) -> SPConfig:
         include_group_claims=row.get("include_group_claims", False),
         sp_requested_attributes=row.get("sp_requested_attributes"),
         attribute_mapping=row.get("attribute_mapping"),
+        metadata_url=row.get("metadata_url"),
+        metadata_xml=row.get("metadata_xml"),
         enabled=row.get("enabled", True),
         created_at=row["created_at"],
         updated_at=row["updated_at"],

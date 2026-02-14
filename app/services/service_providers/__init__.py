@@ -26,6 +26,8 @@ from services.service_providers._converters import (
 
 # Re-export from crud module
 from services.service_providers.crud import (
+    apply_sp_metadata_refresh,
+    apply_sp_metadata_reimport,
     create_service_provider,
     delete_service_provider,
     disable_service_provider,
@@ -34,6 +36,8 @@ from services.service_providers.crud import (
     import_sp_from_metadata_url,
     import_sp_from_metadata_xml,
     list_service_providers,
+    preview_sp_metadata_refresh,
+    preview_sp_metadata_reimport,
     update_service_provider,
 )
 
@@ -78,6 +82,8 @@ from services.service_providers.sso import (
 
 __all__ = [
     # CRUD
+    "apply_sp_metadata_refresh",
+    "apply_sp_metadata_reimport",
     "create_service_provider",
     "delete_service_provider",
     "disable_service_provider",
@@ -86,6 +92,8 @@ __all__ = [
     "import_sp_from_metadata_url",
     "import_sp_from_metadata_xml",
     "list_service_providers",
+    "preview_sp_metadata_refresh",
+    "preview_sp_metadata_reimport",
     "update_service_provider",
     # SLO
     "process_sp_logout_request",

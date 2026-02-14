@@ -250,6 +250,122 @@ def sp_detail(
     return templates.TemplateResponse("saml_idp_sp_detail.html", context)
 
 
+@router.post("/{sp_id}/refresh-metadata-preview", response_class=HTMLResponse)
+def sp_refresh_metadata_preview(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Preview changes from refreshing metadata from the stored URL."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        preview = sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+    except ServiceError as exc:
+        logger.warning("Failed to preview metadata refresh: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        preview=preview,
+        metadata_xml=None,
+    )
+    return templates.TemplateResponse("saml_idp_sp_metadata_preview.html", context)
+
+
+@router.post("/{sp_id}/refresh-metadata-apply", response_class=HTMLResponse)
+def sp_refresh_metadata_apply(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Apply metadata refresh from the stored URL."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?success=metadata_refreshed", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to apply metadata refresh: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
+@router.post("/{sp_id}/reimport-metadata-preview", response_class=HTMLResponse)
+def sp_reimport_metadata_preview(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    metadata_xml: str = Form(""),
+):
+    """Preview changes from re-importing metadata from provided XML."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not metadata_xml.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?error=Metadata XML is required", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        preview = sp_service.preview_sp_metadata_reimport(
+            requesting_user, sp_id, metadata_xml.strip()
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to preview metadata reimport: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        preview=preview,
+        metadata_xml=metadata_xml.strip(),
+    )
+    return templates.TemplateResponse("saml_idp_sp_metadata_preview.html", context)
+
+
+@router.post("/{sp_id}/reimport-metadata-apply", response_class=HTMLResponse)
+def sp_reimport_metadata_apply(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    metadata_xml: str = Form(""),
+):
+    """Apply metadata reimport from provided XML."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not metadata_xml.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?error=Metadata XML is required", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, metadata_xml.strip())
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}?success=metadata_reimported", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to apply metadata reimport: %s", exc)
+        return RedirectResponse(url=f"{SP_LIST_URL}/{sp_id}?error={exc.message}", status_code=303)
+
+
 @router.post("/{sp_id}/rotate-certificate", response_class=HTMLResponse)
 def sp_rotate_certificate(
     request: Request,

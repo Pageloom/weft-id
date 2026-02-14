@@ -5,9 +5,9 @@ import json
 from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml, slo_url,
-               include_group_claims, sp_requested_attributes, attribute_mapping,
-               enabled, created_by, created_at, updated_at"""
+               certificate_pem, nameid_format, metadata_xml, metadata_url,
+               slo_url, include_group_claims, sp_requested_attributes,
+               attribute_mapping, enabled, created_by, created_at, updated_at"""
 
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
@@ -71,6 +71,7 @@ def create_service_provider(
     certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
+    metadata_url: str | None = None,
     description: str | None = None,
     slo_url: str | None = None,
     sp_requested_attributes: list[dict] | None = None,
@@ -86,14 +87,14 @@ def create_service_provider(
         f"""
         insert into service_providers (
             tenant_id, name, description, entity_id, acs_url,
-            certificate_pem, nameid_format, metadata_xml, slo_url,
-            sp_requested_attributes, attribute_mapping,
+            certificate_pem, nameid_format, metadata_xml, metadata_url,
+            slo_url, sp_requested_attributes, attribute_mapping,
             created_by
         )
         values (
             :tenant_id, :name, :description, :entity_id, :acs_url,
-            :certificate_pem, :nameid_format, :metadata_xml, :slo_url,
-            :sp_requested_attributes, :attribute_mapping,
+            :certificate_pem, :nameid_format, :metadata_xml, :metadata_url,
+            :slo_url, :sp_requested_attributes, :attribute_mapping,
             :created_by
         )
         returning {_SP_COLUMNS}
@@ -107,6 +108,7 @@ def create_service_provider(
             "certificate_pem": certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
+            "metadata_url": metadata_url,
             "slo_url": slo_url,
             "sp_requested_attributes": json.dumps(sp_requested_attributes)
             if sp_requested_attributes
@@ -169,6 +171,54 @@ def set_service_provider_enabled(tenant_id: TenantArg, sp_id: str, enabled: bool
         Updated SP dict, or None if not found
     """
     return update_service_provider(tenant_id, sp_id, enabled=enabled)
+
+
+def refresh_sp_metadata_fields(
+    tenant_id: TenantArg,
+    sp_id: str,
+    acs_url: str,
+    certificate_pem: str | None = None,
+    nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+    metadata_xml: str | None = None,
+    slo_url: str | None = None,
+    sp_requested_attributes: list[dict] | None = None,
+    attribute_mapping: dict[str, str] | None = None,
+) -> dict | None:
+    """Update metadata-derived fields on an SP after a refresh or reimport.
+
+    Does NOT touch name, description, entity_id, enabled, or metadata_url.
+
+    Returns:
+        Updated SP dict, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        f"""
+        update service_providers
+        set acs_url = :acs_url,
+            certificate_pem = :certificate_pem,
+            nameid_format = :nameid_format,
+            metadata_xml = :metadata_xml,
+            slo_url = :slo_url,
+            sp_requested_attributes = :sp_requested_attributes,
+            attribute_mapping = :attribute_mapping,
+            updated_at = now()
+        where id = :sp_id
+        returning {_SP_COLUMNS}
+        """,
+        {
+            "sp_id": sp_id,
+            "acs_url": acs_url,
+            "certificate_pem": certificate_pem,
+            "nameid_format": nameid_format,
+            "metadata_xml": metadata_xml,
+            "slo_url": slo_url,
+            "sp_requested_attributes": json.dumps(sp_requested_attributes)
+            if sp_requested_attributes
+            else None,
+            "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
+        },
+    )
 
 
 def delete_service_provider(tenant_id: TenantArg, sp_id: str) -> int:

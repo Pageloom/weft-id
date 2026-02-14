@@ -13,8 +13,10 @@ from schemas.service_providers import (
     SPGroupAssignmentList,
     SPGroupBulkAssign,
     SPListResponse,
+    SPMetadataChangePreview,
     SPMetadataImportURL,
     SPMetadataImportXML,
+    SPMetadataReimport,
     SPMetadataURLInfo,
     SPSigningCertificate,
     SPSigningCertificateRotationResult,
@@ -243,6 +245,81 @@ def delete_service_provider(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         sp_service.delete_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# SP Metadata Lifecycle Endpoints
+# =============================================================================
+
+
+@router.post("/{sp_id}/metadata/preview-refresh", response_model=SPMetadataChangePreview)
+def preview_metadata_refresh(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Preview changes from refreshing metadata from the stored URL.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/metadata/apply-refresh", response_model=SPConfig)
+def apply_metadata_refresh(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Re-fetch metadata from URL and apply changes.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/metadata/preview-reimport", response_model=SPMetadataChangePreview)
+def preview_metadata_reimport(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: SPMetadataReimport,
+):
+    """Preview changes from re-importing metadata from provided XML.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.preview_sp_metadata_reimport(requesting_user, sp_id, data.metadata_xml)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/metadata/apply-reimport", response_model=SPConfig)
+def apply_metadata_reimport(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: SPMetadataReimport,
+):
+    """Parse provided XML and apply metadata changes.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, data.metadata_xml)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

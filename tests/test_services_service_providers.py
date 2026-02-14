@@ -40,6 +40,10 @@ def _make_sp_row(
     enabled: bool = True,
     sp_requested_attributes: list[dict] | None = None,
     attribute_mapping: dict[str, str] | None = None,
+    metadata_url: str | None = None,
+    metadata_xml: str | None = None,
+    certificate_pem: str | None = None,
+    slo_url: str | None = None,
 ) -> dict:
     """Create a mock SP database row."""
     return {
@@ -48,11 +52,14 @@ def _make_sp_row(
         "name": name,
         "entity_id": entity_id,
         "acs_url": acs_url,
-        "certificate_pem": None,
+        "certificate_pem": certificate_pem,
         "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-        "metadata_xml": None,
+        "metadata_xml": metadata_xml,
+        "metadata_url": metadata_url,
+        "slo_url": slo_url,
         "sp_requested_attributes": sp_requested_attributes,
         "attribute_mapping": attribute_mapping,
+        "include_group_claims": False,
         "enabled": enabled,
         "created_by": str(uuid4()),
         "created_at": datetime.now(UTC),
@@ -1565,3 +1572,360 @@ class TestUpdateSPAttributeMapping:
             mock_db.service_providers.update_service_provider.assert_called_once_with(
                 tenant_id, sp_id, attribute_mapping=new_mapping
             )
+
+
+# =============================================================================
+# preview_sp_metadata_refresh
+# =============================================================================
+
+
+class TestPreviewSPMetadataRefresh:
+    """Tests for preview_sp_metadata_refresh."""
+
+    def test_happy_path(self, make_requesting_user):
+        """Preview detects changes from URL refresh."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+            acs_url="https://app.example.com/saml/acs",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs-new",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            result = sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+
+            assert result.has_changes is True
+            assert result.source == "url"
+            assert any(c.field == "ACS URL" for c in result.changes)
+
+    def test_no_metadata_url(self, make_requesting_user):
+        """Raises ValidationError when SP has no metadata_url."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, metadata_url=None)
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="no metadata URL"):
+                sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+
+    def test_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP doesn't exist."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.preview_sp_metadata_refresh(requesting_user, str(uuid4()))
+
+    def test_entity_id_changed(self, make_requesting_user):
+        """Raises ValidationError when entity_id changed in new metadata."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+            entity_id="https://app.example.com/old-entity",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/new-entity",
+            "acs_url": "https://app.example.com/saml/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Entity ID changed"):
+                sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+
+    def test_no_changes_detected(self, make_requesting_user):
+        """Preview shows no changes when metadata is identical."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            result = sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+
+            assert result.has_changes is False
+            assert result.changes == []
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot preview metadata refresh."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.preview_sp_metadata_refresh(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# apply_sp_metadata_refresh
+# =============================================================================
+
+
+class TestApplySPMetadataRefresh:
+    """Tests for apply_sp_metadata_refresh."""
+
+    def test_happy_path(self, make_requesting_user):
+        """Apply refresh updates SP fields and logs event."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+        updated_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            acs_url="https://app.example.com/saml/acs-new",
+            metadata_url="https://app.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs-new",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+            mock_db.service_providers.refresh_sp_metadata_fields.return_value = updated_row
+
+            result = sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+            assert result.acs_url == "https://app.example.com/saml/acs-new"
+            mock_db.service_providers.refresh_sp_metadata_fields.assert_called_once()
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "sp_metadata_refreshed"
+
+    def test_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP doesn't exist."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.apply_sp_metadata_refresh(requesting_user, str(uuid4()))
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot apply metadata refresh."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.apply_sp_metadata_refresh(requesting_user, str(uuid4()))
+
+
+# =============================================================================
+# preview_sp_metadata_reimport
+# =============================================================================
+
+
+class TestPreviewSPMetadataReimport:
+    """Tests for preview_sp_metadata_reimport."""
+
+    def test_happy_path(self, make_requesting_user):
+        """Preview detects changes from XML reimport."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs-new",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            result = sp_service.preview_sp_metadata_reimport(requesting_user, sp_id, "<xml/>")
+
+            assert result.has_changes is True
+            assert result.source == "xml"
+
+    def test_invalid_xml(self, make_requesting_user):
+        """Raises ValidationError for unparseable XML."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch(
+                "utils.saml_idp.parse_sp_metadata_xml",
+                side_effect=ValueError("Invalid XML"),
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Invalid XML"):
+                sp_service.preview_sp_metadata_reimport(requesting_user, sp_id, "not xml")
+
+    def test_entity_id_changed(self, make_requesting_user):
+        """Raises ValidationError when entity_id changed."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            entity_id="https://app.example.com/old",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/new",
+            "acs_url": "https://app.example.com/saml/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Entity ID changed"):
+                sp_service.preview_sp_metadata_reimport(requesting_user, sp_id, "<xml/>")
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot preview metadata reimport."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.preview_sp_metadata_reimport(requesting_user, str(uuid4()), "<xml/>")
+
+
+# =============================================================================
+# apply_sp_metadata_reimport
+# =============================================================================
+
+
+class TestApplySPMetadataReimport:
+    """Tests for apply_sp_metadata_reimport."""
+
+    def test_happy_path(self, make_requesting_user):
+        """Apply reimport updates SP fields and logs event."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        updated_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            acs_url="https://app.example.com/saml/acs-new",
+        )
+        parsed = {
+            "entity_id": "https://app.example.com/saml/metadata",
+            "acs_url": "https://app.example.com/saml/acs-new",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+            mock_db.service_providers.refresh_sp_metadata_fields.return_value = updated_row
+
+            result = sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, "<xml/>")
+
+            assert result.acs_url == "https://app.example.com/saml/acs-new"
+            mock_log.assert_called_once()
+            call_kwargs = mock_log.call_args[1]
+            assert call_kwargs["event_type"] == "sp_metadata_reimported"
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot apply metadata reimport."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.apply_sp_metadata_reimport(requesting_user, str(uuid4()), "<xml/>")

@@ -63,6 +63,8 @@ class SPConfig(BaseModel):
     include_group_claims: bool = False
     sp_requested_attributes: list[dict] | None = None
     attribute_mapping: dict[str, str] | None = None
+    metadata_url: str | None = None
+    metadata_xml: str | None = None
     enabled: bool = True
     signing_cert_expires_at: datetime | None = None
     created_at: datetime
@@ -95,6 +97,35 @@ class IdPMetadataInfo(BaseModel):
     entity_id: str
     sso_url: str
     slo_url: str
+
+
+# ============================================================================
+# SP Metadata Lifecycle Schemas
+# ============================================================================
+
+
+class SPMetadataFieldChange(BaseModel):
+    """A single field change in a metadata refresh/reimport preview."""
+
+    field: str
+    old_value: str | None = None
+    new_value: str | None = None
+
+
+class SPMetadataChangePreview(BaseModel):
+    """Preview of changes from a metadata refresh or reimport."""
+
+    sp_id: str
+    sp_name: str
+    source: str  # "url" or "xml"
+    changes: list[SPMetadataFieldChange]
+    has_changes: bool
+
+
+class SPMetadataReimport(BaseModel):
+    """Request body for metadata reimport from XML."""
+
+    metadata_xml: str = Field(..., min_length=1)
 
 
 # ============================================================================

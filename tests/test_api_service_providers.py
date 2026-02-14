@@ -9,6 +9,8 @@ from schemas.service_providers import (
     SPConfig,
     SPListItem,
     SPListResponse,
+    SPMetadataChangePreview,
+    SPMetadataFieldChange,
     SPMetadataURLInfo,
     SPSigningCertificate,
     SPSigningCertificateRotationResult,
@@ -808,3 +810,234 @@ class TestDisableAPI:
             )
 
         assert response.status_code == 404
+
+
+# =============================================================================
+# Metadata Lifecycle Endpoints
+# =============================================================================
+
+
+class TestPreviewMetadataRefreshAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/metadata/preview-refresh."""
+
+    def test_preview_refresh_success(self, sp_api_client, api_host):
+        """Super admin can preview metadata refresh."""
+        sp_id = str(uuid4())
+        preview = SPMetadataChangePreview(
+            sp_id=sp_id,
+            sp_name="Test App",
+            source="url",
+            changes=[
+                SPMetadataFieldChange(
+                    field="ACS URL",
+                    old_value="https://old.example.com/acs",
+                    new_value="https://new.example.com/acs",
+                )
+            ],
+            has_changes=True,
+        )
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_refresh",
+            return_value=preview,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/metadata/preview-refresh",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["has_changes"] is True
+        assert len(data["changes"]) == 1
+        assert data["changes"][0]["field"] == "ACS URL"
+
+    def test_preview_refresh_no_url(self, sp_api_client, api_host):
+        """Returns 400 when SP has no metadata_url."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_refresh",
+            side_effect=ValidationError(message="No metadata URL configured"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/metadata/preview-refresh",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_preview_refresh_not_found(self, sp_api_client, api_host):
+        """Returns 404 when SP doesn't exist."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_refresh",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/metadata/preview-refresh",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_preview_refresh_unauthenticated(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.post(
+            f"/api/v1/service-providers/{uuid4()}/metadata/preview-refresh",
+            headers={"Host": api_host},
+        )
+        assert response.status_code == 401
+
+
+class TestApplyMetadataRefreshAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/metadata/apply-refresh."""
+
+    def test_apply_refresh_success(self, sp_api_client, api_host, sample_sp):
+        """Super admin can apply metadata refresh."""
+        with patch(
+            "services.service_providers.apply_sp_metadata_refresh",
+            return_value=sample_sp,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/metadata/apply-refresh",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "API App"
+
+    def test_apply_refresh_not_found(self, sp_api_client, api_host):
+        """Returns 404 when SP doesn't exist."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.apply_sp_metadata_refresh",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/metadata/apply-refresh",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 404
+
+    def test_apply_refresh_unauthenticated(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.post(
+            f"/api/v1/service-providers/{uuid4()}/metadata/apply-refresh",
+            headers={"Host": api_host},
+        )
+        assert response.status_code == 401
+
+
+class TestPreviewMetadataReimportAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/metadata/preview-reimport."""
+
+    def test_preview_reimport_success(self, sp_api_client, api_host):
+        """Super admin can preview metadata reimport."""
+        sp_id = str(uuid4())
+        preview = SPMetadataChangePreview(
+            sp_id=sp_id,
+            sp_name="Test App",
+            source="xml",
+            changes=[],
+            has_changes=False,
+        )
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_reimport",
+            return_value=preview,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/metadata/preview-reimport",
+                headers={"Host": api_host},
+                json={"metadata_xml": "<xml>valid</xml>"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["has_changes"] is False
+
+    def test_preview_reimport_validation_error(self, sp_api_client, api_host):
+        """Invalid XML returns 400."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_reimport",
+            side_effect=ValidationError(message="Invalid XML"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sp_id}/metadata/preview-reimport",
+                headers={"Host": api_host},
+                json={"metadata_xml": "not xml"},
+            )
+
+        assert response.status_code == 400
+
+    def test_preview_reimport_missing_body(self, sp_api_client, api_host):
+        """Missing metadata_xml returns 422."""
+        response = sp_api_client.post(
+            f"/api/v1/service-providers/{uuid4()}/metadata/preview-reimport",
+            headers={"Host": api_host},
+            json={},
+        )
+        assert response.status_code == 422
+
+    def test_preview_reimport_unauthenticated(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.post(
+            f"/api/v1/service-providers/{uuid4()}/metadata/preview-reimport",
+            headers={"Host": api_host},
+            json={"metadata_xml": "<xml/>"},
+        )
+        assert response.status_code == 401
+
+
+class TestApplyMetadataReimportAPI:
+    """Tests for POST /api/v1/service-providers/{sp_id}/metadata/apply-reimport."""
+
+    def test_apply_reimport_success(self, sp_api_client, api_host, sample_sp):
+        """Super admin can apply metadata reimport."""
+        with patch(
+            "services.service_providers.apply_sp_metadata_reimport",
+            return_value=sample_sp,
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/metadata/apply-reimport",
+                headers={"Host": api_host},
+                json={"metadata_xml": "<xml>valid</xml>"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "API App"
+
+    def test_apply_reimport_not_found(self, sp_api_client, api_host):
+        """Returns 404 when SP doesn't exist."""
+        from services.exceptions import NotFoundError
+
+        with patch(
+            "services.service_providers.apply_sp_metadata_reimport",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{uuid4()}/metadata/apply-reimport",
+                headers={"Host": api_host},
+                json={"metadata_xml": "<xml/>"},
+            )
+
+        assert response.status_code == 404
+
+    def test_apply_reimport_unauthenticated(self, client, api_host):
+        """Unauthenticated requests return 401."""
+        response = client.post(
+            f"/api/v1/service-providers/{uuid4()}/metadata/apply-reimport",
+            headers={"Host": api_host},
+            json={"metadata_xml": "<xml/>"},
+        )
+        assert response.status_code == 401

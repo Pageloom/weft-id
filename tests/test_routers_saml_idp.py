@@ -11,6 +11,8 @@ from schemas.service_providers import (
     SPGroupAssignmentList,
     SPListItem,
     SPListResponse,
+    SPMetadataChangePreview,
+    SPMetadataFieldChange,
     SPSigningCertificate,
     SPSigningCertificateRotationResult,
 )
@@ -1552,3 +1554,228 @@ class TestSPDetailPageGroups:
         assert response.status_code == 200
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["error"] == "Group not found"
+
+
+# =============================================================================
+# Metadata Refresh Preview
+# =============================================================================
+
+
+class TestSPRefreshMetadataPreview:
+    """Tests for POST /{sp_id}/refresh-metadata-preview."""
+
+    def test_preview_renders_template(self, sp_admin_session, sp_host, mocker):
+        """Preview route renders the preview template."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>preview</html>")
+
+        sp_id = str(uuid4())
+        preview = SPMetadataChangePreview(
+            sp_id=sp_id,
+            sp_name="Test App",
+            source="url",
+            changes=[
+                SPMetadataFieldChange(
+                    field="ACS URL",
+                    old_value="https://old.example.com/acs",
+                    new_value="https://new.example.com/acs",
+                )
+            ],
+            has_changes=True,
+        )
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_refresh",
+            return_value=preview,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-preview",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test"},
+            )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_metadata_preview.html"
+
+    def test_preview_error_redirects(self, sp_admin_session, sp_host):
+        """Preview error redirects to SP detail with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_refresh",
+            side_effect=ValidationError(message="No metadata URL configured"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-preview",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/admin/settings/service-providers/{sp_id}" in response.headers["location"]
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# Metadata Refresh Apply
+# =============================================================================
+
+
+class TestSPRefreshMetadataApply:
+    """Tests for POST /{sp_id}/refresh-metadata-apply."""
+
+    def test_apply_redirects_with_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Apply redirects to SP detail with success message."""
+        with patch(
+            "services.service_providers.apply_sp_metadata_refresh",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/refresh-metadata-apply",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=metadata_refreshed" in response.headers["location"]
+
+    def test_apply_error_redirects(self, sp_admin_session, sp_host):
+        """Apply error redirects to SP detail with error."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.apply_sp_metadata_refresh",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/refresh-metadata-apply",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# Metadata Reimport Preview
+# =============================================================================
+
+
+class TestSPReimportMetadataPreview:
+    """Tests for POST /{sp_id}/reimport-metadata-preview."""
+
+    def test_preview_renders_template(self, sp_admin_session, sp_host, mocker):
+        """Preview route renders the preview template."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>preview</html>")
+
+        sp_id = str(uuid4())
+        preview = SPMetadataChangePreview(
+            sp_id=sp_id,
+            sp_name="Test App",
+            source="xml",
+            changes=[],
+            has_changes=False,
+        )
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_reimport",
+            return_value=preview,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test", "metadata_xml": "<xml>test</xml>"},
+            )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_metadata_preview.html"
+
+    def test_preview_empty_xml_redirects(self, sp_admin_session, sp_host):
+        """Empty XML redirects with error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+            headers={"Host": sp_host},
+            data={"csrf_token": "test", "metadata_xml": ""},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# Metadata Reimport Apply
+# =============================================================================
+
+
+class TestSPReimportMetadataApply:
+    """Tests for POST /{sp_id}/reimport-metadata-apply."""
+
+    def test_apply_redirects_with_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Apply redirects to SP detail with success message."""
+        with patch(
+            "services.service_providers.apply_sp_metadata_reimport",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/reimport-metadata-apply",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test", "metadata_xml": "<xml>test</xml>"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=metadata_reimported" in response.headers["location"]
+
+    def test_apply_empty_xml_redirects(self, sp_admin_session, sp_host):
+        """Empty XML redirects with error."""
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+            headers={"Host": sp_host},
+            data={"csrf_token": "test", "metadata_xml": ""},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_apply_error_redirects(self, sp_admin_session, sp_host):
+        """Apply error redirects to SP detail with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.apply_sp_metadata_reimport",
+            side_effect=ValidationError(message="Invalid XML"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+                headers={"Host": sp_host},
+                data={"csrf_token": "test", "metadata_xml": "bad xml"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]

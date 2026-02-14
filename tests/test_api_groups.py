@@ -491,6 +491,7 @@ def test_add_parent_success(make_user_dict, override_api_auth):
         assert response.status_code == 201
         assert response.json()["status"] == "ok"
 
+
 def test_add_parent_would_create_cycle(make_user_dict, override_api_auth):
     """Adding parent that would create cycle returns 400."""
     admin = make_user_dict(role="admin")
@@ -527,6 +528,7 @@ def test_remove_parent_success(make_user_dict, override_api_auth):
         response = client.delete(f"/api/v1/groups/{child_id}/parents/{parent_id}")
 
         assert response.status_code == 204
+
 
 def test_add_child_success(make_user_dict, override_api_auth):
     """Admin can add a child group."""

@@ -122,11 +122,14 @@ _OID_TO_IDP_ATTR: dict[str, str] = {
     "urn:oid:0.9.2342.19200300.100.1.3": "email",  # mail
     "urn:oid:2.5.4.42": "firstName",  # givenName
     "urn:oid:2.5.4.4": "lastName",  # surname
+    "urn:oid:2.16.840.1.113730.3.1.241": "displayName",  # displayName
+    "urn:oid:2.5.4.3": "displayName",  # cn (commonName)
     "urn:oid:1.3.6.1.4.1.5923.1.1.1.7": "groups",  # eduPersonEntitlement
     # Friendly names (new default format)
     "email": "email",
     "firstName": "firstName",
     "lastName": "lastName",
+    "displayName": "displayName",
     "groups": "groups",
     # Azure AD / WS-Federation claims
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "email",

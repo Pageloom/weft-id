@@ -4,6 +4,24 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Branding: Custom Logo Favicon Should Respect System Theme
+
+**Status:** Complete
+
+**Resolution:** Updated `base.html` favicon template logic to emit two `<link rel="icon">` tags with `media="(prefers-color-scheme: light|dark)"` attributes when both light and dark custom logos exist. Falls back to light-only (no media query) when only a light logo is uploaded. Mandala favicon unchanged (already handled via embedded CSS media query in SVG).
+
+**Acceptance Criteria:**
+
+- [x] When both light and dark custom logos exist, emit two `<link rel="icon">` tags with `media` attributes
+- [x] When only a light logo exists, fall back to serving it without a media query (current behavior)
+- [x] Mandala favicon behavior unchanged
+- [x] Existing tests pass (2855/2855)
+
+**Effort:** XS
+**Value:** Low (Visual polish, consistency with nav bar behavior)
+
+---
+
 ## Tenant Branding: Custom Logo Upload
 
 **Status:** Complete

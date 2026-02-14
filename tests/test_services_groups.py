@@ -1414,7 +1414,7 @@ def test_add_idp_group_as_parent_forbidden(make_requesting_user):
 
 
 def test_invalidate_idp_groups_on_deletion():
-    """Test that IdP groups are invalidated when IdP is deleted."""
+    """Test that IdP groups are deleted when IdP is deleted."""
     from services import groups as groups_service
     from services.event_log import SYSTEM_ACTOR_ID
 
@@ -1434,14 +1434,13 @@ def test_invalidate_idp_groups_on_deletion():
         patch("services.groups.idp.log_event") as mock_log,
         patch("services.groups.idp.system_context"),
     ):
-        # Get groups returns the groups to be invalidated
         mock_db.groups.get_groups_by_idp.return_value = mock_groups
-        mock_db.groups.invalidate_groups_by_idp.return_value = 2
+        mock_db.groups.delete_groups_by_idp.return_value = 2
 
         count = groups_service.invalidate_idp_groups(tenant_id, idp_id, idp_name)
 
         assert count == 2
-        mock_db.groups.invalidate_groups_by_idp.assert_called_once()
+        mock_db.groups.delete_groups_by_idp.assert_called_once()
         # Log should be called once per group
         assert mock_log.call_count == 2
         # Check the first call

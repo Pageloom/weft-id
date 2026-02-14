@@ -29,16 +29,16 @@
         <table class="w-full text-sm mb-4">
             <thead>
             <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IdP
+                <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">User
                     Attribute
                 </th>
                 {% if sp.sp_requested_attributes %}
-                <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SP
-                    Expectation
+                <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">What They
+                    Expect
                 </th>
                 {% endif %}
-                <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assertion
-                    URI
+                <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">What You're
+                    Sending
                 </th>
             </tr>
             </thead>
@@ -103,6 +103,14 @@
             {% endfor %}
             </tbody>
         </table>
+
+        {% if sp.sp_requested_attributes %}
+        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-md">
+            <p class="text-xs text-blue-800 dark:text-blue-300">
+                💡 <strong>Tip:</strong> For SSO to work, "What You're Sending" should match "What They Expect" (look for the green "Matched" badge).
+            </p>
+        </div>
+        {% endif %}
 
         <div class="flex items-center gap-4">
             <button type="submit"

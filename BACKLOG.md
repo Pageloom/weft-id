@@ -186,56 +186,61 @@ that runs automatically before the app starts.
 
 ---
 
-## SAML Smoketest: Manual Testing Pattern & Future Automation
+## SAML E2E Test Suite
 
 **User Story:**
-As a developer
-I want a documented manual testing pattern for both SAML IdP and SP flows using SAMLtest.id
-So that I can verify SAML integration works end-to-end without maintaining a local IdP simulator
-
-As a platform operator
-I want automated Playwright-based smoketests for SAML SSO flows
+As a developer of WeftId
+I want a Playwright-based E2E test suite for SAML SSO flows
 So that regressions in critical auth paths are caught before deployment
 
 **Context:**
 
-The project previously used SimpleSAMLphp in docker-compose for manual SAML testing, but it was removed in favor of SAMLtest.id (a free hosted SAML testing service that acts as both IdP and SP). This item establishes a manual testing pattern first, then automates it.
+WeftId acts as both a SAML IdP and a SAML SP. The E2E suite uses two WeftId tenants
+(one acting as IdP, one as SP) to test real cross-tenant SSO flows end-to-end. Each test
+run creates a fresh pair of tenants, runs the tests, and tears them down. No external
+SAML services are needed.
 
-**Phase 1: Manual Testing Pattern (SAMLtest.id)**
+Email two-step verification codes are captured via the MailDev REST API (helper already
+exists at `tests/helpers/maildev.py`). The testbed setup script (`dev/sso_testbed.py`,
+invoked via `make sso-testbed`) handles tenant and user provisioning.
 
-- [ ] Document SP-side testing: configure SAMLtest.id as upstream IdP, verify login flow
-- [ ] Document IdP-side testing: register SAMLtest.id as downstream SP, verify SSO assertion delivery
-- [ ] Document metadata exchange process (upload Weft ID metadata to SAMLtest.id, download theirs)
-- [ ] Verify both SP-initiated and IdP-initiated SSO flows work
-- [ ] Verify per-SP signing certificates are correctly used in assertions
+**Acceptance Criteria:**
 
-**Phase 2: Automated Smoketests (Playwright)**
+*Test infrastructure:*
 
-- [ ] New `tests/e2e/` directory separate from unit/integration tests
-- [ ] Playwright (Python) for browser automation with `pytest-playwright`
-- [ ] Makefile targets: `test-e2e`, `test-e2e-debug`, `test-unit`
-- [ ] SP-side smoketest: SAML login via SAMLtest.id IdP creates session
-- [ ] IdP-side smoketest: SAMLtest.id SP receives valid assertion from Weft ID
-- [ ] Auto-skip when SAMLtest.id is unreachable
-- [ ] Cross-tenant test option: Tenant A as IdP serving Tenant B as SP (no external dependency)
+- [ ] `dev/sso_testbed.py`: creates two tenants (IdP and SP) with predefined subdomains, creates test users on each, returns configuration (tenant IDs, user credentials, URLs)
+- [ ] Pytest fixtures that call the testbed script at session start and tear down both tenants at session end
+- [ ] Playwright (Python) with `pytest-playwright` for browser automation
+- [ ] Makefile targets: `test-e2e`, `test-e2e-debug` (headed mode)
+
+*Admin setup tests:*
+
+- [ ] As an IdP admin: register the SP tenant (import SP metadata, configure attribute mapping)
+- [ ] As an SP admin: register the IdP tenant (import IdP metadata, configure as identity provider)
+
+*SSO flow tests:*
+
+- [ ] SP-initiated SSO: user starts at SP, is redirected to IdP, authenticates (email + verification code via MailDev), and is returned to SP with a valid session
+- [ ] IdP-initiated SSO: user starts at IdP, selects the SP, assertion is sent, user lands at SP with a valid session
+- [ ] Sign-in as pre-existing user: a user that already exists on the SP side authenticates via IdP and is matched to their existing SP account
 
 **Dependencies:**
 
-New dev dependencies (Phase 2 only):
+New dev dependencies:
 
 - `playwright = "^1.40.0"`
 - `pytest-playwright = "^0.4.0"`
 
 Post-install: `playwright install chromium`
 
-**Effort:** S (Phase 1), M (Phase 2)
+**Effort:** M
 **Value:** High (Catches SAML regressions that unit tests cannot)
 
-**Notes:**
+**Future extensions (separate backlog items):**
 
-- SAMLtest.id is free and hosted, no local infrastructure needed
-- Cross-tenant testing (Weft ID as both IdP and SP) is a good offline fallback
-- Phase 1 can be done immediately; Phase 2 when SAML flows are stable
+- SLO (Single Logout) flow tests
+- JIT provisioning tests
+- CI pipeline integration
 
 ---
 

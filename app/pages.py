@@ -213,6 +213,12 @@ PAGES = [
                             ),
                         ],
                     ),
+                    Page(
+                        path="/admin/settings/branding",
+                        title="Branding",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
                 ],
             ),
             # Todo section: Reactivation Requests

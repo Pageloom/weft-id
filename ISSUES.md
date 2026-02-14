@@ -33,6 +33,21 @@ from app.services.event_log import SYSTEM_ACTOR_ID, log_event
 actor_user_id=SYSTEM_ACTOR_ID,
 ```
 
+## Medium Severity
+
+### SEC-001: Uploaded SVG content is not sanitized
+
+**Found in:** `app/services/branding.py`
+**Severity:** Medium
+**Principle Violated:** Security (input validation)
+**Description:** SVG uploads are validated for dimensions (square viewBox) and size (256 KB) but the XML content is stored and served without sanitization. SVG files can contain `<script>` tags, event handlers (`onload`, `onerror`), external resource references (`<image href="http://...">`), and XXE entity declarations. The raw SVG is served at `/branding/logo/{slot}` with `Content-Type: image/svg+xml`.
+**Mitigating factors:**
+- Upload requires admin role
+- Logos are rendered via `<img>` tags in templates, which blocks script execution in modern browsers
+- Direct navigation to the logo URL would allow script execution, but requires knowing the tenant hostname
+**Impact:** An admin could upload a malicious SVG that executes JavaScript when the logo URL is visited directly (not via `<img>` tag). Risk is limited by the admin-only upload requirement.
+**Suggested fix:** Sanitize SVG content on upload using an XML allowlist approach. Parse the SVG, strip all elements and attributes not on a whitelist of safe drawing primitives (path, circle, rect, line, polygon, g, defs, fill, stroke, viewBox, etc.). Reject SVGs containing `<script>`, event handler attributes, or external references.
+
 ---
 
 # Summary
@@ -40,7 +55,7 @@ actor_user_id=SYSTEM_ACTOR_ID,
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 1 | Activity Logging |
-| Medium | 1 | API-First |
+| Medium | 2 | API-First, Security |
 | Low | 0 | - |
 
 **Last compliance scan:** 2026-02-14 (LOG-002 and API-002 found)

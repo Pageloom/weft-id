@@ -4,6 +4,32 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Tenant Branding: Custom Logo Upload
+
+**Status:** Complete
+
+**Resolution:** Implemented custom logo upload for tenant branding. Added `tenant_branding` table with bytea columns for light/dark logo variants, logo_mode enum (mandala/custom), and favicon toggle. Service layer validates PNG (square, min 48x48) and SVG (square viewBox) up to 256KB. Public unauthenticated endpoint serves logos with ETag caching. Branding settings page at Admin > Settings > Branding. API endpoints for CRUD operations. Three new event types for audit trail.
+
+**Acceptance Criteria:**
+
+- [x] Upload page at Admin > Settings > Branding (admin+ access)
+- [x] Accept two logo slots: light mode and dark mode
+- [x] Accepted formats: PNG and SVG only
+- [x] PNG uploads must be square, minimum 48x48px
+- [x] SVG uploads validated for square viewBox
+- [x] Maximum file size: 256KB per file
+- [x] Clear error messages for validation failures
+- [x] Preview uploaded logos on settings page
+- [x] Light logo fallback with circle background in dark mode
+- [x] Logo mode toggle: Mandala (default) vs Custom
+- [x] Favicon toggle (use logo as favicon)
+- [x] Public endpoint `/branding/logo/{slot}` with ETag/304 and cache headers
+- [x] API: GET, POST, DELETE, PUT branding endpoints
+- [x] Event logging for upload, delete, and settings changes
+- [x] 43 tests (service, API, public endpoint)
+
+---
+
 ## SAML IdP: Single Logout (SLO) for Downstream SPs
 
 **Status:** Complete

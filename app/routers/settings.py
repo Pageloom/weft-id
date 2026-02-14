@@ -1,4 +1,4 @@
-"""Settings routes (privileged domains)."""
+"""Settings routes (privileged domains, branding, security)."""
 
 from typing import Annotated
 
@@ -9,12 +9,14 @@ from dependencies import (
     require_admin,
     require_super_admin,
 )
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from pydantic import ValidationError as PydanticValidationError
+from schemas.branding import BrandingSettingsUpdate, LogoMode, LogoSlot
 from schemas.settings import PrivilegedDomainCreate, TenantSecuritySettingsUpdate
+from services import branding as branding_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services.exceptions import ServiceError, ValidationError
@@ -286,3 +288,120 @@ def update_admin_security(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/admin/settings/security?success=1", status_code=303)
+
+
+# =============================================================================
+# Branding
+# =============================================================================
+
+
+@router.get("/branding", response_class=HTMLResponse)
+def admin_branding(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display branding settings page."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        settings = branding_service.get_branding_settings(requesting_user)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        "settings_branding.html",
+        get_template_context(
+            request,
+            tenant_id,
+            branding_settings=settings,
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/branding/upload/{slot}")
+async def upload_branding_logo(
+    request: Request,
+    slot: LogoSlot,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    file: UploadFile,
+):
+    """Upload a logo image for a slot (light or dark)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        data = await file.read()
+        branding_service.upload_logo(
+            requesting_user,
+            slot=slot,
+            data=data,
+            filename=file.filename,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/branding?success=logo_uploaded",
+        status_code=303,
+    )
+
+
+@router.post("/branding/delete/{slot}")
+def delete_branding_logo(
+    request: Request,
+    slot: LogoSlot,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Delete a logo image for a slot."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        branding_service.delete_logo(requesting_user, slot=slot)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/branding?success=logo_deleted",
+        status_code=303,
+    )
+
+
+@router.post("/branding/settings")
+def update_branding_settings(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    logo_mode: Annotated[str, Form()],
+    use_logo_as_favicon: Annotated[str, Form()] = "",
+):
+    """Update branding display settings (logo mode, favicon preference)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        settings_data = BrandingSettingsUpdate(
+            logo_mode=LogoMode(logo_mode),
+            use_logo_as_favicon=use_logo_as_favicon == "true",
+        )
+    except (ValueError, PydanticValidationError):
+        exc = ValidationError(
+            message="Invalid branding settings",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        branding_service.update_branding_settings(requesting_user, settings_data)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/branding?success=settings_updated",
+        status_code=303,
+    )

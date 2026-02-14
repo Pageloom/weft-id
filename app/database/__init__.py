@@ -1,6 +1,7 @@
 # Import submodules for convenient access
 from . import (
     bg_tasks,
+    branding,
     event_log,
     export_files,
     groups,
@@ -31,6 +32,7 @@ from ._core import (
 __all__ = [
     "UNSCOPED",
     "bg_tasks",
+    "branding",
     "close_pool",
     "event_log",
     "execute",

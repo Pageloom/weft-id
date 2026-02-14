@@ -15,7 +15,9 @@
     })();
     </script>
     <title>{% block title %}WeftId{% endblock %}</title>
-    {% if mandala_favicon %}<link rel="icon" type="image/svg+xml" href="{{ mandala_favicon }}">{% endif %}
+    {% if branding is defined and branding.logo_mode == 'custom' and branding.use_logo_as_favicon and branding.has_logo_light %}
+    <link rel="icon" href="/branding/logo/light">
+    {% elif mandala_favicon %}<link rel="icon" type="image/svg+xml" href="{{ mandala_favicon }}">{% endif %}
     <link rel="stylesheet" href="/static/css/output.css">
     <style nonce="{{ csp_nonce }}">
         /* Always show scrollbar gutter to prevent layout shift */
@@ -60,8 +62,25 @@
                 <!-- Main navigation items -->
                 <div class="flex items-center space-x-8">
                     <div class="flex items-center space-x-2">
+                        {% if branding is defined and branding.logo_mode == 'custom' and branding.has_logo_light %}
+                        {# Custom logo mode #}
+                        <div class="dark:hidden">
+                            <img src="/branding/logo/light" alt="Logo" class="h-8 w-8 object-contain">
+                        </div>
+                        <div class="hidden dark:block">
+                            {% if branding.has_logo_dark %}
+                            <img src="/branding/logo/dark" alt="Logo" class="h-8 w-8 object-contain">
+                            {% else %}
+                            <div class="bg-gray-200 rounded-full p-0.5">
+                                <img src="/branding/logo/light" alt="Logo" class="h-7 w-7 object-contain">
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        {# Default mandala mode #}
                         <div class="dark:hidden">{{ mandala_light | safe }}</div>
                         <div class="hidden dark:block">{{ mandala_dark | safe }}</div>
+                        {% endif %}
                         <span class="text-xl font-bold text-gray-900 dark:text-gray-100">WeftId</span>
                     </div>
                     {% for page in nav.top_level_items %}

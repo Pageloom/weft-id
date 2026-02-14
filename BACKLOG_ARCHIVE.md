@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Default Attribute Names
+
+**Status:** Complete
+
+**Resolution:** Changed default SAML attribute names from OID-based URIs to friendly format (`email`, `firstName`, `lastName`, `groups`). This provides a better out-of-box experience for new SP registrations. The `SAML_ATTRIBUTE_URIS` constant now uses friendly names instead of OID URIs, affecting IdP metadata, SP metadata, and SAML assertions. The lookup table was extended to recognize both old OID URIs and new friendly names, maintaining backward compatibility with SPs that use OID-based metadata.
+
+**Acceptance Criteria:**
+
+- [x] Change `SAML_ATTRIBUTE_URIS` in `saml_assertion.py` from OID-based URIs to friendly names: `email`, `firstName`, `lastName`, `groups`
+- [x] Update IdP metadata attribute declarations in `saml_idp.py` to match
+- [x] Existing per-SP attribute overrides continue to work (only the defaults change)
+
+**Effort:** XS
+**Value:** Medium
+
+---
+
 ## SP Metadata Lifecycle Management
 
 **Status:** Complete

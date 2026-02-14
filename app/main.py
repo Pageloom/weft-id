@@ -21,10 +21,12 @@ from middleware.session import DynamicSessionMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
+from routers import branding as branding_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
+from routers.api.v1 import branding as branding_api  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
 from routers.api.v1 import exports as exports_api  # noqa: E402
 from routers.api.v1 import groups as groups_api  # noqa: E402
@@ -82,6 +84,7 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include routers - Web UI (HTML)
+app.include_router(branding_router.router)
 app.include_router(auth.router)
 app.include_router(mfa.router)
 app.include_router(account_router.router)
@@ -98,6 +101,7 @@ app.include_router(oauth2.router)
 app.include_router(saml.router)
 
 # Include API routers (JSON)
+app.include_router(branding_api.router)
 app.include_router(events_api.router)
 app.include_router(exports_api.router)
 app.include_router(groups_api.router)

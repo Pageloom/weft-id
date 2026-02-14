@@ -108,6 +108,10 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / SLO
     "slo_sp_initiated": "SP-initiated single logout processed",
     "slo_idp_propagated": "Logout propagated to downstream service providers",
+    # Branding
+    "branding_logo_uploaded": "Custom logo uploaded for tenant branding",
+    "branding_logo_deleted": "Custom logo removed from tenant branding",
+    "branding_settings_updated": "Tenant branding display settings updated",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",

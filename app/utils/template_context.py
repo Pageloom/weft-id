@@ -6,6 +6,7 @@ from dependencies import get_current_user
 from fastapi import Request
 from middleware.csrf import get_csrf_token
 from pages import get_navigation_context
+from services.branding import get_branding_for_template
 from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter, create_relative_date_formatter
 from utils.mandala import generate_mandala_svg
@@ -35,13 +36,21 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         return get_csrf_token(request)
 
     # Generate tenant mandala SVGs for navigation (light + dark + favicon)
+    # Always generate mandalas as fallback even in custom mode
     mandala_light = ""
     mandala_dark = ""
     mandala_favicon = ""
+    branding = {
+        "logo_mode": "mandala",
+        "use_logo_as_favicon": False,
+        "has_logo_light": False,
+        "has_logo_dark": False,
+    }
     if user and user.get("tenant_id"):
         mandala_light, mandala_dark, favicon_svg = generate_mandala_svg(user["tenant_id"])
         b64 = base64.b64encode(favicon_svg.encode()).decode()
         mandala_favicon = f"data:image/svg+xml;base64,{b64}"
+        branding = get_branding_for_template(str(user["tenant_id"]))
 
     context = {
         "request": request,
@@ -55,6 +64,7 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "mandala_light": mandala_light,  # Light-mode mandala SVG
         "mandala_dark": mandala_dark,  # Dark-mode mandala SVG (with backdrop)
         "mandala_favicon": mandala_favicon,  # Favicon data URI
+        "branding": branding,  # Tenant branding settings
         **kwargs,
     }
 

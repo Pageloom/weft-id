@@ -97,6 +97,22 @@ def sample_sp_config():
     )
 
 
+@pytest.fixture
+def mock_sp_common(sample_sp_config):
+    """Patch get_service_provider and count_sp_group_assignments for tab routes."""
+    with (
+        patch(
+            "services.service_providers.get_service_provider",
+            return_value=sample_sp_config,
+        ),
+        patch(
+            "services.service_providers.count_sp_group_assignments",
+            return_value=0,
+        ),
+    ):
+        yield
+
+
 # =============================================================================
 # SP List Page
 # =============================================================================
@@ -370,6 +386,27 @@ class TestSPDelete:
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
 
+    def test_delete_enabled_sp_rejected(self, sp_admin_session, sp_host):
+        """Deleting an enabled SP is rejected with an error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.delete_service_provider",
+            side_effect=ValidationError(
+                message="Service provider must be disabled before it can be deleted"
+            ),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/delete",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
 
 # =============================================================================
 # IdP Metadata Endpoint
@@ -534,19 +571,245 @@ class TestPerSPMetadata:
 
 
 # =============================================================================
-# SP Detail Page
+# SP Detail Redirect
 # =============================================================================
 
 
-class TestSPDetailPage:
-    """Tests for the SP detail page."""
+class TestSPDetailRedirect:
+    """Tests for the SP detail redirect to /details tab."""
 
-    def test_detail_page_renders(self, sp_admin_session, sp_host, sample_sp_config, mocker):
-        """SP detail page renders for super admin."""
+    def test_detail_redirects_to_details_tab(self, sp_admin_session, sp_host, sample_sp_config):
+        """GET /{sp_id} redirects to /{sp_id}/details."""
+        response = sp_admin_session.get(
+            f"/admin/settings/service-providers/{sample_sp_config.id}",
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert f"/{sample_sp_config.id}/details" in response.headers["location"]
+
+
+# =============================================================================
+# SP Tab: Details
+# =============================================================================
+
+
+class TestSPTabDetails:
+    """Tests for the Details tab."""
+
+    def test_details_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Details tab renders with correct template and context."""
         mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
         mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
         mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+        mock_tmpl.return_value = HTMLResponse(content="<html>details tab</html>")
+
+        response = sp_admin_session.get(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/details",
+            headers={"Host": sp_host},
+        )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_tab_details.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["active_tab"] == "details"
+        assert "sp" in ctx_kwargs
+        assert "sp_metadata_url" in ctx_kwargs
+        assert "group_count" in ctx_kwargs
+
+    def test_details_tab_sp_not_found(self, sp_admin_session, sp_host):
+        """Details tab redirects to list when SP not found."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                side_effect=NotFoundError(message="Service provider not found"),
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sp_id}/details",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Tab: Attributes
+# =============================================================================
+
+
+class TestSPTabAttributes:
+    """Tests for the Attributes tab."""
+
+    def test_attributes_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Attributes tab renders with correct template and context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>attributes tab</html>")
+
+        response = sp_admin_session.get(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/attributes",
+            headers={"Host": sp_host},
+        )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_tab_attributes.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["active_tab"] == "attributes"
+        assert "saml_attributes" in ctx_kwargs
+
+
+# =============================================================================
+# SP Tab: Groups
+# =============================================================================
+
+
+class TestSPTabGroups:
+    """Tests for the Groups tab."""
+
+    def test_groups_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Groups tab renders with correct template and context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>groups tab</html>")
+
+        empty_assignments = SPGroupAssignmentList(items=[], total=0)
+
+        with (
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=empty_assignments,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=[],
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_tab_groups.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["active_tab"] == "groups"
+        assert "assigned_groups" in ctx_kwargs
+        assert "available_groups" in ctx_kwargs
+
+    def test_groups_tab_with_assigned_groups(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Groups tab passes assigned and available groups to context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>groups tab</html>")
+
+        from schemas.service_providers import SPGroupAssignment
+
+        assigned = SPGroupAssignmentList(
+            items=[
+                SPGroupAssignment(
+                    id=str(uuid4()),
+                    sp_id=sample_sp_config.id,
+                    group_id=str(uuid4()),
+                    group_name="Engineering",
+                    group_description="Engineering team",
+                    group_type="weftid",
+                    assigned_by=str(uuid4()),
+                    assigned_at=datetime.now(UTC),
+                ),
+            ],
+            total=1,
+        )
+        available = [
+            {"id": str(uuid4()), "name": "Marketing", "type": "weftid"},
+        ]
+
+        with (
+            patch(
+                "services.service_providers.list_sp_group_assignments",
+                return_value=assigned,
+            ),
+            patch(
+                "services.service_providers.list_available_groups_for_sp",
+                return_value=available,
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert len(ctx_kwargs["assigned_groups"]) == 1
+        assert len(ctx_kwargs["available_groups"]) == 1
+
+    def test_groups_tab_service_error_still_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Groups tab still renders when group fetching fails."""
+        from services.exceptions import ServiceError
+
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>groups tab</html>")
+
+        with patch(
+            "services.service_providers.list_sp_group_assignments",
+            side_effect=ServiceError(message="Database error"),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/groups",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["assigned_groups"] == []
+        assert ctx_kwargs["available_groups"] == []
+
+
+# =============================================================================
+# SP Tab: Certificates
+# =============================================================================
+
+
+class TestSPTabCertificates:
+    """Tests for the Certificates tab."""
+
+    def test_certificates_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Certificates tab renders with correct template and context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>certificates tab</html>")
 
         signing_cert = SPSigningCertificate(
             id=str(uuid4()),
@@ -556,77 +819,107 @@ class TestSPDetailPage:
             created_at=datetime.now(UTC),
         )
 
-        empty_assignments = SPGroupAssignmentList(items=[], total=0)
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                return_value=signing_cert,
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=empty_assignments,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=[],
-            ),
+        with patch(
+            "services.service_providers.get_sp_signing_certificate",
+            return_value=signing_cert,
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}",
+                f"/admin/settings/service-providers/{sample_sp_config.id}/certificates",
                 headers={"Host": sp_host},
             )
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
         template_name = mock_tmpl.call_args[0][0]
-        assert template_name == "saml_idp_sp_detail.html"
+        assert template_name == "saml_idp_sp_tab_certificates.html"
         ctx_kwargs = mock_ctx.call_args[1]
-        assert "sp" in ctx_kwargs
+        assert ctx_kwargs["active_tab"] == "certificates"
         assert "signing_cert" in ctx_kwargs
-        assert "sp_metadata_url" in ctx_kwargs
 
-    def test_detail_page_without_cert(self, sp_admin_session, sp_host, sample_sp_config, mocker):
-        """SP detail page renders even when no signing cert exists."""
+    def test_certificates_tab_without_cert(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Certificates tab renders even when no signing cert exists."""
+        from services.exceptions import NotFoundError
+
         mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
         mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
         mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
+        mock_tmpl.return_value = HTMLResponse(content="<html>certificates tab</html>")
 
-        from services.exceptions import NotFoundError
-
-        empty_assignments = SPGroupAssignmentList(items=[], total=0)
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                side_effect=NotFoundError(message="not found"),
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=empty_assignments,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=[],
-            ),
+        with patch(
+            "services.service_providers.get_sp_signing_certificate",
+            side_effect=NotFoundError(message="not found"),
         ):
             response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}",
+                f"/admin/settings/service-providers/{sample_sp_config.id}/certificates",
                 headers={"Host": sp_host},
             )
 
         assert response.status_code == 200
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["signing_cert"] is None
+
+
+# =============================================================================
+# SP Tab: Metadata
+# =============================================================================
+
+
+class TestSPTabMetadata:
+    """Tests for the Metadata tab."""
+
+    def test_metadata_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Metadata tab renders with correct template and context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>metadata tab</html>")
+
+        response = sp_admin_session.get(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/metadata",
+            headers={"Host": sp_host},
+        )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_tab_metadata.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["active_tab"] == "metadata"
+
+
+# =============================================================================
+# SP Tab: Danger
+# =============================================================================
+
+
+class TestSPTabDanger:
+    """Tests for the Danger tab."""
+
+    def test_danger_tab_renders(
+        self, sp_admin_session, sp_host, sample_sp_config, mock_sp_common, mocker
+    ):
+        """Danger tab renders with correct template and context."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>danger tab</html>")
+
+        response = sp_admin_session.get(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/danger",
+            headers={"Host": sp_host},
+        )
+
+        assert response.status_code == 200
+        mock_tmpl.assert_called_once()
+        template_name = mock_tmpl.call_args[0][0]
+        assert template_name == "saml_idp_sp_tab_danger.html"
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["active_tab"] == "danger"
+        assert "assigned_group_count" in ctx_kwargs
 
 
 # =============================================================================
@@ -638,7 +931,7 @@ class TestSPRotateCertificate:
     """Tests for SP certificate rotation via admin UI."""
 
     def test_rotate_success(self, sp_admin_session, sp_host):
-        """Successful rotation redirects with success."""
+        """Successful rotation redirects to certificates tab with success."""
         sp_id = str(uuid4())
         rotation_result = SPSigningCertificateRotationResult(
             new_certificate_pem="-----BEGIN CERTIFICATE-----\nnew\n-----END CERTIFICATE-----",
@@ -657,10 +950,11 @@ class TestSPRotateCertificate:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/certificates" in response.headers["location"]
         assert "success=certificate_rotated" in response.headers["location"]
 
     def test_rotate_failure(self, sp_admin_session, sp_host):
-        """Failed rotation redirects with error."""
+        """Failed rotation redirects to certificates tab with error."""
         from services.exceptions import NotFoundError
 
         sp_id = str(uuid4())
@@ -676,6 +970,7 @@ class TestSPRotateCertificate:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/certificates" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
 
@@ -688,7 +983,7 @@ class TestSPAddGroup:
     """Tests for assigning a group to a service provider."""
 
     def test_add_group_success(self, sp_admin_session, sp_host):
-        """Successful group assignment redirects with success."""
+        """Successful group assignment redirects to groups tab with success."""
         sp_id = str(uuid4())
         group_id = str(uuid4())
 
@@ -701,11 +996,11 @@ class TestSPAddGroup:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "success=group_assigned" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_add_group_service_error(self, sp_admin_session, sp_host):
-        """ServiceError during group assignment redirects with error."""
+        """ServiceError during group assignment redirects to groups tab with error."""
         from services.exceptions import NotFoundError
 
         sp_id = str(uuid4())
@@ -723,11 +1018,11 @@ class TestSPAddGroup:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "error=" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_add_group_validation_error(self, sp_admin_session, sp_host):
-        """ValidationError during group assignment redirects with error."""
+        """ValidationError during group assignment redirects to groups tab with error."""
         from services.exceptions import ValidationError
 
         sp_id = str(uuid4())
@@ -763,7 +1058,7 @@ class TestSPAddGroup:
             "error=Please+select+a+group" in response.headers["location"]
             or "error=Please%20select%20a%20group" in response.headers["location"]
         )
-        assert sp_id in response.headers["location"]
+        assert f"/{sp_id}/groups" in response.headers["location"]
 
     def test_add_group_no_group_id_field(self, sp_admin_session, sp_host):
         """No group_id form field at all redirects with 'Please select a group' error."""
@@ -778,7 +1073,7 @@ class TestSPAddGroup:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
-        assert sp_id in response.headers["location"]
+        assert f"/{sp_id}/groups" in response.headers["location"]
 
     def test_add_group_whitespace_group_id(self, sp_admin_session, sp_host):
         """Whitespace-only group_id redirects with 'Please select a group' error."""
@@ -804,7 +1099,7 @@ class TestSPBulkAddGroups:
     """Tests for bulk-assigning groups to a service provider."""
 
     def test_bulk_add_groups_success(self, sp_admin_session, sp_host):
-        """Successful bulk group assignment redirects with success."""
+        """Successful bulk group assignment redirects to groups tab with success."""
         from urllib.parse import urlencode
 
         sp_id = str(uuid4())
@@ -824,8 +1119,8 @@ class TestSPBulkAddGroups:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "success=groups_assigned" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_bulk_add_groups_single_group(self, sp_admin_session, sp_host):
         """Bulk assignment with a single group still works."""
@@ -844,7 +1139,7 @@ class TestSPBulkAddGroups:
         assert "success=groups_assigned" in response.headers["location"]
 
     def test_bulk_add_groups_service_error(self, sp_admin_session, sp_host):
-        """ServiceError during bulk assignment redirects with error."""
+        """ServiceError during bulk assignment redirects to groups tab with error."""
         from urllib.parse import urlencode
 
         from services.exceptions import ValidationError
@@ -868,11 +1163,11 @@ class TestSPBulkAddGroups:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "error=" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_bulk_add_groups_not_found(self, sp_admin_session, sp_host):
-        """NotFoundError during bulk assignment redirects with error."""
+        """NotFoundError during bulk assignment redirects to groups tab with error."""
         from urllib.parse import urlencode
 
         from services.exceptions import NotFoundError
@@ -911,7 +1206,7 @@ class TestSPBulkAddGroups:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
-        assert sp_id in response.headers["location"]
+        assert f"/{sp_id}/groups" in response.headers["location"]
 
 
 # =============================================================================
@@ -923,7 +1218,7 @@ class TestSPRemoveGroup:
     """Tests for removing a group assignment from a service provider."""
 
     def test_remove_group_success(self, sp_admin_session, sp_host):
-        """Successful group removal redirects with success."""
+        """Successful group removal redirects to groups tab with success."""
         sp_id = str(uuid4())
         group_id = str(uuid4())
 
@@ -935,11 +1230,11 @@ class TestSPRemoveGroup:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "success=group_removed" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_remove_group_not_found(self, sp_admin_session, sp_host):
-        """Removing non-existent group assignment redirects with error."""
+        """Removing non-existent group assignment redirects to groups tab with error."""
         from services.exceptions import NotFoundError
 
         sp_id = str(uuid4())
@@ -956,8 +1251,8 @@ class TestSPRemoveGroup:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
         assert "error=" in response.headers["location"]
-        assert sp_id in response.headers["location"]
 
     def test_remove_group_forbidden(self, sp_admin_session, sp_host):
         """ForbiddenError during group removal redirects with error."""
@@ -1001,7 +1296,7 @@ class TestSPRemoveGroup:
 
 
 # =============================================================================
-# SP Edit
+# SP Edit (Name/Description/URLs)
 # =============================================================================
 
 
@@ -1009,7 +1304,7 @@ class TestSPEdit:
     """Tests for SP edit (update) via admin UI."""
 
     def test_edit_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """All fields submitted, redirects with success=updated."""
+        """All fields submitted, redirects to details tab with success=updated."""
         sp_id = str(uuid4())
 
         with patch(
@@ -1028,6 +1323,7 @@ class TestSPEdit:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/details" in response.headers["location"]
         assert "success=updated" in response.headers["location"]
 
     def test_edit_partial_fields(self, sp_admin_session, sp_host, sample_sp_config):
@@ -1046,80 +1342,23 @@ class TestSPEdit:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/details" in response.headers["location"]
         assert "success=updated" in response.headers["location"]
-
-    def test_edit_include_group_claims_on(self, sp_admin_session, sp_host, sample_sp_config):
-        """Submitting include_group_claims checkbox passes True to service."""
-        sp_id = str(uuid4())
-
-        with patch(
-            "services.service_providers.update_service_provider",
-            return_value=sample_sp_config,
-        ) as mock_update:
-            response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
-                data={
-                    "name": "Test",
-                    "description": "",
-                    "acs_url": "",
-                    "slo_url": "",
-                    "include_group_claims": "true",
-                },
-                headers={"Host": sp_host},
-                follow_redirects=False,
-            )
-
-        assert response.status_code == 303
-        assert "success=updated" in response.headers["location"]
-        # Verify the SPUpdate was created with include_group_claims=True
-        call_args = mock_update.call_args
-        sp_update = call_args[0][2]  # third positional arg is the SPUpdate
-        assert sp_update.include_group_claims is True
-
-    def test_edit_include_group_claims_off(self, sp_admin_session, sp_host, sample_sp_config):
-        """Omitting include_group_claims checkbox passes False to service."""
-        sp_id = str(uuid4())
-
-        with patch(
-            "services.service_providers.update_service_provider",
-            return_value=sample_sp_config,
-        ) as mock_update:
-            response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
-                data={
-                    "name": "Test",
-                    "description": "",
-                    "acs_url": "",
-                    "slo_url": "",
-                },
-                headers={"Host": sp_host},
-                follow_redirects=False,
-            )
-
-        assert response.status_code == 303
-        assert "success=updated" in response.headers["location"]
-        call_args = mock_update.call_args
-        sp_update = call_args[0][2]
-        assert sp_update.include_group_claims is False
 
     def test_edit_no_changes(self, sp_admin_session, sp_host, sample_sp_config):
-        """All text fields empty still sends include_group_claims=False."""
+        """All text fields empty returns error about no changes."""
         sp_id = str(uuid4())
 
-        with patch(
-            "services.service_providers.update_service_provider",
-            return_value=sample_sp_config,
-        ):
-            response = sp_admin_session.post(
-                f"/admin/settings/service-providers/{sp_id}/edit",
-                data={"name": "", "description": "", "acs_url": ""},
-                headers={"Host": sp_host},
-                follow_redirects=False,
-            )
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/edit",
+            data={"name": "", "description": "", "acs_url": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
 
         assert response.status_code == 303
-        # include_group_claims=False is always submitted, so update proceeds
-        assert "success=updated" in response.headers["location"]
+        assert f"/{sp_id}/details" in response.headers["location"]
+        assert "error=" in response.headers["location"]
 
     def test_edit_not_found(self, sp_admin_session, sp_host):
         """SP doesn't exist, redirects with error."""
@@ -1163,6 +1402,86 @@ class TestSPEdit:
 
 
 # =============================================================================
+# SP Edit Attributes
+# =============================================================================
+
+
+class TestSPEditAttributes:
+    """Tests for SP attribute edit via admin UI."""
+
+    def test_edit_attributes_include_group_claims_on(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Submitting include_group_claims checkbox passes True to service."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={
+                    "include_group_claims": "true",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/attributes" in response.headers["location"]
+        assert "success=attributes_updated" in response.headers["location"]
+        call_args = mock_update.call_args
+        sp_update = call_args[0][2]
+        assert sp_update.include_group_claims is True
+
+    def test_edit_attributes_include_group_claims_off(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Omitting include_group_claims checkbox passes False to service."""
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ) as mock_update:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/attributes" in response.headers["location"]
+        assert "success=attributes_updated" in response.headers["location"]
+        call_args = mock_update.call_args
+        sp_update = call_args[0][2]
+        assert sp_update.include_group_claims is False
+
+    def test_edit_attributes_service_error(self, sp_admin_session, sp_host):
+        """Service error redirects to attributes tab with error."""
+        from services.exceptions import ValidationError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=ValidationError(message="Invalid"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/edit-attributes",
+                data={"include_group_claims": "true"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/attributes" in response.headers["location"]
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
 # SP Enable
 # =============================================================================
 
@@ -1171,7 +1490,7 @@ class TestSPEnable:
     """Tests for enabling a service provider via admin UI."""
 
     def test_enable_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """Redirects with success=enabled."""
+        """Redirects to danger tab with success=enabled."""
         sp_id = str(uuid4())
 
         with patch(
@@ -1185,10 +1504,11 @@ class TestSPEnable:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/danger" in response.headers["location"]
         assert "success=enabled" in response.headers["location"]
 
     def test_enable_already_enabled(self, sp_admin_session, sp_host):
-        """Already enabled SP redirects with error."""
+        """Already enabled SP redirects to danger tab with error."""
         from services.exceptions import ValidationError
 
         sp_id = str(uuid4())
@@ -1204,6 +1524,7 @@ class TestSPEnable:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/danger" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
     def test_enable_not_found(self, sp_admin_session, sp_host):
@@ -1235,7 +1556,7 @@ class TestSPDisable:
     """Tests for disabling a service provider via admin UI."""
 
     def test_disable_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """Redirects with success=disabled."""
+        """Redirects to danger tab with success=disabled."""
         sp_id = str(uuid4())
 
         with patch(
@@ -1249,10 +1570,11 @@ class TestSPDisable:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/danger" in response.headers["location"]
         assert "success=disabled" in response.headers["location"]
 
     def test_disable_already_disabled(self, sp_admin_session, sp_host):
-        """Already disabled SP redirects with error."""
+        """Already disabled SP redirects to danger tab with error."""
         from services.exceptions import ValidationError
 
         sp_id = str(uuid4())
@@ -1268,6 +1590,7 @@ class TestSPDisable:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/danger" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
     def test_disable_not_found(self, sp_admin_session, sp_host):
@@ -1288,252 +1611,6 @@ class TestSPDisable:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
-
-
-# =============================================================================
-# SP Detail Page with Groups
-# =============================================================================
-
-
-class TestSPDetailPageGroups:
-    """Tests for group data on the SP detail page."""
-
-    def test_detail_page_passes_groups_to_context(
-        self, sp_admin_session, sp_host, sample_sp_config, mocker
-    ):
-        """SP detail page passes assigned_groups and available_groups to template context."""
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
-
-        from schemas.service_providers import SPGroupAssignment
-
-        assigned = SPGroupAssignmentList(
-            items=[
-                SPGroupAssignment(
-                    id=str(uuid4()),
-                    sp_id=sample_sp_config.id,
-                    group_id=str(uuid4()),
-                    group_name="Engineering",
-                    group_description="Engineering team",
-                    group_type="weftid",
-                    assigned_by=str(uuid4()),
-                    assigned_at=datetime.now(UTC),
-                ),
-            ],
-            total=1,
-        )
-        available = [
-            {"id": str(uuid4()), "name": "Marketing", "type": "weftid"},
-        ]
-
-        signing_cert = SPSigningCertificate(
-            id=str(uuid4()),
-            sp_id=sample_sp_config.id,
-            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
-            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
-            created_at=datetime.now(UTC),
-        )
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                return_value=signing_cert,
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=assigned,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=available,
-            ),
-        ):
-            response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        assert "assigned_groups" in ctx_kwargs
-        assert "available_groups" in ctx_kwargs
-        assert len(ctx_kwargs["assigned_groups"]) == 1
-        assert len(ctx_kwargs["available_groups"]) == 1
-
-    def test_detail_page_empty_groups(self, sp_admin_session, sp_host, sample_sp_config, mocker):
-        """SP detail page handles empty assigned and available groups."""
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
-
-        empty_assignments = SPGroupAssignmentList(items=[], total=0)
-
-        signing_cert = SPSigningCertificate(
-            id=str(uuid4()),
-            sp_id=sample_sp_config.id,
-            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
-            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
-            created_at=datetime.now(UTC),
-        )
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                return_value=signing_cert,
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=empty_assignments,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=[],
-            ),
-        ):
-            response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        assert ctx_kwargs["assigned_groups"] == []
-        assert ctx_kwargs["available_groups"] == []
-
-    def test_detail_page_groups_service_error_still_renders(
-        self, sp_admin_session, sp_host, sample_sp_config, mocker
-    ):
-        """SP detail page still renders when group fetching fails (try/except pass)."""
-        from services.exceptions import ServiceError
-
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
-
-        signing_cert = SPSigningCertificate(
-            id=str(uuid4()),
-            sp_id=sample_sp_config.id,
-            certificate_pem="-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
-            expires_at=datetime(2036, 1, 1, tzinfo=UTC),
-            created_at=datetime.now(UTC),
-        )
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                return_value=signing_cert,
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                side_effect=ServiceError(message="Database error"),
-            ),
-        ):
-            response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        # Falls back to empty lists when ServiceError occurs
-        assert ctx_kwargs["assigned_groups"] == []
-        assert ctx_kwargs["available_groups"] == []
-
-    def test_detail_page_groups_with_success_param(
-        self, sp_admin_session, sp_host, sample_sp_config, mocker
-    ):
-        """SP detail page passes success param after group operations."""
-        from services.exceptions import ServiceError
-
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
-
-        empty_assignments = SPGroupAssignmentList(items=[], total=0)
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                side_effect=ServiceError(message="not found"),
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=empty_assignments,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=[],
-            ),
-        ):
-            response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}?success=group_assigned",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        assert ctx_kwargs["success"] == "group_assigned"
-
-    def test_detail_page_groups_with_error_param(
-        self, sp_admin_session, sp_host, sample_sp_config, mocker
-    ):
-        """SP detail page passes error param after failed group operations."""
-        from services.exceptions import ServiceError
-
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp detail</html>")
-
-        empty_assignments = SPGroupAssignmentList(items=[], total=0)
-
-        with (
-            patch(
-                "services.service_providers.get_service_provider",
-                return_value=sample_sp_config,
-            ),
-            patch(
-                "services.service_providers.get_sp_signing_certificate",
-                side_effect=ServiceError(message="not found"),
-            ),
-            patch(
-                "services.service_providers.list_sp_group_assignments",
-                return_value=empty_assignments,
-            ),
-            patch(
-                "services.service_providers.list_available_groups_for_sp",
-                return_value=[],
-            ),
-        ):
-            response = sp_admin_session.get(
-                f"/admin/settings/service-providers/{sample_sp_config.id}?error=Group+not+found",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        assert ctx_kwargs["error"] == "Group not found"
 
 
 # =============================================================================
@@ -1581,8 +1658,8 @@ class TestSPRefreshMetadataPreview:
         template_name = mock_tmpl.call_args[0][0]
         assert template_name == "saml_idp_sp_metadata_preview.html"
 
-    def test_preview_error_redirects(self, sp_admin_session, sp_host):
-        """Preview error redirects to SP detail with error."""
+    def test_preview_error_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
+        """Preview error redirects to metadata tab with error."""
         from services.exceptions import ValidationError
 
         sp_id = str(uuid4())
@@ -1599,7 +1676,7 @@ class TestSPRefreshMetadataPreview:
             )
 
         assert response.status_code == 303
-        assert f"/admin/settings/service-providers/{sp_id}" in response.headers["location"]
+        assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
 
@@ -1611,8 +1688,10 @@ class TestSPRefreshMetadataPreview:
 class TestSPRefreshMetadataApply:
     """Tests for POST /{sp_id}/refresh-metadata-apply."""
 
-    def test_apply_redirects_with_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """Apply redirects to SP detail with success message."""
+    def test_apply_redirects_to_metadata_tab_with_success(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Apply redirects to metadata tab with success message."""
         with patch(
             "services.service_providers.apply_sp_metadata_refresh",
             return_value=sample_sp_config,
@@ -1625,10 +1704,11 @@ class TestSPRefreshMetadataApply:
             )
 
         assert response.status_code == 303
+        assert f"/{sample_sp_config.id}/metadata" in response.headers["location"]
         assert "success=metadata_refreshed" in response.headers["location"]
 
-    def test_apply_error_redirects(self, sp_admin_session, sp_host):
-        """Apply error redirects to SP detail with error."""
+    def test_apply_error_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
+        """Apply error redirects to metadata tab with error."""
         from services.exceptions import NotFoundError
 
         sp_id = str(uuid4())
@@ -1645,6 +1725,7 @@ class TestSPRefreshMetadataApply:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
 
@@ -1687,8 +1768,8 @@ class TestSPReimportMetadataPreview:
         template_name = mock_tmpl.call_args[0][0]
         assert template_name == "saml_idp_sp_metadata_preview.html"
 
-    def test_preview_empty_xml_redirects(self, sp_admin_session, sp_host):
-        """Empty XML redirects with error."""
+    def test_preview_empty_xml_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
+        """Empty XML redirects to metadata tab with error."""
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
@@ -1699,6 +1780,7 @@ class TestSPReimportMetadataPreview:
         )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
 
@@ -1710,8 +1792,10 @@ class TestSPReimportMetadataPreview:
 class TestSPReimportMetadataApply:
     """Tests for POST /{sp_id}/reimport-metadata-apply."""
 
-    def test_apply_redirects_with_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """Apply redirects to SP detail with success message."""
+    def test_apply_redirects_to_metadata_tab_with_success(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Apply redirects to metadata tab with success message."""
         with patch(
             "services.service_providers.apply_sp_metadata_reimport",
             return_value=sample_sp_config,
@@ -1724,10 +1808,11 @@ class TestSPReimportMetadataApply:
             )
 
         assert response.status_code == 303
+        assert f"/{sample_sp_config.id}/metadata" in response.headers["location"]
         assert "success=metadata_reimported" in response.headers["location"]
 
-    def test_apply_empty_xml_redirects(self, sp_admin_session, sp_host):
-        """Empty XML redirects with error."""
+    def test_apply_empty_xml_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
+        """Empty XML redirects to metadata tab with error."""
         sp_id = str(uuid4())
 
         response = sp_admin_session.post(
@@ -1738,10 +1823,11 @@ class TestSPReimportMetadataApply:
         )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]
 
-    def test_apply_error_redirects(self, sp_admin_session, sp_host):
-        """Apply error redirects to SP detail with error."""
+    def test_apply_error_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
+        """Apply error redirects to metadata tab with error."""
         from services.exceptions import ValidationError
 
         sp_id = str(uuid4())
@@ -1758,4 +1844,5 @@ class TestSPReimportMetadataApply:
             )
 
         assert response.status_code == 303
+        assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]

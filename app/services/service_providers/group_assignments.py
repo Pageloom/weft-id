@@ -24,6 +24,20 @@ from services.types import RequestingUser
 logger = logging.getLogger(__name__)
 
 
+def count_sp_group_assignments(
+    requesting_user: RequestingUser,
+    sp_id: str,
+) -> int:
+    """Count group assignments for an SP (for tab bar label).
+
+    Authorization: Requires admin role.
+    """
+    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+
+    tenant_id = requesting_user["tenant_id"]
+    return database.sp_group_assignments.count_assignments_for_sp(tenant_id, sp_id)
+
+
 def list_sp_group_assignments(
     requesting_user: RequestingUser,
     sp_id: str,

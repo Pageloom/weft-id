@@ -125,10 +125,13 @@ def build_sso_response(
     email = primary_email_row["email"]
 
     # 5. Build user attributes
+    first_name = user.get("first_name", "")
+    last_name = user.get("last_name", "")
     user_attributes: dict[str, str | list[str]] = {
         "email": email,
-        "firstName": user.get("first_name", ""),
-        "lastName": user.get("last_name", ""),
+        "firstName": first_name,
+        "lastName": last_name,
+        "displayName": f"{first_name} {last_name}".strip(),
     }
 
     # 5b. Include group claims if enabled for this SP

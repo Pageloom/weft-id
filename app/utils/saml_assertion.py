@@ -26,6 +26,7 @@ SAML_ATTRIBUTE_URIS = {
     "email": "email",
     "firstName": "firstName",
     "lastName": "lastName",
+    "displayName": "displayName",
     "groups": "groups",
 }
 

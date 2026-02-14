@@ -6,113 +6,55 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SAML IdP: SP Attribute Mapping from Metadata
-
-**User Story:**
-As a super admin acting as an IdP administrator
-I want to see which attributes a registered SP expects (from its metadata) and map my IdP attributes to them
-So that I can ensure the SP receives the data it needs without guesswork or manual documentation lookup
-
-**Context:**
-
-When Weft ID acts as an IdP and registers an SP, the SP's metadata may declare expected attributes via `<md:AttributeConsumingService>` / `<md:RequestedAttribute>` elements. Today we ignore these declarations entirely. The IdP admin has no visibility into what the SP expects and no way to control how IdP attributes are mapped to SP-expected attribute names.
-
-The goal: if the SP was kind enough to declare what it expects, surface that information and let the admin wire things up. Only fall back to default OID-based attribute names when the SP gives us nothing to work with.
-
-**Acceptance Criteria:**
-
-**Store SP Metadata XML:**
-
-- [ ] Store raw SP metadata XML in the database (same pattern as the IdP `metadata_xml` column)
-- [ ] Populated when SP is imported from metadata URL or pasted XML
-- [ ] Updated when SP metadata is refreshed
-
-**Parse SP Expected Attributes:**
-
-- [ ] Parse `<md:RequestedAttribute>` elements from `<md:AttributeConsumingService>` in SP metadata
-- [ ] Extract: attribute name (URI), friendly name, whether required/optional
-
-**Attribute Mapping UI (SP Detail Page):**
-
-- [ ] Replace the current static "Assertion Attributes" card with an interactive attribute mapping UI
-- [ ] Show three columns: what we (IdP) can send (email, firstName, lastName, groups), what the SP expects (from metadata), and the current mapping between them
-- [ ] Auto-detect matches when SP expected attributes use known OIDs or friendly names (e.g. SP requests `urn:oid:0.9.2342.19200300.100.1.3` with FriendlyName "mail", auto-match to our "email")
-- [ ] Show auto-detected mappings as suggestions the admin can confirm or override
-- [ ] Admin can explicitly map each IdP attribute to a specific SP-expected attribute
-- [ ] Per-attribute fallback: only use default OID-based names for attributes where the SP declares nothing
-
-**Per-SP Mapping Storage:**
-
-- [ ] Store per-SP attribute mapping in the database (JSONB column on `service_providers` or dedicated table)
-- [ ] Mapping format: `{ "email": "sp_attribute_name_or_uri", "firstName": "...", ... }`
-
-**Assertion Builder Integration:**
-
-- [ ] SSO assertion builder uses per-SP attribute mapping when constructing `AttributeStatement` elements
-- [ ] Falls back to `SAML_ATTRIBUTE_URIS` defaults only for unmapped attributes with no SP expectations
-
-**Effort:** M
-**Value:** High (Makes federation setup dramatically easier, reduces misconfiguration)
-
----
-
-## SAML Identity Provider - Phase 4: Attribute Mapping & NameID Configuration
+## SP Metadata Management and Attribute Mapping UX
 
 **User Story:**
 As a super admin
-I want to customize attribute mappings and NameID format per application
-So that I can integrate applications with non-standard attribute requirements
+I want a way to manage SP metadata lifecycle and have a clearer attribute mapping experience
+So that I can keep SP configurations up to date and understand how user attributes are communicated during sign-in
 
 **Context:**
 
-Earlier phases established the IdP with default attribute mappings (email, firstName, lastName). Some applications
-expect different attribute names or formats. This phase adds per-SP customization for attribute mappings and
-NameID format selection.
+Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). This item covers the remaining UX improvements, metadata lifecycle management, and default attribute name changes that build on that foundation.
 
 **Acceptance Criteria:**
 
-**Per-SP Attribute Mapping:**
+**Metadata Persistence and Refresh:**
 
-- [ ] Default attribute mappings remain: email, firstName, lastName with standard URIs
-- [ ] Per-SP attribute mapping overrides (e.g., map `email` to
-  `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`)
-- [ ] Attribute mapping UI: list current mappings, add/edit/remove custom mappings
-- [ ] Support for common IdP attribute URI formats (SAML 2.0 standard, Azure AD claims, custom)
-- [ ] Preview: show what the assertion attributes will look like
-- [ ] Attribute mapping presets for common SPs (Salesforce, ServiceNow, etc.)
+- [ ] On SP creation via metadata URL: persist the metadata URL itself (new column) alongside the fetched metadata XML
+- [ ] On SP creation via pasted XML: persist the pasted metadata XML (already done via `metadata_xml` column)
+- [ ] On manual entry: no metadata to store
+- [ ] SP detail page: view the full stored metadata XML (read-only, collapsible code block)
+- [ ] SP with stored metadata URL: "Refresh from URL" action that re-fetches metadata and shows a preview/diff of what would change (ACS URL, SLO URL, certificate, requested attributes, attribute mapping) before applying
+- [ ] SP with stored XML but no URL: "Re-import metadata" action where admin can paste new XML and preview changes before applying
+- [ ] SP with neither: no metadata refresh available, manual editing only
 
-**NameID Configuration:**
+**Attribute Mapping UX Improvements:**
+
+- [ ] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
+- [ ] Use friendlier description: "Configure how user attributes are communicated to the service provider during sign-in." instead of technical SAML jargon
+- [ ] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
+- [ ] If no SP expectations are on file, remove the "SP Expectation" column entirely rather than showing "None declared" for every row
+
+**Default Attribute Names:**
+
+- [ ] Change Weft ID's default attribute URIs (both as IdP and SP) from OID-based URIs (`urn:oid:0.9.2342.19200300.100.1.3`, etc.) to friendly names: `email`, `firstName`, `lastName`, `groups`
+- [ ] This affects `SAML_ATTRIBUTE_URIS` in `saml_assertion.py` and IdP metadata attribute declarations
+
+**Discourage Manual SP Entry:**
+
+- [ ] In the SP registration UI, make metadata import (URL or XML) the primary/recommended path
+- [ ] Manual entry should still be available but visually de-emphasized (e.g., collapsed section, secondary styling, or "Advanced" label)
+- [ ] Goal: guide admins toward metadata-based registration which produces better results
+
+**NameID Configuration (from Phase 4):**
 
 - [ ] Per-SP NameID format selection: emailAddress (default), persistent, transient, unspecified
 - [ ] Persistent NameID generates stable opaque identifier per user-SP pair
 - [ ] Transient NameID generates new identifier per session
 
-**Error Handling & Troubleshooting:**
-
-- [ ] Clear error messages for common SAML failures (unknown SP, disabled SP, unauthorized user)
-- [ ] Event log entries for SSO attempts (success and failure) with SP name
-- [ ] Super admin can view recent SSO events per SP
-
-**Technical Implementation:**
-
-- Database migration:
-    - `sp_attribute_mappings`: id, sp_id, internal_attribute, saml_attribute_uri
-    - Add `nameid_format` column to `service_providers`
-    - Add `persistent_nameid` table for persistent NameID storage (user_id, sp_id, nameid_value)
-- Update assertion generation to use custom mappings
-- Event logging integration
-
-**Dependencies:**
-
-- SAML IdP Phase 3 complete
-
-**Effort:** M
-**Value:** Medium (Flexibility for production integrations)
-
-**Notes:**
-
-- NameID format is important for applications that use it as the primary user identifier
-- Consider SAML debugging tools (assertion viewer) as separate backlog item, similar to upstream SAML Phase 4
+**Effort:** L
+**Value:** High (Completes the SP management experience, reduces admin confusion)
 
 ---
 

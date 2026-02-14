@@ -2,6 +2,7 @@
 
 import re
 import struct
+import xml.etree.ElementTree as ET
 
 import database
 from schemas.branding import BrandingSettings, BrandingSettingsUpdate, LogoMode, LogoSlot
@@ -79,8 +80,51 @@ def _validate_png(data: bytes) -> None:
         )
 
 
-def _validate_svg_square(data: bytes) -> None:
-    """Validate SVG has a square viewBox."""
+# Allowed SVG element local names (drawing primitives and structure)
+_SVG_SAFE_ELEMENTS = frozenset(
+    {
+        "svg",
+        "g",
+        "defs",
+        "symbol",
+        "use",
+        "title",
+        "desc",
+        "path",
+        "rect",
+        "circle",
+        "ellipse",
+        "line",
+        "polyline",
+        "polygon",
+        "text",
+        "tspan",
+        "textPath",
+        "clipPath",
+        "mask",
+        "pattern",
+        "marker",
+        "linearGradient",
+        "radialGradient",
+        "stop",
+        "image",
+        "style",
+    }
+)
+
+# Event handler attribute prefixes that must be rejected
+_EVENT_HANDLER_PREFIX = "on"
+
+# Attributes that can reference external resources
+_DANGEROUS_ATTR_VALUES_RE = re.compile(r"javascript:|data:text/html", re.IGNORECASE)
+
+
+def _validate_svg_content(data: bytes) -> None:
+    """Validate SVG content is safe (no scripts, event handlers, or external entities).
+
+    Rejects SVGs containing dangerous content rather than silently stripping it,
+    so the admin knows exactly what needs to be fixed.
+    """
     try:
         text = data.decode("utf-8", errors="strict")
     except (UnicodeDecodeError, ValueError):
@@ -89,6 +133,72 @@ def _validate_svg_square(data: bytes) -> None:
             code="invalid_svg",
         )
 
+    # Reject XML entity declarations (XXE prevention)
+    if "<!ENTITY" in text or "<!DOCTYPE" in text:
+        raise ValidationError(
+            message="SVG must not contain DOCTYPE or ENTITY declarations",
+            code="svg_unsafe_content",
+            field="file",
+        )
+
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        raise ValidationError(
+            message="SVG contains invalid XML",
+            code="invalid_svg",
+            field="file",
+        )
+
+    for elem in root.iter():
+        # Strip namespace prefix to get the local name
+        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+        if tag == "script":
+            raise ValidationError(
+                message="SVG must not contain <script> elements",
+                code="svg_unsafe_content",
+                field="file",
+            )
+
+        if tag == "foreignObject":
+            raise ValidationError(
+                message="SVG must not contain <foreignObject> elements",
+                code="svg_unsafe_content",
+                field="file",
+            )
+
+        if tag not in _SVG_SAFE_ELEMENTS:
+            raise ValidationError(
+                message=f"SVG contains disallowed element: <{tag}>",
+                code="svg_unsafe_content",
+                field="file",
+            )
+
+        for attr_name, attr_value in elem.attrib.items():
+            # Strip namespace from attribute name
+            local_attr = attr_name.split("}")[-1] if "}" in attr_name else attr_name
+
+            if local_attr.lower().startswith(_EVENT_HANDLER_PREFIX):
+                raise ValidationError(
+                    message=f"SVG must not contain event handler attributes: {local_attr}",
+                    code="svg_unsafe_content",
+                    field="file",
+                )
+
+            if _DANGEROUS_ATTR_VALUES_RE.search(attr_value):
+                raise ValidationError(
+                    message="SVG must not contain javascript: or data:text/html references",
+                    code="svg_unsafe_content",
+                    field="file",
+                )
+
+
+def _validate_svg_square(data: bytes) -> None:
+    """Validate SVG has a square viewBox and safe content."""
+    _validate_svg_content(data)
+
+    text = data.decode("utf-8")  # Already validated as valid UTF-8 above
     match = _VIEWBOX_PATTERN.search(text)
     if not match:
         # No viewBox attribute; accept it (browser will render as-is)

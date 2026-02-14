@@ -140,6 +140,90 @@ class TestValidation:
         mime = branding_service._detect_mime_type(data, "logo.svg")
         assert mime == "image/svg+xml"
 
+    def test_validate_svg_rejects_script_element(self):
+        """SVG with <script> is rejected."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_event_handler(self):
+        """SVG with event handler attributes is rejected."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg"><rect onload="alert(1)"/></svg>'
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_onclick(self):
+        """SVG with onclick handler is rejected."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg"><rect onclick="alert(1)"/></svg>'
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_javascript_href(self):
+        """SVG with javascript: URL is rejected."""
+        data = (
+            b'<svg xmlns="http://www.w3.org/2000/svg">'
+            b'<a href="javascript:alert(1)"><rect/></a></svg>'
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_foreign_object(self):
+        """SVG with <foreignObject> is rejected."""
+        data = (
+            b'<svg xmlns="http://www.w3.org/2000/svg">'
+            b"<foreignObject><body>HTML</body></foreignObject></svg>"
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_entity_declaration(self):
+        """SVG with DOCTYPE/ENTITY (XXE) is rejected."""
+        # DOCTYPE before <svg> is blocked by format detection (unsupported_format).
+        # Test the content validator directly to verify the entity check works.
+        data = (
+            b'<?xml version="1.0"?>\n'
+            b"<!DOCTYPE svg [<!ENTITY xxe 'evil'>]>\n"
+            b'<svg xmlns="http://www.w3.org/2000/svg"><text>ok</text></svg>'
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_svg_content(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_rejects_disallowed_element(self):
+        """SVG with non-whitelisted elements is rejected."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg"><iframe src="evil"/></svg>'
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_logo(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_allows_safe_content(self):
+        """SVG with only safe drawing primitives passes."""
+        data = (
+            b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            b'<defs><linearGradient id="g"><stop offset="0" stop-color="red"/>'
+            b"</linearGradient></defs>"
+            b'<g><rect width="100" height="100" fill="url(#g)"/>'
+            b'<circle cx="50" cy="50" r="20"/>'
+            b'<path d="M10 10 L90 90"/></g></svg>'
+        )
+        mime = branding_service._validate_logo(data)
+        assert mime == "image/svg+xml"
+
+    def test_validate_svg_allows_style_element(self):
+        """SVG with <style> (for CSS, not script) passes."""
+        data = (
+            b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            b"<style>.cls{fill:red}</style>"
+            b'<rect class="cls" width="100" height="100"/></svg>'
+        )
+        mime = branding_service._validate_logo(data)
+        assert mime == "image/svg+xml"
+
 
 # =============================================================================
 # Get Settings Tests

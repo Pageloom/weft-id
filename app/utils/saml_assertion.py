@@ -21,12 +21,12 @@ _NS_MAP = {
     "samlp": _SAMLP_NS,
 }
 
-# Standard SAML attribute URIs (OID-based)
+# Default SAML attribute names (friendly format)
 SAML_ATTRIBUTE_URIS = {
-    "email": "urn:oid:0.9.2342.19200300.100.1.3",  # mail
-    "firstName": "urn:oid:2.5.4.42",  # givenName
-    "lastName": "urn:oid:2.5.4.4",  # surname
-    "groups": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",  # eduPersonEntitlement
+    "email": "email",
+    "firstName": "firstName",
+    "lastName": "lastName",
+    "groups": "groups",
 }
 
 # SAML attribute name format

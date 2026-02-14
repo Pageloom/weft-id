@@ -8,7 +8,7 @@ import logging
 
 import database
 import httpx
-from services.event_log import log_event
+from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ def process_sp_logout_request(
     # Log the event
     log_event(
         tenant_id=tenant_id,
-        actor_user_id="system",
+        actor_user_id=SYSTEM_ACTOR_ID,
         artifact_type="service_provider",
         artifact_id=sp_id,
         event_type="slo_sp_initiated",

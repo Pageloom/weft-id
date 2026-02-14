@@ -6,33 +6,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 ---
 
-## High Severity
-
-### LOG-002: Silent audit log loss from invalid actor_user_id
-
-**Found in:** `app/services/service_providers/slo.py:98`, `app/jobs/inactivate_idle_users.py:130`
-**Severity:** High
-**Principle Violated:** Activity Logging
-**Description:** Two call sites pass `actor_user_id="system"` (a plain string) instead of `SYSTEM_ACTOR_ID` (`"00000000-0000-0000-0000-000000000000"`). The `event_logs.actor_user_id` column is `UUID NOT NULL`, so `"system"` fails Postgres UUID validation. Because `log_event()` swallows exceptions, these audit events are silently discarded.
-**Evidence:**
-```python
-# slo.py:98
-actor_user_id="system",
-
-# inactivate_idle_users.py:130
-actor_user_id="system",  # System action (no real user)
-```
-**Impact:** SLO events (`slo_sp_initiated`) and auto-inactivation events (`user_auto_inactivated`) are never recorded in the audit log. This is a compliance gap for security-relevant operations.
-**Root Cause:** The `SYSTEM_ACTOR_ID` constant was not imported/used in these newer modules. The correct pattern exists in `app/services/groups/idp.py`.
-**Suggested fix:**
-```python
-# In both files, import and use the constant:
-from app.services.event_log import SYSTEM_ACTOR_ID, log_event
-
-# Replace actor_user_id="system" with:
-actor_user_id=SYSTEM_ACTOR_ID,
-```
-
 ## Medium Severity
 
 ### SEC-001: Uploaded SVG content is not sanitized
@@ -54,8 +27,8 @@ actor_user_id=SYSTEM_ACTOR_ID,
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | Activity Logging |
-| Medium | 2 | API-First, Security |
+| High | 0 | - |
+| Medium | 1 | Security |
 | Low | 0 | - |
 
 **Last compliance scan:** 2026-02-14 (LOG-002 and API-002 found)

@@ -243,7 +243,7 @@ def test_event_logging(mock_database, mock_session, mock_log_event):
     call_kwargs = mock_log_event.call_args[1]
 
     assert call_kwargs["tenant_id"] == tenant["tenant_id"]
-    assert call_kwargs["actor_user_id"] == "system"
+    assert call_kwargs["actor_user_id"] == "00000000-0000-0000-0000-000000000000"
     assert call_kwargs["artifact_type"] == "user"
     assert call_kwargs["artifact_id"] == user["user_id"]
     assert call_kwargs["event_type"] == "user_auto_inactivated"

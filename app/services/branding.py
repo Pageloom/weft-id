@@ -2,6 +2,7 @@
 
 import re
 import struct
+import uuid
 import xml.etree.ElementTree as ET
 
 import database
@@ -11,6 +12,7 @@ from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
+from utils.mandala import generate_mandala_svg
 
 # Maximum logo file size: 256 KB
 MAX_LOGO_SIZE = 256 * 1024
@@ -443,6 +445,91 @@ def update_branding_settings(
             "site_title": site_title,
             "show_title_in_nav": settings.show_title_in_nav,
         },
+    )
+
+    return get_branding_settings(requesting_user)
+
+
+# =============================================================================
+# Mandala Randomize & Save
+# =============================================================================
+
+
+def randomize_mandala(requesting_user: RequestingUser) -> dict:
+    """Generate a random mandala for preview.
+
+    Authorization: Requires admin role.
+
+    Returns:
+        Dict with seed, light_svg, dark_svg.
+    """
+    require_admin(requesting_user)
+
+    seed = str(uuid.uuid4())
+    light_svg, dark_svg, _favicon_svg = generate_mandala_svg(seed, size=160)
+
+    return {
+        "seed": seed,
+        "light_svg": light_svg,
+        "dark_svg": dark_svg,
+    }
+
+
+def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> BrandingSettings:
+    """Save a mandala as the tenant's custom logo.
+
+    Authorization: Requires admin role.
+
+    Generates SVGs at nav-bar size (40px), stores both light and dark variants,
+    and switches the tenant to custom logo mode.
+    """
+    require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+    light_svg, dark_svg, _favicon_svg = generate_mandala_svg(seed, size=40)
+    light_bytes = light_svg.encode("utf-8")
+    dark_bytes = dark_svg.encode("utf-8")
+    mime = "image/svg+xml"
+
+    # Upsert both logo slots
+    database.branding.upsert_logo(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        slot="light",
+        logo_data=light_bytes,
+        mime_type=mime,
+    )
+    database.branding.upsert_logo(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        slot="dark",
+        logo_data=dark_bytes,
+        mime_type=mime,
+    )
+
+    # Read current settings to preserve existing values
+    row = database.branding.get_branding(tenant_id)
+    use_favicon = row["use_logo_as_favicon"] if row else False
+    site_title = row["site_title"] if row else None
+    show_title = row["show_title_in_nav"] if row else True
+
+    # Switch to custom mode
+    database.branding.update_branding_settings(
+        tenant_id=tenant_id,
+        tenant_id_value=tenant_id,
+        logo_mode="custom",
+        use_logo_as_favicon=use_favicon,
+        site_title=site_title,
+        show_title_in_nav=show_title,
+    )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        event_type="branding_logo_uploaded",
+        artifact_type="tenant_branding",
+        artifact_id=tenant_id,
+        metadata={"source": "mandala", "seed": seed},
     )
 
     return get_branding_settings(requesting_user)

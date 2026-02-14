@@ -5,7 +5,13 @@ from typing import Annotated
 from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, UploadFile
-from schemas.branding import BrandingSettings, BrandingSettingsUpdate, LogoSlot
+from schemas.branding import (
+    BrandingSettings,
+    BrandingSettingsUpdate,
+    LogoSlot,
+    MandalaRandomizeResponse,
+    MandalaSaveRequest,
+)
 from services import branding as branding_service
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
@@ -90,5 +96,40 @@ def update_branding(
 
     try:
         return branding_service.update_branding_settings(requesting_user, settings)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/mandala/randomize", response_model=MandalaRandomizeResponse)
+def randomize_mandala(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """Generate a random mandala for preview.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    try:
+        return branding_service.randomize_mandala(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/mandala/save", response_model=BrandingSettings)
+def save_mandala(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    body: MandalaSaveRequest,
+):
+    """Save a mandala as the tenant's custom logo.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    try:
+        return branding_service.save_mandala_as_logo(requesting_user, body.seed)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

@@ -27,6 +27,7 @@
                 {% if success == 'logo_uploaded' %}Logo uploaded successfully.
                 {% elif success == 'logo_deleted' %}Logo deleted successfully.
                 {% elif success == 'settings_updated' %}Branding settings updated successfully.
+                {% elif success == 'mandala_saved' %}Mandala saved as custom logo.
                 {% else %}Changes saved successfully.{% endif %}
             </p>
         </div>
@@ -210,6 +211,34 @@
             </div>
         </div>
 
+        {# ---- Generate Mandala Logo ---- #}
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <h2 class="text-lg font-medium mb-1 text-gray-900 dark:text-gray-100">Generate Mandala Logo</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Preview random mandalas and save one as your custom logo.
+            </p>
+
+            <div class="flex items-center space-x-4 mb-4">
+                <div id="mandala-preview-light" class="border border-gray-200 dark:border-gray-700 rounded-lg p-2 checker-light w-44 h-44 flex items-center justify-center">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Light preview</span>
+                </div>
+                <div id="mandala-preview-dark" class="border border-gray-700 rounded-lg p-2 checker-dark w-44 h-44 flex items-center justify-center">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Dark preview</span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <button type="button" id="mandala-randomize-btn"
+                        class="bg-gray-800 dark:bg-gray-600 text-white hover:bg-gray-700 dark:hover:bg-gray-500 font-medium py-2 px-4 rounded-md transition duration-150 text-sm">
+                    Randomize
+                </button>
+                <button type="button" id="mandala-save-btn" disabled
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    Save as Logo
+                </button>
+            </div>
+        </div>
+
         <div class="mt-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
             <p class="text-sm text-blue-800 dark:text-blue-300">
                 <strong>Note:</strong> Logos must be square. PNG images must be at least 48x48 pixels.
@@ -218,4 +247,64 @@
         </div>
     </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var currentSeed = null;
+    var randomizeBtn = document.getElementById('mandala-randomize-btn');
+    var saveBtn = document.getElementById('mandala-save-btn');
+    var previewLight = document.getElementById('mandala-preview-light');
+    var previewDark = document.getElementById('mandala-preview-dark');
+
+    randomizeBtn.addEventListener('click', function() {
+        randomizeBtn.disabled = true;
+        randomizeBtn.textContent = 'Generating...';
+
+        fetch('/api/v1/branding/mandala/randomize', {
+            method: 'POST',
+            credentials: 'same-origin'
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            currentSeed = data.seed;
+            previewLight.innerHTML = data.light_svg;
+            previewDark.innerHTML = data.dark_svg;
+            saveBtn.disabled = false;
+        })
+        .catch(function() {
+            previewLight.innerHTML = '<span class="text-xs text-red-500">Error</span>';
+            previewDark.innerHTML = '<span class="text-xs text-red-500">Error</span>';
+        })
+        .finally(function() {
+            randomizeBtn.disabled = false;
+            randomizeBtn.textContent = 'Randomize';
+        });
+    });
+
+    saveBtn.addEventListener('click', function() {
+        if (!currentSeed) return;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        fetch('/api/v1/branding/mandala/save', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({seed: currentSeed})
+        })
+        .then(function(resp) {
+            if (resp.ok) {
+                window.location.href = '/admin/settings/branding?success=mandala_saved';
+            } else {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save as Logo';
+            }
+        })
+        .catch(function() {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save as Logo';
+        });
+    });
+})();
+</script>
 {% endblock %}

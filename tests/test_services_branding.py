@@ -462,6 +462,94 @@ class TestUpdateSettings:
 
 
 # =============================================================================
+# Mandala Randomize & Save Tests
+# =============================================================================
+
+
+class TestMandalaRandomize:
+    def test_randomize_returns_seed_and_svgs(self, test_tenant, test_admin_user):
+        """Randomize returns a seed and both SVG variants."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        result = branding_service.randomize_mandala(ru)
+
+        assert "seed" in result
+        assert len(result["seed"]) > 0
+        assert "<svg" in result["light_svg"]
+        assert "<svg" in result["dark_svg"]
+
+    def test_randomize_produces_different_seeds(self, test_tenant, test_admin_user):
+        """Each call produces a different seed."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        r1 = branding_service.randomize_mandala(ru)
+        r2 = branding_service.randomize_mandala(ru)
+
+        assert r1["seed"] != r2["seed"]
+
+    def test_randomize_forbidden_for_member(self, test_tenant, test_user):
+        """Members cannot randomize mandalas."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+        with pytest.raises(ForbiddenError):
+            branding_service.randomize_mandala(ru)
+
+
+class TestMandalaSave:
+    def test_save_stores_both_slots(self, test_tenant, test_admin_user):
+        """Saving a mandala upserts both light and dark logo slots."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        result = branding_service.save_mandala_as_logo(ru, "test-seed-123")
+
+        assert result.has_logo_light is True
+        assert result.has_logo_dark is True
+        assert result.logo_light_mime == "image/svg+xml"
+        assert result.logo_dark_mime == "image/svg+xml"
+
+    def test_save_switches_to_custom_mode(self, test_tenant, test_admin_user):
+        """Saving a mandala switches the tenant to custom logo mode."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        result = branding_service.save_mandala_as_logo(ru, "test-seed-456")
+
+        assert result.logo_mode == "custom"
+
+    def test_save_preserves_existing_settings(self, test_tenant, test_admin_user):
+        """Saving a mandala preserves existing branding settings."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        # Set some custom settings first
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA,
+            use_logo_as_favicon=True,
+            site_title="My App",
+            show_title_in_nav=False,
+        )
+        branding_service.update_branding_settings(ru, update)
+
+        # Save mandala
+        result = branding_service.save_mandala_as_logo(ru, "test-seed-789")
+
+        assert result.logo_mode == "custom"
+        assert result.site_title == "My App"
+        assert result.show_title_in_nav is False
+
+    def test_save_logs_event_with_mandala_source(self, test_tenant, test_admin_user):
+        """Saving a mandala logs a branding_logo_uploaded event with source=mandala."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        branding_service.save_mandala_as_logo(ru, "test-seed-event")
+
+        events = database.event_log.list_events(str(test_tenant["id"]), limit=5)
+        logo_events = [e for e in events if e["event_type"] == "branding_logo_uploaded"]
+        assert len(logo_events) >= 1
+        assert logo_events[0]["metadata"]["source"] == "mandala"
+
+    def test_save_forbidden_for_member(self, test_tenant, test_user):
+        """Members cannot save mandalas."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+        with pytest.raises(ForbiddenError):
+            branding_service.save_mandala_as_logo(ru, "test-seed")
+
+
+# =============================================================================
 # Serving Helper Tests
 # =============================================================================
 

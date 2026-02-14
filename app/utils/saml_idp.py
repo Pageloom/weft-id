@@ -116,13 +116,18 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
 
 
 # Lookup tables for auto-detecting attribute mappings from SP metadata.
-# Maps known OIDs and common claim URIs to IdP attribute keys.
+# Maps known OIDs, URIs, and friendly names to IdP attribute keys.
 _OID_TO_IDP_ATTR: dict[str, str] = {
-    # Standard OIDs
+    # Standard OIDs (backward compatibility)
     "urn:oid:0.9.2342.19200300.100.1.3": "email",  # mail
     "urn:oid:2.5.4.42": "firstName",  # givenName
     "urn:oid:2.5.4.4": "lastName",  # surname
     "urn:oid:1.3.6.1.4.1.5923.1.1.1.7": "groups",  # eduPersonEntitlement
+    # Friendly names (new default format)
+    "email": "email",
+    "firstName": "firstName",
+    "lastName": "lastName",
+    "groups": "groups",
     # Azure AD / WS-Federation claims
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "email",
     "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname": "firstName",

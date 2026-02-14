@@ -282,12 +282,20 @@ def sp_tab_attributes(
         logger.warning("Failed to get SP: %s", exc)
         return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
 
+    # Compute expected mapping from SP metadata for display
+    from utils.saml_idp import auto_detect_attribute_mapping
+
+    expected_mapping = {}
+    if sp_config.sp_requested_attributes:
+        expected_mapping = auto_detect_attribute_mapping(sp_config.sp_requested_attributes)
+
     context = get_template_context(
         request,
         tenant_id,
         sp=sp_config,
         group_count=group_count,
         saml_attributes=SAML_ATTRIBUTE_URIS,
+        expected_mapping=expected_mapping,
         active_tab="attributes",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

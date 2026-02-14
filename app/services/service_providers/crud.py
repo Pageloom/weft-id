@@ -367,6 +367,8 @@ def update_service_provider(
         update_fields["acs_url"] = data.acs_url
     if data.slo_url is not None:
         update_fields["slo_url"] = data.slo_url
+    if data.include_group_claims is not None:
+        update_fields["include_group_claims"] = data.include_group_claims
 
     if not update_fields:
         raise ValidationError(

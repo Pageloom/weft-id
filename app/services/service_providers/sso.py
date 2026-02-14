@@ -125,11 +125,17 @@ def build_sso_response(
     email = primary_email_row["email"]
 
     # 5. Build user attributes
-    user_attributes = {
+    user_attributes: dict[str, str | list[str]] = {
         "email": email,
         "firstName": user.get("first_name", ""),
         "lastName": user.get("last_name", ""),
     }
+
+    # 5b. Include group claims if enabled for this SP
+    if sp_row.get("include_group_claims", False):
+        group_names = database.groups.get_effective_group_names(tenant_id, user_id)
+        if group_names:
+            user_attributes["groups"] = group_names
 
     # 6. Build SAML Response
     issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"

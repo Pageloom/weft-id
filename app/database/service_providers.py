@@ -4,7 +4,7 @@ from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml, slo_url,
-               enabled, created_by, created_at, updated_at"""
+               include_group_claims, enabled, created_by, created_at, updated_at"""
 
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
@@ -119,7 +119,7 @@ def update_service_provider(
     Returns:
         Updated SP dict, or None if not found
     """
-    allowed = {"name", "description", "acs_url", "slo_url", "enabled"}
+    allowed = {"name", "description", "acs_url", "slo_url", "include_group_claims", "enabled"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_service_provider(tenant_id, sp_id)

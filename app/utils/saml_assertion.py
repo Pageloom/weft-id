@@ -26,6 +26,7 @@ SAML_ATTRIBUTE_URIS = {
     "email": "urn:oid:0.9.2342.19200300.100.1.3",  # mail
     "firstName": "urn:oid:2.5.4.42",  # givenName
     "lastName": "urn:oid:2.5.4.4",  # surname
+    "groups": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7",  # eduPersonEntitlement
 }
 
 # SAML attribute name format
@@ -44,7 +45,7 @@ def build_saml_response(
     name_id: str,
     name_id_format: str,
     authn_request_id: str | None,
-    user_attributes: dict[str, str],
+    user_attributes: dict[str, str | list[str]],
     certificate_pem: str,
     private_key_pem: str,
     session_index: str | None = None,
@@ -58,7 +59,8 @@ def build_saml_response(
         name_id: User identifier (typically email)
         name_id_format: NameID format URI
         authn_request_id: ID from the AuthnRequest (for InResponseTo), or None
-        user_attributes: Dict of user attributes {email, firstName, lastName}
+        user_attributes: Dict of user attributes. Values can be strings or lists
+            of strings (for multi-valued attributes like groups).
         certificate_pem: PEM-encoded signing certificate
         private_key_pem: PEM-encoded private key (decrypted)
         session_index: Optional session index for SLO correlation
@@ -151,7 +153,7 @@ def _build_assertion_element(
     name_id: str,
     name_id_format: str,
     authn_request_id: str | None,
-    user_attributes: dict[str, str],
+    user_attributes: dict[str, str | list[str]],
     now: datetime.datetime,
     session_index: str | None = None,
 ) -> etree._Element:
@@ -252,11 +254,14 @@ def _build_assertion_element(
                     "FriendlyName": attr_name,
                 },
             )
-            attr_val = etree.SubElement(
-                attr,
-                f"{{{_SAML_NS}}}AttributeValue",
-            )
-            attr_val.text = attr_value
+            # Support multi-valued attributes (e.g. group memberships)
+            values = attr_value if isinstance(attr_value, list) else [attr_value]
+            for v in values:
+                attr_val = etree.SubElement(
+                    attr,
+                    f"{{{_SAML_NS}}}AttributeValue",
+                )
+                attr_val.text = v
 
     return assertion
 

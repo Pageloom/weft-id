@@ -361,6 +361,7 @@ def sp_edit(
     description: str = Form(""),
     acs_url: str = Form(""),
     slo_url: str = Form(""),
+    include_group_claims: str | None = Form(None),
 ):
     """Update an SP's configuration from the detail page form."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
@@ -380,6 +381,8 @@ def sp_edit(
         update_fields["acs_url"] = acs_url.strip()
     if slo_url.strip():
         update_fields["slo_url"] = slo_url.strip()
+    # Checkbox: present means true, absent means false
+    update_fields["include_group_claims"] = include_group_claims == "true"
 
     if not update_fields:
         return RedirectResponse(

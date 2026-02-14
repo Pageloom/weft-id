@@ -111,6 +111,38 @@ def get_effective_members(
     )
 
 
+def get_effective_group_names(tenant_id: TenantArg, user_id: str) -> list[str]:
+    """Get all group names a user is effectively in (direct + inherited).
+
+    Lightweight query returning just group names for use in SAML assertions.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        with direct_groups as (
+            select gm.group_id
+            from group_memberships gm
+            where gm.user_id = :user_id
+        ),
+        effective_groups as (
+            select dg.group_id
+            from direct_groups dg
+            union
+            select gl.ancestor_id as group_id
+            from direct_groups dg
+            join group_lineage gl on gl.descendant_id = dg.group_id
+            where gl.depth > 0
+        )
+        select g.name
+        from effective_groups eg
+        join groups g on eg.group_id = g.id
+        order by g.name
+        """,
+        {"user_id": user_id},
+    )
+    return [r["name"] for r in rows]
+
+
 def count_effective_members(tenant_id: TenantArg, group_id: str) -> int:
     """Count all effective members of a group (direct + via descendants)."""
     result = fetchone(

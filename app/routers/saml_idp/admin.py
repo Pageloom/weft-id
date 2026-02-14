@@ -15,6 +15,7 @@ from pages import has_page_access
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.types import RequestingUser
+from utils.saml_assertion import SAML_ATTRIBUTE_URIS
 from utils.template_context import get_template_context
 
 from ._helpers import get_base_url
@@ -242,6 +243,7 @@ def sp_detail(
         sp_metadata_url=sp_metadata_url,
         assigned_groups=assigned_groups,
         available_groups=available_groups,
+        saml_attributes=SAML_ATTRIBUTE_URIS,
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )

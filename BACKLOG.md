@@ -33,6 +33,56 @@ SPs that use group claims for role-based access cannot work with WeftId today.
 
 ---
 
+## SAML IdP: SP Attribute Mapping from Metadata
+
+**User Story:**
+As a super admin acting as an IdP administrator
+I want to see which attributes a registered SP expects (from its metadata) and map my IdP attributes to them
+So that I can ensure the SP receives the data it needs without guesswork or manual documentation lookup
+
+**Context:**
+
+When Weft ID acts as an IdP and registers an SP, the SP's metadata may declare expected attributes via `<md:AttributeConsumingService>` / `<md:RequestedAttribute>` elements. Today we ignore these declarations entirely. The IdP admin has no visibility into what the SP expects and no way to control how IdP attributes are mapped to SP-expected attribute names.
+
+The goal: if the SP was kind enough to declare what it expects, surface that information and let the admin wire things up. Only fall back to default OID-based attribute names when the SP gives us nothing to work with.
+
+**Acceptance Criteria:**
+
+**Store SP Metadata XML:**
+
+- [ ] Store raw SP metadata XML in the database (same pattern as the IdP `metadata_xml` column)
+- [ ] Populated when SP is imported from metadata URL or pasted XML
+- [ ] Updated when SP metadata is refreshed
+
+**Parse SP Expected Attributes:**
+
+- [ ] Parse `<md:RequestedAttribute>` elements from `<md:AttributeConsumingService>` in SP metadata
+- [ ] Extract: attribute name (URI), friendly name, whether required/optional
+
+**Attribute Mapping UI (SP Detail Page):**
+
+- [ ] Replace the current static "Assertion Attributes" card with an interactive attribute mapping UI
+- [ ] Show three columns: what we (IdP) can send (email, firstName, lastName, groups), what the SP expects (from metadata), and the current mapping between them
+- [ ] Auto-detect matches when SP expected attributes use known OIDs or friendly names (e.g. SP requests `urn:oid:0.9.2342.19200300.100.1.3` with FriendlyName "mail", auto-match to our "email")
+- [ ] Show auto-detected mappings as suggestions the admin can confirm or override
+- [ ] Admin can explicitly map each IdP attribute to a specific SP-expected attribute
+- [ ] Per-attribute fallback: only use default OID-based names for attributes where the SP declares nothing
+
+**Per-SP Mapping Storage:**
+
+- [ ] Store per-SP attribute mapping in the database (JSONB column on `service_providers` or dedicated table)
+- [ ] Mapping format: `{ "email": "sp_attribute_name_or_uri", "firstName": "...", ... }`
+
+**Assertion Builder Integration:**
+
+- [ ] SSO assertion builder uses per-SP attribute mapping when constructing `AttributeStatement` elements
+- [ ] Falls back to `SAML_ATTRIBUTE_URIS` defaults only for unmapped attributes with no SP expectations
+
+**Effort:** M
+**Value:** High (Makes federation setup dramatically easier, reduces misconfiguration)
+
+---
+
 ## SAML Identity Provider - Phase 4: Attribute Mapping & NameID Configuration
 
 **User Story:**

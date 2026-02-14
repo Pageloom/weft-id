@@ -50,6 +50,7 @@ def fetch_and_parse_idp_metadata(url: str) -> IdPMetadataParsed:
             sso_url=parsed["sso_url"],
             slo_url=parsed["slo_url"],
             certificate_pem=parsed["certificate_pem"],
+            metadata_xml=xml_content,
         )
     except ValueError as e:
         raise ValidationError(
@@ -91,6 +92,7 @@ def import_idp_from_metadata_url(
         slo_url=metadata.slo_url,
         certificate_pem=metadata.certificate_pem,
         metadata_url=metadata_url,
+        metadata_xml=metadata.metadata_xml,
         is_enabled=False,  # Start disabled, admin must enable
     )
 
@@ -120,6 +122,7 @@ def parse_idp_metadata_xml_to_schema(metadata_xml: str) -> IdPMetadataParsed:
             sso_url=parsed["sso_url"],
             slo_url=parsed["slo_url"],
             certificate_pem=parsed["certificate_pem"],
+            metadata_xml=metadata_xml,
         )
     except ValueError as e:
         raise ValidationError(
@@ -161,6 +164,7 @@ def import_idp_from_metadata_xml(
         slo_url=metadata.slo_url,
         certificate_pem=metadata.certificate_pem,
         metadata_url=None,  # No URL to store - imported from raw XML
+        metadata_xml=metadata.metadata_xml,
         is_enabled=False,  # Start disabled, admin must enable
     )
 
@@ -215,6 +219,7 @@ def refresh_idp_from_metadata(
         sso_url=metadata.sso_url,
         certificate_pem=metadata.certificate_pem,
         slo_url=metadata.slo_url,
+        metadata_xml=metadata.metadata_xml,
     )
 
     if row is None:
@@ -284,6 +289,7 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
                 sso_url=metadata.sso_url,
                 certificate_pem=metadata.certificate_pem,
                 slo_url=metadata.slo_url,
+                metadata_xml=metadata.metadata_xml,
             )
 
             results.append(

@@ -161,6 +161,7 @@ def create_identity_provider(
         slo_url=data.slo_url,
         certificate_pem=data.certificate_pem,
         metadata_url=data.metadata_url,
+        metadata_xml=data.metadata_xml,
         sp_entity_id=sp_entity_id,
         attribute_mapping=data.attribute_mapping,
         is_enabled=data.is_enabled,

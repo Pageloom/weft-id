@@ -11,15 +11,15 @@ import math
 # Light and dark color palettes (vibrant, decorative)
 _LIGHT_PALETTE = [
     "#E63946",  # red
-    "#457B9D",  # steel blue
+    "#2B6CB0",  # royal blue
     "#2A9D8F",  # teal
-    "#E9C46A",  # saffron
-    "#F4A261",  # sandy brown
+    "#D69E2E",  # golden
+    "#DD6B20",  # burnt orange
     "#264653",  # dark teal
-    "#6A0572",  # purple
+    "#7B2D8E",  # purple
     "#1D3557",  # navy
-    "#A8DADC",  # powder blue
-    "#F77F00",  # orange
+    "#0891B2",  # cyan
+    "#E53E3E",  # crimson
 ]
 
 
@@ -228,6 +228,12 @@ _SHAPE_FUNCS = [
     _make_organic_path,
 ]
 
+# Indices into _LIGHT_PALETTE for contrast-aware color selection.
+# Warm/bright colors stand out against cool/dark ones, preventing
+# the all-dark combinations that look muddy.
+_WARM_INDICES = [0, 3, 4, 9]  # red, golden, burnt orange, crimson
+_COOL_INDICES = [1, 2, 5, 6, 7, 8]  # royal blue, teal, dark teal, purple, navy, cyan
+
 
 def generate_mandala_svg(seed: str, size: int = 40) -> tuple[str, str, str]:
     """Generate a deterministic mandala SVG string from a seed.
@@ -245,18 +251,20 @@ def generate_mandala_svg(seed: str, size: int = 40) -> tuple[str, str, str]:
     cx = viewbox / 2
     cy = viewbox / 2
 
-    num_petals = rng.int_range(6, 10)
-    num_layers = rng.int_range(2, 3)
+    num_petals = rng.int_range(5, 7)
+    num_layers = 3
 
-    # Pick colors for each layer
-    colors: list[str] = []
-    used: set[int] = set()
-    for _ in range(num_layers):
-        idx = int(rng.next() * len(_LIGHT_PALETTE))
-        while idx in used and len(used) < len(_LIGHT_PALETTE):
-            idx = (idx + 1) % len(_LIGHT_PALETTE)
-        used.add(idx)
-        colors.append(_LIGHT_PALETTE[idx])
+    # Pick colors ensuring warm/cool contrast (prevents all-dark combos)
+    warm_idx = rng.choice(_WARM_INDICES)
+    cool_idx = rng.choice(_COOL_INDICES)
+    remaining = [i for i in range(len(_LIGHT_PALETTE)) if i != warm_idx and i != cool_idx]
+    third_idx = rng.choice(remaining)
+    chosen = [warm_idx, cool_idx, third_idx]
+    # Shuffle so warm isn't always the innermost layer
+    for i in range(len(chosen) - 1, 0, -1):
+        j = int(rng.next() * (i + 1))
+        chosen[i], chosen[j] = chosen[j], chosen[i]
+    colors = [_LIGHT_PALETTE[i] for i in chosen]
 
     # Pick a center dot color
     center_idx = int(rng.next() * len(_LIGHT_PALETTE))
@@ -279,7 +287,7 @@ def generate_mandala_svg(seed: str, size: int = 40) -> tuple[str, str, str]:
         # Rotation offset per layer for visual variety
         offset = rng.range(0, angle_step * 0.5)
 
-        opacity = rng.range(0.6, 0.9)
+        opacity = rng.range(0.8, 1.0)
 
         for i in range(num_petals):
             angle = i * angle_step + offset
@@ -287,7 +295,7 @@ def generate_mandala_svg(seed: str, size: int = 40) -> tuple[str, str, str]:
             paths.append(f'<path d="{d}" fill="{colors[layer]}" opacity="{opacity:.2f}"/>')
 
     # Center circle
-    center_r = rng.range(2.0, 4.0)
+    center_r = rng.range(2.8, 4.0)
     paths.append(f'<circle cx="{cx}" cy="{cy}" r="{center_r:.1f}" fill="{center_light}"/>')
 
     svg_attrs = (

@@ -126,7 +126,8 @@ class GroupChildAdd(BaseModel):
 
 
 class GroupParentAdd(BaseModel):
-    """ Request to add a parent to a group. """
+    """Request to add a parent to a group."""
+
     parent_group_id: str = Field(..., description="Parent group UUID to add")
 
 

@@ -56,8 +56,8 @@ def test_output_contains_path_elements():
     light, dark, _ = generate_mandala_svg("deadbeef-1234-5678-9abc-def012345678")
     light_paths = re.findall(r"<path ", light)
     dark_paths = re.findall(r"<path ", dark)
-    # At least 2 layers * 6 petals = 12 paths
-    assert len(light_paths) >= 12
+    # 3 layers * 5 petals = 15 paths minimum
+    assert len(light_paths) >= 15
     # Dark has the same paths
     assert len(dark_paths) == len(light_paths)
 

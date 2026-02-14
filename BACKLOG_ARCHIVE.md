@@ -4,6 +4,35 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML IdP: SP Attribute Mapping from Metadata
+
+**Status:** Complete
+
+**Resolution:** Implemented per-SP attribute mapping from SAML metadata. SP metadata `<md:AttributeConsumingService>` / `<md:RequestedAttribute>` elements are parsed and stored. Auto-detection maps known OIDs, Azure AD claims URIs, and friendly names to IdP attributes. Admins can override mappings per-SP on the detail page. The assertion builder uses per-SP mappings when present, falling back to global defaults. Two new JSONB columns on `service_providers`: `sp_requested_attributes` and `attribute_mapping`.
+
+**Acceptance Criteria:**
+
+- [x] Parse `<md:RequestedAttribute>` elements from SP metadata
+- [x] Auto-detect attribute mappings from OIDs, Azure AD claims, and friendly names
+- [x] Store per-SP attribute mapping in JSONB column
+- [x] Interactive mapping UI on SP detail page (3-column: IdP Attribute, SP Expectation, Assertion URI)
+- [x] Assertion builder uses per-SP mapping when constructing `AttributeStatement`
+- [x] Falls back to `SAML_ATTRIBUTE_URIS` defaults for unmapped attributes
+
+**Effort:** M
+
+---
+
+## SAML Identity Provider - Phase 4: Attribute Mapping & NameID Configuration
+
+**Status:** Partially Complete / Superseded
+
+**Resolution:** The per-SP attribute mapping portion was implemented as part of "SP Attribute Mapping from Metadata". Remaining items (NameID configuration, error handling, SSO event logging) were moved into the new "SP Metadata Management and Attribute Mapping UX" backlog item.
+
+**Effort:** M
+
+---
+
 ## SAML IdP: Include Group Membership in SSO Assertions
 
 **Status:** Complete

@@ -2,6 +2,24 @@
 
 This document contains resolved issues for historical reference.
 
+
+---
+
+### API-002: Group parent management missing from API
+
+**Status:** Resolved (2026-02-13)
+**Original Severity:** Medium
+
+**Original Description:**
+The web UI exposes parent relationship management (add parent, remove parent) but the API only provides read access to parents and write access via the child direction.
+
+**Resolution:**
+Added two API endpoints `POST /api/v1/groups/{group_id}/parents` and `DELETE /api/v1/groups/{group_id}/parents/{parent_group_id}`.
+Added tests for the new endpoints.
+
+---
+
+
 ---
 
 ## REFACT-002: service_providers.py exceeds 1100 lines (package split candidate)

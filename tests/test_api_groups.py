@@ -471,6 +471,63 @@ def test_list_children_success(make_user_dict, override_api_auth):
         assert data["total"] == 1
 
 
+def test_add_parent_success(make_user_dict, override_api_auth):
+    """Admin can add a parent group."""
+    admin = make_user_dict(role="admin")
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.add_parent.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{child_id}/parents",
+            json={"parent_group_id": parent_id},
+        )
+
+        assert response.status_code == 201
+        assert response.json()["status"] == "ok"
+
+def test_add_parent_would_create_cycle(make_user_dict, override_api_auth):
+    """Adding parent that would create cycle returns 400."""
+    admin = make_user_dict(role="admin")
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.add_child.side_effect = ValidationError(
+            message="Would create cycle", code="would_create_cycle"
+        )
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{child_id}/parents",
+            json={"parent_group_id": parent_id},
+        )
+        assert response.status_code == 400
+
+
+def test_remove_parent_success(make_user_dict, override_api_auth):
+    """Admin can remove a child parent group."""
+    admin = make_user_dict(role="admin")
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_child.return_value = None
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{child_id}/parents/{parent_id}")
+
+        assert response.status_code == 204
+
 def test_add_child_success(make_user_dict, override_api_auth):
     """Admin can add a child group."""
     admin = make_user_dict(role="admin")

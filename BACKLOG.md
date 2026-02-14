@@ -6,6 +6,121 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## SP List Page UX Improvements
+
+**User Story:**
+As a super admin
+I want the service providers list page to be cleaner and more consistent with other list views
+So that I can quickly scan SP status without visual clutter or misleading information
+
+**Context:**
+
+The current SP list page at `/admin/settings/service-providers/` has several UX issues: it uses a narrow table layout instead of the full-width pattern used elsewhere, displays an incorrect global metadata URL message, shows Entity IDs that break the table layout, and offers delete actions directly in the list. This item brings the SP list in line with other list views (e.g., user list).
+
+**Acceptance Criteria:**
+
+- [ ] Full-width table layout, consistent with user list views
+- [ ] Remove the "Share this URL with downstream service providers to configure SAML trust" message (incorrect; each SP has its own metadata URL)
+- [ ] Remove Entity ID column from the table (too long, breaks layout)
+- [ ] Certificate expiration column shows relative time (e.g., "in 342 days") with exact date/time on mouseover
+- [ ] Created column shows relative time (e.g., "3 days ago") with exact date/time on mouseover, consistent with user list views
+- [ ] Remove delete action from the list rows
+- [ ] Remove separate "Details" link. SP name is clickable and navigates to the detail view
+- [ ] Remaining columns: Name (clickable), Status, Groups (count), Certificate Expiry, Created
+
+**Effort:** S
+**Value:** High (Consistency with existing list patterns, removes misleading info)
+
+---
+
+## SP Detail View: Tabbed Page Design
+
+**User Story:**
+As a super admin
+I want the service provider detail page organized into logical tabs
+So that I can find and manage SP settings without scrolling through a single long page
+
+**Context:**
+
+The current SP detail page at `/admin/settings/service-providers/{sp_id}` displays all configuration in a single scrollable page with 9+ card sections. This item restructures it into a tabbed layout with sub-routes. This establishes a reusable "tabbed page" pattern: whenever `pages.py` nests pages this deep, we use this tabbed design. The SP UUID path auto-redirects to the first tab.
+
+**Path structure:**
+- `/admin/settings/service-providers/{sp_id}` redirects to `/details`
+- `/admin/settings/service-providers/{sp_id}/details`
+- `/admin/settings/service-providers/{sp_id}/attributes`
+- `/admin/settings/service-providers/{sp_id}/groups`
+- `/admin/settings/service-providers/{sp_id}/certificates`
+- `/admin/settings/service-providers/{sp_id}/metadata`
+- `/admin/settings/service-providers/{sp_id}/danger`
+
+**Acceptance Criteria:**
+
+**General (tabbed page pattern):**
+- [ ] Page has a title (SP name) and a back-link to the SP list
+- [ ] Below the title, horizontal tab headers for navigation between sub-pages
+- [ ] Active tab is visually highlighted
+- [ ] Default tab is "Details" (auto-redirect from SP UUID path)
+- [ ] Each tab has its own route and can be linked to directly
+- [ ] Register all tab routes in `pages.py` as children of the SP detail page
+
+**Tab 1: Details** (`/details`)
+- [ ] Per-SP IdP metadata URL with copy-to-clipboard (the URL to share with this SP)
+- [ ] SP's own metadata URL, displayed as a clickable link (if provided)
+- [ ] Read-only display: Entity ID, ACS URL, SLO URL, NameID Format, Created
+- [ ] SP Name displayed with an edit button that opens a modal for inline editing
+- [ ] SP Description displayed with an edit button that opens a modal for inline editing
+
+**Tab 2: Attribute Mapping** (`/attributes`)
+- [ ] Current assertion attribute mapping table with per-SP overrides and reset defaults
+- [ ] Include Group Claims toggle (moved here from Edit Configuration, defaults to on)
+
+**Tab 3: Groups** (`/groups`)
+- [ ] Tab header shows group count: "Groups (N)"
+- [ ] Current group assignment functionality (add via dropdown, list with remove buttons)
+
+**Tab 4: Certificates** (`/certificates`)
+- [ ] Signing certificate details: expiry (with color-coded warnings), creation date, grace period
+- [ ] Certificate rotation action
+
+**Tab 5: Metadata** (`/metadata`)
+- [ ] Only visible as a tab if the SP has a metadata URL or stored metadata XML
+- [ ] If metadata URL exists: display the source URL, "Refresh from URL" with change preview before applying
+- [ ] If stored XML exists: read-only collapsible XML viewer, "Re-import metadata" with paste and change preview
+- [ ] If neither metadata URL nor stored XML exists: tab is hidden, and this tab instead shows the Edit Configuration form (name, description, ACS URL, SLO URL) for manually-entered SPs
+
+**Tab 6: Danger** (`/danger`)
+- [ ] Enable/Disable toggle with current status indicator
+- [ ] Delete SP with confirmation dialog
+- [ ] Visual styling consistent with danger zones elsewhere (red border/accents)
+
+**Effort:** L
+**Value:** High (Transforms a dense single page into navigable sections, establishes reusable tabbed pattern)
+
+---
+
+## Attribute Mapping UX Improvements
+
+**User Story:**
+As a super admin
+I want clearer labels and smarter layout on the attribute mapping screen
+So that I can understand how user attributes are communicated to the SP without needing SAML expertise
+
+**Context:**
+
+Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). The current labels use technical SAML terminology and the layout shows an empty "SP Expectation" column even when no metadata is on file.
+
+**Acceptance Criteria:**
+
+- [ ] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
+- [ ] Use friendlier description: "Configure how user attributes are communicated to the service provider during sign-in." instead of technical SAML jargon
+- [ ] If no SP expectations are on file, hide the "SP Expectation" column entirely rather than showing "None declared" for every row
+- [ ] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
+
+**Effort:** XS
+**Value:** High (Reduces admin confusion on a frequently used screen)
+
+---
+
 ## SP Metadata Lifecycle Management
 
 **User Story:**
@@ -31,29 +146,6 @@ SP metadata XML is already stored on import, but the source URL is not persisted
 
 **Effort:** M
 **Value:** High (Keeps SP configurations current without manual re-entry)
-
----
-
-## Attribute Mapping UX Improvements
-
-**User Story:**
-As a super admin
-I want clearer labels and smarter layout on the attribute mapping screen
-So that I can understand how user attributes are communicated to the SP without needing SAML expertise
-
-**Context:**
-
-Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). The current labels use technical SAML terminology and the layout shows an empty "SP Expectation" column even when no metadata is on file.
-
-**Acceptance Criteria:**
-
-- [ ] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
-- [ ] Use friendlier description: "Configure how user attributes are communicated to the service provider during sign-in." instead of technical SAML jargon
-- [ ] If no SP expectations are on file, hide the "SP Expectation" column entirely rather than showing "None declared" for every row
-- [ ] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
-
-**Effort:** XS
-**Value:** High (Reduces admin confusion on a frequently used screen)
 
 ---
 

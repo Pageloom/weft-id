@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SP Metadata Lifecycle Management
+
+**Status:** Complete
+
+**Resolution:** Fully implemented metadata lifecycle management with URL persistence, refresh workflows, and change previews. The `metadata_url` column was added to service providers (migration 00039). On SP creation via metadata URL, the source URL is persisted. The SP detail page includes a collapsible read-only viewer for stored metadata XML. SPs with a stored metadata URL have a "Refresh from URL" action that re-fetches metadata and shows a diff preview (ACS URL, SLO URL, NameID format, certificate, requested attributes, attribute mapping) before applying changes. SPs with stored XML but no URL have a "Re-import metadata" action for pasting new XML with preview. Four API endpoints handle preview and apply operations for both refresh and re-import workflows. Event logging tracks `sp_metadata_refreshed` and `sp_metadata_reimported` events.
+
+**Acceptance Criteria:**
+
+- [x] DB migration: add `metadata_url` column to service providers table (00039_sp_metadata_url.sql)
+- [x] On SP creation via metadata URL: persist the metadata URL alongside the fetched metadata XML
+- [x] On SP creation via pasted XML: persist the pasted metadata XML (already done via `metadata_xml` column)
+- [x] On manual entry: no metadata to store
+- [x] SP detail page: view the full stored metadata XML (read-only, collapsible code block)
+- [x] SP with stored metadata URL: "Refresh from URL" action that re-fetches metadata and shows a preview/diff of what would change (ACS URL, SLO URL, certificate, requested attributes, attribute mapping) before applying
+- [x] SP with stored XML but no URL: "Re-import metadata" action where admin can paste new XML and preview changes before applying
+- [x] SP with neither: no metadata refresh available, manual editing only
+- [x] API endpoints for metadata refresh and re-import (4 endpoints: preview-refresh, apply-refresh, preview-reimport, apply-reimport)
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Attribute Mapping UX Improvements
 
 **Status:** Complete

@@ -35,34 +35,6 @@ Additionally, there is no automatic cleanup of expired previous certificates. Th
 
 ---
 
-## SP Metadata Lifecycle Management
-
-**User Story:**
-As a super admin
-I want to refresh SP metadata from its original source and review what changed
-So that I can keep SP configurations up to date without re-entering everything manually
-
-**Context:**
-
-SP metadata XML is already stored on import, but the source URL is not persisted. Admins have no way to refresh metadata or review stored XML after initial import. This item adds metadata URL persistence, a read-only XML viewer, and refresh workflows with change previews.
-
-**Acceptance Criteria:**
-
-- [ ] DB migration: add `metadata_url` column to service providers table
-- [ ] On SP creation via metadata URL: persist the metadata URL alongside the fetched metadata XML
-- [ ] On SP creation via pasted XML: persist the pasted metadata XML (already done via `metadata_xml` column)
-- [ ] On manual entry: no metadata to store
-- [ ] SP detail page: view the full stored metadata XML (read-only, collapsible code block)
-- [ ] SP with stored metadata URL: "Refresh from URL" action that re-fetches metadata and shows a preview/diff of what would change (ACS URL, SLO URL, certificate, requested attributes, attribute mapping) before applying
-- [ ] SP with stored XML but no URL: "Re-import metadata" action where admin can paste new XML and preview changes before applying
-- [ ] SP with neither: no metadata refresh available, manual editing only
-- [ ] API endpoints for metadata refresh and re-import
-
-**Effort:** M
-**Value:** High (Keeps SP configurations current without manual re-entry)
-
----
-
 ## Default Attribute Names
 
 **User Story:**
@@ -116,18 +88,33 @@ So that each SP receives user identifiers in the format it expects
 
 **Context:**
 
-Currently all SPs receive emailAddress as the NameID format. Some SPs require persistent (stable opaque identifier) or transient (per-session) NameIDs. Persistent NameID requires a new database table to store stable user-SP identifier pairs.
+The infrastructure for NameID configuration is partially complete. The `nameid_format` column exists on the `service_providers` table, metadata parsing extracts NameID format from SP metadata XML, and the SSO assertion builder reads the format field. However, the actual logic for persistent and transient NameID generation is missing. Currently, when an SP's NameID format is set to "persistent" (via metadata import), the system still sends the user's email address instead of a stable opaque identifier. Additionally, there is no UI or API support for changing the NameID format after SP creation (it's read-only).
+
+**What's Already Done:**
+- Database column (`nameid_format`) exists with default `emailAddress`
+- Metadata parser extracts NameID format from SP metadata
+- Assertion builder reads and includes the format in SAML responses
+- SP detail page displays NameID format (read-only)
+
+**What Remains:**
+- Persistent NameID logic (generate and store stable opaque identifiers per user-SP pair)
+- Transient NameID logic (generate per-session identifiers)
+- UI/API to configure or change NameID format after SP creation
 
 **Acceptance Criteria:**
 
-- [ ] Per-SP NameID format selection: emailAddress (default), persistent, transient, unspecified
-- [ ] Persistent NameID: generates a stable opaque identifier per user-SP pair, stored in a new `sp_nameid_mappings` table
-- [ ] Transient NameID: generates a new identifier per session (not persisted)
-- [ ] DB migration: add NameID format column to service providers, create `sp_nameid_mappings` table
-- [ ] SSO assertion builder uses the configured NameID format
-- [ ] API support for NameID configuration on SP endpoints
+- [ ] DB migration: create `sp_nameid_mappings` table (user_id, sp_id, nameid_value, created_at)
+- [ ] Persistent NameID: generate stable opaque identifier (UUID-based) per user-SP pair on first SSO, store in `sp_nameid_mappings`, reuse on subsequent SSO
+- [ ] Transient NameID: generate new opaque identifier per session (UUID, not persisted)
+- [ ] Assertion builder calls appropriate NameID generation function based on SP's `nameid_format` (emailAddress uses user email, persistent uses mapping table, transient generates new UUID)
+- [ ] Add `nameid_format` to `SPUpdate` schema (allow updating format via API and UI)
+- [ ] SP detail page: NameID format selection dropdown (emailAddress, persistent, transient, unspecified) with save functionality
+- [ ] API endpoint: `PUT /api/v1/service-providers/{sp_id}` accepts `nameid_format` in request body
+- [ ] Event log entry when NameID format is changed (`sp_nameid_format_updated`)
+- [ ] Tests for persistent NameID generation and reuse
+- [ ] Tests for transient NameID generation (new value per session)
 
-**Effort:** M
+**Effort:** S (Infrastructure exists, only need logic and UI)
 **Value:** Medium (Required for SPs that mandate non-email NameID formats)
 
 ---
@@ -151,8 +138,10 @@ API surface for it. The dependency on SAML IdP Phase 2 is resolved.
 - [ ] Shows which groups grant each SP access (traceability)
 - [ ] Search/filter by user
 - [ ] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
+- [ ] New criterion: As super admin only: ability to impersonate a user ONLY for 
+      debugging purposes - i.e not actually signing in to the SP.
 
-**Effort:** XS
+**Effort:** M
 **Value:** Medium (Admin troubleshooting, low implementation cost)
 
 ---

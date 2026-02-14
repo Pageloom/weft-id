@@ -55,6 +55,8 @@ def test_get_branding_as_admin(client, override_api_auth):
     data = resp.json()
     assert data["logo_mode"] == "mandala"
     assert data["has_logo_light"] is False
+    assert data["site_title"] is None
+    assert data["show_title_in_nav"] is True
 
 
 def test_get_branding_unauthenticated(client, test_host):
@@ -82,6 +84,8 @@ def test_upload_logo_as_admin(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
+                "site_title": None,
+                "show_title_in_nav": True,
                 "has_logo_light": True,
                 "has_logo_dark": False,
                 "logo_light_mime": "image/png",
@@ -131,6 +135,8 @@ def test_delete_logo_as_admin(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
+                "site_title": None,
+                "show_title_in_nav": True,
                 "has_logo_light": False,
                 "has_logo_dark": False,
                 "logo_light_mime": None,
@@ -173,6 +179,8 @@ def test_update_branding_settings(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
+                "site_title": None,
+                "show_title_in_nav": True,
                 "has_logo_light": True,
                 "has_logo_dark": False,
                 "logo_light_mime": "image/png",
@@ -193,6 +201,46 @@ def test_update_branding_settings(client, override_api_auth):
     assert (
         resp.json()["logo_mode"] == "mandala"
     )  # Mock returns mandala since get_branding is mocked
+
+
+def test_update_branding_settings_with_site_title(client, override_api_auth):
+    """Admin can update branding settings with site title."""
+    user = _admin_user()
+    override_api_auth(user, level="admin")
+
+    with (
+        patch(
+            "services.branding.database.branding.get_branding",
+            return_value={
+                "logo_mode": "mandala",
+                "use_logo_as_favicon": False,
+                "site_title": "My App",
+                "show_title_in_nav": False,
+                "has_logo_light": False,
+                "has_logo_dark": False,
+                "logo_light_mime": None,
+                "logo_dark_mime": None,
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            },
+        ),
+        patch("services.branding.database.branding.update_branding_settings", return_value=1),
+        patch("services.branding.log_event"),
+        patch("services.branding.track_activity"),
+    ):
+        resp = client.put(
+            "/api/v1/branding",
+            json={
+                "logo_mode": "mandala",
+                "use_logo_as_favicon": False,
+                "site_title": "My App",
+                "show_title_in_nav": False,
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["site_title"] == "My App"
+    assert data["show_title_in_nav"] is False
 
 
 def test_update_settings_custom_without_light_logo(client, override_api_auth):

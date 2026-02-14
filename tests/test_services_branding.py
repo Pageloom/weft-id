@@ -240,6 +240,23 @@ class TestGetSettings:
         assert result.has_logo_dark is False
         assert result.use_logo_as_favicon is False
 
+    def test_get_settings_custom_without_logo_falls_back(self, test_tenant, test_admin_user):
+        """Custom mode falls back to mandala when light logo is missing."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        # Upload a light logo, switch to custom, then delete the logo
+        branding_service.upload_logo(
+            ru, slot=branding_service.LogoSlot.LIGHT, data=_make_png(64, 64)
+        )
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.CUSTOM)
+        branding_service.update_branding_settings(ru, update)
+        branding_service.delete_logo(ru, slot=branding_service.LogoSlot.LIGHT)
+
+        result = branding_service.get_branding_settings(ru)
+        assert result.logo_mode == "mandala"
+
     def test_get_settings_forbidden_for_member(self, test_tenant, test_user):
         """Members cannot access branding settings."""
         ru = _make_requesting_user(test_user, test_tenant["id"], "member")
@@ -388,6 +405,61 @@ class TestUpdateSettings:
         with pytest.raises(ForbiddenError):
             branding_service.update_branding_settings(ru, update)
 
+    def test_set_site_title(self, test_tenant, test_admin_user):
+        """Admin can set a custom site title."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="My Company")
+        result = branding_service.update_branding_settings(ru, update)
+
+        assert result.site_title == "My Company"
+
+    def test_site_title_too_long_rejected(self, test_tenant, test_admin_user):
+        """Site title exceeding 30 characters is rejected."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="A" * 31)
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service.update_branding_settings(ru, update)
+        assert exc_info.value.code == "site_title_too_long"
+
+    def test_site_title_whitespace_only_treated_as_null(self, test_tenant, test_admin_user):
+        """Whitespace-only title is normalized to NULL."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="   ")
+        result = branding_service.update_branding_settings(ru, update)
+
+        assert result.site_title is None
+
+    def test_show_title_in_nav_toggle(self, test_tenant, test_admin_user):
+        """Admin can hide the title from the nav bar."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, show_title_in_nav=False)
+        result = branding_service.update_branding_settings(ru, update)
+
+        assert result.show_title_in_nav is False
+
+    def test_site_title_stripped(self, test_tenant, test_admin_user):
+        """Site title is stripped of leading/trailing whitespace."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="  Acme Corp  ")
+        result = branding_service.update_branding_settings(ru, update)
+
+        assert result.site_title == "Acme Corp"
+
 
 # =============================================================================
 # Serving Helper Tests
@@ -417,6 +489,8 @@ class TestServingHelpers:
         result = branding_service.get_branding_for_template(str(test_tenant["id"]))
         assert result["logo_mode"] == "mandala"
         assert result["has_logo_light"] is False
+        assert result["site_title"] == "WeftId"
+        assert result["show_title_in_nav"] is True
 
     def test_get_branding_for_template_with_data(self, test_tenant, test_admin_user):
         """Returns actual branding data after upload."""
@@ -428,3 +502,33 @@ class TestServingHelpers:
         result = branding_service.get_branding_for_template(str(test_tenant["id"]))
         assert result["has_logo_light"] is True
         assert result["logo_mode"] == "mandala"  # Mode not changed, just uploaded
+
+    def test_get_branding_for_template_custom_title(self, test_tenant, test_admin_user):
+        """Returns custom site title when set."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA,
+            site_title="My App",
+            show_title_in_nav=False,
+        )
+        branding_service.update_branding_settings(ru, update)
+
+        result = branding_service.get_branding_for_template(str(test_tenant["id"]))
+        assert result["site_title"] == "My App"
+        assert result["show_title_in_nav"] is False
+
+    def test_get_branding_for_template_null_title_defaults(self, test_tenant, test_admin_user):
+        """NULL site_title in DB defaults to WeftId in template context."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, LogoMode
+
+        # Set then clear the title
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title=None)
+        branding_service.update_branding_settings(ru, update)
+
+        result = branding_service.get_branding_for_template(str(test_tenant["id"]))
+        assert result["site_title"] == "WeftId"

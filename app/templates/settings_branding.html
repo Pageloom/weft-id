@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Branding - WeftId{% endblock %}
+{% block title %}Branding - {{ site_title }}{% endblock %}
 
 {% block content %}
 <style nonce="{{ csp_nonce }}">
@@ -40,12 +40,41 @@
         </div>
         {% endif %}
 
-        {# ---- Logo Mode ---- #}
+        {# ---- Site Title ---- #}
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Display Mode</h2>
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Site Title</h2>
 
             <form method="post" action="/admin/settings/branding/settings">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="mb-4">
+                    <label for="site_title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                    <input type="text" id="site_title" name="site_title"
+                           value="{{ branding_settings.site_title or '' }}"
+                           maxlength="30"
+                           placeholder="WeftId"
+                           class="w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Displayed in the browser tab and navigation bar. Leave empty to use the default.
+                    </p>
+                </div>
+
+                <div class="mb-6">
+                    <label class="flex items-start">
+                        <input type="checkbox" name="show_title_in_nav" value="true"
+                               {% if branding_settings.show_title_in_nav %}checked{% endif %}
+                               class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500">
+                        <span class="ml-2">
+                            <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Show title in navigation bar</span>
+                            <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                When disabled, the title is hidden from the nav bar but still appears in browser tabs.
+                            </span>
+                        </span>
+                    </label>
+                </div>
+
+        {# ---- Logo Mode ---- #}
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100 border-t border-gray-200 dark:border-gray-700 pt-6">Display Mode</h2>
 
                 <div class="mb-6 space-y-3">
                     <label class="flex items-center">

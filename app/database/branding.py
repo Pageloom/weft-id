@@ -17,6 +17,8 @@ def get_branding(tenant_id: TenantArg) -> dict | None:
         SELECT
             logo_mode,
             use_logo_as_favicon,
+            site_title,
+            show_title_in_nav,
             (logo_light IS NOT NULL) AS has_logo_light,
             (logo_dark IS NOT NULL) AS has_logo_dark,
             logo_light_mime,
@@ -132,6 +134,8 @@ def update_branding_settings(
     tenant_id_value: str,
     logo_mode: str,
     use_logo_as_favicon: bool,
+    site_title: str | None = None,
+    show_title_in_nav: bool = True,
 ) -> int:
     """
     Update branding display settings. Creates the branding row if needed.
@@ -141,6 +145,8 @@ def update_branding_settings(
         tenant_id_value: Tenant ID value to store
         logo_mode: 'mandala' or 'custom'
         use_logo_as_favicon: Whether to use logo as favicon
+        site_title: Custom site title (None = use default)
+        show_title_in_nav: Whether to show title in nav bar
 
     Returns:
         Number of rows affected
@@ -148,16 +154,26 @@ def update_branding_settings(
     return execute(
         tenant_id,
         """
-        INSERT INTO tenant_branding (tenant_id, logo_mode, use_logo_as_favicon, updated_at)
-        VALUES (:tenant_id, :logo_mode, :use_logo_as_favicon, now())
+        INSERT INTO tenant_branding (
+            tenant_id, logo_mode, use_logo_as_favicon,
+            site_title, show_title_in_nav, updated_at
+        )
+        VALUES (
+            :tenant_id, :logo_mode, :use_logo_as_favicon,
+            :site_title, :show_title_in_nav, now()
+        )
         ON CONFLICT (tenant_id) DO UPDATE
             SET logo_mode = :logo_mode,
                 use_logo_as_favicon = :use_logo_as_favicon,
+                site_title = :site_title,
+                show_title_in_nav = :show_title_in_nav,
                 updated_at = now()
         """,
         {
             "tenant_id": tenant_id_value,
             "logo_mode": logo_mode,
             "use_logo_as_favicon": use_logo_as_favicon,
+            "site_title": site_title,
+            "show_title_in_nav": show_title_in_nav,
         },
     )

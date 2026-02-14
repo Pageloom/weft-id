@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Branding: Randomize & Save Mandala as Logo
+
+**Status:** Complete
+
+**Resolution:** Added Randomize and Save as Logo buttons to the branding settings page. Admins can preview random mandalas (160px) and save a favorite as both light and dark custom logos (40px SVGs). Two new API endpoints handle generation and persistence. Logo mode automatically switches to custom on save. Existing branding settings are preserved.
+
+**Acceptance Criteria:**
+
+- [x] "Randomize" button on the branding settings page generates a new mandala preview on each click
+- [x] Preview displays the light mode mandala at a visible size (not just the 40px nav icon)
+- [x] Each click uses a new random seed (not sequential, not predictable)
+- [x] "Save as Logo" button persists the displayed mandala as the custom light mode SVG logo
+- [x] Dark mode variant generated from the same seed is saved as the custom dark mode logo
+- [x] Favicon variant generated from the same seed is available (favicon preference follows existing logic)
+- [x] After saving, logo mode automatically switches to "custom" with the mandala SVGs as the logos
+- [x] Admin can continue randomizing and saving again (replaces previous)
+- [x] Event log entry when a mandala is saved as logo (`branding_logo_uploaded` with metadata indicating mandala source)
+- [x] API support: `POST /api/v1/branding/mandala/randomize` returns preview SVGs for a random seed; `POST /api/v1/branding/mandala/save` persists the mandala for a given seed
+
+**Effort:** S
+
+---
+
 ## Branding: Custom Logo Favicon Should Respect System Theme
 
 **Status:** Complete

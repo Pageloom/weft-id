@@ -255,3 +255,92 @@ def test_update_settings_custom_without_light_logo(client, override_api_auth):
         )
 
     assert resp.status_code == 400
+
+
+# =============================================================================
+# POST /api/v1/branding/mandala/randomize
+# =============================================================================
+
+
+def test_randomize_mandala_as_admin(client, override_api_auth):
+    """Admin can randomize a mandala."""
+    user = _admin_user()
+    override_api_auth(user, level="admin")
+
+    resp = client.post("/api/v1/branding/mandala/randomize")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "seed" in data
+    assert "<svg" in data["light_svg"]
+    assert "<svg" in data["dark_svg"]
+
+
+def test_randomize_mandala_unauthenticated(client, test_host):
+    """Unauthenticated request is rejected."""
+    resp = client.post("/api/v1/branding/mandala/randomize", headers={"host": test_host})
+    assert resp.status_code in (401, 403)
+
+
+# =============================================================================
+# POST /api/v1/branding/mandala/save
+# =============================================================================
+
+
+def test_save_mandala_as_admin(client, override_api_auth):
+    """Admin can save a mandala as custom logo."""
+    user = _admin_user()
+    override_api_auth(user, level="admin")
+
+    with (
+        patch("services.branding.database.branding.upsert_logo", return_value=1),
+        patch(
+            "services.branding.database.branding.get_branding",
+            return_value={
+                "logo_mode": "custom",
+                "use_logo_as_favicon": False,
+                "site_title": None,
+                "show_title_in_nav": True,
+                "has_logo_light": True,
+                "has_logo_dark": True,
+                "logo_light_mime": "image/svg+xml",
+                "logo_dark_mime": "image/svg+xml",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            },
+        ),
+        patch("services.branding.database.branding.update_branding_settings", return_value=1),
+        patch("services.branding.log_event"),
+        patch("services.branding.track_activity"),
+    ):
+        resp = client.post(
+            "/api/v1/branding/mandala/save",
+            json={"seed": "test-seed-123"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["logo_mode"] == "custom"
+    assert data["has_logo_light"] is True
+    assert data["has_logo_dark"] is True
+
+
+def test_save_mandala_unauthenticated(client, test_host):
+    """Unauthenticated request is rejected."""
+    resp = client.post(
+        "/api/v1/branding/mandala/save",
+        json={"seed": "test"},
+        headers={"host": test_host},
+    )
+    assert resp.status_code in (401, 403)
+
+
+def test_save_mandala_empty_seed_rejected(client, override_api_auth):
+    """Empty seed is rejected by schema validation."""
+    user = _admin_user()
+    override_api_auth(user, level="admin")
+
+    resp = client.post(
+        "/api/v1/branding/mandala/save",
+        json={"seed": ""},
+    )
+    assert resp.status_code == 422

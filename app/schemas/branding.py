@@ -41,3 +41,17 @@ class BrandingSettingsUpdate(BaseModel):
     use_logo_as_favicon: bool = Field(False, description="Use custom logo as favicon")
     site_title: str | None = Field(None, description="Custom site title (max 30 chars)")
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
+
+
+class MandalaRandomizeResponse(BaseModel):
+    """Response schema for mandala randomization."""
+
+    seed: str = Field(..., description="The random seed used to generate the mandala")
+    light_svg: str = Field(..., description="SVG markup for light mode")
+    dark_svg: str = Field(..., description="SVG markup for dark mode")
+
+
+class MandalaSaveRequest(BaseModel):
+    """Request schema for saving a mandala as the tenant logo."""
+
+    seed: str = Field(..., min_length=1, max_length=100, description="Mandala seed to save")

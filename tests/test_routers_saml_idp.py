@@ -448,10 +448,12 @@ class TestIdPMetadata:
 
 
 class TestSPListMetadataURL:
-    """Tests for the metadata URL display on the SP list page."""
+    """Tests that metadata URL is no longer passed in SP list context."""
 
-    def test_sp_list_includes_metadata_url(self, sp_admin_session, sp_host, sample_sp_list, mocker):
-        """SP list page passes idp_metadata_url to template context."""
+    def test_sp_list_does_not_include_metadata_url(
+        self, sp_admin_session, sp_host, sample_sp_list, mocker
+    ):
+        """SP list page no longer passes idp_metadata_url to template context."""
         mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
         mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
         mock_ctx.return_value = {"request": MagicMock()}
@@ -468,29 +470,7 @@ class TestSPListMetadataURL:
 
         assert response.status_code == 200
         ctx_kwargs = mock_ctx.call_args[1]
-        assert "idp_metadata_url" in ctx_kwargs
-        assert ctx_kwargs["idp_metadata_url"].endswith("/saml/idp/metadata")
-
-    def test_sp_list_hides_metadata_url_when_empty(self, sp_admin_session, sp_host, mocker):
-        """SP list page does not pass idp_metadata_url when no SPs exist."""
-        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
-        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
-        mock_ctx.return_value = {"request": MagicMock()}
-        mock_tmpl.return_value = HTMLResponse(content="<html>sp list</html>")
-
-        empty_list = SPListResponse(items=[], total=0)
-        with patch(
-            "services.service_providers.list_service_providers",
-            return_value=empty_list,
-        ):
-            response = sp_admin_session.get(
-                "/admin/settings/service-providers",
-                headers={"Host": sp_host},
-            )
-
-        assert response.status_code == 200
-        ctx_kwargs = mock_ctx.call_args[1]
-        assert ctx_kwargs["idp_metadata_url"] is None
+        assert "idp_metadata_url" not in ctx_kwargs
 
 
 # =============================================================================

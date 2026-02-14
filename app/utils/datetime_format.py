@@ -117,7 +117,20 @@ def format_relative_date(
     days_ago = (reference - dt_date).days
 
     if days_ago < 0:
-        relative_text = "In the future"
+        days_ahead = -days_ago
+        if days_ahead == 1:
+            relative_text = "Tomorrow"
+        elif days_ahead < 14:
+            relative_text = f"in {days_ahead} days"
+        elif days_ahead < 60:
+            weeks = days_ahead // 7
+            relative_text = f"in {weeks} week{'s' if weeks != 1 else ''}"
+        elif days_ahead < 365:
+            months = days_ahead // 30
+            relative_text = f"in {months} month{'s' if months != 1 else ''}"
+        else:
+            years = days_ahead // 365
+            relative_text = f"in {years} year{'s' if years != 1 else ''}"
     elif days_ago == 0:
         relative_text = "Today"
     elif days_ago == 1:

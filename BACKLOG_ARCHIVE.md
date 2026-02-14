@@ -2290,3 +2290,24 @@ So that I understand my organizational context and access rights
 **Value:** High (Unblocks production SP lifecycle management)
 
 ---
+
+## SP List Page UX Improvements
+
+**Status:** Complete
+
+**Resolution:** Rewrote the SP list page to match the user list pattern. Switched to full-width layout, removed the misleading global metadata URL info box (each SP has its own metadata URL on its detail page), removed Entity ID and Actions columns, and converted Certificate and Created columns to relative dates with exact tooltips. Enhanced `format_relative_date()` to handle future dates granularly (Tomorrow, in X days/weeks/months/years) for certificate expiry display.
+
+**Acceptance Criteria:**
+
+- [x] Full-width table layout, consistent with user list views
+- [x] Remove the "Share this URL with downstream service providers to configure SAML trust" message (incorrect; each SP has its own metadata URL)
+- [x] Remove Entity ID column from the table (too long, breaks layout)
+- [x] Certificate expiration column shows relative time (e.g., "in 342 days") with exact date/time on mouseover
+- [x] Created column shows relative time (e.g., "3 days ago") with exact date/time on mouseover, consistent with user list views
+- [x] Remove delete action from the list rows
+- [x] Remove separate "Details" link. SP name is clickable and navigates to the detail view
+- [x] Remaining columns: Name (clickable), Status, Groups (count), Certificate Expiry, Created
+
+**Effort:** S
+
+---

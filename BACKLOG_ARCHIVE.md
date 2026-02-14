@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Attribute Mapping UX Improvements
+
+**Status:** Complete
+
+**Resolution:** Replaced technical SAML terminology with admin-friendly labels on the SP attribute mapping tab. Heading renamed to "User Attribute Mapping", description simplified, SP Expectation column hidden when no metadata expectations exist, and match/mismatch indicators added when expectations are on file.
+
+**Acceptance Criteria:**
+
+- [x] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
+- [x] Use friendlier description instead of technical SAML jargon
+- [x] If no SP expectations are on file, hide the "SP Expectation" column entirely rather than showing "None declared" for every row
+- [x] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
+
+**Effort:** XS
+
+---
+
 ## SAML IdP: SP Attribute Mapping from Metadata
 
 **Status:** Complete

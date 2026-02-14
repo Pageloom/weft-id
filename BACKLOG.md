@@ -35,29 +35,6 @@ Additionally, there is no automatic cleanup of expired previous certificates. Th
 
 ---
 
-## Attribute Mapping UX Improvements
-
-**User Story:**
-As a super admin
-I want clearer labels and smarter layout on the attribute mapping screen
-So that I can understand how user attributes are communicated to the SP without needing SAML expertise
-
-**Context:**
-
-Per-SP attribute mapping from metadata was recently implemented (parsing `RequestedAttribute` elements, auto-detection, editable mapping UI, per-SP assertion URIs). The current labels use technical SAML terminology and the layout shows an empty "SP Expectation" column even when no metadata is on file.
-
-**Acceptance Criteria:**
-
-- [ ] Rename "Assertion Attribute Mapping" to "User Attribute Mapping" throughout the UI
-- [ ] Use friendlier description: "Configure how user attributes are communicated to the service provider during sign-in." instead of technical SAML jargon
-- [ ] If no SP expectations are on file, hide the "SP Expectation" column entirely rather than showing "None declared" for every row
-- [ ] For each attribute row, clearly indicate whether it matches the SP's declared expectations (when metadata is on file)
-
-**Effort:** XS
-**Value:** High (Reduces admin confusion on a frequently used screen)
-
----
-
 ## SP Metadata Lifecycle Management
 
 **User Story:**

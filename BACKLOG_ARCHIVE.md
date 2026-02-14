@@ -4,6 +4,25 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML IdP: Include Group Membership in SSO Assertions
+
+**Status:** Complete
+
+**Resolution:** Group memberships are included as a multi-valued `groups` attribute in SAML assertions when enabled per SP. Uses the closure table to include both direct and inherited memberships. Per-SP opt-in toggle added to the SP detail page and REST API. Defaults to disabled.
+
+**Acceptance Criteria:**
+
+- [x] Assertion includes group membership attribute (configurable attribute name, default `groups`)
+- [x] Includes both direct and inherited group memberships (via closure table)
+- [x] Configurable per SP: opt-in (some SPs don't want group claims)
+- [x] Group names sent as multi-valued attribute
+- [x] Toggle on SP detail page: "Include group memberships in assertions"
+- [x] API support for enabling/disabling group claims per SP
+
+**Effort:** S
+
+---
+
 ## Branding: Randomize & Save Mandala as Logo
 
 **Status:** Complete

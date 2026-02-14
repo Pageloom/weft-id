@@ -2311,3 +2311,26 @@ So that I understand my organizational context and access rights
 **Effort:** S
 
 ---
+
+## SP Detail View: Tabbed Page Design
+
+**Status:** Complete
+
+**Resolution:** Replaced the monolithic SP detail page with a server-side tabbed layout. Six tabs (Details, Attributes, Groups, Certificates, Metadata, Disable/Delete), each with its own route, template, and data loading. Shared base template provides back link, title with enabled/disabled badge, and tab bar. Name/description editing uses WeftUtils modals. Deletion requires the SP to be disabled first (enforced in both UI and service layer). Establishes reusable tabbed page pattern for deeply nested pages.
+
+**Acceptance Criteria:**
+
+- [x] Page has a title (SP name) and a back-link to the SP list
+- [x] Below the title, horizontal tab headers for navigation between sub-pages
+- [x] Active tab is visually highlighted
+- [x] Default tab is "Details" (auto-redirect from SP UUID path)
+- [x] Each tab has its own route and can be linked to directly
+- [x] Register all tab routes in `pages.py` as children of the SP detail page
+- [x] Details tab: sharable metadata URL with copy-to-clipboard, SP metadata source URL linking to metadata tab, name/description with modal editing, read-only Entity ID/ACS URL/SLO URL/NameID Format/Created
+- [x] Attributes tab: attribute mapping table with per-SP overrides, include group claims toggle
+- [x] Groups tab: header shows "Groups (N)", add/remove group assignments
+- [x] Certificates tab: signing certificate details with color-coded expiry warnings, rotation action, explanatory copy
+- [x] Metadata tab: visible only when SP has metadata URL or stored XML, refresh/reimport workflows, explanatory copy
+- [x] Disable/Delete tab: enable/disable toggle, delete gated on disabled state, red accent styling
+
+---

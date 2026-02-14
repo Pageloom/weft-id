@@ -6,68 +6,32 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## SP Detail View: Tabbed Page Design
+## Fix SP Signing Certificate Rotation Grace Period
 
 **User Story:**
 As a super admin
-I want the service provider detail page organized into logical tabs
-So that I can find and manage SP settings without scrolling through a single long page
+I want certificate rotation to work without breaking SSO for the service provider
+So that I can rotate certificates safely with a transition window where both old and new certificates are accepted
 
 **Context:**
 
-The current SP detail page at `/admin/settings/service-providers/{sp_id}` displays all configuration in a single scrollable page with 9+ card sections. This item restructures it into a tabbed layout with sub-routes. This establishes a reusable "tabbed page" pattern: whenever `pages.py` nests pages this deep, we use this tabbed design. The SP UUID path auto-redirects to the first tab.
+When rotating an SP's signing certificate, the system generates a new certificate and stores the previous one in `previous_certificate_pem` with a 7-day grace period timestamp. However, the IdP metadata endpoint only serves the **new** certificate. The old certificate is not included in the metadata XML, so the downstream SP has no way to trust assertions signed with the old certificate. In practice, rotation breaks SSO immediately rather than providing a grace period.
 
-**Path structure:**
-- `/admin/settings/service-providers/{sp_id}` redirects to `/details`
-- `/admin/settings/service-providers/{sp_id}/details`
-- `/admin/settings/service-providers/{sp_id}/attributes`
-- `/admin/settings/service-providers/{sp_id}/groups`
-- `/admin/settings/service-providers/{sp_id}/certificates`
-- `/admin/settings/service-providers/{sp_id}/metadata`
-- `/admin/settings/service-providers/{sp_id}/danger`
+Additionally, there is no automatic cleanup of expired previous certificates. The database function `clear_previous_signing_certificate()` exists but is never called.
 
 **Acceptance Criteria:**
 
-**General (tabbed page pattern):**
-- [ ] Page has a title (SP name) and a back-link to the SP list
-- [ ] Below the title, horizontal tab headers for navigation between sub-pages
-- [ ] Active tab is visually highlighted
-- [ ] Default tab is "Details" (auto-redirect from SP UUID path)
-- [ ] Each tab has its own route and can be linked to directly
-- [ ] Register all tab routes in `pages.py` as children of the SP detail page
+- [ ] During the grace period, the IdP metadata serves **both** certificates as separate `<md:KeyDescriptor use="signing">` elements (new certificate first, previous certificate second)
+- [ ] After the grace period expires, only the new certificate is served in metadata
+- [ ] It must not be possible to rotate certificates during the grace period
+- [ ] Background job runs periodically to clear expired previous certificates (calls `clear_previous_signing_certificate()`)
+- [ ] Certificates tab copy updated to reflect the actual grace period behavior
+- [ ] Tests for dual-certificate metadata generation during grace period
+- [ ] Tests for single-certificate metadata after grace period expiry
+- [ ] Tests for the cleanup background job
 
-**Tab 1: Details** (`/details`)
-- [ ] Per-SP IdP metadata URL with copy-to-clipboard (the URL to share with this SP)
-- [ ] SP's own metadata URL, displayed as a clickable link (if provided)
-- [ ] Read-only display: Entity ID, ACS URL, SLO URL, NameID Format, Created
-- [ ] SP Name displayed with an edit button that opens a modal for inline editing
-- [ ] SP Description displayed with an edit button that opens a modal for inline editing
-
-**Tab 2: Attribute Mapping** (`/attributes`)
-- [ ] Current assertion attribute mapping table with per-SP overrides and reset defaults
-- [ ] Include Group Claims toggle (moved here from Edit Configuration, defaults to on)
-
-**Tab 3: Groups** (`/groups`)
-- [ ] Tab header shows group count: "Groups (N)"
-- [ ] Current group assignment functionality (add via dropdown, list with remove buttons)
-
-**Tab 4: Certificates** (`/certificates`)
-- [ ] Signing certificate details: expiry (with color-coded warnings), creation date, grace period
-- [ ] Certificate rotation action
-
-**Tab 5: Metadata** (`/metadata`)
-- [ ] Only visible as a tab if the SP has a metadata URL or stored metadata XML
-- [ ] If metadata URL exists: display the source URL, "Refresh from URL" with change preview before applying
-- [ ] If stored XML exists: read-only collapsible XML viewer, "Re-import metadata" with paste and change preview
-- [ ] If neither metadata URL nor stored XML exists: tab is hidden, and this tab instead shows the Edit Configuration form (name, description, ACS URL, SLO URL) for manually-entered SPs
-
-**Tab 6: Danger** (`/danger`)
-- [ ] Enable/Disable toggle with current status indicator
-- [ ] Delete SP with confirmation dialog
-- [ ] Visual styling consistent with danger zones elsewhere (red border/accents)
-
-**Effort:** L
-**Value:** High (Transforms a dense single page into navigable sections, establishes reusable tabbed pattern)
+**Effort:** M
+**Value:** High (Certificate rotation is currently broken in practice)
 
 ---
 

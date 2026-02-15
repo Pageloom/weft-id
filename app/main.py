@@ -114,6 +114,12 @@ app.include_router(service_providers_api.my_apps_router)
 app.include_router(settings_api.router)
 app.include_router(users_api.router)
 
+# Dev-only router (instant login for E2E tests)
+if settings.IS_DEV:
+    from routers import dev as dev_router  # noqa: E402
+
+    app.include_router(dev_router.router)
+
 
 # Configure OpenAPI with OAuth2 security schemes
 def custom_openapi():

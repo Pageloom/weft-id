@@ -75,7 +75,7 @@ class TestIdpAdminRegistersSp:
         idp_base = idp_config["base_url"]
 
         # Login to IdP as super admin
-        login(idp_base, idp_config["admin_email"], idp_config["admin_password"])
+        login(idp_base, idp_config["admin_email"])
 
         # Navigate to SP creation page
         page.goto(f"{idp_base}/admin/settings/service-providers/new")
@@ -115,7 +115,7 @@ class TestSpAdminRegistersIdp:
         sp_base = sp_config["base_url"]
 
         # Login to SP as super admin
-        login(sp_base, sp_config["admin_email"], sp_config["admin_password"])
+        login(sp_base, sp_config["admin_email"])
 
         # Navigate to IdP creation page
         page.goto(f"{sp_base}/admin/settings/identity-providers/new")

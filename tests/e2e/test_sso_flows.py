@@ -115,7 +115,7 @@ class TestIdpInitiatedSso:
         sp_base = sp_config["base_url"]
 
         # Login to IdP
-        login(idp_base, idp_config["admin_email"], idp_config["admin_password"])
+        login(idp_base, idp_config["admin_email"])
 
         # Should be on IdP dashboard
         page.wait_for_url(f"{idp_base}/dashboard**", timeout=10000)
@@ -157,7 +157,7 @@ class TestPreExistingUser:
         assert sp_config["existing_user_email"] == idp_config["admin_email"]
 
         # Login to IdP
-        login(idp_base, idp_config["admin_email"], idp_config["admin_password"])
+        login(idp_base, idp_config["admin_email"])
         page.wait_for_url(f"{idp_base}/dashboard**", timeout=10000)
 
         # Launch SP via app tile

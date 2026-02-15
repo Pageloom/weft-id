@@ -1,6 +1,7 @@
 """Pydantic schemas for group management."""
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -91,7 +92,7 @@ class GroupMember(BaseModel):
 class GroupMemberAdd(BaseModel):
     """Request to add a member to a group."""
 
-    user_id: str = Field(..., description="User UUID to add")
+    user_id: str = Field(..., max_length=36, description="User UUID to add")
 
 
 class GroupMemberList(BaseModel):
@@ -122,13 +123,13 @@ class GroupRelationship(BaseModel):
 class GroupChildAdd(BaseModel):
     """Request to add a child group."""
 
-    child_group_id: str = Field(..., description="Child group UUID to add")
+    child_group_id: str = Field(..., max_length=36, description="Child group UUID to add")
 
 
 class GroupParentAdd(BaseModel):
     """Request to add a parent to a group."""
 
-    parent_group_id: str = Field(..., description="Parent group UUID to add")
+    parent_group_id: str = Field(..., max_length=36, description="Parent group UUID to add")
 
 
 class GroupParentsList(BaseModel):
@@ -283,19 +284,23 @@ class AvailableUserList(BaseModel):
 class BulkMemberRemove(BaseModel):
     """Request to remove multiple members from a group."""
 
-    user_ids: list[str] = Field(..., min_length=1, description="List of user UUIDs to remove")
+    user_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
+        ..., min_length=1, description="List of user UUIDs to remove"
+    )
 
 
 class BulkMemberAdd(BaseModel):
     """Request to add multiple members to a group."""
 
-    user_ids: list[str] = Field(..., min_length=1, description="List of user UUIDs to add")
+    user_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
+        ..., min_length=1, description="List of user UUIDs to add"
+    )
 
 
 class UserGroupsAdd(BaseModel):
     """Request to add a user to one or more groups."""
 
-    group_ids: list[str] = Field(
+    group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
         ..., min_length=1, description="List of group UUIDs to add user to"
     )
 

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class ReactivationRequestCreate(BaseModel):
     """Schema for creating a reactivation request."""
 
-    user_id: str = Field(..., description="User ID requesting reactivation")
+    user_id: str = Field(..., max_length=36, description="User ID requesting reactivation")
 
 
 class ReactivationRequest(BaseModel):

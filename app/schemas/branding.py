@@ -39,7 +39,9 @@ class BrandingSettingsUpdate(BaseModel):
 
     logo_mode: LogoMode = Field(..., description="Logo display mode")
     use_logo_as_favicon: bool = Field(False, description="Use custom logo as favicon")
-    site_title: str | None = Field(None, description="Custom site title (max 30 chars)")
+    site_title: str | None = Field(
+        None, max_length=30, description="Custom site title (max 30 chars)"
+    )
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
 
 

@@ -45,14 +45,18 @@ class UserProfileUpdate(BaseModel):
 
     first_name: str | None = Field(None, min_length=1, max_length=255)
     last_name: str | None = Field(None, min_length=1, max_length=255)
-    timezone: str | None = Field(None, description="IANA timezone (e.g., 'America/New_York')")
+    timezone: str | None = Field(
+        None, max_length=50, description="IANA timezone (e.g., 'America/New_York')"
+    )
     locale: str | None = Field(
         None,
+        max_length=10,
         pattern="^[a-z]{2}(_[A-Z]{2})?$",
         description="Locale code (e.g., 'en' or 'en_US')",
     )
     theme: str | None = Field(
         None,
+        max_length=6,
         pattern="^(system|light|dark)$",
         description="Theme preference: system, light, or dark",
     )
@@ -234,6 +238,7 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(..., description="Primary email address")
     role: str = Field(
         "member",
+        max_length=50,
         pattern="^(member|admin|super_admin)$",
         description="User role (defaults to member)",
     )
@@ -250,6 +255,7 @@ class UserUpdate(BaseModel):
     )
     role: str | None = Field(
         None,
+        max_length=50,
         pattern="^(member|admin|super_admin)$",
         description="User role (requires super_admin to set super_admin)",
     )

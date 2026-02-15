@@ -1,6 +1,7 @@
 """Pydantic schemas for downstream SAML Service Provider management."""
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -13,55 +14,57 @@ class SPCreate(BaseModel):
     """Manual SP registration. entity_id and acs_url are optional for step-by-step flow."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    entity_id: str | None = Field(None, min_length=1)
-    acs_url: str | None = Field(None, min_length=1)
-    description: str | None = None
-    slo_url: str | None = None
+    entity_id: str | None = Field(None, min_length=1, max_length=2048)
+    acs_url: str | None = Field(None, min_length=1, max_length=2048)
+    description: str | None = Field(None, max_length=2000)
+    slo_url: str | None = Field(None, max_length=2048)
 
 
 class SPMetadataImportXML(BaseModel):
     """SP registration from pasted metadata XML."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    metadata_xml: str = Field(..., min_length=1)
+    metadata_xml: str = Field(..., min_length=1, max_length=1000000)
 
 
 class SPMetadataImportURL(BaseModel):
     """SP registration from metadata URL."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    metadata_url: str = Field(..., min_length=1)
+    metadata_url: str = Field(..., min_length=1, max_length=2048)
 
 
 class SPEstablishTrustURL(BaseModel):
     """Establish trust with an SP by fetching its metadata URL."""
 
-    metadata_url: str = Field(..., min_length=1)
+    metadata_url: str = Field(..., min_length=1, max_length=2048)
 
 
 class SPEstablishTrustXML(BaseModel):
     """Establish trust with an SP by providing metadata XML."""
 
-    metadata_xml: str = Field(..., min_length=1)
+    metadata_xml: str = Field(..., min_length=1, max_length=1000000)
 
 
 class SPEstablishTrustManual(BaseModel):
     """Establish trust with an SP by manually providing entity_id and acs_url."""
 
-    entity_id: str = Field(..., min_length=1)
-    acs_url: str = Field(..., min_length=1)
-    slo_url: str | None = None
+    entity_id: str = Field(..., min_length=1, max_length=2048)
+    acs_url: str = Field(..., min_length=1, max_length=2048)
+    slo_url: str | None = Field(None, max_length=2048)
 
 
 class SPUpdate(BaseModel):
     """Update SP configuration. At least one field must be provided."""
 
     name: str | None = Field(None, min_length=1, max_length=255)
-    description: str | None = None
-    acs_url: str | None = Field(None, min_length=1)
-    slo_url: str | None = Field(None, min_length=1)
+    description: str | None = Field(None, max_length=2000)
+    acs_url: str | None = Field(None, min_length=1, max_length=2048)
+    slo_url: str | None = Field(None, min_length=1, max_length=2048)
     include_group_claims: bool | None = None
-    attribute_mapping: dict[str, str] | None = None
+    attribute_mapping: (
+        dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
+    ) = None
 
 
 # ============================================================================
@@ -147,7 +150,7 @@ class SPMetadataChangePreview(BaseModel):
 class SPMetadataReimport(BaseModel):
     """Request body for metadata reimport from XML."""
 
-    metadata_xml: str = Field(..., min_length=1)
+    metadata_xml: str = Field(..., min_length=1, max_length=1000000)
 
 
 # ============================================================================
@@ -233,13 +236,13 @@ class GroupSPAssignmentList(BaseModel):
 class SPGroupAssignAdd(BaseModel):
     """Request to assign a group to an SP."""
 
-    group_id: str = Field(..., min_length=1)
+    group_id: str = Field(..., min_length=1, max_length=36)
 
 
 class SPGroupBulkAssign(BaseModel):
     """Request to bulk-assign groups to an SP."""
 
-    group_ids: list[str] = Field(..., min_length=1)
+    group_ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(..., min_length=1)
 
 
 class UserApp(BaseModel):

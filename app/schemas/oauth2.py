@@ -1,6 +1,7 @@
 """Pydantic schemas for OAuth2 client management and token responses."""
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,7 +15,7 @@ class NormalClientCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255, description="Client name")
     description: str | None = Field(None, max_length=500, description="Optional client description")
-    redirect_uris: list[str] = Field(
+    redirect_uris: list[Annotated[str, Field(max_length=2048)]] = Field(
         ...,
         min_length=1,
         description="List of exact redirect URIs (no wildcards)",
@@ -28,6 +29,7 @@ class B2BClientCreate(BaseModel):
     description: str | None = Field(None, max_length=500, description="Optional client description")
     role: str = Field(
         ...,
+        max_length=50,
         pattern="^(member|admin|super_admin)$",
         description="Role for the service user",
     )
@@ -38,7 +40,7 @@ class ClientUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255, description="Client name")
     description: str | None = Field(None, max_length=500, description="Optional client description")
-    redirect_uris: list[str] | None = Field(
+    redirect_uris: list[Annotated[str, Field(max_length=2048)]] | None = Field(
         None,
         min_length=1,
         description="List of exact redirect URIs (normal clients only)",
@@ -50,6 +52,7 @@ class ClientRoleUpdate(BaseModel):
 
     role: str = Field(
         ...,
+        max_length=50,
         pattern="^(member|admin|super_admin)$",
         description="New role for the service user",
     )
@@ -112,21 +115,21 @@ class TokenErrorResponse(BaseModel):
 class AuthorizeParams(BaseModel):
     """Query parameters for OAuth2 authorization endpoint."""
 
-    client_id: str
-    redirect_uri: str
-    state: str | None = None
-    code_challenge: str | None = Field(None, description="PKCE code challenge")
+    client_id: str = Field(..., max_length=255)
+    redirect_uri: str = Field(..., max_length=2048)
+    state: str | None = Field(None, max_length=2048)
+    code_challenge: str | None = Field(None, max_length=128, description="PKCE code challenge")
     code_challenge_method: str | None = Field(
-        None, pattern="^(S256|plain)$", description="PKCE challenge method"
+        None, max_length=10, pattern="^(S256|plain)$", description="PKCE challenge method"
     )
 
 
 class AuthorizeForm(BaseModel):
     """Form data for OAuth2 authorization approval."""
 
-    client_id: str
-    redirect_uri: str
-    state: str | None = None
-    code_challenge: str | None = None
-    code_challenge_method: str | None = None
-    action: str = Field(..., pattern="^(allow|deny)$")
+    client_id: str = Field(..., max_length=255)
+    redirect_uri: str = Field(..., max_length=2048)
+    state: str | None = Field(None, max_length=2048)
+    code_challenge: str | None = Field(None, max_length=128)
+    code_challenge_method: str | None = Field(None, max_length=10)
+    action: str = Field(..., max_length=10, pattern="^(allow|deny)$")

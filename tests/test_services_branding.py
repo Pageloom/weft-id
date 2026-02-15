@@ -416,16 +416,13 @@ class TestUpdateSettings:
 
         assert result.site_title == "My Company"
 
-    def test_site_title_too_long_rejected(self, test_tenant, test_admin_user):
-        """Site title exceeding 30 characters is rejected."""
-        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-
+    def test_site_title_too_long_rejected(self):
+        """Site title exceeding 30 characters is rejected at schema level."""
+        from pydantic import ValidationError as PydanticValidationError
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
-        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="A" * 31)
-        with pytest.raises(ValidationError) as exc_info:
-            branding_service.update_branding_settings(ru, update)
-        assert exc_info.value.code == "site_title_too_long"
+        with pytest.raises(PydanticValidationError):
+            BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="A" * 31)
 
     def test_site_title_whitespace_only_treated_as_null(self, test_tenant, test_admin_user):
         """Whitespace-only title is normalized to NULL."""

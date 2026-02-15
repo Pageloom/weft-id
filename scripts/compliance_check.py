@@ -15,6 +15,7 @@ Principles checked:
     3. tenant         - SQL queries should filter by tenant_id
     4. api-first      - Service operations should have corresponding API endpoints
     5. authorization  - Web routes have proper auth dependencies matching pages.py
+    6. input-length   - All str fields in Pydantic input schemas must have max_length
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -276,10 +277,10 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
                             line_number=node.lineno,
                             function_name=node.name,
                             description=(
-                                "Service function with RequestingUser " "missing track_activity()"
+                                "Service function with RequestingUser missing track_activity()"
                             ),
                             evidence=(
-                                f"Function {node.name} has RequestingUser " "but no tracking call"
+                                f"Function {node.name} has RequestingUser but no tracking call"
                             ),
                             suggested_fix=(
                                 "Add track_activity() at function start:\n"
@@ -785,9 +786,7 @@ def check_authorization_violations(report: ComplianceReport) -> None:
                         f"Pages requiring auth: "
                         f"{[p[0] for p in matching_pages if p[1] != 'PUBLIC'][:3]}"
                     ),
-                    suggested_fix=(
-                        f"Add dependencies=[Depends({max_required_auth})] to APIRouter"
-                    ),
+                    suggested_fix=(f"Add dependencies=[Depends({max_required_auth})] to APIRouter"),
                 )
             )
         elif router_auth is not None:
@@ -807,12 +806,9 @@ def check_authorization_violations(report: ComplianceReport) -> None:
                         function_name=None,
                         description=f"Router '{prefix}' has insufficient auth level",
                         evidence=(
-                            f"Router uses {router_auth} but minimum required is "
-                            f"{min_required_auth}"
+                            f"Router uses {router_auth} but minimum required is {min_required_auth}"
                         ),
-                        suggested_fix=(
-                            f"Change router dependency to Depends({min_required_auth})"
-                        ),
+                        suggested_fix=(f"Change router dependency to Depends({min_required_auth})"),
                     )
                 )
             elif not uses_route_level_checks:
@@ -934,6 +930,159 @@ def _parse_api_router_call(call_node: ast.Call) -> dict | None:
 
 
 # =============================================================================
+# Principle 6: Input Length Validation
+# =============================================================================
+
+# Schema class name patterns that indicate input schemas (vs response schemas)
+INPUT_SCHEMA_PATTERNS = re.compile(
+    r"(Create|Update|Import|Request|Add|Remove|Assign|Establish|Reimport|Save|Verify|Form|Params)$"
+)
+
+
+def check_input_length_violations(report: ComplianceReport) -> None:
+    """
+    Check that all str fields in Pydantic input schemas have max_length.
+
+    Scans app/schemas/*.py for BaseModel subclasses whose names match input
+    schema patterns, then checks each str or str | None field for max_length
+    in Field() metadata.
+    """
+    schemas_path = get_app_path() / "schemas"
+
+    if not schemas_path.exists():
+        return
+
+    for py_file in schemas_path.glob("*.py"):
+        if py_file.name.startswith("__"):
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+
+            # Check if this is a BaseModel subclass
+            is_basemodel = any(
+                (isinstance(base, ast.Name) and base.id == "BaseModel")
+                or (isinstance(base, ast.Attribute) and base.attr == "BaseModel")
+                for base in node.bases
+            )
+            if not is_basemodel:
+                continue
+
+            # Check if name matches input schema patterns
+            if not INPUT_SCHEMA_PATTERNS.search(node.name):
+                continue
+
+            # Skip response schemas that have from_attributes=True
+            if _has_from_attributes(node):
+                continue
+
+            # Check each field annotation for str types missing max_length
+            for item in node.body:
+                if not isinstance(item, ast.AnnAssign) or not isinstance(item.target, ast.Name):
+                    continue
+
+                field_name = item.target.id
+                annotation = item.annotation
+
+                if not _is_str_annotation(annotation):
+                    continue
+
+                # Check if Field() call has max_length
+                if item.value and _has_max_length(item.value):
+                    continue
+
+                report.add(
+                    Violation(
+                        principle="Input Length Validation",
+                        severity="high",
+                        file_path=str(py_file.relative_to(get_project_root())),
+                        line_number=item.lineno,
+                        function_name=None,
+                        description=(
+                            f"Input schema {node.name}.{field_name} missing max_length constraint"
+                        ),
+                        evidence=f"Field '{field_name}' is str without max_length",
+                        suggested_fix=(
+                            f"Add max_length to Field(): "
+                            f"{field_name}: str = Field(..., max_length=N)"
+                        ),
+                    )
+                )
+
+
+def _has_from_attributes(class_node: ast.ClassDef) -> bool:
+    """Check if a class has model_config with from_attributes=True (response schema)."""
+    for item in class_node.body:
+        # model_config = ConfigDict(from_attributes=True)
+        if isinstance(item, ast.Assign):
+            for target in item.targets:
+                if isinstance(target, ast.Name) and target.id == "model_config":
+                    source = ast.unparse(item.value) if hasattr(ast, "unparse") else ""
+                    if "from_attributes" in source:
+                        return True
+    return False
+
+
+def _is_str_annotation(annotation: ast.expr) -> bool:
+    """Check if an annotation represents a str or str | None type."""
+    if isinstance(annotation, ast.Name) and annotation.id == "str":
+        return True
+
+    # str | None (BinOp with | operator)
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        return _is_str_annotation(annotation.left) or _is_str_annotation(annotation.right)
+
+    # Optional[str] or Annotated[str, ...]
+    if isinstance(annotation, ast.Subscript):
+        if isinstance(annotation.value, ast.Name):
+            if annotation.value.id in ("Optional", "Annotated"):
+                # For Annotated, we trust that the annotation itself has max_length
+                if annotation.value.id == "Annotated":
+                    return False
+                if isinstance(annotation.slice, ast.Name) and annotation.slice.id == "str":
+                    return True
+                if isinstance(annotation.slice, ast.Tuple) and annotation.slice.elts:
+                    first = annotation.slice.elts[0]
+                    if isinstance(first, ast.Name) and first.id == "str":
+                        return True
+        return False
+
+    return False
+
+
+def _has_max_length(value: ast.expr) -> bool:
+    """Check if a Field() call includes max_length."""
+    if not isinstance(value, ast.Call):
+        return False
+
+    # Check if it's a Field() call
+    func = value.func
+    is_field = (isinstance(func, ast.Name) and func.id == "Field") or (
+        isinstance(func, ast.Attribute) and func.attr == "Field"
+    )
+
+    if not is_field:
+        return False
+
+    # Check keyword arguments for max_length
+    for kw in value.keywords:
+        if kw.arg == "max_length":
+            return True
+
+    return False
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -955,7 +1104,14 @@ def run_compliance_check(
     """
     report = ComplianceReport()
 
-    all_principles = ["architecture", "activity", "tenant", "api-first", "authorization"]
+    all_principles = [
+        "architecture",
+        "activity",
+        "tenant",
+        "api-first",
+        "authorization",
+        "input-length",
+    ]
     if principles is None:
         principles = all_principles
 
@@ -973,6 +1129,9 @@ def run_compliance_check(
 
     if "authorization" in principles:
         check_authorization_violations(report)
+
+    if "input-length" in principles:
+        check_input_length_violations(report)
 
     return report
 
@@ -1026,7 +1185,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--check",
-        choices=["architecture", "activity", "tenant", "api-first", "authorization", "all"],
+        choices=[
+            "architecture",
+            "activity",
+            "tenant",
+            "api-first",
+            "authorization",
+            "input-length",
+            "all",
+        ],
         default="all",
         help="Which principle to check (default: all)",
     )

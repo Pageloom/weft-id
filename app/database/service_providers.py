@@ -7,7 +7,8 @@ from database._core import TenantArg, execute, fetchall, fetchone
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml, metadata_url,
                slo_url, include_group_claims, sp_requested_attributes,
-               attribute_mapping, enabled, created_by, created_at, updated_at"""
+               attribute_mapping, enabled, trust_established,
+               created_by, created_at, updated_at"""
 
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
@@ -65,9 +66,9 @@ def create_service_provider(
     tenant_id: TenantArg,
     tenant_id_value: str,
     name: str,
-    entity_id: str,
-    acs_url: str,
     created_by: str,
+    entity_id: str | None = None,
+    acs_url: str | None = None,
     certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
@@ -76,6 +77,7 @@ def create_service_provider(
     slo_url: str | None = None,
     sp_requested_attributes: list[dict] | None = None,
     attribute_mapping: dict[str, str] | None = None,
+    trust_established: bool = False,
 ) -> dict | None:
     """Create a new service provider.
 
@@ -89,13 +91,13 @@ def create_service_provider(
             tenant_id, name, description, entity_id, acs_url,
             certificate_pem, nameid_format, metadata_xml, metadata_url,
             slo_url, sp_requested_attributes, attribute_mapping,
-            created_by
+            trust_established, created_by
         )
         values (
             :tenant_id, :name, :description, :entity_id, :acs_url,
             :certificate_pem, :nameid_format, :metadata_xml, :metadata_url,
             :slo_url, :sp_requested_attributes, :attribute_mapping,
-            :created_by
+            :trust_established, :created_by
         )
         returning {_SP_COLUMNS}
         """,
@@ -114,6 +116,7 @@ def create_service_provider(
             if sp_requested_attributes
             else None,
             "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
+            "trust_established": trust_established,
             "created_by": created_by,
         },
     )
@@ -212,6 +215,61 @@ def refresh_sp_metadata_fields(
             "certificate_pem": certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
+            "slo_url": slo_url,
+            "sp_requested_attributes": json.dumps(sp_requested_attributes)
+            if sp_requested_attributes
+            else None,
+            "attribute_mapping": json.dumps(attribute_mapping) if attribute_mapping else None,
+        },
+    )
+
+
+def establish_trust(
+    tenant_id: TenantArg,
+    sp_id: str,
+    entity_id: str,
+    acs_url: str,
+    certificate_pem: str | None = None,
+    nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+    metadata_xml: str | None = None,
+    metadata_url: str | None = None,
+    slo_url: str | None = None,
+    sp_requested_attributes: list[dict] | None = None,
+    attribute_mapping: dict[str, str] | None = None,
+) -> dict | None:
+    """Establish trust with a pending SP by setting entity_id, acs_url, and metadata fields.
+
+    Only updates SPs where trust_established = false.
+
+    Returns:
+        Updated SP dict, or None if not found or already established
+    """
+    return fetchone(
+        tenant_id,
+        f"""
+        update service_providers
+        set entity_id = :entity_id,
+            acs_url = :acs_url,
+            certificate_pem = :certificate_pem,
+            nameid_format = :nameid_format,
+            metadata_xml = :metadata_xml,
+            metadata_url = :metadata_url,
+            slo_url = :slo_url,
+            sp_requested_attributes = :sp_requested_attributes,
+            attribute_mapping = :attribute_mapping,
+            trust_established = true,
+            updated_at = now()
+        where id = :sp_id and trust_established = false
+        returning {_SP_COLUMNS}
+        """,
+        {
+            "sp_id": sp_id,
+            "entity_id": entity_id,
+            "acs_url": acs_url,
+            "certificate_pem": certificate_pem,
+            "nameid_format": nameid_format,
+            "metadata_xml": metadata_xml,
+            "metadata_url": metadata_url,
             "slo_url": slo_url,
             "sp_requested_attributes": json.dumps(sp_requested_attributes)
             if sp_requested_attributes

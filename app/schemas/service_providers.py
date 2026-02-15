@@ -10,11 +10,11 @@ from pydantic import BaseModel, Field
 
 
 class SPCreate(BaseModel):
-    """Manual SP registration."""
+    """Manual SP registration. entity_id and acs_url are optional for step-by-step flow."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    entity_id: str = Field(..., min_length=1)
-    acs_url: str = Field(..., min_length=1)
+    entity_id: str | None = Field(None, min_length=1)
+    acs_url: str | None = Field(None, min_length=1)
     description: str | None = None
     slo_url: str | None = None
 
@@ -31,6 +31,26 @@ class SPMetadataImportURL(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     metadata_url: str = Field(..., min_length=1)
+
+
+class SPEstablishTrustURL(BaseModel):
+    """Establish trust with an SP by fetching its metadata URL."""
+
+    metadata_url: str = Field(..., min_length=1)
+
+
+class SPEstablishTrustXML(BaseModel):
+    """Establish trust with an SP by providing metadata XML."""
+
+    metadata_xml: str = Field(..., min_length=1)
+
+
+class SPEstablishTrustManual(BaseModel):
+    """Establish trust with an SP by manually providing entity_id and acs_url."""
+
+    entity_id: str = Field(..., min_length=1)
+    acs_url: str = Field(..., min_length=1)
+    slo_url: str | None = None
 
 
 class SPUpdate(BaseModel):
@@ -55,8 +75,8 @@ class SPConfig(BaseModel):
     id: str
     name: str
     description: str | None = None
-    entity_id: str
-    acs_url: str
+    entity_id: str | None = None
+    acs_url: str | None = None
     slo_url: str | None = None
     certificate_pem: str | None = None
     nameid_format: str
@@ -66,6 +86,7 @@ class SPConfig(BaseModel):
     metadata_url: str | None = None
     metadata_xml: str | None = None
     enabled: bool = True
+    trust_established: bool = False
     signing_cert_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -76,8 +97,9 @@ class SPListItem(BaseModel):
 
     id: str
     name: str
-    entity_id: str
+    entity_id: str | None = None
     enabled: bool = True
+    trust_established: bool = True
     signing_cert_expires_at: datetime | None = None
     assigned_group_count: int = 0
     created_at: datetime
@@ -195,7 +217,7 @@ class GroupSPAssignment(BaseModel):
     sp_id: str
     group_id: str
     sp_name: str
-    sp_entity_id: str
+    sp_entity_id: str | None = None
     sp_description: str | None = None
     assigned_by: str
     assigned_at: datetime
@@ -226,7 +248,7 @@ class UserApp(BaseModel):
     id: str
     name: str
     description: str | None = None
-    entity_id: str
+    entity_id: str | None = None
 
 
 class UserAppList(BaseModel):

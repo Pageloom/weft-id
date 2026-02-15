@@ -73,7 +73,7 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for sp in service_providers %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700{% if not sp.enabled %} opacity-60{% endif %}">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700{% if not sp.enabled and sp.trust_established %} opacity-60{% endif %}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <a href="/admin/settings/service-providers/{{ sp.id }}"
                                class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
@@ -81,7 +81,9 @@
                             </a>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if sp.enabled %}
+                            {% if not sp.trust_established %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">Setup Required</span>
+                            {% elif sp.enabled %}
                             <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Enabled</span>
                             {% else %}
                             <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300">Disabled</span>

@@ -221,57 +221,30 @@ class TestSPNewPage:
 
 
 class TestSPCreateManual:
-    """Tests for manual SP creation."""
+    """Tests for manual SP creation (name-only, step 1 of trust flow)."""
 
     def test_create_success(self, sp_admin_session, sp_host, sample_sp_config):
-        """Successful manual creation redirects with success."""
+        """Successful name-only creation redirects to detail page."""
         with patch(
             "services.service_providers.create_service_provider",
             return_value=sample_sp_config,
         ):
             response = sp_admin_session.post(
                 "/admin/settings/service-providers/create",
-                data={
-                    "name": "New App",
-                    "entity_id": "https://new.example.com",
-                    "acs_url": "https://new.example.com/acs",
-                },
+                data={"name": "New App"},
                 headers={"Host": sp_host},
                 follow_redirects=False,
             )
 
         assert response.status_code == 303
         assert "success=created" in response.headers["location"]
+        assert f"/service-providers/{sample_sp_config.id}/details" in response.headers["location"]
 
     def test_create_missing_name(self, sp_admin_session, sp_host):
         """Missing name redirects with error."""
         response = sp_admin_session.post(
             "/admin/settings/service-providers/create",
-            data={"name": "", "entity_id": "x", "acs_url": "x"},
-            headers={"Host": sp_host},
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        assert "error=" in response.headers["location"]
-
-    def test_create_missing_entity_id(self, sp_admin_session, sp_host):
-        """Missing entity_id redirects with error."""
-        response = sp_admin_session.post(
-            "/admin/settings/service-providers/create",
-            data={"name": "App", "entity_id": "", "acs_url": "x"},
-            headers={"Host": sp_host},
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        assert "error=" in response.headers["location"]
-
-    def test_create_missing_acs_url(self, sp_admin_session, sp_host):
-        """Missing acs_url redirects with error."""
-        response = sp_admin_session.post(
-            "/admin/settings/service-providers/create",
-            data={"name": "App", "entity_id": "x", "acs_url": ""},
+            data={"name": ""},
             headers={"Host": sp_host},
             follow_redirects=False,
         )

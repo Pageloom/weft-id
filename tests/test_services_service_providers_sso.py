@@ -51,6 +51,7 @@ class TestGetSpByEntityId:
             "acs_url": "https://sp.example.com/acs",
             "certificate_pem": None,
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
         }
@@ -88,6 +89,7 @@ class TestBuildSsoResponse:
             "acs_url": "https://sp.example.com/acs",
             "certificate_pem": None,
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
         }
@@ -182,6 +184,7 @@ class TestBuildSsoResponse:
             "entity_id": "https://sp.example.com",
             "acs_url": "https://sp.example.com/acs",
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
         }
         mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
         mock_db.saml.get_sp_certificate.return_value = None
@@ -366,6 +369,7 @@ class TestBuildSsoResponse:
             "entity_id": "https://sp.example.com",
             "acs_url": "https://sp.example.com/acs",
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
         }
         mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
         mock_db.saml.get_sp_certificate.return_value = None
@@ -462,6 +466,7 @@ class TestBuildSsoResponseAttributeMapping:
             "acs_url": "https://sp.example.com/acs",
             "certificate_pem": None,
             "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
         }

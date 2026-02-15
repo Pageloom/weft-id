@@ -23,6 +23,8 @@
                     Session Expired
                 {% elif error_type == 'no_pending_sso' %}
                     No Pending Sign-In
+                {% elif error_type == 'sp_pending_trust' %}
+                    Application Setup Incomplete
                 {% elif error_type == 'sp_disabled' %}
                     Application Unavailable
                 {% elif error_type == 'unauthorized_user' %}
@@ -45,6 +47,9 @@
                     Your session has expired. Please try signing in again from the application.
                 {% elif error_type == 'no_pending_sso' %}
                     There is no pending sign-in request. Please try again from the application.
+                {% elif error_type == 'sp_pending_trust' %}
+                    This application has not completed its setup with the identity provider.
+                    Please contact your administrator to finish configuring the integration.
                 {% elif error_type == 'sp_disabled' %}
                     This application has been temporarily disabled by your administrator.
                     Please contact your administrator for more information.

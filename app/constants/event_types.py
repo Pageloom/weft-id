@@ -96,6 +96,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "service_provider_enabled": "Downstream service provider enabled",
     "service_provider_disabled": "Downstream service provider disabled",
     "service_provider_deleted": "Downstream service provider removed",
+    "service_provider_trust_established": "Trust established with downstream service provider",
     "sp_metadata_refreshed": "Service provider metadata refreshed from URL",
     "sp_metadata_reimported": "Service provider metadata re-imported from XML",
     "sp_signing_certificate_created": "Per-SP signing certificate generated",

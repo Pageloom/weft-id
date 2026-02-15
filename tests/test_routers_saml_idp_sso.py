@@ -84,6 +84,7 @@ def _sample_sp_config(**overrides: str) -> SPConfig:
             "nameid_format",
             "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         ),
+        trust_established=True,
         created_at=now,
         updated_at=now,
     )
@@ -584,6 +585,8 @@ class TestIdPInitiatedLaunch:
             "id": sp_id,
             "name": "Restricted App",
             "entity_id": "https://restricted.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -616,6 +619,8 @@ class TestIdPInitiatedLaunch:
             "id": sp_id,
             "name": "My App",
             "entity_id": "https://myapp.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -781,6 +786,8 @@ class TestSSOAccessScenarios:
             "id": sp_id,
             "name": "Restricted App",
             "entity_id": "https://restricted.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -813,6 +820,8 @@ class TestSSOAccessScenarios:
             "id": sp_id,
             "name": "My App",
             "entity_id": "https://myapp.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -846,6 +855,8 @@ class TestSSOAccessScenarios:
             "id": sp_id,
             "name": "My App",
             "entity_id": "https://myapp.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -882,6 +893,8 @@ class TestSSOAccessScenarios:
             "id": sp_id,
             "name": "Locked App",
             "entity_id": "https://locked.example.com",
+            "enabled": True,
+            "trust_established": True,
         }
 
         with (
@@ -957,6 +970,7 @@ class TestDisabledSPRejection:
                     "entity_id": "https://disabled-sp.example.com",
                     "name": "Disabled SP",
                     "enabled": False,
+                    "trust_established": True,
                 },
             ),
         ):

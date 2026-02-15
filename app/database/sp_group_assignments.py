@@ -170,6 +170,8 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
         join group_lineage gl on gl.ancestor_id = sga.group_id
         join group_memberships gm on gm.group_id = gl.descendant_id
         where gm.user_id = :user_id
+          and sp.enabled = true
+          and sp.trust_established = true
         order by sp.name
         """,
         {"user_id": user_id},

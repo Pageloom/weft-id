@@ -9,6 +9,9 @@ from schemas.service_providers import (
     IdPMetadataInfo,
     SPConfig,
     SPCreate,
+    SPEstablishTrustManual,
+    SPEstablishTrustURL,
+    SPEstablishTrustXML,
     SPGroupAssignAdd,
     SPGroupAssignmentList,
     SPGroupBulkAssign,
@@ -245,6 +248,75 @@ def delete_service_provider(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         sp_service.delete_service_provider(requesting_user, sp_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Trust Establishment Endpoints
+# =============================================================================
+
+
+@router.post("/{sp_id}/establish-trust/url", response_model=SPConfig)
+def establish_trust_from_url(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: SPEstablishTrustURL,
+):
+    """Establish trust with an SP by fetching its metadata URL.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.establish_trust_from_metadata_url(
+            requesting_user, sp_id, data.metadata_url
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/establish-trust/xml", response_model=SPConfig)
+def establish_trust_from_xml(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: SPEstablishTrustXML,
+):
+    """Establish trust with an SP by providing metadata XML.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.establish_trust_from_metadata_xml(
+            requesting_user, sp_id, data.metadata_xml
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/{sp_id}/establish-trust/manual", response_model=SPConfig)
+def establish_trust_manually(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    data: SPEstablishTrustManual,
+):
+    """Establish trust with an SP by manually providing entity_id and acs_url.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return sp_service.establish_trust_manually(
+            requesting_user,
+            sp_id,
+            entity_id=data.entity_id,
+            acs_url=data.acs_url,
+            slo_url=data.slo_url,
+        )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

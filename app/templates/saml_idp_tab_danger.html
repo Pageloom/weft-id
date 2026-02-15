@@ -1,0 +1,100 @@
+{% extends "saml_idp_base.html" %}
+
+{% block tab_content %}
+{# Enable/Disable Toggle #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 border border-red-200 dark:border-red-800">
+    <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Identity Provider Status</h2>
+
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <p class="text-sm text-gray-900 dark:text-gray-100 font-medium">
+                Authentication via this IdP is currently
+                {% if idp.is_enabled %}
+                <span class="text-green-600 dark:text-green-400">active</span>
+                {% else %}
+                <span class="text-red-600 dark:text-red-400">inactive</span>
+                {% endif %}
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {% if idp.is_enabled %}
+                Disabling will prevent users from authenticating via this IdP. Domain bindings and attribute mappings will be preserved.
+                {% else %}
+                Enabling will allow users to authenticate via this IdP.
+                {% endif %}
+            </p>
+        </div>
+        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/toggle" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if idp.is_enabled %}
+            <button type="submit"
+                    class="confirm-btn px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-600 rounded hover:bg-amber-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    data-confirm="Disable {{ idp.name }}?&#10;&#10;Users will not be able to authenticate via this IdP while it is disabled."
+                    data-destructive="false">
+                Disable
+            </button>
+            {% else %}
+            <button type="submit"
+                    class="px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-300 bg-white dark:bg-gray-800 border border-green-300 dark:border-green-600 rounded hover:bg-green-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                Enable
+            </button>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if not idp.is_default %}
+    <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/set-default" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-600 rounded hover:bg-blue-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Set as Default IdP
+            </button>
+            <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Used when users click "Sign in with SSO"</span>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{# Delete IdP #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
+    <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Identity Provider</h2>
+    {% if idp.is_enabled %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        The identity provider must be disabled before it can be deleted. Disable it first using the toggle above.
+    </p>
+    <button type="button" disabled
+            class="px-4 py-2 text-sm font-medium text-white bg-red-300 dark:bg-red-900 rounded cursor-not-allowed opacity-60">
+        Delete Identity Provider
+    </button>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
+        Deleting this identity provider will remove all configuration including certificate data, attribute mappings, and domain bindings. This cannot be undone.
+    </p>
+    {% if user_count and user_count > 0 %}
+    <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
+        <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+        </svg>
+        {{ user_count }} user(s) are assigned to this IdP. Migrate them first, or they will lose their SSO access.
+    </p>
+    {% endif %}
+    {% if domain_count and domain_count > 0 %}
+    <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
+        <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+        </svg>
+        {{ domain_count }} domain(s) are bound to this IdP. Unbind them first.
+    </p>
+    {% endif %}
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="inline mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                data-confirm="Delete {{ idp.name }}?&#10;&#10;This will remove all configuration, attribute mappings, and domain bindings. This cannot be undone."
+                data-destructive="true">
+            Delete Identity Provider
+        </button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

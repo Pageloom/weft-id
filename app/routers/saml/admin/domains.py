@@ -34,17 +34,17 @@ def bind_domain(
         saml_service.bind_domain_to_idp(requesting_user, idp_id, domain_id)
     except NotFoundError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url=f"/admin/settings/identity-providers/{idp_id}?success=domain_bound",
+        url=f"/admin/settings/identity-providers/{idp_id}/details?success=domain_bound",
         status_code=303,
     )
 
@@ -67,16 +67,16 @@ def unbind_domain(
         saml_service.unbind_domain_from_idp(requesting_user, domain_id)
     except NotFoundError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
+            url=f"/admin/settings/identity-providers/{idp_id}/details?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url=f"/admin/settings/identity-providers/{idp_id}?success=domain_unbound",
+        url=f"/admin/settings/identity-providers/{idp_id}/details?success=domain_unbound",
         status_code=303,
     )

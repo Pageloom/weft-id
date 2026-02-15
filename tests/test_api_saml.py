@@ -295,6 +295,12 @@ def test_delete_idp_as_super_admin(
     )
     idp_id = create_response.json()["id"]
 
+    # Disable before deleting (delete requires IdP to be disabled)
+    client.post(
+        f"/api/v1/saml/idps/{idp_id}/disable",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
     # Delete
     response = client.delete(
         f"/api/v1/saml/idps/{idp_id}",

@@ -302,6 +302,13 @@ def delete_identity_provider(
             code="idp_not_found",
         )
 
+    # Safety check: Block deletion of enabled IdPs
+    if existing.get("is_enabled"):
+        raise ConflictError(
+            message="Cannot delete an enabled identity provider. Disable it first.",
+            code="idp_is_enabled",
+        )
+
     # Security check: Block if users are assigned to this IdP
     user_count = database.saml.count_users_with_idp(tenant_id, idp_id)
     if user_count > 0:

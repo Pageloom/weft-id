@@ -1,5 +1,6 @@
 """Admin endpoints for IdP management (CRUD operations and certificate rotation)."""
 
+import logging
 from typing import Annotated
 
 from dependencies import (
@@ -11,6 +12,7 @@ from dependencies import (
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pages import has_page_access
 from routers.saml._helpers import get_base_url
 from schemas.saml import IdPCreate, IdPUpdate
 from services import saml as saml_service
@@ -18,8 +20,24 @@ from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.saml import extract_idp_advertised_attributes
 from utils.template_context import get_template_context
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+IDP_LIST_URL = "/admin/settings/identity-providers"
+
+
+def _load_idp_common(request: Request, tenant_id: str, user: dict, idp_id: str):
+    """Load IdP config for the tab bar. Returns (idp, requesting_user)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    idp = saml_service.get_identity_provider(requesting_user, idp_id)
+    return idp, requesting_user
+
+
+# =============================================================================
+# IdP List, New, Create, Import
+# =============================================================================
 
 
 @router.get(
@@ -78,7 +96,7 @@ def new_idp_form(
     return templates.TemplateResponse(
         request,
         "saml_idp_form.html",
-        get_template_context(request, tenant_id, idp=None, error=error),
+        get_template_context(request, tenant_id, error=error),
     )
 
 
@@ -134,18 +152,16 @@ def create_idp(
         saml_service.create_identity_provider(requesting_user, data, base_url)
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={e.message}",
+            url=f"{IDP_LIST_URL}/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={str(e)}",
+            url=f"{IDP_LIST_URL}/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=created", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
 
 
 @router.post(
@@ -170,18 +186,16 @@ def import_from_metadata(
         )
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={e.message}",
+            url=f"{IDP_LIST_URL}/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={str(e)}",
+            url=f"{IDP_LIST_URL}/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=created", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
 
 
 @router.post(
@@ -206,18 +220,16 @@ def import_from_metadata_xml(
         )
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={e.message}",
+            url=f"{IDP_LIST_URL}/new?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/new?error={str(e)}",
+            url=f"{IDP_LIST_URL}/new?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=created", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
 
 
 # NOTE: Literal routes must be defined BEFORE parameterized routes like {idp_id}
@@ -240,18 +252,21 @@ def rotate_certificate(
         saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
     except NotFoundError:
         return RedirectResponse(
-            url="/admin/settings/identity-providers?error=No+SP+certificate+exists+to+rotate",
+            url=f"{IDP_LIST_URL}?error=No+SP+certificate+exists+to+rotate",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers?error={str(e)}",
+            url=f"{IDP_LIST_URL}?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=rotated", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}?success=rotated", status_code=303)
+
+
+# =============================================================================
+# IdP Detail - Redirect + Tab Routes
+# =============================================================================
 
 
 @router.get(
@@ -259,123 +274,357 @@ def rotate_certificate(
     response_class=HTMLResponse,
     dependencies=[Depends(require_super_admin)],
 )
-def edit_idp_form(
+def idp_detail_redirect(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
 ):
-    """Display form to edit an identity provider."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-    base_url = get_base_url(request)
+    """Redirect to the Details tab."""
+    if not has_page_access("/admin/settings/identity-providers/idp", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details", status_code=303)
+
+
+@router.get(
+    "/admin/settings/identity-providers/{idp_id}/details",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def idp_tab_details(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Details tab: name, provider type, entity ID, SSO/SLO URLs, settings, connection test."""
+    if not has_page_access("/admin/settings/identity-providers/idp/details", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
-        idp = saml_service.get_identity_provider(requesting_user, idp_id)
-        sp_metadata = saml_service.get_sp_metadata(requesting_user, base_url)
-
-        # Get domain bindings for this IdP and unbound domains for binding
+        idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+        sp_metadata = saml_service.get_sp_metadata(requesting_user, get_base_url(request))
         domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
         unbound_domains = saml_service.get_unbound_domains(requesting_user)
-
     except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
-        )
-    except ServiceError as e:
-        return RedirectResponse(
-            url=f"/admin/settings/identity-providers?error={str(e)}",
-            status_code=303,
-        )
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to get IdP: %s", exc)
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
 
-    # Extract advertised attributes from stored metadata XML
+    context = get_template_context(
+        request,
+        tenant_id,
+        idp=idp,
+        sp_metadata=sp_metadata,
+        domain_bindings=domain_bindings.items,
+        unbound_domains=unbound_domains,
+        active_tab="details",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "saml_idp_tab_details.html", context)
+
+
+@router.get(
+    "/admin/settings/identity-providers/{idp_id}/certificates",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def idp_tab_certificates(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Certificates tab: IdP certificate with expandable PEM, SP certificate info."""
+    if not has_page_access("/admin/settings/identity-providers/idp/certificates", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to get IdP: %s", exc)
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+
+    sp_certificate = None
+    try:
+        sp_certificate = saml_service.get_or_create_sp_certificate(requesting_user)
+    except ServiceError:
+        pass
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        idp=idp,
+        sp_certificate=sp_certificate,
+        active_tab="certificates",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "saml_idp_tab_certificates.html", context)
+
+
+@router.get(
+    "/admin/settings/identity-providers/{idp_id}/attributes",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def idp_tab_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Attributes tab: attribute mapping table with presets."""
+    if not has_page_access("/admin/settings/identity-providers/idp/attributes", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to get IdP: %s", exc)
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+
     advertised_attributes: list[dict[str, str]] = []
     if idp.metadata_xml:
         advertised_attributes = extract_idp_advertised_attributes(idp.metadata_xml)
 
-    error = request.query_params.get("error")
-    success = request.query_params.get("success")
-
-    return templates.TemplateResponse(
+    context = get_template_context(
         request,
-        "saml_idp_form.html",
-        get_template_context(
-            request,
-            tenant_id,
-            idp=idp,
-            sp_metadata=sp_metadata,
-            advertised_attributes=advertised_attributes,
-            domain_bindings=domain_bindings.items,
-            unbound_domains=unbound_domains,
-            error=error,
-            success=success,
-        ),
+        tenant_id,
+        idp=idp,
+        advertised_attributes=advertised_attributes,
+        active_tab="attributes",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
     )
+    return templates.TemplateResponse(request, "saml_idp_tab_attributes.html", context)
+
+
+@router.get(
+    "/admin/settings/identity-providers/{idp_id}/metadata",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def idp_tab_metadata(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Metadata tab: re-import from URL or XML, last sync status."""
+    if not has_page_access("/admin/settings/identity-providers/idp/metadata", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to get IdP: %s", exc)
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        idp=idp,
+        active_tab="metadata",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "saml_idp_tab_metadata.html", context)
+
+
+@router.get(
+    "/admin/settings/identity-providers/{idp_id}/danger",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def idp_tab_danger(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Danger tab: enable/disable toggle, set default, delete."""
+    if not has_page_access("/admin/settings/identity-providers/idp/danger", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    try:
+        idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+        domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as exc:
+        logger.warning("Failed to get IdP: %s", exc)
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
+
+    context = get_template_context(
+        request,
+        tenant_id,
+        idp=idp,
+        domain_count=len(domain_bindings.items),
+        active_tab="danger",
+        success=request.query_params.get("success"),
+        error=request.query_params.get("error"),
+    )
+    return templates.TemplateResponse(request, "saml_idp_tab_danger.html", context)
+
+
+# =============================================================================
+# IdP Detail - POST Handlers
+# =============================================================================
 
 
 @router.post(
-    "/admin/settings/identity-providers/{idp_id}",
+    "/admin/settings/identity-providers/{idp_id}/edit",
     dependencies=[Depends(require_super_admin)],
 )
-def update_idp(
+def edit_idp_name(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
     name: Annotated[str, Form()],
-    sso_url: Annotated[str, Form()],
-    certificate_pem: Annotated[str, Form()],
-    slo_url: Annotated[str, Form()] = "",
-    metadata_url: Annotated[str, Form()] = "",
+):
+    """Update IdP name (inline edit from details tab)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.update_identity_provider(requesting_user, idp_id, IdPUpdate(name=name))
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/edit-settings",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_idp_settings(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    require_platform_mfa: Annotated[bool, Form()] = False,
+    jit_provisioning: Annotated[bool, Form()] = False,
+):
+    """Update IdP settings (MFA, JIT provisioning)."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.update_identity_provider(
+            requesting_user,
+            idp_id,
+            IdPUpdate(
+                require_platform_mfa=require_platform_mfa,
+                jit_provisioning=jit_provisioning,
+            ),
+        )
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/edit-attributes",
+    dependencies=[Depends(require_super_admin)],
+)
+def edit_idp_attributes(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
     attr_email: Annotated[str, Form()] = "email",
     attr_first_name: Annotated[str, Form()] = "firstName",
     attr_last_name: Annotated[str, Form()] = "lastName",
     attr_groups: Annotated[str, Form()] = "groups",
-    is_enabled: Annotated[bool, Form()] = False,
-    is_default: Annotated[bool, Form()] = False,
-    require_platform_mfa: Annotated[bool, Form()] = False,
-    jit_provisioning: Annotated[bool, Form()] = False,
 ):
-    """Update an identity provider."""
+    """Update IdP attribute mapping."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
-    data = IdPUpdate(
-        name=name,
-        sso_url=sso_url,
-        slo_url=slo_url or None,
-        certificate_pem=certificate_pem,
-        metadata_url=metadata_url or None,
-        attribute_mapping={
-            "email": attr_email,
-            "first_name": attr_first_name,
-            "last_name": attr_last_name,
-            "groups": attr_groups,
-        },
-        require_platform_mfa=require_platform_mfa,
-        jit_provisioning=jit_provisioning,
-    )
-
     try:
-        saml_service.update_identity_provider(requesting_user, idp_id, data)
-
-        # Handle enable/disable and default separately
-        idp = saml_service.get_identity_provider(requesting_user, idp_id)
-        if idp.is_enabled != is_enabled:
-            saml_service.set_idp_enabled(requesting_user, idp_id, is_enabled)
-        if is_default and not idp.is_default:
-            saml_service.set_idp_default(requesting_user, idp_id)
-
-    except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
+        saml_service.update_identity_provider(
+            requesting_user,
+            idp_id,
+            IdPUpdate(
+                attribute_mapping={
+                    "email": attr_email,
+                    "first_name": attr_first_name,
+                    "last_name": attr_last_name,
+                    "groups": attr_groups,
+                }
+            ),
         )
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
-            status_code=303,
+            url=f"{IDP_LIST_URL}/{idp_id}/attributes?error={str(e)}", status_code=303
         )
 
     return RedirectResponse(
-        url=f"/admin/settings/identity-providers/{idp_id}?success=updated", status_code=303
+        url=f"{IDP_LIST_URL}/{idp_id}/attributes?success=attributes_updated", status_code=303
+    )
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/reimport-metadata",
+    dependencies=[Depends(require_super_admin)],
+)
+def reimport_idp_metadata(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    metadata_xml: Annotated[str, Form()],
+):
+    """Re-import IdP metadata from pasted XML."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        # Verify IdP exists before parsing
+        saml_service.get_identity_provider(requesting_user, idp_id)
+        # Parse the new XML and update
+        parsed = saml_service.parse_idp_metadata_xml_to_schema(metadata_xml)
+        saml_service.update_identity_provider(
+            requesting_user,
+            idp_id,
+            IdPUpdate(
+                sso_url=parsed.sso_url,
+                slo_url=parsed.slo_url,
+                certificate_pem=parsed.certificate_pem,
+            ),
+        )
+    except NotFoundError:
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
+    except ValidationError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}", status_code=303
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed", status_code=303
     )
 
 
@@ -396,18 +645,16 @@ def toggle_idp(
         idp = saml_service.get_identity_provider(requesting_user, idp_id)
         saml_service.set_idp_enabled(requesting_user, idp_id, not idp.is_enabled)
     except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
-        )
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers?error={str(e)}",
+            url=f"{IDP_LIST_URL}?error={str(e)}",
             status_code=303,
         )
 
     success = "enabled" if not idp.is_enabled else "disabled"
     return RedirectResponse(
-        url=f"/admin/settings/identity-providers?success={success}", status_code=303
+        url=f"{IDP_LIST_URL}/{idp_id}/danger?success={success}", status_code=303
     )
 
 
@@ -427,18 +674,14 @@ def set_default_idp(
     try:
         saml_service.set_idp_default(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
-        )
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers?error={str(e)}",
+            url=f"{IDP_LIST_URL}?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=set_default", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/danger?success=updated", status_code=303)
 
 
 @router.post(
@@ -457,22 +700,20 @@ def refresh_idp_metadata(
     try:
         saml_service.refresh_idp_from_metadata(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
-        )
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ValidationError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={e.message}",
+            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={e.message}",
             status_code=303,
         )
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers/{idp_id}?error={str(e)}",
+            url=f"{IDP_LIST_URL}/{idp_id}/metadata?error={str(e)}",
             status_code=303,
         )
 
     return RedirectResponse(
-        url="/admin/settings/identity-providers?success=refreshed", status_code=303
+        url=f"{IDP_LIST_URL}/{idp_id}/metadata?success=refreshed", status_code=303
     )
 
 
@@ -492,15 +733,11 @@ def delete_idp(
     try:
         saml_service.delete_identity_provider(requesting_user, idp_id)
     except NotFoundError:
-        return RedirectResponse(
-            url="/admin/settings/identity-providers?error=not_found", status_code=303
-        )
+        return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as e:
         return RedirectResponse(
-            url=f"/admin/settings/identity-providers?error={str(e)}",
+            url=f"{IDP_LIST_URL}?error={str(e)}",
             status_code=303,
         )
 
-    return RedirectResponse(
-        url="/admin/settings/identity-providers?success=deleted", status_code=303
-    )
+    return RedirectResponse(url=f"{IDP_LIST_URL}?success=deleted", status_code=303)

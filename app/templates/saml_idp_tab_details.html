@@ -1,0 +1,228 @@
+{% extends "saml_idp_base.html" %}
+
+{% block tab_content %}
+{# IdP Configuration #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <dl class="grid grid-cols-1 gap-4">
+        <div class="flex items-start justify-between">
+            <div class="min-w-0 flex-1">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</dt>
+                <dd id="name-display" class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ idp.name }}</dd>
+            </div>
+            <button type="button" id="edit-name-btn"
+                    class="ml-2 mt-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                    title="Edit name">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                </svg>
+            </button>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Provider Type</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                {% if idp.provider_type == 'okta' %}Okta
+                {% elif idp.provider_type == 'azure_ad' %}Azure AD
+                {% elif idp.provider_type == 'google' %}Google Workspace
+                {% else %}Generic SAML{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Entity ID</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ idp.entity_id }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SSO URL</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono break-all">{{ idp.sso_url }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SLO URL</dt>
+            <dd class="mt-1 text-sm text-gray-{% if idp.slo_url %}900 dark:text-gray-100 font-mono break-all{% else %}500 dark:text-gray-400 italic{% endif %}">{{ idp.slo_url or 'Not configured' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>
+            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100">{{ fmt_datetime(idp.created_at) }}</dd>
+        </div>
+    </dl>
+</div>
+
+{# Settings #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Settings</h2>
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-settings">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="space-y-4">
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
+                           {% if idp.require_platform_mfa %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="require_platform_mfa" class="text-sm font-medium text-gray-700 dark:text-gray-300">Require Platform MFA</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Users must complete additional MFA after SAML authentication</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="jit_provisioning" name="jit_provisioning"
+                           {% if idp.jit_provisioning %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Automatically create user accounts on first SAML login</p>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        <svg class="w-3 h-3 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        Users will be created as Members with no password (SAML-only login)
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-6">
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+{# Connection Testing #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Test your SAML configuration by performing a real authentication flow without creating a session.
+    </p>
+    <button type="button" id="test-connection-btn"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <svg class="w-4 h-4 inline-block mr-2 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Test Connection
+    </button>
+    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Opens in a new window. You'll authenticate with the IdP and see the parsed assertion details.
+    </p>
+</div>
+
+{# Share with your IdP #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Share with your IdP</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Normally you only need to provide the metadata URL
+    </p>
+    <div class="space-y-3 bg-gray-50 dark:bg-gray-700 p-4 rounded-md">
+        <div>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Entity ID:</span>
+            <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_entity_id }}</code>
+        </div>
+        <div>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">ACS URL:</span>
+            <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_acs_url }}</code>
+        </div>
+        {% if sp_metadata %}
+        <div>
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Metadata URL:</span>
+            <code id="sp-metadata-url" class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ sp_metadata.metadata_url }}</code>
+            <button type="button" id="copy-sp-metadata-url"
+                    class="ml-2 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                Copy
+            </button>
+            <a href="/saml/metadata" target="_blank" class="ml-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">View XML</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# Domain Bindings #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Domain Bindings</h2>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        When a user's email domain matches a bound domain, they will be automatically routed to this IdP for authentication.
+    </p>
+
+    {% if domain_bindings %}
+    <div class="space-y-2 mb-4">
+        {% for binding in domain_bindings %}
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+            <span class="text-sm text-gray-900 dark:text-gray-100 font-medium">{{ binding.domain_name }}</span>
+            <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/unbind-domain/{{ binding.domain_id }}" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="confirm-btn text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                        data-confirm="Unbind {{ binding.domain_name }} from {{ idp.name }}?&#10;&#10;Users with this email domain will no longer be auto-routed to this IdP."
+                        data-destructive="false">
+                    Unbind
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">No domains bound to this IdP.</p>
+    {% endif %}
+
+    {% if unbound_domains %}
+    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/bind-domain" class="flex items-end gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-1">
+            <label for="domain_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bind a domain</label>
+            <select id="domain_id" name="domain_id"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {% for domain in unbound_domains %}
+                <option value="{{ domain.id }}">{{ domain.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit"
+                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+            Bind
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+{# Edit Name Modal #}
+<div id="edit-name-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 border border-gray-200 dark:border-gray-700">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit Name</h3>
+        <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="edit-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input type="text" id="edit-name-input" name="name" value="{{ idp.name }}" required
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-name-btn"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    document.getElementById('edit-name-btn').addEventListener('click', function() {
+        WeftUtils.showModal('edit-name-modal');
+    });
+    document.getElementById('cancel-name-btn').addEventListener('click', function() {
+        WeftUtils.hideModal('edit-name-modal');
+    });
+    document.getElementById('test-connection-btn')?.addEventListener('click', function() {
+        window.open('/admin/settings/identity-providers/{{ idp.id }}/test', 'saml_test', 'width=600,height=700');
+    });
+})();
+</script>
+{% endblock %}

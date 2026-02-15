@@ -6,31 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## IdP List View UX Overhaul
-
-**User Story:**
-As a super admin
-I want a clean, scannable identity providers list
-So that I can quickly see the status of all configured IdPs without visual clutter
-
-**Context:**
-
-The current IdP list view has accumulated UI elements that belong elsewhere or are no longer needed. The prominent blue "share this metadata URL" box dominates the page but is only needed during IdP setup (and is better placed on the IdP detail page). The actions column duplicates options already available on the detail page. The metadata sync timestamp is shown as an absolute datetime rather than a human-friendly relative time.
-
-**Acceptance Criteria:**
-
-- [ ] Remove the SP metadata URL information box from the list page (this information lives on each IdP's detail page under "Share with your IdP")
-- [ ] Make the list view full-width (remove max-width constraint, use the full content area)
-- [ ] Show metadata sync time as relative time (e.g., "synced 2 hours ago", "synced 3 days ago") with the absolute timestamp available on hover/tooltip
-- [ ] Remove the "Actions" column entirely (Edit, Toggle, Set Default, Delete are all available on the detail page)
-- [ ] Each row links to the detail page (click anywhere on the row, or click the name)
-- [ ] All existing tests continue to pass
-
-**Effort:** S
-**Value:** Medium (Cleaner admin experience, removes redundant UI)
-
----
-
 ## IdP Detail Page UX Overhaul
 
 **User Story:**
@@ -359,6 +334,68 @@ So that I can use the data for auditing, compliance reporting, and operational t
 
 **Effort:** S
 **Value:** High (Frequently needed for compliance and operations, low implementation cost)
+
+---
+
+## Standardize List Row Navigation and Full-Width Layout
+
+**User Story:**
+As a super admin
+I want all list views to use the same navigation pattern (name column as a link) and full-width layout
+So that the UI is consistent and predictable across the entire admin experience
+
+**Context:**
+
+The app currently uses three different patterns for navigating from a list row to a detail page:
+1. Name/title column as an `<a href>` link (preferred, used by IdP list, SP list, Groups list)
+2. Action column with icon links (Users list, OAuth2 Apps, B2B Clients, SAML Debug)
+3. Clickable row via JavaScript with `data-href` (Event Log)
+
+The standard should be pattern 1: make the name or primary identifier column a standard `<a href>` link. This is the most accessible, requires no JavaScript, works with browser features (open in new tab, copy link), and follows web conventions.
+
+Additionally, list pages use inconsistent width constraints. Some use `mx-auto px-4 py-8` (full width), others use `max-w-6xl` or `max-w-4xl`. All list views should use `{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}` for full-width layout since tables benefit from horizontal space.
+
+**Audit of current state:**
+
+| Template | Navigation Pattern | Width | Needs Fix? |
+|---|---|---|---|
+| IdP List (`saml_idp_list.html`) | Link on name | `mx-auto px-4 py-8` | No |
+| SP List (`saml_idp_sp_list.html`) | Link on name | `mx-auto px-4 py-8` | No |
+| Users List (`users_list.html`) | Action column icon | `mx-auto px-4 py-8` | Nav only |
+| Groups List (`groups_list.html`) | Link on name | `max-w-6xl` (default) | Width only |
+| Group Members (`groups_members.html`) | Action column (Remove) | `mx-auto px-4 py-8` | N/A (no detail page) |
+| OAuth2 Apps (`integrations_apps.html`) | Action column icon | `max-w-6xl` (default) | Both |
+| B2B Clients (`integrations_b2b.html`) | Action column icon | `max-w-6xl` (default) | Both |
+| Event Log (`admin_events.html`) | Clickable row via JS | `w-full` (custom) | Nav only |
+| SAML Debug (`saml_debug_list.html`) | Action column link | `max-w-6xl` (default) | Both |
+| Background Jobs (`account_background_jobs.html`) | Links in output column | `w-full` (custom) | Width OK, nav N/A |
+| Reactivation Requests (`admin_reactivation_requests.html`) | Action buttons | `max-w-4xl` (default) | Width only (no detail page) |
+| Reactivation History (`admin_reactivation_history.html`) | None (read-only) | `max-w-4xl` (default) | Width only |
+
+**Acceptance Criteria:**
+
+Navigation pattern (make name/primary identifier a link):
+- [ ] Users list: make user name column an `<a href>` to user detail page, remove action column icon
+- [ ] OAuth2 Apps: make app name column an `<a href>` to app detail page, remove action column arrow
+- [ ] B2B Clients: make client name column an `<a href>` to client detail page, remove action column arrow
+- [ ] Event Log: make event type or timestamp an `<a href>` to event detail, remove `clickable-row` JS pattern
+- [ ] SAML Debug: make timestamp or error type an `<a href>` to debug detail, remove action column "View Details" link
+
+Full-width layout (`{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}`):
+- [ ] Groups list
+- [ ] OAuth2 Apps
+- [ ] B2B Clients
+- [ ] SAML Debug
+- [ ] Reactivation Requests
+- [ ] Reactivation History
+
+Post-implementation:
+- [ ] Update skill references (e.g., `.claude/references/`) to document the standard list pattern
+- [ ] All existing tests continue to pass
+- [ ] No JavaScript required for basic list navigation
+
+**Effort:** M
+**Value:** Medium (Consistency, accessibility, maintainability)
 
 ---
 

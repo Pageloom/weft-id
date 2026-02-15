@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## IdP List View UX Overhaul
+
+**Status:** Complete
+
+**Resolution:** Streamlined the IdP list view by removing redundant UI elements and improving the presentation. Removed the SP metadata URL information box (now only on IdP detail page), removed the actions column (all actions available on detail page), made the list full-width for better scanning, converted metadata sync timestamps to relative time with hover tooltip for absolute time, and made each row clickable to navigate to the detail page.
+
+**User Story:**
+As a super admin
+I want a clean, scannable identity providers list
+So that I can quickly see the status of all configured IdPs without visual clutter
+
+**Acceptance Criteria:**
+
+- [x] Remove the SP metadata URL information box from the list page (this information lives on each IdP's detail page under "Share with your IdP")
+- [x] Make the list view full-width (remove max-width constraint, use the full content area)
+- [x] Show metadata sync time as relative time (e.g., "synced 2 hours ago", "synced 3 days ago") with the absolute timestamp available on hover/tooltip
+- [x] Remove the "Actions" column entirely (Edit, Toggle, Set Default, Delete are all available on the detail page)
+- [x] Each row links to the detail page (click anywhere on the row, or click the name)
+- [x] All existing tests continue to pass
+
+**Effort:** S
+**Value:** Medium (Cleaner admin experience, removes redundant UI)
+
+---
+
 ## Default Attribute Names
 
 **Status:** Complete

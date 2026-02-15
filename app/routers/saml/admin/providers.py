@@ -34,18 +34,9 @@ def list_idps(
 ):
     """List identity providers for admin management."""
     requesting_user = build_requesting_user(user, tenant_id, request)
-    base_url = get_base_url(request)
 
     try:
         idp_list = saml_service.list_identity_providers(requesting_user)
-
-        # Get SP metadata if certificate exists
-        sp_metadata = None
-        try:
-            sp_metadata = saml_service.get_sp_metadata(requesting_user, base_url)
-        except (NotFoundError, ServiceError):
-            pass  # No SP cert yet
-
     except ServiceError as e:
         return templates.TemplateResponse(
             request,
@@ -65,7 +56,6 @@ def list_idps(
             request,
             tenant_id,
             idps=idp_list.items,
-            sp_metadata=sp_metadata,
             success=success,
             error=error,
         ),

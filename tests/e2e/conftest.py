@@ -14,11 +14,7 @@ import subprocess
 import sys
 
 import pytest
-
-# Ensure helpers are importable
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]))
-
-from helpers.maildev import clear_emails, extract_otp_code, get_latest_email, is_available
+from helpers.maildev import clear_emails, is_available
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -130,61 +126,19 @@ def browser_context_args(browser_context_args):
 
 @pytest.fixture()
 def login(page):
-    """Return a function that logs a user in via the multi-step email+password flow.
+    """Return a function that logs a user in via the dev-only instant login endpoint.
 
     Usage:
         login(base_url, email, password)
 
-    The function navigates the browser through:
-        1. Email entry -> send verification code
-        2. Capture code from MailDev
-        3. Enter code -> verify email ownership
-        4. Password entry -> authenticate
-
-    After login, the browser is on whatever page the server redirects to
-    (dashboard, consent page, etc.).
+    Uses GET /dev/login?email=... to set a session cookie and redirect
+    to /dashboard. The full multi-step login flow is tested separately
+    in test_login.py.
     """
 
-    def _login(base_url: str, email: str, password: str):
-        # Clear maildev inbox for this recipient before starting
-        clear_emails()
-
-        # Step 1: Navigate to login page and enter email
-        page.goto(f"{base_url}/login")
-        page.locator("#email").fill(email)
-        page.locator("#emailForm button[type='submit']").click()
-
-        # Step 2: Wait for email verification page
-        page.wait_for_url("**/login/verify**")
-
-        # Step 3: Capture verification code from MailDev
-        mail = get_latest_email(to=email, timeout=10.0)
-        assert mail is not None, f"No verification email received for {email}"
-        code = extract_otp_code(mail)
-        assert code is not None, "Could not extract verification code from email"
-
-        # Step 4: Enter verification code
-        page.locator("#code").fill(code)
-        page.locator("#verifyCodeForm button[type='submit']").click()
-
-        # Step 5: After code verification, determine_auth_route() decides next step.
-        # For password-based users, it redirects to /login?show_password=true.
-        # For SAML users, it redirects to /saml/login/{idp_id} which then
-        # redirects to the IdP SSO endpoint.
-        # We wait for whichever page loads next.
-        page.wait_for_load_state("networkidle")
-
-        # If we landed on the password form, fill it in and handle MFA
-        if "/login" in page.url and "show_password" in page.url:
-            page.locator("input[name='password']").fill(password)
-            page.locator("#loginForm button[type='submit']").click()
-
-            # After password, we land on /mfa/verify.
-            # BYPASS_OTP=true in dev, so any 6-digit code works.
-            page.wait_for_url("**/mfa/verify**")
-            page.locator("#code").fill("123456")
-            page.locator("#mfaVerifyForm button[type='submit']").click()
-            page.wait_for_load_state("networkidle")
+    def _login(base_url: str, email: str):
+        page.goto(f"{base_url}/dev/login?email={email}")
+        page.wait_for_url("**/dashboard**", timeout=5000)
 
     return _login
 

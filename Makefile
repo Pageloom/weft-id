@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css sso-testbed test-e2e test-e2e-debug
+.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css sso-testbed
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -63,9 +63,4 @@ watch-css: ## Watch and rebuild CSS on changes (dev mode)
 sso-testbed: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py
 
-test-e2e: ## Run SAML E2E tests (requires Docker services)
-	poetry run python -m pytest tests/e2e/ -n 0 -v --tb=short
-
-test-e2e-debug: ## Run E2E tests in headed browser mode
-	poetry run python -m pytest tests/e2e/ -n 0 -v --tb=long --headed --slowmo=500
 

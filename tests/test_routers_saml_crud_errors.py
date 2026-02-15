@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from services.exceptions import NotFoundError, ServiceError, ValidationError
+from services.exceptions import ConflictError, NotFoundError, ServiceError, ValidationError
 
 
 @pytest.fixture(autouse=True)
@@ -206,11 +206,11 @@ def test_import_from_xml_service_error(mock_import, super_admin_session, test_te
 
 @patch("routers.saml.admin.providers.saml_service.get_identity_provider")
 def test_edit_idp_form_not_found(mock_get, super_admin_session, test_tenant_host):
-    """Test edit IdP form returns redirect on NotFoundError."""
+    """Test IdP details tab returns redirect on NotFoundError."""
     mock_get.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/non-existent-id",
+        "/admin/settings/identity-providers/non-existent-id/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -223,11 +223,11 @@ def test_edit_idp_form_not_found(mock_get, super_admin_session, test_tenant_host
 
 @patch("routers.saml.admin.providers.saml_service.get_identity_provider")
 def test_edit_idp_form_service_error(mock_get, super_admin_session, test_tenant_host):
-    """Test edit IdP form returns redirect on ServiceError."""
+    """Test IdP details tab returns redirect on ServiceError."""
     mock_get.side_effect = ServiceError("Database error")
 
     response = super_admin_session.get(
-        "/admin/settings/identity-providers/some-id",
+        "/admin/settings/identity-providers/some-id/details",
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -244,13 +244,13 @@ def test_edit_idp_form_service_error(mock_get, super_admin_session, test_tenant_
 
 
 @patch("routers.saml.admin.providers.saml_service.update_identity_provider")
-def test_update_idp_not_found(mock_update, super_admin_session, test_tenant_host, test_idp_data):
-    """Test update IdP returns redirect on NotFoundError."""
+def test_update_idp_name_not_found(mock_update, super_admin_session, test_tenant_host):
+    """Test update IdP name returns redirect on NotFoundError."""
     mock_update.side_effect = NotFoundError("IdP not found")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/non-existent-id",
-        data=test_idp_data,
+        "/admin/settings/identity-providers/non-existent-id/edit",
+        data={"name": "New Name"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
@@ -262,22 +262,56 @@ def test_update_idp_not_found(mock_update, super_admin_session, test_tenant_host
 
 
 @patch("routers.saml.admin.providers.saml_service.update_identity_provider")
-def test_update_idp_service_error(
-    mock_update, super_admin_session, test_tenant_host, test_idp_data
-):
-    """Test update IdP returns redirect on ServiceError."""
+def test_update_idp_name_service_error(mock_update, super_admin_session, test_tenant_host):
+    """Test update IdP name returns redirect on ServiceError."""
     mock_update.side_effect = ServiceError("Update failed")
 
     response = super_admin_session.post(
-        "/admin/settings/identity-providers/some-id",
-        data=test_idp_data,
+        "/admin/settings/identity-providers/some-id/edit",
+        data={"name": "New Name"},
         headers={"Host": test_tenant_host},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id" in location
+    assert "/admin/settings/identity-providers/some-id/details" in location
+    assert "error=" in location
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+def test_update_idp_attributes_not_found(mock_update, super_admin_session, test_tenant_host):
+    """Test update IdP attributes returns redirect on NotFoundError."""
+    mock_update.side_effect = NotFoundError("IdP not found")
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/non-existent-id/edit-attributes",
+        data={"attr_email": "email", "attr_first_name": "fn", "attr_last_name": "ln"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/admin/settings/identity-providers" in location
+    assert "error=not_found" in location
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+def test_update_idp_attributes_service_error(mock_update, super_admin_session, test_tenant_host):
+    """Test update IdP attributes returns redirect on ServiceError."""
+    mock_update.side_effect = ServiceError("Update failed")
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-attributes",
+        data={"attr_email": "email", "attr_first_name": "fn", "attr_last_name": "ln"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/admin/settings/identity-providers/some-id/attributes" in location
     assert "error=" in location
 
 
@@ -400,7 +434,7 @@ def test_refresh_metadata_validation_error(mock_refresh, super_admin_session, te
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id" in location
+    assert "/admin/settings/identity-providers/some-id/metadata" in location
     assert "error=" in location
 
 
@@ -417,13 +451,33 @@ def test_refresh_metadata_service_error(mock_refresh, super_admin_session, test_
 
     assert response.status_code == 303
     location = response.headers.get("location", "")
-    assert "/admin/settings/identity-providers/some-id" in location
+    assert "/admin/settings/identity-providers/some-id/metadata" in location
     assert "error=" in location
 
 
 # =============================================================================
 # Delete IdP Error Tests
 # =============================================================================
+
+
+@patch("routers.saml.admin.providers.saml_service.delete_identity_provider")
+def test_delete_enabled_idp_conflict_error(mock_delete, super_admin_session, test_tenant_host):
+    """Test delete enabled IdP returns redirect with conflict error."""
+    mock_delete.side_effect = ConflictError(
+        message="Cannot delete an enabled identity provider. Disable it first.",
+        code="idp_is_enabled",
+    )
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/delete",
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/admin/settings/identity-providers" in location
+    assert "error=" in location
 
 
 @patch("routers.saml.admin.providers.saml_service.delete_identity_provider")

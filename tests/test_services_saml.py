@@ -2403,6 +2403,49 @@ def test_refresh_idp_from_metadata_timeout(
 
 
 # =============================================================================
+# IdP Deletion Requires Disabled Tests
+# =============================================================================
+
+
+def test_delete_enabled_idp_returns_error(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that deleting an enabled IdP is blocked with ConflictError."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import ConflictError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    data = IdPCreate(**test_idp_data, is_enabled=True)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    with pytest.raises(ConflictError) as exc_info:
+        saml_service.delete_identity_provider(requesting_user, idp.id)
+
+    assert exc_info.value.code == "idp_is_enabled"
+    assert "Disable it first" in exc_info.value.message
+
+
+def test_delete_disabled_idp_succeeds(test_tenant, test_super_admin_user, test_idp_data):
+    """Test that deleting a disabled IdP succeeds."""
+    from schemas.saml import IdPCreate
+    from services import saml as saml_service
+    from services.exceptions import NotFoundError
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Create a disabled IdP (is_enabled defaults to False)
+    data = IdPCreate(**test_idp_data, is_enabled=False)
+    idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
+
+    # Delete should succeed
+    saml_service.delete_identity_provider(requesting_user, idp.id)
+
+    # Verify it's gone
+    with pytest.raises(NotFoundError):
+        saml_service.get_identity_provider(requesting_user, idp.id)
+
+
+# =============================================================================
 # IdP Deletion with Linked Users Tests
 # =============================================================================
 
@@ -2422,9 +2465,9 @@ def test_delete_idp_blocked_when_users_assigned(test_tenant, test_super_admin_us
     requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
     tenant_id = test_tenant["id"]
 
-    # Create an IdP with JIT enabled
+    # Create a disabled IdP with JIT enabled (disabled so delete reaches the user check)
     idp_data_jit = {**test_idp_data, "jit_provisioning": True}
-    data = IdPCreate(**idp_data_jit, is_enabled=True)
+    data = IdPCreate(**idp_data_jit, is_enabled=False)
     idp = saml_service.create_identity_provider(requesting_user, data, "https://test.example.com")
 
     # Create a user and link them to this IdP (simulating JIT)

@@ -6,6 +6,107 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## IdP List View UX Overhaul
+
+**User Story:**
+As a super admin
+I want a clean, scannable identity providers list
+So that I can quickly see the status of all configured IdPs without visual clutter
+
+**Context:**
+
+The current IdP list view has accumulated UI elements that belong elsewhere or are no longer needed. The prominent blue "share this metadata URL" box dominates the page but is only needed during IdP setup (and is better placed on the IdP detail page). The actions column duplicates options already available on the detail page. The metadata sync timestamp is shown as an absolute datetime rather than a human-friendly relative time.
+
+**Acceptance Criteria:**
+
+- [ ] Remove the SP metadata URL information box from the list page (this information lives on each IdP's detail page under "Share with your IdP")
+- [ ] Make the list view full-width (remove max-width constraint, use the full content area)
+- [ ] Show metadata sync time as relative time (e.g., "synced 2 hours ago", "synced 3 days ago") with the absolute timestamp available on hover/tooltip
+- [ ] Remove the "Actions" column entirely (Edit, Toggle, Set Default, Delete are all available on the detail page)
+- [ ] Each row links to the detail page (click anywhere on the row, or click the name)
+- [ ] All existing tests continue to pass
+
+**Effort:** S
+**Value:** Medium (Cleaner admin experience, removes redundant UI)
+
+---
+
+## IdP Detail Page UX Overhaul
+
+**User Story:**
+As a super admin
+I want the identity provider detail page to follow the same tabbed, structured layout as the service provider detail page
+So that the admin experience is consistent across both sides of the federation
+
+**Context:**
+
+The current IdP detail page is a single long form with all fields editable and everything on one page. The SP detail page, by contrast, uses a tabbed layout with clear separation between read-only configuration, attribute mapping, metadata management, and destructive actions. The IdP detail page should follow the same pattern.
+
+Key design principles from the SP detail page:
+- Tabbed navigation for logical grouping
+- Read-only fields for values that come from metadata (editing requires re-importing)
+- Inline editing for admin-controlled fields (name, description)
+- Attribute mapping as a dedicated tab with matching/unmatching indicators
+- Destructive actions gated behind safety checks
+
+**Acceptance Criteria:**
+
+**Tab: Details & Settings**
+
+- [ ] Name: editable inline (same modal pattern as SP detail)
+- [ ] Provider Type: read-only display (Okta, Azure AD, Google Workspace, Generic SAML)
+- [ ] Entity ID: read-only display
+- [ ] SSO URL: read-only display
+- [ ] SLO URL: read-only display (if configured)
+- [ ] Settings toggles: Enabled, Default IdP, Require Platform MFA, Just-in-Time Provisioning
+- [ ] Connection test button
+- [ ] "Share with your IdP" section showing (in order of emphasis):
+  1. SP Metadata URL (copy button, recommended)
+  2. View/download metadata XML
+  3. De-emphasized: raw SP Entity ID and ACS URL for manual configuration on the IdP side
+
+**Tab: Certificates**
+
+- [ ] List IdP certificates by creation date and expiry date (not full PEM by default)
+- [ ] Each certificate expandable to reveal full PEM content on demand
+- [ ] Support for multiple IdP certificates (common during IdP-side rotation)
+- [ ] SP certificate information (the signing cert used for this IdP relationship)
+
+**Tab: Attributes**
+
+- [ ] Same UX pattern as SP attributes tab: table with columns for attribute name, what the IdP advertises (from metadata), and what WeftId maps it to
+- [ ] Match/unmatch badges (green "Matched", amber "Unmatched")
+- [ ] Editable mapping fields for: Email, First Name, Last Name, Groups
+- [ ] Provider-specific presets (load recommended mappings for Okta, Azure AD, Google Workspace)
+- [ ] Save button with reset-to-defaults option
+
+**Tab: Metadata**
+
+- [ ] Primary action: re-import from metadata URL (with current URL pre-filled if previously used)
+- [ ] Secondary action: paste metadata XML
+- [ ] Confirmation warning before re-import: "Re-importing metadata will overwrite Entity ID, SSO URL, SLO URL, and certificates. Continue?"
+- [ ] Last sync status display (timestamp, success/error)
+- [ ] If metadata URL is configured: manual "Refresh Now" button
+
+**Tab: Danger Zone**
+
+- [ ] Delete button is disabled while the IdP is enabled
+- [ ] Clear messaging: "Disable this identity provider before deleting it"
+- [ ] When disabled: delete button with confirmation modal
+- [ ] Service layer enforces this constraint (deletion of an enabled IdP returns an error regardless of UI)
+
+**General:**
+
+- [ ] All existing IdP functionality preserved (no regression)
+- [ ] API endpoints remain unchanged (UI-only restructuring)
+- [ ] All existing tests continue to pass
+- [ ] New tests for the delete-requires-disabled business logic constraint
+
+**Effort:** L
+**Value:** High (Consistent admin UX across IdP and SP management, safer operations)
+
+---
+
 ## Fix SP Signing Certificate Rotation Grace Period
 
 **User Story:**

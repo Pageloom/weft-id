@@ -50,6 +50,15 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 ./test --cov=app --cov-report=term-missing # With coverage
 ```
 
+**E2E tests (Playwright):**
+```bash
+./test-e2e                          # Run all E2E tests (requires Docker services)
+./test-e2e --headed --slowmo=500    # Debug in visible browser
+./test-e2e -k test_sp_initiated     # Run specific test
+```
+
+E2E tests are in `tests/e2e/` and excluded from `./test`. They require Docker services and MailDev running. Tests are skipped if MailDev is unreachable.
+
 ## Test Code Quality Standards
 
 ### No Nested Patch Pyramids

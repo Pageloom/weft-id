@@ -2391,3 +2391,46 @@ So that I understand my organizational context and access rights
 - [x] Disable/Delete tab: enable/disable toggle, delete gated on disabled state, red accent styling
 
 ---
+
+## SAML E2E Test Suite
+
+**Status:** Complete
+
+**User Story:**
+As a developer of WeftId
+I want a Playwright-based E2E test suite for SAML SSO flows
+So that regressions in critical auth paths are caught before deployment
+
+**Resolution:**
+
+Implemented a Playwright-based E2E test suite exercising real cross-tenant SAML SSO flows
+using two WeftId tenants (one as IdP, one as SP). Five tests cover the full SAML lifecycle:
+admin SP/IdP metadata XML import, SP-initiated SSO with JIT provisioning, IdP-initiated SSO,
+and pre-existing user matching.
+
+Enhanced `sso_testbed.py` with `--json`, `--teardown`, group-based SP access control, and
+pre-existing user provisioning. Added `pytest-playwright` dependency, `test-e2e` and
+`test-e2e-debug` Makefile targets, and `pytest.ini` exclusion so E2E tests run separately
+from the main test suite.
+
+**Acceptance Criteria:**
+
+*Test infrastructure:*
+
+- [x] `dev/sso_testbed.py`: creates two tenants (IdP and SP) with predefined subdomains, creates test users on each, returns configuration (tenant IDs, user credentials, URLs)
+- [x] Pytest fixtures that call the testbed script at session start and tear down both tenants at session end
+- [x] Playwright (Python) with `pytest-playwright` for browser automation
+- [x] Makefile targets: `test-e2e`, `test-e2e-debug` (headed mode)
+
+*Admin setup tests:*
+
+- [x] As an IdP admin: register the SP tenant (import SP metadata, configure attribute mapping)
+- [x] As an SP admin: register the IdP tenant (import IdP metadata, configure as identity provider)
+
+*SSO flow tests:*
+
+- [x] SP-initiated SSO: user starts at SP, is redirected to IdP, authenticates (email + verification code via MailDev), and is returned to SP with a valid session
+- [x] IdP-initiated SSO: user starts at IdP, selects the SP, assertion is sent, user lands at SP with a valid session
+- [x] Sign-in as pre-existing user: a user that already exists on the SP side authenticates via IdP and is matched to their existing SP account
+
+---

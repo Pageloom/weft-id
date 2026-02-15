@@ -24,7 +24,12 @@ Key design principles from the SP detail page:
 - Attribute mapping as a dedicated tab with matching/unmatching indicators
 - Destructive actions gated behind safety checks
 
-**Acceptance Criteria:**
+**Status:** Partially complete. The tabbed layout restructuring is done. Remaining work on specific tabs has been broken out into dedicated backlog items:
+- "Share with your IdP" section replaced by: **Public Trust Page for IdP Configuration**
+- Certificates tab replaced by: **Multiple IdP Certificates**
+- Attributes tab replaced by: **Fix and Redesign IdP Attribute Mapping**
+
+**Remaining Acceptance Criteria:**
 
 **Tab: Details & Settings**
 
@@ -35,25 +40,6 @@ Key design principles from the SP detail page:
 - [ ] SLO URL: read-only display (if configured)
 - [ ] Settings toggles: Enabled, Default IdP, Require Platform MFA, Just-in-Time Provisioning
 - [ ] Connection test button
-- [ ] "Share with your IdP" section showing (in order of emphasis):
-  1. SP Metadata URL (copy button, recommended)
-  2. View/download metadata XML
-  3. De-emphasized: raw SP Entity ID and ACS URL for manual configuration on the IdP side
-
-**Tab: Certificates**
-
-- [ ] List IdP certificates by creation date and expiry date (not full PEM by default)
-- [ ] Each certificate expandable to reveal full PEM content on demand
-- [ ] Support for multiple IdP certificates (common during IdP-side rotation)
-- [ ] SP certificate information (the signing cert used for this IdP relationship)
-
-**Tab: Attributes**
-
-- [ ] Same UX pattern as SP attributes tab: table with columns for attribute name, what the IdP advertises (from metadata), and what WeftId maps it to
-- [ ] Match/unmatch badges (green "Matched", amber "Unmatched")
-- [ ] Editable mapping fields for: Email, First Name, Last Name, Groups
-- [ ] Provider-specific presets (load recommended mappings for Okta, Azure AD, Google Workspace)
-- [ ] Save button with reset-to-defaults option
 
 **Tab: Metadata**
 
@@ -77,8 +63,148 @@ Key design principles from the SP detail page:
 - [ ] All existing tests continue to pass
 - [ ] New tests for the delete-requires-disabled business logic constraint
 
-**Effort:** L
+**Effort:** M (reduced from L, tab restructuring already done)
 **Value:** High (Consistent admin UX across IdP and SP management, safer operations)
+
+---
+
+## Public Trust Page for IdP Configuration
+
+**User Story:**
+As a super admin
+I want to share a public URL with my IdP administrator that contains all the configuration details they need
+So that external IdP admins can access SP metadata, Entity ID, and ACS URL without needing an authenticated session in WeftId
+
+**Context:**
+
+The "Share with your IdP" section is currently buried inside the authenticated IdP detail page. External IdP administrators who need to configure their side of the federation have no way to access this information directly. The SP metadata URL, Entity ID, and ACS URL should be on a public, shareable page (similar to how `/saml/metadata` is already public).
+
+**Acceptance Criteria:**
+
+- [ ] New public route: `GET /pub/{idp_id}/trust` (no authentication required)
+- [ ] Page is tenant-scoped (via `get_tenant_id_from_request`)
+- [ ] Returns 404 if IdP does not exist or is not enabled
+- [ ] Page has three sections, ordered by recommendation:
+  1. **Use Metadata URL** (recommended): the SP metadata URL as a copiable link
+  2. **Metadata XML**: code block display with copy button (for IdPs that don't support URL ingestion)
+  3. **Manual Entry**: SP Entity ID and ACS URL as individually copiable values (last resort)
+- [ ] Clean, standalone page with tenant branding (logo if configured)
+- [ ] Replace the "Share with your IdP" section in the IdP details tab with a prominent link to this public page (with copy-to-clipboard for the URL)
+- [ ] API: no new API endpoint needed (this is a public HTML page)
+- [ ] Tests for the public route (valid IdP, disabled IdP returns 404, nonexistent IdP returns 404)
+
+**Key files:**
+- New: `app/routers/saml/public.py` (or add to `authentication.py`)
+- New: `app/templates/saml_public_trust.html`
+- Modify: `app/templates/saml_idp_tab_details.html` (replace "Share with your IdP" section)
+- Modify: `app/pages.py` (register public route if needed)
+
+**Effort:** S
+**Value:** High (Eliminates back-and-forth when onboarding new IdPs)
+
+---
+
+## Multiple IdP Certificates
+
+**User Story:**
+As a super admin
+I want WeftId to accept multiple signing certificates from an identity provider
+So that IdP-side certificate rotation does not break SSO during the transition period
+
+**Context:**
+
+The `saml_identity_providers` table has a single `certificate_pem TEXT NOT NULL` column. During IdP-side certificate rotation, the IdP may start signing assertions with a new certificate while the old one is still in use by some sessions. WeftId currently can only validate against one certificate, so rotation on the IdP side breaks SSO until the admin manually updates the certificate in WeftId. Many IdPs also advertise multiple certificates in their metadata XML during rotation periods.
+
+**Acceptance Criteria:**
+
+**Data model:**
+- [ ] New table: `idp_certificates` (id UUID, idp_id UUID, tenant_id UUID, certificate_pem TEXT, fingerprint TEXT, label TEXT nullable, is_active BOOLEAN default true, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ nullable)
+- [ ] Migration to copy existing `certificate_pem` data from `saml_identity_providers` into `idp_certificates`
+- [ ] Make `certificate_pem` on `saml_identity_providers` nullable (keep for backwards compat during transition, eventually remove)
+- [ ] RLS policy on `idp_certificates` matching existing tenant isolation pattern
+
+**SAML validation:**
+- [ ] Update SAML response validation to try all active certificates for an IdP (iterate until one validates or all fail)
+- [ ] Validation failure message should indicate none of the certificates matched (not just "invalid signature")
+
+**Metadata import:**
+- [ ] Update metadata import to extract and store all `<KeyDescriptor use="signing">` certificates from IdP metadata XML
+- [ ] Metadata refresh flow syncs certificates (adds new ones, optionally deactivates removed ones)
+
+**Certificates tab UI:**
+- [ ] List all IdP certificates with fingerprint, expiry date, active/inactive status
+- [ ] Expandable PEM view per certificate
+- [ ] Add certificate manually (paste PEM)
+- [ ] Deactivate/activate individual certificates
+- [ ] Remove individual certificates (with confirmation)
+- [ ] SP certificate section remains as-is (the signing cert WeftId uses for this IdP relationship)
+
+**Event logging:**
+- [ ] `idp_certificate_added` event when a certificate is added
+- [ ] `idp_certificate_deactivated` / `idp_certificate_activated` events
+- [ ] `idp_certificate_removed` event when a certificate is deleted
+
+**Key files:**
+- New: `db-init/NNNNN_idp_certificates.sql`
+- New or extend: `app/database/saml/idp_certificates.py`
+- Modify: `app/services/saml/auth.py` (multi-cert validation in `_build_saml_settings`)
+- Modify: `app/services/saml/providers.py` (metadata import certificate handling)
+- Modify: `app/templates/saml_idp_tab_certificates.html`
+- Modify: `app/utils/saml.py` (extract multiple certs from metadata XML)
+
+**Effort:** L
+**Value:** High (IdP-side certificate rotation currently breaks SSO)
+
+---
+
+## Fix and Redesign IdP Attribute Mapping
+
+**User Story:**
+As a super admin
+I want the IdP attribute mapping UI to clearly show which IdP attributes are mapped to which platform fields, and let me edit mappings directly
+So that I can configure attribute mapping correctly without confusion
+
+**Context:**
+
+The current attributes tab has multiple problems:
+- The "Mapped to" column always shows "unmapped" due to a template logic bug (it compares advertised attribute names against mapping values, but the names don't match the values)
+- The "Attribute Mapping" form and "Attributes Advertised by IdP" table are disconnected and confusing
+- No inline editing (unlike the SP attribute mapping tab)
+- "Load presets for generic" is unhelpful without context
+- No way to add attributes when the IdP doesn't advertise them in metadata
+
+The redesign splits the tab into two clear sections: an editable platform field mappings table (always shown) and a read-only reference table of advertised attributes (shown only when metadata includes attribute information).
+
+**Acceptance Criteria:**
+
+**Section 1: Platform Field Mappings** (always shown)
+- [ ] Table with 4 rows: Email, First Name, Last Name, Groups
+- [ ] Each row shows the platform field name and has an editable input for the IdP attribute name
+- [ ] If IdP advertises attributes in metadata, show a dropdown populated with advertised attribute names
+- [ ] If no advertised attributes, show a text input for manual entry
+- [ ] Pre-fill inputs from current `attribute_mapping` values
+- [ ] Presets button loads recommended mappings for known IdP types (Okta, Entra ID, Google Workspace)
+- [ ] Save button persists changes via existing API endpoint
+- [ ] Clear visual feedback on save (success/error)
+
+**Section 2: Advertised Attributes** (only if metadata has attributes)
+- [ ] Read-only reference table showing what the IdP declares in its metadata
+- [ ] Columns: Attribute Name, Friendly Name, Mapped To
+- [ ] "Mapped To" column shows which platform field (if any) uses this attribute, with green "Mapped" / gray "Unmapped" badges
+- [ ] This section is informational only. All editing happens in Section 1.
+
+**Removed:**
+- [ ] Remove the separate "Attribute Mapping" form section (merged into Section 1)
+- [ ] Fix the mapping comparison logic (compare mapping values against attribute names/friendly names, not the reverse)
+
+**Key files:**
+- Modify: `app/templates/saml_idp_tab_attributes.html` (full redesign)
+- Modify: `app/routers/saml/admin/providers.py` (`idp_tab_attributes` handler to pass advertised attrs as dropdown options)
+- Keep unchanged: `app/services/saml/providers.py` (`get_provider_presets`)
+- Keep unchanged: API endpoint `/api/v1/saml/provider-presets/{provider_type}`
+
+**Effort:** M
+**Value:** High (Current attribute mapping UX is broken and confusing)
 
 ---
 

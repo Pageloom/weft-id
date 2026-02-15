@@ -107,6 +107,37 @@ from database import users as users_db  # VIOLATION: Direct database import!
 - SAML ACS/SLO endpoints
 - Admin UI conveniences combining multiple API operations
 
+### 6. Input Length Validation
+
+**Rule:** All `str` fields in Pydantic input schemas must have `max_length`. Database TEXT columns should have matching constraints.
+
+**Standard limits:**
+
+| Category | Limit | Examples |
+|----------|-------|---------|
+| Names/titles | 255 | user name, SP name, IdP name, tenant name |
+| Descriptions | 2000 | SP description, group description |
+| URLs | 2048 | entity_id, sso_url, acs_url, metadata_url |
+| Enum-like | 50 | status, type, method, theme, locale |
+| Subdomains | 63 | DNS label max |
+| Domains | 253 | DNS max |
+| IP addresses | 45 | IPv6 max |
+
+**Correct:**
+```python
+class SPCreate(BaseModel):
+    name: str = Field(max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+    acs_url: str = Field(max_length=2048)
+```
+
+**Violation:**
+```python
+class SPCreate(BaseModel):
+    name: str  # VIOLATION: No max_length!
+    description: str | None = None  # VIOLATION: No max_length!
+```
+
 ## Red Flags
 
 | Pattern | Example | Violation |
@@ -117,6 +148,7 @@ from database import users as users_db  # VIOLATION: Direct database import!
 | Missing tenant filter | `SELECT * FROM users WHERE email = %s` | Tenant Isolation |
 | Router imports database | `from database import users` | Architecture |
 | No API coverage | Service operation only in web router | API-First |
+| No max_length | `name: str` without `Field(max_length=N)` | Input Validation |
 
 ## Verification Checklists
 
@@ -131,6 +163,11 @@ from database import users as users_db  # VIOLATION: Direct database import!
 - [ ] INSERT includes `tenant_id` column
 - [ ] UPDATE/DELETE filter by `tenant_id`
 - [ ] Cross-tenant queries use `UNSCOPED` with comment
+
+**Per Schema Module (Input Models):**
+- [ ] All `str` fields have `max_length` specified
+- [ ] Limits follow the standard categories (names 255, descriptions 2000, URLs 2048, enums 50)
+- [ ] Optional string fields also have `max_length` via `Field(default=None, max_length=N)`
 
 **Per Router Module:**
 - [ ] No `from database import` statements

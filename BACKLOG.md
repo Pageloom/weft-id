@@ -556,3 +556,96 @@ The nav bar visibility toggle is independent of the custom title. An admin might
 **Effort:** S
 **Value:** Medium (Brand consistency for white-label deployments)
 
+---
+
+## Enforce Input Length Limits on All Text Fields
+
+**User Story:**
+As a platform operator
+I want all user-supplied and system-generated text fields to have reasonable maximum length constraints at both the database and application validation layers
+So that the system is protected against oversized payloads, resource exhaustion, and data quality issues
+
+**Context:**
+
+An audit of the database schema found **81 unbounded TEXT columns** across 22 tables, with **zero VARCHAR length constraints** at the database level (only 2 columns use `VARCHAR(32)` for metadata hashes). While some Pydantic schemas enforce `max_length` on input models (names, descriptions), the coverage is inconsistent and the database itself provides no backstop. This means a malicious or buggy client could insert arbitrarily large strings into any TEXT column.
+
+**Current state of application validation:**
+
+Fields WITH `max_length` in Pydantic schemas (partial coverage):
+- User names (`first_name`, `last_name`): 255 in create/update schemas, but NOT in response schemas
+- Group name: 200, description: 2000
+- OAuth2 client name: 255, description: 500
+- IdP name: 255
+- SP name: 255
+- Privileged domain: 253
+- Branding mandala seed: 100
+- Site title: documented as max 30 but NOT enforced in schema
+
+Fields WITHOUT any `max_length` (sampling of high-risk gaps):
+- SP `entity_id`, `acs_url`, `slo_url`, `description`, `metadata_url`
+- IdP `entity_id`, `sso_url`, `slo_url`, `metadata_url`
+- OAuth2 `client_id`, `redirect_uri`, `code_challenge`
+- Branding `site_title` (documented limit not enforced)
+- Tenant `name`, `subdomain`
+- All event log string fields
+- All debug entry fields
+
+**Proposed limits by field category:**
+
+| Category | Examples | Proposed DB Limit |
+|----------|----------|-------------------|
+| Short names/titles | tenant name, SP name, IdP name, group name, user first/last name, site_title | 255 |
+| Descriptions | SP description, OAuth2 description, group description | 2000 |
+| URLs | entity_id, sso_url, acs_url, slo_url, metadata_url, redirect_uri | 2048 |
+| Enum-like fields | status, job_type, event_type, provider_type, group_type, theme, locale, tz, mfa_method | 50 |
+| Hashes/fingerprints | password_hash, code_hash, token_hash, fingerprint, client_secret_hash | 512 |
+| Crypto material | certificate_pem, private_key_pem_enc, secret_encrypted | 16000 |
+| XML/large content | metadata_xml, saml_response_xml, saml_response_b64 | 1000000 (1MB) |
+| Error text | bg_tasks.error, metadata_fetch_error, error_detail | 10000 |
+| IP addresses | request_ip | 45 (IPv6 max) |
+| User agent | user_agent | 1024 |
+| MIME types | content_type, logo_dark_mime, logo_light_mime | 255 |
+| Domain names | domain | 253 (DNS max) |
+| Filenames | filename | 255 |
+| Subdomains | subdomain | 63 (DNS label max) |
+| Code challenge | code_challenge, code_challenge_method | 128 |
+
+**Acceptance Criteria:**
+
+**Phase 1: Application validation (Pydantic schemas):**
+- [ ] All input schemas (Create, Update, Import, Establish) enforce `max_length` on every `str` field
+- [ ] Limits match the proposed table above (or refined values after review)
+- [ ] `BrandingSettingsUpdate.site_title` enforces the documented 30-char limit
+- [ ] Tenant create/update schemas enforce name (255) and subdomain (63)
+- [ ] SP schemas enforce entity_id (2048), acs_url (2048), slo_url (2048), description (2000)
+- [ ] IdP schemas enforce entity_id (2048), sso_url (2048), slo_url (2048), metadata_url (2048)
+- [ ] OAuth2 schemas enforce client_id (255), redirect_uri (2048), code_challenge (128)
+- [ ] Validation errors return user-friendly messages indicating the maximum allowed length
+
+**Phase 2: Database constraints (migration):**
+- [ ] Migration adds `CHECK (length(column) <= N)` or converts `TEXT` to `VARCHAR(N)` for all user-facing fields
+- [ ] Enum-like fields converted to `VARCHAR(50)` or appropriate size
+- [ ] URL fields get `CHECK (length(...) <= 2048)`
+- [ ] Crypto fields get `CHECK (length(...) <= 16000)`
+- [ ] XML/large content fields get `CHECK (length(...) <= 1000000)`
+- [ ] Migration verifies no existing data exceeds the new limits before applying constraints
+- [ ] All existing data fits within the proposed limits (pre-check query in migration)
+
+**Phase 3: Best practices enforcement:**
+- [ ] CLAUDE.md best practices updated to require `max_length` on all Pydantic `str` fields
+- [ ] Compliance check (`scripts/compliance_check.py`) optionally flags Pydantic models without `max_length`
+- [ ] Reference docs updated with standard length limits for each field category
+
+**Tests:**
+- [ ] Pydantic validation rejects strings exceeding max_length for each input schema
+- [ ] Database rejects inserts/updates exceeding column limits
+- [ ] All existing tests continue to pass (limits are generous enough for real data)
+
+**Key files:**
+- Modify: `app/schemas/api.py`, `app/schemas/saml.py`, `app/schemas/service_providers.py`, `app/schemas/oauth2.py`, `app/schemas/branding.py`, `app/schemas/settings.py`, `app/schemas/groups.py`
+- New migration in `db-init/`
+- Modify: `CLAUDE.md` (best practices), `.claude/references/compliance-patterns.md`, `.claude/references/owasp-patterns.md`
+
+**Effort:** M
+**Value:** High (Defense-in-depth against oversized payloads, data quality, DoS prevention)
+

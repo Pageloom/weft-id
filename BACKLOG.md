@@ -57,32 +57,231 @@ The redesign splits the tab into two clear sections: an editable platform field 
 
 ---
 
-## Fix SP Signing Certificate Rotation Grace Period
+## Configurable Certificate Lifetime Setting
 
 **User Story:**
 As a super admin
-I want certificate rotation to work without breaking SSO for the service provider
-So that I can rotate certificates safely with a transition window where both old and new certificates are accepted
+I want to configure the maximum certificate lifetime for newly generated signing certificates
+So that certificate lifetimes align with my organization's security policies
 
 **Context:**
 
-When rotating an SP's signing certificate, the system generates a new certificate and stores the previous one in `previous_certificate_pem` with a 7-day grace period timestamp. However, the IdP metadata endpoint only serves the **new** certificate. The old certificate is not included in the metadata XML, so the downstream SP has no way to trust assertions signed with the old certificate. In practice, rotation breaks SSO immediately rather than providing a grace period.
-
-Additionally, there is no automatic cleanup of expired previous certificates. The database function `clear_previous_signing_certificate()` exists but is never called.
+Certificate lifetime is hardcoded to 10 years in `app/utils/saml.py:48` (`generate_sp_certificate(validity_years=10)`). While 10 years is a reasonable default, enterprise environments often require shorter lifetimes. This setting applies to all new certificate generation on both the IdP side (per-SP signing certs) and the SP side (per-IdP signing certs, once that architecture exists). It does not retroactively change existing certificates.
 
 **Acceptance Criteria:**
 
-- [ ] During the grace period, the IdP metadata serves **both** certificates as separate `<md:KeyDescriptor use="signing">` elements (new certificate first, previous certificate second)
-- [ ] After the grace period expires, only the new certificate is served in metadata
-- [ ] It must not be possible to rotate certificates during the grace period
-- [ ] Background job runs periodically to clear expired previous certificates (calls `clear_previous_signing_certificate()`)
-- [ ] Certificates tab copy updated to reflect the actual grace period behavior
-- [ ] Tests for dual-certificate metadata generation during grace period
-- [ ] Tests for single-certificate metadata after grace period expiry
-- [ ] Tests for the cleanup background job
+**Data model:**
+- [ ] Add `max_certificate_lifetime_years` column to `tenant_security_settings` (INTEGER, NOT NULL, DEFAULT 10)
+- [ ] Add CHECK constraint: value must be in (1, 2, 3, 5, 10)
+
+**Business logic:**
+- [ ] All certificate generation call sites fetch `max_certificate_lifetime_years` from tenant settings and pass it to `generate_sp_certificate()`
+- [ ] If no tenant settings row exists, default to 10 years
+- [ ] Setting does NOT affect existing certificates (only new generation)
+
+**UI:**
+- [ ] New "Certificate Lifetime" section on Admin > Settings > Security page
+- [ ] Radio buttons or select: 1, 2, 3, 5, 10 years
+- [ ] Help text: "Applies to newly generated signing certificates. Existing certificates are not affected."
+- [ ] Save with success/error feedback
+
+**API:**
+- [ ] `GET /api/v1/settings/security` includes `max_certificate_lifetime_years`
+- [ ] `PUT /api/v1/settings/security` accepts `max_certificate_lifetime_years` (validates against allowed values)
+
+**Event logging:**
+- [ ] `tenant_certificate_lifetime_updated` event with `old_value` and `new_value` metadata
+
+**Tests:**
+- [ ] Service validates allowed values (rejects 0, 4, 11, etc.)
+- [ ] Certificate generation uses setting value (not hardcoded 10)
+- [ ] API endpoint validates and persists setting
+
+**Key files:**
+- Modify: `app/utils/saml.py` (wire configurable lifetime into callers)
+- Modify: `app/database/security.py` (add column to queries)
+- Modify: `app/routers/` and `app/templates/` (Security settings UI)
+- New migration in `db-init/`
+
+**Effort:** S
+**Value:** High
+
+---
+
+## IdP-Side Certificate Rotation & Lifecycle Management
+
+**User Story:**
+As a super admin
+I want IdP signing certificates to rotate automatically before expiry and clean up expired certificates
+So that I do not have to manually track and rotate certificates for each downstream SP
+
+**Context:**
+
+When WeftId acts as an IdP, each downstream SP gets a per-SP signing certificate (table: `sp_signing_certificates`). Dual-certificate metadata during the grace period already works. However, there is no automatic rotation, no cleanup of expired previous certificates (`clear_previous_signing_certificate()` exists but is never called), and no guard against initiating a rotation while one is already in progress.
+
+**Acceptance Criteria:**
+
+**Rotation guard:**
+- [ ] `rotate_sp_signing_certificate()` rejects rotation when `rotation_grace_period_ends_at` is in the future
+- [ ] Raises `ValidationError` with message "Certificate rotation already in progress"
+- [ ] Applies regardless of whether the active rotation was manual or automatic
+
+**Auto-rotation background job:**
+- [ ] New background job in `app/jobs/` runs daily
+- [ ] Queries all `sp_signing_certificates` across tenants
+- [ ] For certs expiring within 90 days with no active rotation: generate new cert using tenant's lifetime setting, set 90-day grace period
+- [ ] For certs with expired grace period: call `clear_previous_signing_certificate()` to remove old cert from database
+- [ ] Returns summary: `{rotated: int, cleaned_up: int, errors: list}`
+
+**Grace period behavior:**
+- [ ] Manual rotation: 7-day grace period (existing behavior, unchanged)
+- [ ] Auto-rotation: 90-day grace period
+- [ ] In both cases: when grace period ends, old cert removed from metadata AND database simultaneously (by the background job)
+
+**Event logging:**
+- [ ] `sp_signing_certificate_auto_rotated` event with metadata: `{sp_id, grace_period_days, new_expires_at}`
+- [ ] `sp_signing_certificate_cleanup_completed` event when expired cert is removed
+
+**Tests:**
+- [ ] Rotation guard rejects during active rotation
+- [ ] Background job auto-rotates certs expiring within 90 days
+- [ ] Background job skips certs with active rotation
+- [ ] Background job cleans up expired previous certs
+- [ ] Auto-rotation uses configurable lifetime setting
+
+**Key files:**
+- Modify: `app/services/service_providers/signing_certs.py` (rotation guard)
+- New: `app/jobs/rotate_certificates.py` (background job)
+- Register in: `app/jobs/registry.py`
 
 **Effort:** M
-**Value:** High (Certificate rotation is currently broken in practice)
+**Value:** High (Automates certificate lifecycle, prevents expiry-related outages)
+
+---
+
+## Per-IdP SP Metadata & Trust Establishment
+
+**User Story:**
+As a super admin
+I want each identity provider to have its own unique EntityID, metadata URL, and signing certificate when WeftId acts as an SP
+So that I can establish trust with each IdP independently, rotate certificates per-IdP without affecting others, and avoid the chicken-and-egg problem during initial setup
+
+**Context:**
+
+Today, WeftId as an SP serves a single global metadata at `/saml/metadata` with one tenant-wide certificate. This means certificate rotation affects all IdPs simultaneously. Additionally, adding an IdP requires its metadata upfront, creating a chicken-and-egg problem (the IdP needs WeftId's metadata to configure, but WeftId needs the IdP's metadata to create the record).
+
+The solution mirrors the IdP-side approach: each IdP gets a unique metadata URL (`/saml/metadata/{idp_id}`), a unique EntityID, and its own signing certificate. IdP creation becomes two-step: create with name only (get metadata URL immediately), then import IdP metadata later.
+
+**Acceptance Criteria:**
+
+**Data model:**
+- [ ] New table `saml_idp_sp_certificates` with: `id`, `idp_id` (unique FK), `tenant_id`, `certificate_pem`, `private_key_pem_enc`, `expires_at`, `created_by`, `created_at`, rotation columns (`previous_certificate_pem`, `previous_private_key_pem_enc`, `previous_expires_at`, `rotation_grace_period_ends_at`)
+- [ ] RLS policy for tenant isolation
+- [ ] Make `entity_id`, `sso_url`, `certificate_pem` nullable on `saml_identity_providers` (pending IdPs have these as NULL)
+- [ ] Add `trust_established` boolean column (default false), backfill true for existing IdPs
+- [ ] Migration generates per-IdP certificates for all existing IdPs
+
+**Per-IdP metadata endpoint:**
+- [ ] `GET /saml/metadata/{idp_id}` (public, unauthenticated)
+- [ ] Returns SP metadata with EntityID `{base_url}/saml/metadata/{idp_id}`, ACS URL `{base_url}/saml/acs/{idp_id}`, and per-IdP certificate
+- [ ] During grace period, includes both current and previous certificates
+
+**Per-IdP ACS endpoint:**
+- [ ] `POST /saml/acs/{idp_id}` routes SAML response to correct IdP config
+- [ ] Uses per-IdP certificate for request signing
+- [ ] Existing global `/saml/acs` remains for backwards compatibility
+
+**Two-step IdP creation (chicken-and-egg solution):**
+- [ ] Step 1: Create IdP with just a name. Immediately generates per-IdP SP certificate and metadata URL
+- [ ] IdP is in pending state (`trust_established = false`) until metadata is obtained
+- [ ] IdP detail page shows per-IdP metadata URL (public link) that admin can share with the IdP counterpart
+- [ ] Step 2: Fetch metadata from IdP's metadata URL, or import metadata XML. Sets `trust_established = true`
+- [ ] After trust established, IdP detail page shows normal view
+
+**Legacy endpoint removal:**
+- [ ] Delete `/saml/metadata` endpoint entirely (no deprecation, no fallback)
+- [ ] Delete tenant-wide `saml_sp_certificates` table and all related code (service, database, router)
+- [ ] Remove the SP certificate rotation button from the IdP list page (rotation now happens per-IdP)
+
+**API:**
+- [ ] `GET /api/v1/saml/identity-providers/{idp_id}` includes `sp_metadata_url`, `sp_entity_id`, `sp_acs_url`
+- [ ] `POST /api/v1/saml/identity-providers/{idp_id}/rotate-sp-certificate` rotates per-IdP SP cert
+
+**Event logging:**
+- [ ] `saml_idp_sp_certificate_created` on cert generation
+- [ ] `saml_idp_trust_established` when metadata is imported
+
+**Tests:**
+- [ ] Per-IdP metadata returns correct EntityID, ACS URL, certificate
+- [ ] Per-IdP ACS routes to correct IdP
+- [ ] Two-step creation flow (name only, then metadata fetch/import)
+- [ ] Migration generates certs for existing IdPs
+- [ ] Legacy `/saml/metadata` endpoint is removed (returns 404 or not routed)
+- [ ] No references to `saml_sp_certificates` remain in application code
+
+**Key files:**
+- New migration in `db-init/`
+- New: `app/database/saml/idp_sp_certificates.py`
+- New: `app/services/saml/idp_sp_certificates.py`
+- Modify: `app/routers/saml/` (per-IdP metadata and ACS endpoints)
+- Modify: IdP creation flow (routers, services, templates)
+
+**Effort:** XL
+**Value:** High (Enables independent per-IdP certificate management, solves chicken-and-egg)
+
+---
+
+## SP-Side Certificate Rotation & Lifecycle Management
+
+**User Story:**
+As a super admin
+I want SP-side signing certificate rotation to serve both old and new certificates during the grace period, rotate automatically before expiry, and clean up expired certificates
+So that IdP administrators can transition smoothly without SSO breaking
+
+**Context:**
+
+Mirrors Item 2 but for the SP side (per-IdP signing certificates from the Per-IdP SP Metadata item). Requires Per-IdP SP Metadata & Trust Establishment to be complete first.
+
+**Depends on:** Per-IdP SP Metadata & Trust Establishment
+
+**Acceptance Criteria:**
+
+**Dual-certificate metadata:**
+- [ ] `generate_sp_metadata_xml()` in `app/utils/saml.py` accepts optional `previous_certificate_pem` parameter
+- [ ] When provided, per-IdP metadata includes two `<md:KeyDescriptor use="signing">` elements (new cert first, previous second)
+- [ ] Metadata service checks `rotation_grace_period_ends_at` on `saml_idp_sp_certificates`
+
+**Rotation guard:**
+- [ ] `rotate_idp_sp_certificate()` rejects rotation when grace period is active
+- [ ] Raises `ValidationError` with message "Certificate rotation already in progress"
+
+**Auto-rotation (extend background job from IdP-Side Rotation):**
+- [ ] Same daily job also queries `saml_idp_sp_certificates` across tenants
+- [ ] Same logic: rotate 90 days before expiry (90-day grace period), clean up when grace period ends
+- [ ] Job summary includes both IdP-side and SP-side cert counts
+
+**Grace period behavior:**
+- [ ] Manual rotation: 7-day grace period
+- [ ] Auto-rotation: 90-day grace period
+- [ ] When grace period ends: old cert removed from metadata AND database simultaneously
+
+**Event logging:**
+- [ ] `saml_idp_sp_certificate_auto_rotated` event
+- [ ] `saml_idp_sp_certificate_cleanup_completed` event
+
+**Tests:**
+- [ ] Dual-cert SP metadata generation
+- [ ] Rotation guard during active rotation
+- [ ] Background job auto-rotates and cleans up SP-side certs
+- [ ] Auto-rotation uses configurable lifetime setting
+
+**Key files:**
+- Modify: `app/utils/saml.py:319` (dual-cert SP metadata generation)
+- Modify: `app/jobs/rotate_certificates.py` (extend from IdP-Side Rotation item)
+- Modify: `app/services/saml/idp_sp_certificates.py` (rotation guard, from Per-IdP SP Metadata item)
+
+**Effort:** M
+**Value:** High
 
 ---
 

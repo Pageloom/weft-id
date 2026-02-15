@@ -53,6 +53,30 @@
         <div class="space-y-4">
             <div class="flex items-start">
                 <div class="flex items-center h-5">
+                    <input type="checkbox" id="is_enabled" name="is_enabled"
+                           {% if idp.is_enabled %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="is_enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enabled</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Users will not be able to authenticate via this IdP while disabled.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
+                    <input type="checkbox" id="is_default" name="is_default"
+                           {% if idp.is_default %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">
+                </div>
+                <div class="ml-3">
+                    <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default IdP</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Used when users click "Sign in with SSO" without selecting a specific provider.</p>
+                </div>
+            </div>
+
+            <div class="flex items-start">
+                <div class="flex items-center h-5">
                     <input type="checkbox" id="require_platform_mfa" name="require_platform_mfa"
                            {% if idp.require_platform_mfa %}checked{% endif %}
                            class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500">

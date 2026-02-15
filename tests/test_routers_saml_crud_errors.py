@@ -567,3 +567,184 @@ def test_list_idps_service_error(mock_list, super_admin_session, test_tenant_hos
 
     assert response.status_code == 200
     assert "configuration_error" in response.text or "error" in response.text.lower()
+
+
+# =============================================================================
+# Edit Settings (Enabled, Default, MFA, JIT) Tests
+# =============================================================================
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_enabled")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_enables_idp(
+    mock_get, mock_set_enabled, mock_update, super_admin_session, test_tenant_host
+):
+    """Test edit-settings with is_enabled=true calls set_idp_enabled when IdP was disabled."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = False
+    mock_idp.is_default = False
+    mock_get.return_value = mock_idp
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={"is_enabled": "true", "require_platform_mfa": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/some-id/details" in location
+    assert "success=settings_updated" in location
+    mock_set_enabled.assert_called_once()
+    # Verify it was called with is_enabled=True
+    assert mock_set_enabled.call_args[0][2] is True
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_enabled")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_disables_idp(
+    mock_get, mock_set_enabled, mock_update, super_admin_session, test_tenant_host
+):
+    """Test edit-settings without is_enabled calls set_idp_enabled(False) when IdP was enabled."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = True
+    mock_idp.is_default = False
+    mock_get.return_value = mock_idp
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={},  # No is_enabled checkbox = False
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_set_enabled.assert_called_once()
+    assert mock_set_enabled.call_args[0][2] is False
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_enabled")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_no_change_skips_toggle(
+    mock_get, mock_set_enabled, mock_update, super_admin_session, test_tenant_host
+):
+    """Test edit-settings does not call set_idp_enabled when state unchanged."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = True
+    mock_idp.is_default = False
+    mock_get.return_value = mock_idp
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={"is_enabled": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_set_enabled.assert_not_called()
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_default")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_sets_default(
+    mock_get, mock_set_default, mock_update, super_admin_session, test_tenant_host
+):
+    """Test edit-settings with is_default=true calls set_idp_default when not already default."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = True
+    mock_idp.is_default = False
+    mock_get.return_value = mock_idp
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={"is_enabled": "true", "is_default": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_set_default.assert_called_once()
+
+
+@patch("routers.saml.admin.providers.saml_service.update_identity_provider")
+@patch("routers.saml.admin.providers.saml_service.set_idp_default")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_skips_default_when_already_default(
+    mock_get, mock_set_default, mock_update, super_admin_session, test_tenant_host
+):
+    """Test edit-settings skips set_idp_default when already default."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = True
+    mock_idp.is_default = True
+    mock_get.return_value = mock_idp
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={"is_enabled": "true", "is_default": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_set_default.assert_not_called()
+
+
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_not_found(mock_get, super_admin_session, test_tenant_host):
+    """Test edit-settings returns redirect on NotFoundError."""
+    mock_get.side_effect = NotFoundError("IdP not found")
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/non-existent-id/edit-settings",
+        data={"is_enabled": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/admin/settings/identity-providers" in location
+    assert "error=not_found" in location
+
+
+@patch("routers.saml.admin.providers.saml_service.set_idp_enabled")
+@patch("routers.saml.admin.providers.saml_service.get_identity_provider")
+def test_edit_settings_service_error_on_toggle(
+    mock_get, mock_set_enabled, super_admin_session, test_tenant_host
+):
+    """Test edit-settings returns redirect on ServiceError from set_idp_enabled."""
+    from unittest.mock import MagicMock
+
+    mock_idp = MagicMock()
+    mock_idp.is_enabled = False
+    mock_idp.is_default = False
+    mock_get.return_value = mock_idp
+    mock_set_enabled.side_effect = ServiceError("Cannot enable")
+
+    response = super_admin_session.post(
+        "/admin/settings/identity-providers/some-id/edit-settings",
+        data={"is_enabled": "true"},
+        headers={"Host": test_tenant_host},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    location = response.headers.get("location", "")
+    assert "/some-id/details" in location
+    assert "error=" in location

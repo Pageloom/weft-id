@@ -517,13 +517,26 @@ def edit_idp_settings(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
+    is_enabled: Annotated[bool, Form()] = False,
+    is_default: Annotated[bool, Form()] = False,
     require_platform_mfa: Annotated[bool, Form()] = False,
     jit_provisioning: Annotated[bool, Form()] = False,
 ):
-    """Update IdP settings (MFA, JIT provisioning)."""
+    """Update IdP settings (enabled, default, MFA, JIT provisioning)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
+        idp = saml_service.get_identity_provider(requesting_user, idp_id)
+
+        # Toggle enabled state if changed
+        if is_enabled != idp.is_enabled:
+            saml_service.set_idp_enabled(requesting_user, idp_id, is_enabled)
+
+        # Set as default if toggled on (un-defaulting requires picking another)
+        if is_default and not idp.is_default:
+            saml_service.set_idp_default(requesting_user, idp_id)
+
+        # Update MFA/JIT settings
         saml_service.update_identity_provider(
             requesting_user,
             idp_id,
@@ -539,7 +552,9 @@ def edit_idp_settings(
             url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
         )
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/details?success=settings_updated", status_code=303
+    )
 
 
 @router.post(
@@ -654,7 +669,7 @@ def toggle_idp(
 
     success = "enabled" if not idp.is_enabled else "disabled"
     return RedirectResponse(
-        url=f"{IDP_LIST_URL}/{idp_id}/danger?success={success}", status_code=303
+        url=f"{IDP_LIST_URL}/{idp_id}/details?success={success}", status_code=303
     )
 
 
@@ -681,7 +696,7 @@ def set_default_idp(
             status_code=303,
         )
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/danger?success=updated", status_code=303)
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp_id}/details?success=updated", status_code=303)
 
 
 @router.post(

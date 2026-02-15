@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## IdP Detail Page UX Overhaul
+
+**Status:** Complete
+
+**Resolution:** Restructured the IdP detail page from a single long form into a tabbed layout (Details, Certificates, Attributes, Metadata, Delete) matching the SP detail page pattern. Details tab has read-only config fields, inline name editing, Settings form (Enabled, Default, MFA, JIT), connection test, SP metadata sharing, and domain bindings. Metadata tab has refresh-from-URL, re-import from XML, sync status display, and stored XML viewer. Delete tab is gated behind disabled-IdP check. Remaining tab-specific improvements (Certificates, Attributes) were broken out into dedicated backlog items.
+
+**Acceptance Criteria:**
+
+- [x] Tabbed layout with Details, Certificates, Attributes, Metadata, Delete tabs
+- [x] Details tab: read-only fields (provider type, entity ID, SSO/SLO URL, created date)
+- [x] Details tab: inline name editing via modal
+- [x] Details tab: Settings form with Enabled, Default IdP, MFA, JIT checkboxes
+- [x] Details tab: connection test button
+- [x] Metadata tab: refresh from URL with last-synced timestamp and error display
+- [x] Metadata tab: re-import from pasted XML with confirmation
+- [x] Metadata tab: stored metadata XML viewer
+- [x] Delete tab: delete button disabled while IdP is enabled
+- [x] Delete tab: clear messaging pointing to Details tab for disabling
+- [x] Service layer enforces delete-requires-disabled constraint
+- [x] All existing IdP functionality preserved
+- [x] API endpoints unchanged
+- [x] All existing tests pass, new tests for settings and error paths
+
+---
+
 ## IdP List View UX Overhaul
 
 **Status:** Complete

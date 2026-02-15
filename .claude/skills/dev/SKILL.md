@@ -50,6 +50,9 @@ poetry run ruff check --fix app/ tests/ # Lint
 
 All three must pass.
 
+# Note: E2E tests (./test-e2e) are separate and not required before every commit.
+# Run them when changes affect login flows, SAML SSO, or cross-tenant behavior.
+
 ## Testing Requirements
 
 - ~100% coverage on new code

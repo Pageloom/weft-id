@@ -42,16 +42,22 @@ These cannot be unit/integration tested effectively:
 
 5. **Database failure branches** - Defensive code for impossible conditions
 
-## E2E Test Setup
+## E2E Test Suite
 
-For manual E2E testing, use SAMLtest.id (a free hosted SAML testing service that acts as both IdP and SP). Automated E2E tests would need:
+Automated E2E tests now exist in `tests/e2e/` using Playwright. Run with `./test-e2e`.
 
-1. SAMLtest.id configured with matching metadata (or a cross-tenant Weft ID setup)
-2. Playwright to navigate the IdP login page
-3. Handle the POST back to ACS
-4. Verify session creation
+The test bed (`app/dev/sso_testbed.py`) provisions two cross-tenant setups:
+- **IdP tenant** (`e2e-idp`) with a super admin user
+- **SP tenant** (`e2e-sp`) with admin, member, and pre-existing users
 
-This is complex and fragile. Accept the coverage gap or invest in a proper E2E test suite (see BACKLOG.md SAML Smoketest item).
+Tests cover:
+- SP-initiated SSO with JIT provisioning
+- IdP-initiated SSO via "My Apps" dashboard
+- Pre-existing user matching (no duplicate JIT creation)
+- Admin XML metadata import (both IdP and SP sides)
+- Basic multi-step email+password login flow
+
+For manual testing, SAMLtest.id and sptest.iamshowcase.com remain available options.
 
 ## SAML IdP / Service Provider Testing
 

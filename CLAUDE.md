@@ -91,6 +91,7 @@ app/
 ├── jobs/             # Background task handlers
 └── constants/        # Enums and constants
 tests/                # Mirrors app/ structure
+├── e2e/              # Playwright E2E tests (run via ./test-e2e)
 db-init/              # SQL migrations (sequential numbering)
 scripts/              # Compliance and dependency checks
 .claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
@@ -273,6 +274,16 @@ python scripts/compliance_check.py          # Check all principles
 python scripts/compliance_check.py --check activity  # Specific check
 ```
 
+**E2E tests (Playwright):**
+```bash
+./test-e2e                          # Run all E2E tests (requires Docker services running)
+./test-e2e --headed --slowmo=500    # Debug in visible browser
+./test-e2e -k test_sp_initiated     # Run specific test
+./test-e2e --tb=long                # Verbose tracebacks
+```
+
+E2E tests live in `tests/e2e/` and are **excluded** from `./test` (via `--ignore=tests/e2e` in `pytest.ini`). They run sequentially (`-n 0`) and require Docker services plus MailDev to be running. Tests are skipped automatically if MailDev is not reachable.
+
 ### Docker Infrastructure (Use Make)
 
 **Service management:**
@@ -368,6 +379,7 @@ All checks must pass before committing.
 - **Cover happy paths and key edge cases** - don't just test the golden path
 - **All existing tests must pass** - never break existing functionality
 - Tests live in `tests/` mirroring the app structure
+- **E2E tests** live in `tests/e2e/` and run separately via `./test-e2e`. They cover cross-tenant SAML SSO flows and login using Playwright. They are excluded from `./test`.
 - **Test environment**: Tests set `IS_DEV=true` (in `tests/conftest.py`) to bypass production validation
 
 ## Agent Workflow

@@ -458,8 +458,8 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC1
 
     assert response.status_code == 200
     assert "Detail Tab Test IdP" in response.text
-    # Verify ACS URL is displayed
-    assert "/saml/acs" in response.text, "ACS URL not displayed in template"
+    # Verify trust page link is displayed (ACS URL moved to public trust page)
+    assert "/pub/idp/" in response.text, "Trust page link not displayed in template"
 
 
 def test_update_idp_name_via_form(

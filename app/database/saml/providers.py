@@ -377,6 +377,24 @@ def delete_identity_provider(tenant_id: TenantArg, idp_id: str) -> int:
 # ============================================================================
 
 
+def get_public_idp_info(tenant_id: TenantArg, idp_id: str) -> dict | None:
+    """
+    Get minimal IdP info for the public trust page.
+
+    Returns None if not found or not enabled.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, name, provider_type, sp_entity_id, attribute_mapping,
+               is_enabled, jit_provisioning
+        from saml_identity_providers
+        where id = :idp_id and is_enabled = true
+        """,
+        {"idp_id": idp_id},
+    )
+
+
 def get_enabled_identity_providers(tenant_id: TenantArg) -> list[dict]:
     """
     Get all enabled identity providers for a tenant (for login page).

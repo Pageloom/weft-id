@@ -11,6 +11,7 @@ from routers.saml._helpers import get_base_url, store_saml_debug_and_respond
 from services import saml as saml_service
 from services import settings as settings_service
 from services import users as users_service
+from services.branding import get_branding_for_template
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
@@ -109,6 +110,56 @@ def sp_metadata(
             status_code=404,
             media_type="text/plain",
         )
+
+
+@router.get("/pub/idp/{idp_id}")
+def public_trust_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    idp_id: str,
+):
+    """
+    Public trust configuration page for external IdP administrators.
+
+    Shows SP Entity ID, ACS URL, metadata URL, and expected attribute mappings
+    so an external IdP admin can configure their side of the federation.
+    """
+    # Validate UUID format to avoid database errors
+    import uuid as uuid_mod
+
+    try:
+        uuid_mod.UUID(idp_id)
+    except ValueError:
+        return Response(status_code=404, content="Not found", media_type="text/plain")
+
+    base_url = get_base_url(request)
+
+    try:
+        trust_info = saml_service.get_public_trust_info(tenant_id, idp_id, base_url)
+    except NotFoundError:
+        return Response(status_code=404, content="Not found", media_type="text/plain")
+
+    # Fetch metadata XML for inline display (may not exist if no SP cert yet)
+    metadata_xml = None
+    try:
+        metadata_xml = saml_service.get_tenant_sp_metadata_xml(tenant_id, base_url)
+    except NotFoundError:
+        pass
+
+    branding = get_branding_for_template(tenant_id)
+
+    return templates.TemplateResponse(
+        request,
+        "saml_public_trust.html",
+        {
+            "request": request,
+            "trust": trust_info,
+            "metadata_xml": metadata_xml,
+            "csp_nonce": get_csp_nonce(request),
+            "branding": branding,
+            "site_title": branding.get("site_title", "WeftId"),
+        },
+    )
 
 
 @router.get("/saml/login/{idp_id}")

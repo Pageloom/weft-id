@@ -320,6 +320,7 @@ def idp_tab_details(
         sp_metadata=sp_metadata,
         domain_bindings=domain_bindings.items,
         unbound_domains=unbound_domains,
+        base_url=get_base_url(request),
         active_tab="details",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

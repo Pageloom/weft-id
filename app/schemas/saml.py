@@ -162,6 +162,24 @@ class SPMetadata(BaseModel):
 
 
 # ============================================================================
+# IdP Certificate Schemas
+# ============================================================================
+
+
+class IdPCertificate(BaseModel):
+    """Response schema for an IdP signing certificate."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    idp_id: str
+    certificate_pem: str
+    fingerprint: str
+    expires_at: datetime | None = None
+    created_at: datetime
+
+
+# ============================================================================
 # IdP Metadata Import Schemas
 # ============================================================================
 
@@ -173,6 +191,7 @@ class IdPMetadataParsed(BaseModel):
     sso_url: str
     slo_url: str | None
     certificate_pem: str
+    certificates: list[str] = Field(default_factory=list)
     metadata_xml: str | None = None
 
 

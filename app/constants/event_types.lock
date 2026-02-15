@@ -16,6 +16,10 @@ group_members_bulk_removed
 group_relationship_created
 group_relationship_deleted
 group_updated
+idp_certificate_activated
+idp_certificate_added
+idp_certificate_deactivated
+idp_certificate_removed
 idp_group_created
 idp_group_discovered
 idp_group_invalidated

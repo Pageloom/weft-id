@@ -19,6 +19,7 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config
+from services.saml.idp_certificates import sync_certificates_from_metadata
 from services.saml.providers import create_identity_provider
 from services.types import RequestingUser
 from utils.saml import fetch_idp_metadata, parse_idp_metadata_xml
@@ -50,6 +51,7 @@ def fetch_and_parse_idp_metadata(url: str) -> IdPMetadataParsed:
             sso_url=parsed["sso_url"],
             slo_url=parsed["slo_url"],
             certificate_pem=parsed["certificate_pem"],
+            certificates=parsed.get("certificates", []),
             metadata_xml=xml_content,
         )
     except ValueError as e:
@@ -96,7 +98,13 @@ def import_idp_from_metadata_url(
         is_enabled=False,  # Start disabled, admin must enable
     )
 
-    return create_identity_provider(requesting_user, data, base_url)
+    idp = create_identity_provider(requesting_user, data, base_url)
+
+    # Sync all certificates from metadata
+    if metadata.certificates:
+        sync_certificates_from_metadata(requesting_user["tenant_id"], idp.id, metadata.certificates)
+
+    return idp
 
 
 def parse_idp_metadata_xml_to_schema(metadata_xml: str) -> IdPMetadataParsed:
@@ -122,6 +130,7 @@ def parse_idp_metadata_xml_to_schema(metadata_xml: str) -> IdPMetadataParsed:
             sso_url=parsed["sso_url"],
             slo_url=parsed["slo_url"],
             certificate_pem=parsed["certificate_pem"],
+            certificates=parsed.get("certificates", []),
             metadata_xml=metadata_xml,
         )
     except ValueError as e:
@@ -168,7 +177,13 @@ def import_idp_from_metadata_xml(
         is_enabled=False,  # Start disabled, admin must enable
     )
 
-    return create_identity_provider(requesting_user, data, base_url)
+    idp = create_identity_provider(requesting_user, data, base_url)
+
+    # Sync all certificates from metadata
+    if metadata.certificates:
+        sync_certificates_from_metadata(requesting_user["tenant_id"], idp.id, metadata.certificates)
+
+    return idp
 
 
 def refresh_idp_from_metadata(
@@ -227,6 +242,10 @@ def refresh_idp_from_metadata(
             message="Failed to update identity provider",
             code="idp_update_failed",
         )
+
+    # Sync certificates from refreshed metadata
+    if metadata.certificates:
+        sync_certificates_from_metadata(tenant_id, idp_id, metadata.certificates)
 
     log_event(
         tenant_id=tenant_id,
@@ -291,6 +310,10 @@ def refresh_all_idp_metadata() -> MetadataRefreshSummary:
                 slo_url=metadata.slo_url,
                 metadata_xml=metadata.metadata_xml,
             )
+
+            # Sync certificates from refreshed metadata
+            if metadata.certificates:
+                sync_certificates_from_metadata(tenant_id, idp_id, metadata.certificates)
 
             results.append(
                 MetadataRefreshResult(

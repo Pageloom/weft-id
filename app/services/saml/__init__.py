@@ -71,6 +71,13 @@ from services.saml.domains import (
     unbind_domain_from_idp,
 )
 
+# Re-export from idp_certificates module
+from services.saml.idp_certificates import (
+    get_certificates_for_validation,
+    list_idp_certificates,
+    sync_certificates_from_metadata,
+)
+
 # Re-export from logout module
 from services.saml.logout import (
     initiate_sp_logout,
@@ -129,6 +136,10 @@ __all__ = [
     "get_sp_metadata",
     "get_tenant_sp_metadata_xml",
     "rotate_sp_certificate",
+    # IdP Certificates
+    "list_idp_certificates",
+    "get_certificates_for_validation",
+    "sync_certificates_from_metadata",
     # Debug
     "get_saml_debug_entry",
     "list_saml_debug_entries",

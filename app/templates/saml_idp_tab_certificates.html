@@ -1,17 +1,65 @@
 {% extends "saml_idp_base.html" %}
 
 {% block tab_content %}
-{# IdP Certificate #}
+{# IdP Signing Certificates #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">IdP Signing Certificate</h2>
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">IdP Signing Certificates</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        This certificate is used to verify SAML assertions from the identity provider. It was provided during setup{% if idp.metadata_url %} and is updated automatically when metadata is refreshed{% endif %}.
+        These certificates are used to verify SAML assertions from the identity provider. Multiple certificates support seamless rotation. Certificates are managed automatically through metadata sync.
     </p>
 
-    <details>
-        <summary class="cursor-pointer text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">View PEM</summary>
-        <pre class="mt-3 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md overflow-x-auto text-xs text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap break-all"><code>{{ idp.certificate_pem }}</code></pre>
-    </details>
+    {# Certificate list #}
+    {% if idp_certificates %}
+    {# Find the certificate with the farthest expiry #}
+    {% set ns = namespace(newest_id=None, newest_expiry=None) %}
+    {% for cert in idp_certificates %}
+        {% if cert.expires_at and (ns.newest_expiry is none or cert.expires_at > ns.newest_expiry) %}
+            {% set ns.newest_expiry = cert.expires_at %}
+            {% set ns.newest_id = cert.id %}
+        {% endif %}
+    {% endfor %}
+    <div class="space-y-3 mb-6">
+        {% for cert in idp_certificates %}
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            {% if cert.id == ns.newest_id and idp_certificates|length > 1 %}
+            <div class="mb-2">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">Newest</span>
+            </div>
+            {% endif %}
+
+            {% if cert.fingerprint %}
+            <div class="mb-3">
+                <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SHA-256 Fingerprint</dt>
+                <dd class="mt-0.5 text-xs text-gray-700 dark:text-gray-300 font-mono break-all">{{ cert.fingerprint }}</dd>
+            </div>
+            {% endif %}
+
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+                {% if cert.expires_at %}
+                {% set expires_rel, expires_exact = fmt_relative(cert.expires_at) %}
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expires</dt>
+                    <dd class="mt-0.5 {% if cert.expires_at > cert_expiry_threshold %}text-green-700 dark:text-green-400{% else %}text-red-700 dark:text-red-400{% endif %}">{{ fmt_datetime(cert.expires_at) }} <span class="text-xs text-gray-500 dark:text-gray-400">({{ expires_rel }})</span></dd>
+                </div>
+                {% endif %}
+                {% set added_rel, added_exact = fmt_relative(cert.created_at) %}
+                <div>
+                    <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Added</dt>
+                    <dd class="mt-0.5 text-gray-900 dark:text-gray-100">{{ fmt_datetime(cert.created_at) }} <span class="text-xs text-gray-500 dark:text-gray-400">({{ added_rel }})</span></dd>
+                </div>
+            </dl>
+
+            <details class="mt-3">
+                <summary class="cursor-pointer text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">View PEM</summary>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">PEM (Privacy-Enhanced Mail) is a Base64-encoded format for cryptographic data. This is the public X.509 certificate used to verify signatures on SAML assertions from the identity provider.</p>
+                <pre class="mt-2 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md overflow-x-auto text-xs text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap break-all"><code>{{ cert.certificate_pem }}</code></pre>
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">No certificates stored yet. The certificate from the IdP configuration will be used for validation.</p>
+    {% endif %}
 </div>
 
 {# SP Certificate (tenant-level) #}
@@ -46,6 +94,7 @@
 
     <details class="mt-4">
         <summary class="cursor-pointer text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">View PEM</summary>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">PEM (Privacy-Enhanced Mail) is a Base64-encoded format for cryptographic data. This is the public X.509 certificate shared with identity providers so they can encrypt assertions or verify signed requests from WeftId.</p>
         <pre class="mt-3 p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md overflow-x-auto text-xs text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap break-all"><code>{{ sp_certificate.certificate_pem }}</code></pre>
     </details>
 </div>

@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Multiple IdP Certificates
+
+**Status:** Complete
+
+**Resolution:** Added multi-certificate support for IdP signing certificates, enabling seamless IdP-side certificate rotation without SSO downtime. Certificates are managed entirely through metadata sync (the IdP's metadata is the single source of truth). Uses python3-saml's native `x509certMulti` for validation against all certificates simultaneously.
+
+The implementation includes: `idp_certificates` table with RLS, migration to seed existing certificates from `saml_identity_providers`, SHA-256 fingerprint-based deduplication, metadata import/refresh syncing certificates automatically, certificates tab UI with full fingerprint display, expiry coloring, relative timestamps, "Newest" badge, and expandable PEM view with explanation.
+
+Manual add/remove/activate/deactivate were intentionally excluded. Certificate lifecycle is entirely driven by metadata.
+
+**Acceptance Criteria:**
+
+- [x] New table: `idp_certificates` (id UUID, idp_id UUID, tenant_id UUID, certificate_pem TEXT, fingerprint TEXT, expires_at TIMESTAMPTZ nullable, created_at TIMESTAMPTZ)
+- [x] Migration to seed existing `certificate_pem` data from `saml_identity_providers` into `idp_certificates`
+- [x] RLS policy on `idp_certificates` matching existing tenant isolation pattern
+- [x] SAML validation uses all certificates via `x509certMulti` (native python3-saml support)
+- [x] Metadata import extracts and stores all `<KeyDescriptor use="signing">` certificates
+- [x] Metadata refresh syncs certificates (adds new, removes stale)
+- [x] Certificates tab: list with SHA-256 fingerprint, expiry (green/red coloring), relative timestamps, "Newest" badge
+- [x] Expandable PEM view with acronym explanation
+- [x] SP certificate section unchanged
+- [x] All 3024 tests pass
+
+---
+
 ## Public Trust Page for IdP Configuration
 
 **Status:** Complete

@@ -6,59 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Multiple IdP Certificates
-
-**User Story:**
-As a super admin
-I want WeftId to accept multiple signing certificates from an identity provider
-So that IdP-side certificate rotation does not break SSO during the transition period
-
-**Context:**
-
-The `saml_identity_providers` table has a single `certificate_pem TEXT NOT NULL` column. During IdP-side certificate rotation, the IdP may start signing assertions with a new certificate while the old one is still in use by some sessions. WeftId currently can only validate against one certificate, so rotation on the IdP side breaks SSO until the admin manually updates the certificate in WeftId. Many IdPs also advertise multiple certificates in their metadata XML during rotation periods.
-
-**Acceptance Criteria:**
-
-**Data model:**
-- [ ] New table: `idp_certificates` (id UUID, idp_id UUID, tenant_id UUID, certificate_pem TEXT, fingerprint TEXT, label TEXT nullable, is_active BOOLEAN default true, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ nullable)
-- [ ] Migration to copy existing `certificate_pem` data from `saml_identity_providers` into `idp_certificates`
-- [ ] Make `certificate_pem` on `saml_identity_providers` nullable (keep for backwards compat during transition, eventually remove)
-- [ ] RLS policy on `idp_certificates` matching existing tenant isolation pattern
-
-**SAML validation:**
-- [ ] Update SAML response validation to try all active certificates for an IdP (iterate until one validates or all fail)
-- [ ] Validation failure message should indicate none of the certificates matched (not just "invalid signature")
-
-**Metadata import:**
-- [ ] Update metadata import to extract and store all `<KeyDescriptor use="signing">` certificates from IdP metadata XML
-- [ ] Metadata refresh flow syncs certificates (adds new ones, optionally deactivates removed ones)
-
-**Certificates tab UI:**
-- [ ] List all IdP certificates with fingerprint, expiry date, active/inactive status
-- [ ] Expandable PEM view per certificate
-- [ ] Add certificate manually (paste PEM)
-- [ ] Deactivate/activate individual certificates
-- [ ] Remove individual certificates (with confirmation)
-- [ ] SP certificate section remains as-is (the signing cert WeftId uses for this IdP relationship)
-
-**Event logging:**
-- [ ] `idp_certificate_added` event when a certificate is added
-- [ ] `idp_certificate_deactivated` / `idp_certificate_activated` events
-- [ ] `idp_certificate_removed` event when a certificate is deleted
-
-**Key files:**
-- New: `db-init/NNNNN_idp_certificates.sql`
-- New or extend: `app/database/saml/idp_certificates.py`
-- Modify: `app/services/saml/auth.py` (multi-cert validation in `_build_saml_settings`)
-- Modify: `app/services/saml/providers.py` (metadata import certificate handling)
-- Modify: `app/templates/saml_idp_tab_certificates.html`
-- Modify: `app/utils/saml.py` (extract multiple certs from metadata XML)
-
-**Effort:** L
-**Value:** High (IdP-side certificate rotation currently breaks SSO)
-
----
-
 ## Fix and Redesign IdP Attribute Mapping
 
 **User Story:**

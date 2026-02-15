@@ -22,15 +22,23 @@ from database.saml.domains import (
     list_domains_with_bindings,
     unbind_domain_from_idp,
 )
+from database.saml.idp_certificates import (
+    create_idp_certificate,
+    delete_idp_certificate,
+    get_idp_certificate,
+    get_idp_certificate_by_fingerprint,
+    list_idp_certificates,
+    update_idp_certificate_fingerprint,
+)
 from database.saml.providers import (
     create_identity_provider,
     delete_identity_provider,
     get_default_identity_provider,
     get_enabled_identity_providers,
     get_identity_provider,
-    get_public_idp_info,
     get_identity_provider_by_entity_id,
     get_idps_with_metadata_url,
+    get_public_idp_info,
     get_user_assigned_idp,
     list_identity_providers,
     set_idp_default,
@@ -48,6 +56,13 @@ from database.saml.security import (
 )
 
 __all__ = [
+    # idp_certificates
+    "list_idp_certificates",
+    "get_idp_certificate",
+    "get_idp_certificate_by_fingerprint",
+    "create_idp_certificate",
+    "delete_idp_certificate",
+    "update_idp_certificate_fingerprint",
     # certificates
     "get_sp_certificate",
     "create_sp_certificate",

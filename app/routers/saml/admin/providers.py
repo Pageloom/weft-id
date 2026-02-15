@@ -339,12 +339,13 @@ def idp_tab_certificates(
     user: Annotated[dict, Depends(get_current_user)],
     idp_id: str,
 ):
-    """Certificates tab: IdP certificate with expandable PEM, SP certificate info."""
+    """Certificates tab: IdP certificates with management, SP certificate info."""
     if not has_page_access("/admin/settings/identity-providers/idp/certificates", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     try:
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
+        idp_certificates = saml_service.list_idp_certificates(requesting_user, idp_id)
     except NotFoundError:
         return RedirectResponse(url=f"{IDP_LIST_URL}?error=not_found", status_code=303)
     except ServiceError as exc:
@@ -357,11 +358,17 @@ def idp_tab_certificates(
     except ServiceError:
         pass
 
+    import datetime
+
+    cert_expiry_threshold = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=30)
+
     context = get_template_context(
         request,
         tenant_id,
         idp=idp,
+        idp_certificates=idp_certificates,
         sp_certificate=sp_certificate,
+        cert_expiry_threshold=cert_expiry_threshold,
         active_tab="certificates",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

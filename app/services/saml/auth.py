@@ -25,6 +25,7 @@ from schemas.saml import (
 from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config
 from services.saml._helpers import get_saml_attribute, get_saml_group_attributes
+from services.saml.idp_certificates import get_certificates_for_validation
 from utils.saml import build_saml_settings, decrypt_private_key
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ def _prepare_saml_auth(
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
     sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
 
+    # Load IdP certificates for multi-cert validation
+    idp_certs = get_certificates_for_validation(tenant_id, idp_id)
+    if not idp_certs:
+        idp_certs = [idp.certificate_pem]
+
     settings = build_saml_settings(
         sp_entity_id=idp.sp_entity_id,
         sp_acs_url=sp_acs_url,
@@ -65,8 +71,9 @@ def _prepare_saml_auth(
         sp_private_key_pem=sp_private_key,
         idp_entity_id=idp.entity_id,
         idp_sso_url=idp.sso_url,
-        idp_certificate_pem=idp.certificate_pem,
+        idp_certificate_pem=idp_certs[0],
         idp_slo_url=idp.slo_url,
+        idp_certificate_pems=idp_certs,
     )
 
     if request_data is None:

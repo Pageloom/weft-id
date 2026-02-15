@@ -114,6 +114,21 @@ def generate_sp_certificate(
     return cert_pem, key_pem
 
 
+def get_certificate_fingerprint(certificate_pem: str) -> str:
+    """
+    Get the SHA-256 fingerprint of a PEM-encoded certificate.
+
+    Args:
+        certificate_pem: PEM-encoded X.509 certificate
+
+    Returns:
+        Colon-separated hex fingerprint (e.g. "AB:CD:EF:...")
+    """
+    cert = x509.load_pem_x509_certificate(certificate_pem.encode())
+    digest = cert.fingerprint(hashes.SHA256())
+    return ":".join(f"{b:02X}" for b in digest)
+
+
 def get_certificate_expiry(certificate_pem: str) -> datetime.datetime:
     """
     Get the expiry date from a PEM-encoded certificate.
@@ -208,20 +223,42 @@ def parse_idp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
 
     # Certificate - could be a string or list
     cert = idp_data.get("x509cert")
+    raw_certs: list[str] = []
     if isinstance(cert, list):
+        raw_certs = list(cert)
         cert = cert[0] if cert else None
+    elif cert:
+        raw_certs = [cert]
+
+    # Also check x509certMulti for additional signing certs
+    cert_multi = idp_data.get("x509certMulti", {})
+    if isinstance(cert_multi, dict):
+        signing_certs = cert_multi.get("signing", [])
+        if isinstance(signing_certs, list):
+            for sc in signing_certs:
+                if sc and sc not in raw_certs:
+                    raw_certs.append(sc)
+
     if not cert:
         raise ValueError("IdP metadata missing X.509 certificate")
 
+    def _format_pem(c: str) -> str:
+        if not c.startswith("-----BEGIN"):
+            return f"-----BEGIN CERTIFICATE-----\n{c}\n-----END CERTIFICATE-----"
+        return c
+
     # Format certificate as PEM if needed
-    if not cert.startswith("-----BEGIN"):
-        cert = f"-----BEGIN CERTIFICATE-----\n{cert}\n-----END CERTIFICATE-----"
+    cert = _format_pem(cert)
+
+    # Format all certificates as PEM
+    certificates = [_format_pem(c) for c in raw_certs if c]
 
     return {
         "entity_id": entity_id,
         "sso_url": sso_url,
         "slo_url": slo_url,
         "certificate_pem": cert,
+        "certificates": certificates,
     }
 
 
@@ -362,6 +399,7 @@ def build_saml_settings(
     idp_certificate_pem: str,
     idp_slo_url: str | None = None,
     sp_slo_url: str | None = None,
+    idp_certificate_pems: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Build python3-saml settings dict for a SAML operation.
@@ -376,6 +414,8 @@ def build_saml_settings(
         idp_certificate_pem: IdP signing certificate (PEM)
         idp_slo_url: Optional IdP Single Logout URL
         sp_slo_url: Optional SP Single Logout URL
+        idp_certificate_pems: Optional list of all IdP signing certificates (PEM).
+            When provided with >1 cert, enables multi-cert validation via x509certMulti.
 
     Returns:
         Settings dict compatible with OneLogin_Saml2_Auth
@@ -398,6 +438,13 @@ def build_saml_settings(
         },
         "x509cert": clean_cert(idp_certificate_pem),
     }
+
+    # When multiple IdP certificates are provided, use x509certMulti
+    # so python3-saml tries all signing certs during validation
+    if idp_certificate_pems and len(idp_certificate_pems) > 1:
+        idp_settings["x509certMulti"] = {
+            "signing": [clean_cert(c) for c in idp_certificate_pems],
+        }
 
     if idp_slo_url:
         idp_settings["singleLogoutService"] = {

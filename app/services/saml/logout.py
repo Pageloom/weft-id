@@ -6,6 +6,7 @@ This module handles SP-initiated and IdP-initiated logout flows.
 import logging
 
 import database
+from services.saml.idp_certificates import get_certificates_for_validation
 from utils.saml import (
     build_logout_request,
     build_logout_response,
@@ -65,6 +66,11 @@ def initiate_sp_logout(
         sp_acs_url = f"{base_url}/saml/acs"
         sp_slo_url = f"{base_url}/saml/slo"
 
+        # Load IdP certificates for multi-cert validation
+        idp_certs = get_certificates_for_validation(tenant_id, saml_idp_id)
+        if not idp_certs:
+            idp_certs = [idp["certificate_pem"]]
+
         settings = build_saml_settings(
             sp_entity_id=sp_entity_id,
             sp_acs_url=sp_acs_url,
@@ -72,9 +78,10 @@ def initiate_sp_logout(
             sp_private_key_pem=sp_private_key,
             idp_entity_id=idp["entity_id"],
             idp_sso_url=idp["sso_url"],
-            idp_certificate_pem=idp["certificate_pem"],
+            idp_certificate_pem=idp_certs[0],
             idp_slo_url=idp["slo_url"],
             sp_slo_url=sp_slo_url,
+            idp_certificate_pems=idp_certs,
         )
 
         # Build logout request
@@ -146,6 +153,12 @@ def process_idp_logout_request(
         sp_acs_url = f"{base_url}/saml/acs"
         sp_slo_url = f"{base_url}/saml/slo"
 
+        # Load IdP certificates for multi-cert validation
+        idp_id = str(idp["id"])
+        idp_certs = get_certificates_for_validation(tenant_id, idp_id)
+        if not idp_certs:
+            idp_certs = [idp["certificate_pem"]]
+
         settings = build_saml_settings(
             sp_entity_id=sp_entity_id,
             sp_acs_url=sp_acs_url,
@@ -153,9 +166,10 @@ def process_idp_logout_request(
             sp_private_key_pem=sp_private_key,
             idp_entity_id=idp["entity_id"],
             idp_sso_url=idp["sso_url"],
-            idp_certificate_pem=idp["certificate_pem"],
+            idp_certificate_pem=idp_certs[0],
             idp_slo_url=idp["slo_url"],
             sp_slo_url=sp_slo_url,
+            idp_certificate_pems=idp_certs,
         )
 
         # Process the incoming LogoutRequest

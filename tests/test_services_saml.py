@@ -1577,6 +1577,11 @@ def test_refresh_all_idp_metadata_with_urls_success(
 
     monkeypatch.setattr(database.saml, "update_idp_metadata_fields", mock_update)
 
+    # Mock cert sync (no real DB for test IdP IDs)
+    monkeypatch.setattr(
+        "services.saml.metadata.sync_certificates_from_metadata", lambda *a, **kw: None
+    )
+
     # Mock urlopen to return valid metadata
     mock_response = MagicMock()
     mock_response.read.return_value = sample_idp_metadata_xml.encode()

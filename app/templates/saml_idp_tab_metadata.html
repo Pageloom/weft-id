@@ -13,7 +13,8 @@
         {% if idp.metadata_last_fetched_at %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Last Synced</dt>
-            <dd class="mt-1 text-sm text-green-600 dark:text-green-400">{{ fmt_datetime(idp.metadata_last_fetched_at) }}</dd>
+            {% set synced_rel, synced_exact = fmt_relative(idp.metadata_last_fetched_at) %}
+            <dd class="mt-1 text-sm text-green-600 dark:text-green-400">{{ fmt_datetime(idp.metadata_last_fetched_at) }} <span class="text-xs text-gray-500 dark:text-gray-400">({{ synced_rel }})</span></dd>
         </div>
         {% endif %}
         {% if idp.metadata_fetch_error %}

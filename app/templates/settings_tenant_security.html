@@ -106,6 +106,32 @@
             </div>
 
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Certificate Lifetime</h2>
+                <div class="mb-6">
+                    <label for="certificate_lifetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Signing certificate validity period
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        How long newly generated signing certificates remain valid.
+                        This applies to both SAML SP certificates and per-service-provider signing certificates.
+                        Existing certificates are not affected.
+                    </p>
+
+                    <select
+                        name="certificate_lifetime"
+                        id="certificate_lifetime"
+                        class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="1" {% if max_certificate_lifetime_years == 1 %}selected{% endif %}>1 year</option>
+                        <option value="2" {% if max_certificate_lifetime_years == 2 %}selected{% endif %}>2 years</option>
+                        <option value="3" {% if max_certificate_lifetime_years == 3 %}selected{% endif %}>3 years</option>
+                        <option value="5" {% if max_certificate_lifetime_years == 5 %}selected{% endif %}>5 years</option>
+                        <option value="10" {% if max_certificate_lifetime_years == 10 or max_certificate_lifetime_years is none %}selected{% endif %}>10 years</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
                 <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">User Permissions</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.

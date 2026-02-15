@@ -94,7 +94,10 @@ def rotate_sp_signing_certificate(
         )
 
     # Generate new certificate
-    new_cert_pem, new_key_pem = generate_sp_certificate(tenant_id)
+    from services.settings import get_certificate_lifetime
+
+    validity_years = get_certificate_lifetime(tenant_id)
+    new_cert_pem, new_key_pem = generate_sp_certificate(tenant_id, validity_years=validity_years)
     new_encrypted_key = encrypt_private_key(new_key_pem)
     new_expires_at = get_certificate_expiry(new_cert_pem)
 

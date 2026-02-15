@@ -357,3 +357,52 @@ def test_update_tenant_security_invalid_timeout(
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# Tenant Security - Certificate Lifetime
+# =============================================================================
+
+
+def test_get_tenant_security_includes_certificate_lifetime(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """GET includes max_certificate_lifetime_years field."""
+    response = client.get(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "max_certificate_lifetime_years" in data
+    assert data["max_certificate_lifetime_years"] == 10  # Default
+
+
+def test_update_certificate_lifetime_valid_values(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """PATCH accepts valid certificate lifetime values."""
+    for years in [1, 2, 3, 5, 10]:
+        response = client.patch(
+            "/api/v1/settings/tenant-security",
+            headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            json={"max_certificate_lifetime_years": years},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["max_certificate_lifetime_years"] == years
+
+
+def test_update_certificate_lifetime_invalid_value(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """PATCH rejects invalid certificate lifetime value with 422."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"max_certificate_lifetime_years": 4},  # Not in [1, 2, 3, 5, 10]
+    )
+
+    assert response.status_code == 422

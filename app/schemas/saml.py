@@ -1,6 +1,7 @@
 """Pydantic schemas for SAML IdP management and authentication."""
 
 from datetime import UTC, datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -62,15 +63,21 @@ class IdPCreate(BaseModel):
     trust establishment.
     """
 
-    name: str = Field(..., min_length=1, max_length=255)
-    provider_type: str = Field(..., pattern="^(okta|azure_ad|google|generic)$")
-    entity_id: str | None = Field(None, min_length=1)
-    sso_url: str | None = Field(None, min_length=1)
-    slo_url: str | None = None
-    certificate_pem: str | None = Field(None, min_length=1)
-    metadata_url: str | None = Field(None, description="Optional IdP metadata URL for auto-refresh")
-    metadata_xml: str | None = Field(None, description="Raw metadata XML from import")
-    attribute_mapping: dict[str, str] = Field(default_factory=lambda: DEFAULT_ATTRIBUTE_MAPPING)
+    name: str = Field(..., min_length=1, max_length=120)
+    provider_type: str = Field(..., max_length=50, pattern="^(okta|azure_ad|google|generic)$")
+    entity_id: str | None = Field(None, min_length=1, max_length=2048)
+    sso_url: str | None = Field(None, min_length=1, max_length=2048)
+    slo_url: str | None = Field(None, max_length=2048)
+    certificate_pem: str | None = Field(None, min_length=1, max_length=16000)
+    metadata_url: str | None = Field(
+        None, max_length=2048, description="Optional IdP metadata URL for auto-refresh"
+    )
+    metadata_xml: str | None = Field(
+        None, max_length=1000000, description="Raw metadata XML from import"
+    )
+    attribute_mapping: dict[
+        Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]
+    ] = Field(default_factory=lambda: DEFAULT_ATTRIBUTE_MAPPING)
     is_enabled: bool = False
     is_default: bool = False
     require_platform_mfa: bool = False
@@ -80,12 +87,14 @@ class IdPCreate(BaseModel):
 class IdPUpdate(BaseModel):
     """Request schema for updating an IdP."""
 
-    name: str | None = None
-    sso_url: str | None = None
-    slo_url: str | None = None
-    certificate_pem: str | None = None
-    metadata_url: str | None = None
-    attribute_mapping: dict[str, str] | None = None
+    name: str | None = Field(None, min_length=1, max_length=120)
+    sso_url: str | None = Field(None, max_length=2048)
+    slo_url: str | None = Field(None, max_length=2048)
+    certificate_pem: str | None = Field(None, max_length=16000)
+    metadata_url: str | None = Field(None, max_length=2048)
+    attribute_mapping: (
+        dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
+    ) = None
     require_platform_mfa: bool | None = None
     jit_provisioning: bool | None = None
 
@@ -205,17 +214,19 @@ class IdPMetadataParsed(BaseModel):
 class IdPMetadataImport(BaseModel):
     """Request schema for importing IdP from metadata URL."""
 
-    name: str = Field(..., min_length=1, max_length=255)
-    provider_type: str = Field(..., pattern="^(okta|azure_ad|google|generic)$")
-    metadata_url: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=120)
+    provider_type: str = Field(..., max_length=50, pattern="^(okta|azure_ad|google|generic)$")
+    metadata_url: str = Field(..., min_length=1, max_length=2048)
 
 
 class IdPMetadataImportXML(BaseModel):
     """Request schema for importing IdP from raw metadata XML."""
 
-    name: str = Field(..., min_length=1, max_length=255)
-    provider_type: str = Field(..., pattern="^(okta|azure_ad|google|generic)$")
-    metadata_xml: str = Field(..., min_length=1, description="Raw SAML metadata XML content")
+    name: str = Field(..., min_length=1, max_length=120)
+    provider_type: str = Field(..., max_length=50, pattern="^(okta|azure_ad|google|generic)$")
+    metadata_xml: str = Field(
+        ..., min_length=1, max_length=1000000, description="Raw SAML metadata XML content"
+    )
 
 
 # ============================================================================
@@ -328,7 +339,7 @@ class DomainBinding(BaseModel):
 class DomainBindingCreate(BaseModel):
     """Request to bind a domain to an IdP."""
 
-    domain_id: str = Field(..., description="UUID of the privileged domain to bind")
+    domain_id: str = Field(..., max_length=36, description="UUID of the privileged domain to bind")
 
 
 class DomainBindingList(BaseModel):
@@ -377,7 +388,7 @@ class AuthRouteResult(BaseModel):
 class EmailCheckRequest(BaseModel):
     """Request to check authentication route for email."""
 
-    email: str = Field(..., min_length=1, description="Email address to check")
+    email: str = Field(..., min_length=1, max_length=320, description="Email address to check")
 
 
 class EmailCheckResponse(BaseModel):
@@ -403,6 +414,7 @@ class UserIdpAssignment(BaseModel):
 
     saml_idp_id: str | None = Field(
         None,
+        max_length=36,
         description="IdP UUID to assign, or null for password-only user",
     )
 

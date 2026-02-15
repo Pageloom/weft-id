@@ -1,57 +1,20 @@
 {% extends "saml_idp_base.html" %}
 
 {% block tab_content %}
-{# Advertised Attributes #}
-{% if advertised_attributes %}
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Attributes Advertised by IdP</h2>
-    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        These attributes were found in the IdP's metadata. Use the attribute names below in the mapping fields.
-    </p>
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-600">
-                <th class="text-left py-1.5 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attribute Name</th>
-                <th class="text-left py-1.5 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Friendly Name</th>
-                <th class="text-left py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Mapped To</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-gray-600">
-            {% for attr in advertised_attributes %}
-            {% set mapped_field = None %}
-            {% if idp.attribute_mapping %}
-                {% for field, value in idp.attribute_mapping.items() %}
-                    {% if value == attr.name %}{% set mapped_field = field %}{% endif %}
-                {% endfor %}
-            {% endif %}
-            <tr>
-                <td class="py-1.5 pr-4 font-mono text-xs text-gray-900 dark:text-gray-100 break-all">{{ attr.name }}</td>
-                <td class="py-1.5 pr-4 text-gray-600 dark:text-gray-400">{{ attr.friendly_name or '&mdash;' }}</td>
-                <td class="py-1.5">
-                    {% if mapped_field %}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">{{ mapped_field }}</span>
-                    {% else %}
-                    <span class="text-xs text-gray-400 dark:text-gray-500">unmapped</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% elif not idp.metadata_xml %}
-<div class="mb-6 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-700">
-    <p class="text-xs text-amber-800 dark:text-amber-300">
-        This IdP was configured manually without metadata. Attribute names must be entered based on your IdP's documentation.
-    </p>
-</div>
-{% endif %}
+{% set fields = [
+    ("email", "Email", "attr_email", "email"),
+    ("first_name", "First Name", "attr_first_name", "firstName"),
+    ("last_name", "Last Name", "attr_last_name", "lastName"),
+    ("groups", "Groups", "attr_groups", "groups"),
+] %}
 
-{# Attribute Mapping Form #}
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Attribute Mapping</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Map SAML assertion attributes to user profile fields. Enter the attribute name as it appears in the SAML response.
+    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        Configure how your platform interprets SAML attributes from the identity provider.
+        {% if not advertised_attributes %}
+        This IdP did not advertise attribute expectations in its metadata. Attribute names must be entered based on your IdP's documentation.
+        {% endif %}
     </p>
 
     {# Setup Guide Link #}
@@ -72,62 +35,92 @@
         </div>
     </div>
 
-    {# Load Presets Button #}
-    <div class="mb-4">
-        <button type="button" id="load-presets-btn"
-                class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <svg class="w-4 h-4 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Load Presets for {{ idp.provider_type | capitalize if idp.provider_type != 'azure_ad' else 'Azure AD' }}
-        </button>
-        <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">Fills in recommended attribute names for this provider type</span>
-    </div>
+    {# Datalist for advertised attribute suggestions #}
+    {% if advertised_attributes %}
+    <datalist id="advertised-attrs">
+        {% for attr in advertised_attributes %}
+        <option value="{{ attr.name }}">
+        {% endfor %}
+    </datalist>
+    {% endif %}
 
-    <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-attributes">
+    <form id="attr-form" method="post" action="/admin/settings/identity-providers/{{ idp.id }}/edit-attributes">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label for="attr_email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email Attribute
-                </label>
-                <input type="text" id="attr_email" name="attr_email"
-                       value="{{ idp.attribute_mapping.email if idp.attribute_mapping else 'email' }}"
-                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="attr_first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    First Name Attribute
-                </label>
-                <input type="text" id="attr_first_name" name="attr_first_name"
-                       value="{{ idp.attribute_mapping.first_name if idp.attribute_mapping else 'firstName' }}"
-                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="attr_last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Last Name Attribute
-                </label>
-                <input type="text" id="attr_last_name" name="attr_last_name"
-                       value="{{ idp.attribute_mapping.last_name if idp.attribute_mapping else 'lastName' }}"
-                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="attr_groups" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Groups Attribute
-                </label>
-                <input type="text" id="attr_groups" name="attr_groups"
-                       value="{{ idp.attribute_mapping.groups if idp.attribute_mapping else 'groups' }}"
-                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The SAML attribute containing group membership claims</p>
-            </div>
-        </div>
-        <div class="flex justify-end mt-6">
+
+        <table class="w-full text-sm mb-4">
+            <thead>
+                <tr class="border-b border-gray-200 dark:border-gray-700">
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Platform Field</th>
+                    {% if advertised_attributes %}
+                    <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Advertised by IdP</th>
+                    {% endif %}
+                    <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">IdP Attribute Name</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                {% for mapping_key, display_label, form_field_name, default_value in fields %}
+                {% set current_value = idp.attribute_mapping[mapping_key] if idp.attribute_mapping and mapping_key in idp.attribute_mapping else default_value %}
+                {% set idp_attr = namespace(matched=false, attr_name='', friendly_name='') %}
+                {% if advertised_attributes %}
+                    {% for attr in advertised_attributes %}
+                        {% if attr.name == current_value %}
+                            {% set idp_attr.matched = true %}
+                            {% set idp_attr.attr_name = attr.name %}
+                            {% set idp_attr.friendly_name = attr.friendly_name or '' %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+                <tr>
+                    <td class="py-2 pr-4">
+                        <label for="{{ form_field_name }}" class="font-medium text-gray-900 dark:text-gray-100">{{ display_label }}</label>
+                    </td>
+                    {% if advertised_attributes %}
+                    <td class="py-2 pr-4">
+                        {% if idp_attr.matched %}
+                        <span class="font-mono text-xs text-gray-600 dark:text-gray-400 break-all">{{ idp_attr.attr_name }}</span>
+                        {% if idp_attr.friendly_name %}
+                        <br><span class="text-xs text-gray-500 dark:text-gray-400">({{ idp_attr.friendly_name }})</span>
+                        {% endif %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">Matched</span>
+                        {% else %}
+                        <span class="px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">Unmatched</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td class="py-2">
+                        <input type="text" id="{{ form_field_name }}" name="{{ form_field_name }}"
+                               value="{{ current_value }}"
+                               {% if advertised_attributes %}list="advertised-attrs"{% endif %}
+                               class="attr-map-input w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               data-default="{{ default_value }}">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="flex items-center gap-4">
             <button type="submit"
                     class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 Save Attributes
             </button>
+            <a href="#" id="reset-attr-defaults" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reset to defaults</a>
+            {% if idp.provider_type != 'generic' %}
+            <span class="text-gray-300 dark:text-gray-600">&middot;</span>
+            <a href="#" id="load-presets-btn" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                Load {{ idp.provider_type | capitalize if idp.provider_type != 'azure_ad' else 'Azure AD' }} presets
+            </a>
+            {% endif %}
         </div>
     </form>
+
+    {% if not idp.metadata_xml %}
+    <div class="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-700">
+        <p class="text-xs text-amber-800 dark:text-amber-300">
+            This IdP was configured manually without metadata. Attribute names must be entered based on your IdP's documentation.
+        </p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -158,7 +151,9 @@
 
     function loadProviderPresets() {
         var btn = document.getElementById('load-presets-btn');
-        btn.disabled = true;
+        if (!btn) return;
+        var originalText = btn.textContent;
+        btn.style.pointerEvents = 'none';
         btn.textContent = 'Loading...';
 
         fetch('/api/v1/saml/provider-presets/' + providerType)
@@ -171,27 +166,48 @@
                 document.getElementById('attr_first_name').value = data.attribute_mapping.first_name || '';
                 document.getElementById('attr_last_name').value = data.attribute_mapping.last_name || '';
                 document.getElementById('attr_groups').value = data.attribute_mapping.groups || '';
-                btn.textContent = 'Presets Loaded!';
-                btn.classList.add('text-green-600', 'border-green-300');
+                btn.textContent = 'Presets loaded!';
+                btn.classList.add('text-green-600');
                 setTimeout(function() {
-                    btn.textContent = 'Load Presets for ' + (providerNames[providerType] || providerType);
-                    btn.classList.remove('text-green-600', 'border-green-300');
-                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    btn.classList.remove('text-green-600');
+                    btn.style.pointerEvents = '';
                 }, 2000);
             })
             .catch(function() {
-                btn.textContent = 'Failed to Load';
-                btn.classList.add('text-red-600', 'border-red-300');
+                btn.textContent = 'Failed to load';
+                btn.classList.add('text-red-600');
                 setTimeout(function() {
-                    btn.textContent = 'Load Presets for ' + (providerNames[providerType] || providerType);
-                    btn.classList.remove('text-red-600', 'border-red-300');
-                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    btn.classList.remove('text-red-600');
+                    btn.style.pointerEvents = '';
                 }, 2000);
             });
     }
 
+    function resetToDefaults() {
+        document.querySelectorAll('.attr-map-input').forEach(function(input) {
+            input.value = input.dataset.default;
+        });
+    }
+
     updateSetupGuide();
-    document.getElementById('load-presets-btn').addEventListener('click', loadProviderPresets);
+
+    var presetsBtn = document.getElementById('load-presets-btn');
+    if (presetsBtn) {
+        presetsBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            loadProviderPresets();
+        });
+    }
+
+    var resetLink = document.getElementById('reset-attr-defaults');
+    if (resetLink) {
+        resetLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            resetToDefaults();
+        });
+    }
 })();
 </script>
 {% endblock %}

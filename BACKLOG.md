@@ -6,42 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Public Trust Page for IdP Configuration
-
-**User Story:**
-As a super admin
-I want to share a public URL with my IdP administrator that contains all the configuration details they need
-So that external IdP admins can access SP metadata, Entity ID, and ACS URL without needing an authenticated session in WeftId
-
-**Context:**
-
-The "Share with your IdP" section is currently buried inside the authenticated IdP detail page. External IdP administrators who need to configure their side of the federation have no way to access this information directly. The SP metadata URL, Entity ID, and ACS URL should be on a public, shareable page (similar to how `/saml/metadata` is already public).
-
-**Acceptance Criteria:**
-
-- [ ] New public route: `GET /pub/{idp_id}/trust` (no authentication required)
-- [ ] Page is tenant-scoped (via `get_tenant_id_from_request`)
-- [ ] Returns 404 if IdP does not exist or is not enabled
-- [ ] Page has three sections, ordered by recommendation:
-  1. **Use Metadata URL** (recommended): the SP metadata URL as a copiable link
-  2. **Metadata XML**: code block display with copy button (for IdPs that don't support URL ingestion)
-  3. **Manual Entry**: SP Entity ID and ACS URL as individually copiable values (last resort)
-- [ ] Clean, standalone page with tenant branding (logo if configured)
-- [ ] Replace the "Share with your IdP" section in the IdP details tab with a prominent link to this public page (with copy-to-clipboard for the URL)
-- [ ] API: no new API endpoint needed (this is a public HTML page)
-- [ ] Tests for the public route (valid IdP, disabled IdP returns 404, nonexistent IdP returns 404)
-
-**Key files:**
-- New: `app/routers/saml/public.py` (or add to `authentication.py`)
-- New: `app/templates/saml_public_trust.html`
-- Modify: `app/templates/saml_idp_tab_details.html` (replace "Share with your IdP" section)
-- Modify: `app/pages.py` (register public route if needed)
-
-**Effort:** S
-**Value:** High (Eliminates back-and-forth when onboarding new IdPs)
-
----
-
 ## Multiple IdP Certificates
 
 **User Story:**

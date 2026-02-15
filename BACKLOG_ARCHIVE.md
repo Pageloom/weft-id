@@ -4,6 +4,27 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Public Trust Page for IdP Configuration
+
+**Status:** Complete
+
+**Resolution:** Added a public page at `/pub/idp/{idp_id}` that external IdP administrators can use to configure their side of the SAML federation. The page shows SP metadata URL (with fold-out XML view and copy button), SP Entity ID, ACS URL, and the expected SAML attribute mappings with requirement indicators (required, optional, JIT-conditional). The "Share with your IdP" section on the admin IdP detail page was replaced with a full URL link to this public page, moved to the top of the tab.
+
+**Acceptance Criteria:**
+
+- [x] New public route: `GET /pub/idp/{idp_id}` (no authentication required)
+- [x] Page is tenant-scoped (via `get_tenant_id_from_request`)
+- [x] Returns 404 if IdP does not exist or is not enabled
+- [x] Page has three sections: metadata URL (recommended), manual entry (Entity ID + ACS URL), expected attributes
+- [x] Metadata XML fold-out with copy button
+- [x] Attribute table shows required/optional status, with JIT provisioning context
+- [x] Clean, standalone page with tenant branding
+- [x] "Share with your IdP" section in IdP details tab shows full URL with copy button, moved to top of page
+- [x] Tests: 13 new tests covering service and router layers
+- [x] All existing tests pass (3005 total)
+
+---
+
 ## IdP Detail Page UX Overhaul
 
 **Status:** Complete

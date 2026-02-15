@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Trust Configuration - {{ trust.name }} - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl w-full space-y-6">
+        <div class="text-center">
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Trust Configuration</h1>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Service Provider details for <span class="font-medium">{{ trust.name }}</span>
+            </p>
+        </div>
+
+        {# 1. Metadata URL (recommended) #}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <div class="flex items-center mb-3">
+                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">SP Metadata URL</h2>
+                <span class="ml-2 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-full">Recommended</span>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Import this URL in your IdP to automatically configure the trust relationship.
+            </p>
+            <div class="flex items-center gap-2">
+                <code id="metadata-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ trust.metadata_url }}</code>
+                <button type="button" data-copy-target="metadata-url"
+                        class="copy-btn shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                    Copy
+                </button>
+            </div>
+            {% if metadata_xml %}
+            <details class="mt-3">
+                <summary class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer select-none">
+                    View metadata XML
+                </summary>
+                <div class="mt-2 relative">
+                    <button type="button" id="copy-metadata-xml"
+                            class="copy-btn absolute top-2 right-2 px-2 py-1 text-xs font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded hover:bg-gray-600">
+                        Copy
+                    </button>
+                    <pre id="metadata-xml-content" class="bg-gray-900 text-green-400 rounded p-4 pr-16 overflow-x-auto max-h-96 overflow-y-auto text-xs whitespace-pre-wrap break-all">{{ metadata_xml }}</pre>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+
+        {# 2. Manual entry values #}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Manual Configuration</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                If your IdP does not support metadata import, enter these values manually.
+            </p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">SP Entity ID (Audience URI)</label>
+                    <div class="flex items-center gap-2">
+                        <code id="sp-entity-id" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ trust.sp_entity_id }}</code>
+                        <button type="button" data-copy-target="sp-entity-id"
+                                class="copy-btn shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">ACS URL (Single Sign-On URL)</label>
+                    <div class="flex items-center gap-2">
+                        <code id="sp-acs-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ trust.sp_acs_url }}</code>
+                        <button type="button" data-copy-target="sp-acs-url"
+                                class="copy-btn shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# 3. Expected Attributes #}
+        {% if trust.attribute_display %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Expected Attributes</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Configure your IdP to send these SAML attributes in the assertion, or negotiate with each other to achieve mapping.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-200 dark:border-gray-700">
+                            <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Platform Field</th>
+                            <th class="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Attribute Name</th>
+                            <th class="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attr in trust.attribute_display %}
+                        <tr class="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
+                            <td class="py-2 pr-4 text-gray-900 dark:text-gray-100">{{ attr.field }}</td>
+                            <td class="py-2 pr-4">
+                                <code class="text-sm bg-gray-50 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-900 dark:text-gray-100">{{ attr.attribute }}</code>
+                            </td>
+                            <td class="py-2 text-xs whitespace-nowrap">
+                                {% if attr.required %}
+                                <span class="text-red-600 dark:text-red-400 font-medium">Required</span>
+                                {% elif attr.note %}
+                                <span class="text-gray-500 dark:text-gray-400">{{ attr.note }}</span>
+                                {% else %}
+                                <span class="text-gray-400 dark:text-gray-500">Optional</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    document.querySelectorAll('.copy-btn[data-copy-target]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var targetId = this.getAttribute('data-copy-target');
+            var el = document.getElementById(targetId);
+            if (!el) return;
+            var text = el.textContent.trim();
+            navigator.clipboard.writeText(text).then(function() {
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+            });
+        });
+    });
+    var copyXmlBtn = document.getElementById('copy-metadata-xml');
+    if (copyXmlBtn) {
+        copyXmlBtn.addEventListener('click', function() {
+            var el = document.getElementById('metadata-xml-content');
+            if (!el) return;
+            navigator.clipboard.writeText(el.textContent).then(function() {
+                copyXmlBtn.textContent = 'Copied!';
+                setTimeout(function() { copyXmlBtn.textContent = 'Copy'; }, 2000);
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

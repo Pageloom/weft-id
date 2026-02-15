@@ -400,6 +400,59 @@ def set_idp_enabled(
     return idp_row_to_config(row)
 
 
+def get_public_trust_info(tenant_id: str, idp_id: str, base_url: str) -> dict:
+    """Get trust configuration info for public display. No auth required."""
+    row = database.saml.get_public_idp_info(tenant_id, idp_id)
+    if not row:
+        raise NotFoundError(message="Identity provider not found", code="idp_not_found")
+
+    sp_entity_id = row["sp_entity_id"]
+    sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
+    metadata_url = f"{base_url}/saml/metadata"
+
+    # Build human-readable attribute mapping with requirement info
+    jit_enabled = bool(row.get("jit_provisioning"))
+    field_meta = {
+        "email": {"label": "Email", "required": True, "note": None},
+        "first_name": {
+            "label": "First Name",
+            "required": jit_enabled,
+            "note": "Required for JIT provisioning"
+            if jit_enabled
+            else "Required if JIT provisioning is enabled",
+        },
+        "last_name": {
+            "label": "Last Name",
+            "required": jit_enabled,
+            "note": "Required for JIT provisioning"
+            if jit_enabled
+            else "Required if JIT provisioning is enabled",
+        },
+        "groups": {"label": "Groups", "required": False, "note": None},
+    }
+    attribute_mapping = row["attribute_mapping"] or {}
+    attribute_display = [
+        {
+            "field": field_meta[key]["label"],
+            "attribute": value,
+            "required": field_meta[key]["required"],
+            "note": field_meta[key]["note"],
+        }
+        for key, value in attribute_mapping.items()
+        if key in field_meta
+    ]
+
+    return {
+        "name": row["name"],
+        "provider_type": row["provider_type"],
+        "sp_entity_id": sp_entity_id,
+        "sp_acs_url": sp_acs_url,
+        "metadata_url": metadata_url,
+        "attribute_mapping": attribute_mapping,
+        "attribute_display": attribute_display,
+    }
+
+
 def set_idp_default(
     requesting_user: RequestingUser,
     idp_id: str,

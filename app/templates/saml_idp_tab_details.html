@@ -1,6 +1,25 @@
 {% extends "saml_idp_base.html" %}
 
 {% block tab_content %}
+{# Share with your IdP #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Share with your IdP</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        Share this page with your external IdP administrator. It contains the SP metadata URL, entity ID, ACS URL, and expected attribute mappings.
+    </p>
+    <div class="flex items-center gap-2">
+        <code id="trust-page-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ base_url }}/pub/idp/{{ idp.id }}</code>
+        <button type="button" id="copy-trust-url"
+                class="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+            Copy URL
+        </button>
+        <a href="/pub/idp/{{ idp.id }}" target="_blank" rel="noopener"
+           class="shrink-0 px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+            Open
+        </a>
+    </div>
+</div>
+
 {# IdP Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <dl class="grid grid-cols-1 gap-4">
@@ -132,35 +151,6 @@
     </p>
 </div>
 
-{# Share with your IdP #}
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Share with your IdP</h2>
-    <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        Normally you only need to provide the metadata URL
-    </p>
-    <div class="space-y-3 bg-gray-50 dark:bg-gray-700 p-4 rounded-md">
-        <div>
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Entity ID:</span>
-            <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_entity_id }}</code>
-        </div>
-        <div>
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">ACS URL:</span>
-            <code class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ idp.sp_acs_url }}</code>
-        </div>
-        {% if sp_metadata %}
-        <div>
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">SP Metadata URL:</span>
-            <code id="sp-metadata-url" class="ml-2 text-sm bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded font-mono">{{ sp_metadata.metadata_url }}</code>
-            <button type="button" id="copy-sp-metadata-url"
-                    class="ml-2 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                Copy
-            </button>
-            <a href="/saml/metadata" target="_blank" class="ml-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">View XML</a>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
 {# Domain Bindings #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Domain Bindings</h2>
@@ -246,6 +236,13 @@
     });
     document.getElementById('test-connection-btn')?.addEventListener('click', function() {
         window.open('/admin/settings/identity-providers/{{ idp.id }}/test', 'saml_test', 'width=600,height=700');
+    });
+    document.getElementById('copy-trust-url')?.addEventListener('click', function() {
+        var el = document.getElementById('trust-page-url');
+        navigator.clipboard.writeText(el.textContent.trim()).then(function() {
+            document.getElementById('copy-trust-url').textContent = 'Copied!';
+            setTimeout(function() { document.getElementById('copy-trust-url').textContent = 'Copy URL'; }, 2000);
+        });
     });
 })();
 </script>

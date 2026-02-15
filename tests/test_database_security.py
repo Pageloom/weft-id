@@ -13,6 +13,7 @@ def test_get_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=False,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -38,6 +39,7 @@ def test_get_session_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -61,6 +63,7 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -83,6 +86,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -100,6 +104,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         allow_users_edit_profile=False,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -122,6 +127,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -139,6 +145,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=False,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -161,6 +168,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -176,6 +184,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         allow_users_edit_profile=False,
         allow_users_add_emails=False,
         inactivity_threshold_days=30,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -199,12 +208,101 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         allow_users_edit_profile=True,
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
 
     settings = database.security.get_security_settings(test_tenant["id"])
     assert settings["session_timeout_seconds"] is None
+
+
+def test_get_security_settings_includes_certificate_lifetime(test_tenant, test_admin_user):
+    """Test that get_security_settings returns max_certificate_lifetime_years."""
+    import database
+
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=3600,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=3,
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    settings = database.security.get_security_settings(test_tenant["id"])
+
+    assert settings is not None
+    assert settings["max_certificate_lifetime_years"] == 3
+
+
+def test_get_certificate_lifetime_default(test_tenant):
+    """Test get_certificate_lifetime returns 10 when no settings exist."""
+    import database
+
+    result = database.security.get_certificate_lifetime(test_tenant["id"])
+
+    assert result == 10
+
+
+def test_get_certificate_lifetime_configured(test_tenant, test_admin_user):
+    """Test get_certificate_lifetime returns configured value."""
+    import database
+
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=None,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=5,
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    result = database.security.get_certificate_lifetime(test_tenant["id"])
+
+    assert result == 5
+
+
+def test_update_security_settings_with_certificate_lifetime(test_tenant, test_admin_user):
+    """Test updating security settings includes certificate lifetime."""
+    import database
+
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=3600,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=2,
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    settings = database.security.get_security_settings(test_tenant["id"])
+    assert settings["max_certificate_lifetime_years"] == 2
+
+    # Update to different value
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=3600,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=5,
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    settings = database.security.get_security_settings(test_tenant["id"])
+    assert settings["max_certificate_lifetime_years"] == 5
 
 
 # =============================================================================

@@ -1,6 +1,7 @@
 """Pydantic schemas for settings API endpoints."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -55,6 +56,10 @@ class TenantSecuritySettings(BaseModel):
         None,
         description="Days of inactivity before auto-inactivation (null = disabled)",
     )
+    max_certificate_lifetime_years: int = Field(
+        10,
+        description="Lifetime in years for newly generated signing certificates",
+    )
 
 
 class TenantSecuritySettingsUpdate(BaseModel):
@@ -76,4 +81,8 @@ class TenantSecuritySettingsUpdate(BaseModel):
         None,
         ge=1,
         description="Days of inactivity before auto-inactivation (null = disabled)",
+    )
+    max_certificate_lifetime_years: Literal[1, 2, 3, 5, 10] | None = Field(
+        None,
+        description="Lifetime in years for newly generated signing certificates",
     )

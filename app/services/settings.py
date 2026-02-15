@@ -268,6 +268,7 @@ def get_security_settings(
             allow_users_edit_profile=True,
             allow_users_add_emails=True,
             inactivity_threshold_days=None,
+            max_certificate_lifetime_years=10,
         )
 
     return TenantSecuritySettings(
@@ -276,6 +277,7 @@ def get_security_settings(
         allow_users_edit_profile=settings.get("allow_users_edit_profile", True),
         allow_users_add_emails=settings.get("allow_users_add_emails", True),
         inactivity_threshold_days=settings.get("inactivity_threshold_days"),
+        max_certificate_lifetime_years=settings.get("max_certificate_lifetime_years", 10),
     )
 
 
@@ -379,6 +381,22 @@ def get_inactivity_threshold(tenant_id: str) -> int | None:
     return database.security.get_inactivity_threshold(tenant_id)
 
 
+def get_certificate_lifetime(tenant_id: str) -> int:
+    """
+    Get the certificate lifetime in years for a tenant.
+
+    This is a utility function that does not require authorization,
+    intended for use by certificate generation code.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Number of years for new certificate validity (default 10)
+    """
+    return database.security.get_certificate_lifetime(tenant_id)
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,
@@ -443,6 +461,11 @@ def update_security_settings(
         if settings_update.inactivity_threshold_days is not None
         else current.get("inactivity_threshold_days")
     )
+    cert_lifetime = (
+        settings_update.max_certificate_lifetime_years
+        if settings_update.max_certificate_lifetime_years is not None
+        else current.get("max_certificate_lifetime_years", 10)
+    )
 
     # Build changes metadata for logging
     changes: dict = {}
@@ -471,6 +494,11 @@ def update_security_settings(
             "old": current.get("inactivity_threshold_days"),
             "new": inactivity_days,
         }
+    if settings_update.max_certificate_lifetime_years is not None:
+        changes["max_certificate_lifetime_years"] = {
+            "old": current.get("max_certificate_lifetime_years", 10),
+            "new": cert_lifetime,
+        }
 
     # Update in database
     database.security.update_security_settings(
@@ -480,6 +508,7 @@ def update_security_settings(
         allow_users_edit_profile=allow_edit,
         allow_users_add_emails=allow_emails,
         inactivity_threshold_days=inactivity_days,
+        max_certificate_lifetime_years=cert_lifetime,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -494,10 +523,27 @@ def update_security_settings(
         metadata={"changes": changes} if changes else None,
     )
 
+    # Log dedicated event when certificate lifetime changes
+    if settings_update.max_certificate_lifetime_years is not None:
+        old_lifetime = current.get("max_certificate_lifetime_years", 10)
+        if old_lifetime != cert_lifetime:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="tenant_settings",
+                artifact_id=tenant_id,
+                event_type="tenant_certificate_lifetime_updated",
+                metadata={
+                    "old_years": old_lifetime,
+                    "new_years": cert_lifetime,
+                },
+            )
+
     return TenantSecuritySettings(
         session_timeout_seconds=timeout,
         persistent_sessions=persistent,
         allow_users_edit_profile=allow_edit,
         allow_users_add_emails=allow_emails,
         inactivity_threshold_days=inactivity_days,
+        max_certificate_lifetime_years=cert_lifetime,
     )

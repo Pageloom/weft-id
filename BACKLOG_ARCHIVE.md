@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Configurable Certificate Lifetime Setting
+
+**Status:** Complete
+
+**Summary:** Added tenant-level `max_certificate_lifetime_years` setting so enterprise environments can configure shorter certificate lifetimes (1, 2, 3, 5, or 10 years). All four certificate generation call sites now read the tenant setting instead of using the hardcoded 10-year default. Includes migration, database/service/schema/router layers, UI dropdown on Security settings page, dedicated event logging, and comprehensive tests across all layers.
+
+**Acceptance Criteria:**
+
+- [x] Add `max_certificate_lifetime_years` column to `tenant_security_settings` (INTEGER, NOT NULL, DEFAULT 10)
+- [x] Add CHECK constraint: value must be in (1, 2, 3, 5, 10)
+- [x] All certificate generation call sites fetch setting and pass to `generate_sp_certificate()`
+- [x] If no tenant settings row exists, default to 10 years
+- [x] Setting does NOT affect existing certificates (only new generation)
+- [x] New "Certificate Lifetime" section on Admin > Settings > Security page
+- [x] Select dropdown: 1, 2, 3, 5, 10 years with help text
+- [x] GET/PATCH `/api/v1/settings/tenant-security` includes `max_certificate_lifetime_years`
+- [x] `tenant_certificate_lifetime_updated` event with old/new metadata
+- [x] Schema validates allowed values (rejects 4, 0, 11, etc.)
+- [x] Certificate generation uses setting value (not hardcoded 10)
+- [x] Tests: DB, service, API, router, and call site wiring
+
+---
+
 ## Multiple IdP Certificates
 
 **Status:** Complete

@@ -604,6 +604,24 @@ def test_update_security_settings_negative_timeout_fails(test_tenant, test_super
         TenantSecuritySettingsUpdate(session_timeout_seconds=-1)
 
 
+def test_certificate_lifetime_invalid_value_fails():
+    """Test that invalid certificate lifetime value fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(max_certificate_lifetime_years=4)  # Not in [1,2,3,5,10]
+
+
+def test_certificate_lifetime_valid_values():
+    """Test that all valid certificate lifetime values are accepted."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    for years in [1, 2, 3, 5, 10]:
+        update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=years)
+        assert update.max_certificate_lifetime_years == years
+
+
 # =============================================================================
 # Inactivity Threshold Tests
 # =============================================================================
@@ -646,3 +664,101 @@ def test_delete_privileged_domain_as_super_admin(test_tenant, test_super_admin_u
     domains = settings_service.list_privileged_domains(requesting_user)
     domain_ids = [str(d.id) for d in domains]
     assert str(created.id) not in domain_ids
+
+
+# =============================================================================
+# Certificate Lifetime Tests
+# =============================================================================
+
+
+def test_get_security_settings_includes_certificate_lifetime_default(
+    test_tenant, test_super_admin_user
+):
+    """Test that get_security_settings returns default certificate lifetime."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    result = settings_service.get_security_settings(requesting_user)
+
+    assert result.max_certificate_lifetime_years == 10
+
+
+def test_update_security_settings_with_certificate_lifetime(test_tenant, test_super_admin_user):
+    """Test updating certificate lifetime setting."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=3)
+
+    result = settings_service.update_security_settings(requesting_user, settings_update)
+
+    assert result.max_certificate_lifetime_years == 3
+
+    # Verify it persists
+    result = settings_service.get_security_settings(requesting_user)
+    assert result.max_certificate_lifetime_years == 3
+
+
+def test_update_certificate_lifetime_logs_dedicated_event(test_tenant, test_super_admin_user):
+    """Test that changing certificate lifetime logs a dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set initial value
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=5)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Change to a different value
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=3)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Verify the dedicated event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=5)
+    cert_events = [e for e in events if e["event_type"] == "tenant_certificate_lifetime_updated"]
+    assert len(cert_events) >= 1
+    latest = cert_events[0]
+    assert latest["metadata"]["old_years"] == 5
+    assert latest["metadata"]["new_years"] == 3
+
+
+def test_update_certificate_lifetime_same_value_no_dedicated_event(
+    test_tenant, test_super_admin_user
+):
+    """Test that setting same certificate lifetime does not log dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set to 5
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=5)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Set to 5 again (same value)
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=5)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Check that the second update did NOT produce a dedicated cert lifetime event
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    cert_events = [e for e in events if e["event_type"] == "tenant_certificate_lifetime_updated"]
+    # Only the first change (from default 10 -> 5) should have logged
+    assert len(cert_events) == 1
+
+
+def test_get_certificate_lifetime_default(test_tenant):
+    """Test get_certificate_lifetime returns 10 when not configured."""
+    result = settings_service.get_certificate_lifetime(test_tenant["id"])
+
+    assert result == 10
+
+
+def test_get_certificate_lifetime_configured(test_tenant, test_super_admin_user):
+    """Test get_certificate_lifetime returns configured value."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(max_certificate_lifetime_years=3)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    result = settings_service.get_certificate_lifetime(test_tenant["id"])
+
+    assert result == 3

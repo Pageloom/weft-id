@@ -42,7 +42,10 @@ def _get_or_create_sp_signing_certificate(
     if cert:
         return cert
 
-    cert_pem, key_pem = generate_sp_certificate(tenant_id)
+    from services.settings import get_certificate_lifetime
+
+    validity_years = get_certificate_lifetime(tenant_id)
+    cert_pem, key_pem = generate_sp_certificate(tenant_id, validity_years=validity_years)
     encrypted_key = encrypt_private_key(key_pem)
     expires_at = get_certificate_expiry(cert_pem)
 

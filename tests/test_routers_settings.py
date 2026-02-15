@@ -690,3 +690,107 @@ def test_update_security_service_error(test_super_admin_user, override_auth, moc
 
     assert response.status_code == 500
     mock_error.assert_called_once()
+
+
+# =============================================================================
+# Certificate Lifetime Route Tests
+# =============================================================================
+
+
+def test_update_tenant_security_with_certificate_lifetime(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with certificate lifetime form field."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "certificate_lifetime": "3",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=1" in response.headers["location"]
+    mock_update.assert_called_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["max_certificate_lifetime_years"] == 3
+
+
+def test_update_tenant_security_empty_certificate_lifetime(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test that empty certificate lifetime keeps the default."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "certificate_lifetime": "",  # Empty = keep default
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_update.assert_called_once()
+    # Certificate lifetime should be the default (10) since not provided
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["max_certificate_lifetime_years"] == 10
+
+
+def test_update_tenant_security_non_numeric_certificate_lifetime_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with non-numeric certificate lifetime shows error."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "certificate_lifetime": "not-a-number",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+def test_security_template_has_certificate_lifetime_field():
+    """Test that the security settings template includes certificate lifetime dropdown."""
+    import os
+
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+    )
+    with open(template_path) as f:
+        template_content = f.read()
+
+    assert 'name="certificate_lifetime"' in template_content
+    assert "Certificate Lifetime" in template_content

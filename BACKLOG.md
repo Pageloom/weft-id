@@ -57,57 +57,6 @@ The redesign splits the tab into two clear sections: an editable platform field 
 
 ---
 
-## Configurable Certificate Lifetime Setting
-
-**User Story:**
-As a super admin
-I want to configure the maximum certificate lifetime for newly generated signing certificates
-So that certificate lifetimes align with my organization's security policies
-
-**Context:**
-
-Certificate lifetime is hardcoded to 10 years in `app/utils/saml.py:48` (`generate_sp_certificate(validity_years=10)`). While 10 years is a reasonable default, enterprise environments often require shorter lifetimes. This setting applies to all new certificate generation on both the IdP side (per-SP signing certs) and the SP side (per-IdP signing certs, once that architecture exists). It does not retroactively change existing certificates.
-
-**Acceptance Criteria:**
-
-**Data model:**
-- [ ] Add `max_certificate_lifetime_years` column to `tenant_security_settings` (INTEGER, NOT NULL, DEFAULT 10)
-- [ ] Add CHECK constraint: value must be in (1, 2, 3, 5, 10)
-
-**Business logic:**
-- [ ] All certificate generation call sites fetch `max_certificate_lifetime_years` from tenant settings and pass it to `generate_sp_certificate()`
-- [ ] If no tenant settings row exists, default to 10 years
-- [ ] Setting does NOT affect existing certificates (only new generation)
-
-**UI:**
-- [ ] New "Certificate Lifetime" section on Admin > Settings > Security page
-- [ ] Radio buttons or select: 1, 2, 3, 5, 10 years
-- [ ] Help text: "Applies to newly generated signing certificates. Existing certificates are not affected."
-- [ ] Save with success/error feedback
-
-**API:**
-- [ ] `GET /api/v1/settings/security` includes `max_certificate_lifetime_years`
-- [ ] `PUT /api/v1/settings/security` accepts `max_certificate_lifetime_years` (validates against allowed values)
-
-**Event logging:**
-- [ ] `tenant_certificate_lifetime_updated` event with `old_value` and `new_value` metadata
-
-**Tests:**
-- [ ] Service validates allowed values (rejects 0, 4, 11, etc.)
-- [ ] Certificate generation uses setting value (not hardcoded 10)
-- [ ] API endpoint validates and persists setting
-
-**Key files:**
-- Modify: `app/utils/saml.py` (wire configurable lifetime into callers)
-- Modify: `app/database/security.py` (add column to queries)
-- Modify: `app/routers/` and `app/templates/` (Security settings UI)
-- New migration in `db-init/`
-
-**Effort:** S
-**Value:** High
-
----
-
 ## IdP-Side Certificate Rotation & Lifecycle Management
 
 **User Story:**

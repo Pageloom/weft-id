@@ -203,6 +203,7 @@ def admin_security(
             allow_users_edit_profile=settings.allow_users_edit_profile,
             allow_users_add_emails=settings.allow_users_add_emails,
             inactivity_threshold_days=settings.inactivity_threshold_days,
+            max_certificate_lifetime_years=settings.max_certificate_lifetime_years,
             success=success,
             error=error,
         ),
@@ -219,6 +220,7 @@ def update_admin_security(
     allow_users_edit_profile: Annotated[str, Form()] = "",
     allow_users_add_emails: Annotated[str, Form()] = "",
     inactivity_threshold: Annotated[str, Form()] = "",
+    certificate_lifetime: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -265,6 +267,19 @@ def update_admin_security(
             )
             return render_error_page(request, tenant_id, exc)
 
+    # Parse certificate lifetime (empty string means keep current)
+    cert_lifetime_years: int | None = None
+    if certificate_lifetime:
+        try:
+            cert_lifetime_years = int(certificate_lifetime)
+        except ValueError:
+            exc = ValidationError(
+                message="Certificate lifetime must be a number",
+                code="invalid_certificate_lifetime",
+                field="max_certificate_lifetime_years",
+            )
+            return render_error_page(request, tenant_id, exc)
+
     # Parse checkboxes (checked = "true", unchecked = "")
     try:
         settings_update = TenantSecuritySettingsUpdate(
@@ -273,6 +288,7 @@ def update_admin_security(
             allow_users_edit_profile=allow_users_edit_profile == "true",
             allow_users_add_emails=allow_users_add_emails == "true",
             inactivity_threshold_days=inactivity_days,
+            max_certificate_lifetime_years=cert_lifetime_years,
         )
     except PydanticValidationError as e:
         # Convert Pydantic validation error to service error

@@ -4,6 +4,28 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Fix and Redesign IdP Attribute Mapping
+
+**Status:** Complete
+
+**Summary:** Redesigned the IdP attributes tab from two disconnected sections (editable form + read-only advertised attributes table) into a single editable table matching the SP attributes tab pattern. Fixed a Jinja2 scoping bug where `{% set %}` inside `{% for %}` didn't escape loop scope, causing "Mapped to" to always show "unmapped". Uses `namespace()` for cross-loop variable assignment, adds a conditional "Advertised by IdP" column with green Matched / amber Unmatched badges, datalist suggestions from advertised attributes, and inline reset-to-defaults.
+
+**Acceptance Criteria:**
+
+- [x] Single card, single table layout (replaces two disconnected sections)
+- [x] Jinja2 namespace() fix for cross-loop variable assignment
+- [x] "Advertised by IdP" column (conditional, only when metadata has attributes)
+- [x] Green "Matched" badge when configured value matches an advertised attribute
+- [x] Amber "Unmatched" badge when configured value doesn't match any advertised attribute
+- [x] Datalist dropdown suggestions from advertised attributes
+- [x] Reset-to-defaults link using data-default attributes
+- [x] Load presets link (non-generic providers only)
+- [x] Amber no-metadata notice inside the card
+- [x] Form field names unchanged (POST handler compatibility)
+- [x] Tests updated for new HTML structure
+
+---
+
 ## Configurable Certificate Lifetime Setting
 
 **Status:** Complete

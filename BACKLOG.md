@@ -6,54 +6,55 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Fix and Redesign IdP Attribute Mapping
+## Dynamic Attribute Declarations in SAML Metadata
 
 **User Story:**
 As a super admin
-I want the IdP attribute mapping UI to clearly show which IdP attributes are mapped to which platform fields, and let me edit mappings directly
-So that I can configure attribute mapping correctly without confusion
+I want SAML metadata on both sides of the federation to reflect the actual configured attribute mappings
+So that when I or an external admin imports metadata, the declared attributes match what will actually be sent or expected, enabling accurate configuration alignment
 
 **Context:**
 
-The current attributes tab has multiple problems:
-- The "Mapped to" column always shows "unmapped" due to a template logic bug (it compares advertised attribute names against mapping values, but the names don't match the values)
-- The "Attribute Mapping" form and "Attributes Advertised by IdP" table are disconnected and confusing
-- No inline editing (unlike the SP attribute mapping tab)
-- "Load presets for generic" is unhelpful without context
-- No way to add attributes when the IdP doesn't advertise them in metadata
+Metadata attribute declarations are currently disconnected from the actual attribute mappings:
 
-The redesign splits the tab into two clear sections: an editable platform field mappings table (always shown) and a read-only reference table of advertised attributes (shown only when metadata includes attribute information).
+- **IdP side** (us as IdP, per-SP metadata at `/saml/idp/metadata/{sp_id}`): Always emits hardcoded `SAML_ATTRIBUTE_URIS` defaults, even though each SP has its own `attribute_mapping` that may differ. An SP admin importing our metadata sees default attribute names, not the names we'll actually send.
+
+- **SP side** (us as SP, per-IdP metadata): Does not generate `<md:RequestedAttribute>` elements at all. An upstream IdP admin importing our metadata gets no signal about which attributes we expect.
+
+Since we already serve unique metadata per relationship (per-SP IdP metadata, per-IdP SP metadata), there's no blast radius. Changing one SP's mapping only affects that SP's metadata endpoint. Attribute declarations in metadata are advisory (not enforced at protocol level), so updating them doesn't break existing trust. It just makes the metadata more accurate.
 
 **Acceptance Criteria:**
 
-**Section 1: Platform Field Mappings** (always shown)
-- [ ] Table with 4 rows: Email, First Name, Last Name, Groups
-- [ ] Each row shows the platform field name and has an editable input for the IdP attribute name
-- [ ] If IdP advertises attributes in metadata, show a dropdown populated with advertised attribute names
-- [ ] If no advertised attributes, show a text input for manual entry
-- [ ] Pre-fill inputs from current `attribute_mapping` values
-- [ ] Presets button loads recommended mappings for known IdP types (Okta, Entra ID, Google Workspace)
-- [ ] Save button persists changes via existing API endpoint
-- [ ] Clear visual feedback on save (success/error)
+**IdP metadata (per-SP):**
+- [ ] `generate_idp_metadata_xml()` accepts an `attribute_mapping` parameter (the SP's configured mapping)
+- [ ] `<saml:Attribute>` elements in IdP metadata reflect the SP's actual `attribute_mapping` values, not hardcoded defaults
+- [ ] When no per-SP mapping exists, fall back to default attribute URIs (current behavior)
+- [ ] Per-SP metadata service (`get_sp_idp_metadata_xml`) passes the SP's `attribute_mapping` to the generator
+- [ ] Tenant-level metadata (`get_tenant_idp_metadata_xml`) continues using defaults (no SP context)
 
-**Section 2: Advertised Attributes** (only if metadata has attributes)
-- [ ] Read-only reference table showing what the IdP declares in its metadata
-- [ ] Columns: Attribute Name, Friendly Name, Mapped To
-- [ ] "Mapped To" column shows which platform field (if any) uses this attribute, with green "Mapped" / gray "Unmapped" badges
-- [ ] This section is informational only. All editing happens in Section 1.
+**SP metadata (per-IdP):**
+- [ ] SP metadata generator emits `<md:AttributeConsumingService>` with `<md:RequestedAttribute>` elements
+- [ ] Requested attributes reflect the IdP's configured `attribute_mapping` (what we expect to receive)
+- [ ] Each `<md:RequestedAttribute>` includes `Name` (the configured attribute URI) and `FriendlyName` (the platform field label)
 
-**Removed:**
-- [ ] Remove the separate "Attribute Mapping" form section (merged into Section 1)
-- [ ] Fix the mapping comparison logic (compare mapping values against attribute names/friendly names, not the reverse)
+**Depends on:** Per-IdP SP Metadata & Trust Establishment (for SP-side generation)
+
+**Automatically kept in sync:**
+- [ ] No manual "regenerate metadata" step. Metadata endpoints read the current `attribute_mapping` at request time, so changes are reflected immediately.
+
+**Tests:**
+- [ ] IdP metadata for an SP with custom mapping includes the custom attribute URIs, not defaults
+- [ ] IdP metadata for an SP with no custom mapping uses defaults
+- [ ] Tenant-level IdP metadata still uses defaults
+- [ ] SP metadata includes `RequestedAttribute` elements matching the IdP's mapping (when per-IdP SP metadata exists)
 
 **Key files:**
-- Modify: `app/templates/saml_idp_tab_attributes.html` (full redesign)
-- Modify: `app/routers/saml/admin/providers.py` (`idp_tab_attributes` handler to pass advertised attrs as dropdown options)
-- Keep unchanged: `app/services/saml/providers.py` (`get_provider_presets`)
-- Keep unchanged: API endpoint `/api/v1/saml/provider-presets/{provider_type}`
+- Modify: `app/utils/saml_idp.py` (`generate_idp_metadata_xml` to accept attribute mapping)
+- Modify: `app/services/service_providers/metadata.py` (pass SP's mapping to generator)
+- Modify: `app/utils/saml.py` (SP metadata generation, add `RequestedAttribute` support)
 
-**Effort:** M
-**Value:** High (Current attribute mapping UX is broken and confusing)
+**Effort:** S
+**Value:** High (Makes metadata a living, accurate document. Enables both sides to validate configuration alignment.)
 
 ---
 

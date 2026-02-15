@@ -1,6 +1,7 @@
 """SAML identity provider database operations."""
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from database._core import TenantArg, execute, fetchall, fetchone
@@ -123,15 +124,15 @@ def create_identity_provider(
         """
         insert into saml_identity_providers (
             tenant_id, name, provider_type, entity_id, sso_url, slo_url,
-            certificate_pem, metadata_url, metadata_xml, sp_entity_id,
-            attribute_mapping, is_enabled, is_default, require_platform_mfa,
-            jit_provisioning, created_by
+            certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
+            sp_entity_id, attribute_mapping, is_enabled, is_default,
+            require_platform_mfa, jit_provisioning, created_by
         )
         values (
             :tenant_id, :name, :provider_type, :entity_id, :sso_url, :slo_url,
-            :certificate_pem, :metadata_url, :metadata_xml, :sp_entity_id,
-            :attribute_mapping, :is_enabled, :is_default, :require_platform_mfa,
-            :jit_provisioning, :created_by
+            :certificate_pem, :metadata_url, :metadata_xml, :metadata_last_fetched_at,
+            :sp_entity_id, :attribute_mapping, :is_enabled, :is_default,
+            :require_platform_mfa, :jit_provisioning, :created_by
         )
         returning id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
                   certificate_pem, metadata_url, metadata_last_fetched_at,
@@ -149,6 +150,7 @@ def create_identity_provider(
             "certificate_pem": certificate_pem,
             "metadata_url": metadata_url,
             "metadata_xml": metadata_xml,
+            "metadata_last_fetched_at": datetime.now(UTC) if metadata_url else None,
             "sp_entity_id": sp_entity_id,
             "attribute_mapping": json.dumps(attribute_mapping),
             "is_enabled": is_enabled,

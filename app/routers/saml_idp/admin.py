@@ -116,36 +116,24 @@ def sp_create_manual(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     name: str = Form(""),
-    entity_id: str = Form(""),
-    acs_url: str = Form(""),
-    slo_url: str = Form(""),
 ):
-    """Create an SP from manual entry."""
+    """Create an SP with just a name (step 1 of trust establishment flow)."""
     if not has_page_access("/admin/settings/service-providers", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
     if not name.strip():
         return RedirectResponse(url=f"{SP_LIST_URL}/new?error=Name is required", status_code=303)
-    if not entity_id.strip():
-        return RedirectResponse(
-            url=f"{SP_LIST_URL}/new?error=Entity ID is required", status_code=303
-        )
-    if not acs_url.strip():
-        return RedirectResponse(url=f"{SP_LIST_URL}/new?error=ACS URL is required", status_code=303)
 
     requesting_user = _build_requesting_user(user, tenant_id)
 
     try:
         from schemas.service_providers import SPCreate
 
-        data = SPCreate(
-            name=name.strip(),
-            entity_id=entity_id.strip(),
-            acs_url=acs_url.strip(),
-            slo_url=slo_url.strip() or None,
+        data = SPCreate(name=name.strip())
+        sp = sp_service.create_service_provider(requesting_user, data)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp.id}/details?success=created", status_code=303
         )
-        sp_service.create_service_provider(requesting_user, data)
-        return RedirectResponse(url=f"{SP_LIST_URL}?success=created", status_code=303)
     except ServiceError as exc:
         logger.warning("Failed to create SP: %s", exc)
         return RedirectResponse(url=f"{SP_LIST_URL}/new?error={exc.message}", status_code=303)
@@ -661,6 +649,116 @@ def sp_reimport_metadata_apply(
         logger.warning("Failed to apply metadata reimport: %s", exc)
         return RedirectResponse(
             url=f"{SP_LIST_URL}/{sp_id}/metadata?error={exc.message}", status_code=303
+        )
+
+
+# =============================================================================
+# Trust Establishment POST Handlers
+# =============================================================================
+
+
+@router.post("/{sp_id}/establish-trust-url", response_class=HTMLResponse)
+def sp_establish_trust_url(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    metadata_url: str = Form(""),
+):
+    """Establish trust with an SP by fetching its metadata URL."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not metadata_url.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=Metadata URL is required", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.establish_trust_from_metadata_url(requesting_user, sp_id, metadata_url.strip())
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to establish trust via URL: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )
+
+
+@router.post("/{sp_id}/establish-trust-xml", response_class=HTMLResponse)
+def sp_establish_trust_xml(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    metadata_xml: str = Form(""),
+):
+    """Establish trust with an SP by providing metadata XML."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not metadata_xml.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=Metadata XML is required", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.establish_trust_from_metadata_xml(requesting_user, sp_id, metadata_xml.strip())
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to establish trust via XML: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )
+
+
+@router.post("/{sp_id}/establish-trust-manual", response_class=HTMLResponse)
+def sp_establish_trust_manual(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    entity_id: str = Form(""),
+    acs_url: str = Form(""),
+    slo_url: str = Form(""),
+):
+    """Establish trust with an SP by manually providing entity_id and acs_url."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    if not entity_id.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=Entity ID is required", status_code=303
+        )
+    if not acs_url.strip():
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=ACS URL is required", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        sp_service.establish_trust_manually(
+            requesting_user,
+            sp_id,
+            entity_id=entity_id.strip(),
+            acs_url=acs_url.strip(),
+            slo_url=slo_url.strip() or None,
+        )
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=trust_established", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to establish trust manually: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
         )
 
 

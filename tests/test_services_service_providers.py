@@ -38,6 +38,7 @@ def _make_sp_row(
     entity_id: str = "https://app.example.com/saml/metadata",
     acs_url: str = "https://app.example.com/saml/acs",
     enabled: bool = True,
+    trust_established: bool = True,
     sp_requested_attributes: list[dict] | None = None,
     attribute_mapping: dict[str, str] | None = None,
     metadata_url: str | None = None,
@@ -61,6 +62,7 @@ def _make_sp_row(
         "attribute_mapping": attribute_mapping,
         "include_group_claims": False,
         "enabled": enabled,
+        "trust_established": trust_established,
         "created_by": str(uuid4()),
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
@@ -1946,3 +1948,292 @@ class TestApplySPMetadataReimport:
 
         with pytest.raises(ForbiddenError):
             sp_service.apply_sp_metadata_reimport(requesting_user, str(uuid4()), "<xml/>")
+
+
+# =============================================================================
+# Trust Establishment: Name-Only SP Creation
+# =============================================================================
+
+
+class TestCreateNameOnlySP:
+    """Tests for creating an SP with just a name (trust_established=false)."""
+
+    def test_name_only_creates_pending_sp(self, make_requesting_user):
+        """Creating an SP with only a name sets trust_established=false."""
+        from schemas.service_providers import SPCreate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPCreate(name="Pending App")
+
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            name="Pending App",
+            entity_id=None,
+            acs_url=None,
+            trust_established=False,
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.create_service_provider.return_value = row
+
+            result = sp_service.create_service_provider(requesting_user, data)
+
+            assert result.id == sp_id
+            assert result.name == "Pending App"
+            assert result.trust_established is False
+            assert result.entity_id is None
+            assert result.acs_url is None
+
+            # Should NOT check for duplicate entity_id (none provided)
+            mock_db.service_providers.get_service_provider_by_entity_id.assert_not_called()
+
+            # Should pass trust_established=False to DB
+            call_kwargs = mock_db.service_providers.create_service_provider.call_args[1]
+            assert call_kwargs["trust_established"] is False
+            assert call_kwargs["entity_id"] is None
+
+    def test_full_create_sets_trust_established_true(self, make_requesting_user):
+        """Creating an SP with entity_id + acs_url sets trust_established=true."""
+        from schemas.service_providers import SPCreate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPCreate(
+            name="Full App",
+            entity_id="https://full.example.com",
+            acs_url="https://full.example.com/acs",
+        )
+
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            name="Full App",
+            entity_id="https://full.example.com",
+            acs_url="https://full.example.com/acs",
+            trust_established=True,
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.create_service_provider.return_value = row
+
+            result = sp_service.create_service_provider(requesting_user, data)
+
+            assert result.trust_established is True
+
+            call_kwargs = mock_db.service_providers.create_service_provider.call_args[1]
+            assert call_kwargs["trust_established"] is True
+
+
+# =============================================================================
+# Trust Establishment: establish_trust_manually
+# =============================================================================
+
+
+class TestEstablishTrustManually:
+    """Tests for establish_trust_manually."""
+
+    def test_success(self, make_requesting_user):
+        """Establishes trust with entity_id and acs_url."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            entity_id=None,
+            acs_url=None,
+        )
+        established_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=True,
+            entity_id="https://new.example.com",
+            acs_url="https://new.example.com/acs",
+        )
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = established_row
+
+            result = sp_service.establish_trust_manually(
+                requesting_user,
+                sp_id,
+                entity_id="https://new.example.com",
+                acs_url="https://new.example.com/acs",
+            )
+
+            assert result.trust_established is True
+            assert result.entity_id == "https://new.example.com"
+            mock_log.assert_called_once()
+            assert mock_log.call_args[1]["event_type"] == "service_provider_trust_established"
+
+    def test_duplicate_entity_id_rejected(self, make_requesting_user):
+        """Cannot establish trust with an entity_id that already exists."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            entity_id=None,
+            acs_url=None,
+        )
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
+                "id": str(uuid4())
+            }
+
+            with pytest.raises(ConflictError, match="already exists"):
+                sp_service.establish_trust_manually(
+                    requesting_user,
+                    sp_id,
+                    entity_id="https://existing.example.com",
+                    acs_url="https://existing.example.com/acs",
+                )
+
+    def test_cannot_establish_on_already_established_sp(self, make_requesting_user):
+        """Cannot establish trust on an SP that already has trust."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        established_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=True,
+        )
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = established_row
+
+            with pytest.raises(ValidationError, match="already been established"):
+                sp_service.establish_trust_manually(
+                    requesting_user,
+                    sp_id,
+                    entity_id="https://new.example.com",
+                    acs_url="https://new.example.com/acs",
+                )
+
+    def test_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError for non-existent SP."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.establish_trust_manually(
+                    requesting_user,
+                    str(uuid4()),
+                    entity_id="https://x.com",
+                    acs_url="https://x.com/acs",
+                )
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot establish trust."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.establish_trust_manually(
+                requesting_user,
+                str(uuid4()),
+                entity_id="https://x.com",
+                acs_url="https://x.com/acs",
+            )
+
+
+# =============================================================================
+# Trust Establishment: enable_service_provider guard
+# =============================================================================
+
+
+class TestEnableGuardTrustEstablished:
+    """Tests for the trust_established guard on enable_service_provider."""
+
+    def test_cannot_enable_pending_sp(self, make_requesting_user):
+        """Cannot enable an SP where trust has not been established."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            enabled=False,
+        )
+
+        with patch("services.service_providers.crud.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+
+            with pytest.raises(ValidationError, match="trust is established"):
+                sp_service.enable_service_provider(requesting_user, sp_id)
+
+
+# =============================================================================
+# SSO Guard: build_sso_response rejects pending SPs
+# =============================================================================
+
+
+class TestSSORejectsPendingSP:
+    """Tests that SSO is rejected for SPs where trust is not established."""
+
+    def test_sso_rejected_for_pending_sp(self):
+        """build_sso_response raises ValidationError for pending SPs."""
+        from services.service_providers import build_sso_response
+
+        sp_row = {
+            "id": "sp-1",
+            "name": "Pending SP",
+            "entity_id": "https://pending.example.com",
+            "acs_url": None,
+            "trust_established": False,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with patch("services.service_providers.sso.database") as mock_db:
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = sp_row
+
+            with pytest.raises(ValidationError, match="not complete"):
+                build_sso_response(
+                    tenant_id="t1",
+                    user_id="u1",
+                    sp_entity_id="https://pending.example.com",
+                    authn_request_id="_req1",
+                    base_url="https://idp.example.com",
+                )

@@ -106,7 +106,12 @@ def _handle_sso_request(
         logger.warning("Unknown SP entity_id: %s", issuer)
         return _render_sso_error(request, tenant_id, "unknown_sp")
 
-    # 2b. Reject disabled SPs
+    # 2b. Reject SPs where trust has not been established
+    if not sp.trust_established:
+        logger.warning("SSO request for pending SP (trust not established): %s", issuer)
+        return _render_sso_error(request, tenant_id, "sp_pending_trust")
+
+    # 2c. Reject disabled SPs
     if not sp.enabled:
         logger.warning("SSO request for disabled SP: %s", issuer)
         return _render_sso_error(request, tenant_id, "sp_disabled")
@@ -333,6 +338,10 @@ def idp_initiated_launch(
     sp_row = sp_service.get_service_provider_by_id(tenant_id, sp_id)
     if sp_row is None:
         return _render_sso_error(request, tenant_id, "unknown_sp")
+
+    # Reject SPs where trust has not been established
+    if not sp_row.get("trust_established", False):
+        return _render_sso_error(request, tenant_id, "sp_pending_trust")
 
     # Reject disabled SPs
     if not sp_row.get("enabled", True):

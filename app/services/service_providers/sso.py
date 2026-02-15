@@ -93,6 +93,13 @@ def build_sso_response(
             code="sp_not_found",
         )
 
+    # 1b. Reject SPs where trust has not been established
+    if not sp_row.get("trust_established", False):
+        raise ValidationError(
+            message="Service provider setup is not complete",
+            code="sp_trust_not_established",
+        )
+
     # 2. Get signing certificate (per-SP first, then tenant fallback)
     sp_id = str(sp_row["id"])
     cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)

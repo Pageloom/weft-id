@@ -121,9 +121,10 @@ class TestGetPublicTrustInfo:
 
         assert result["name"] == "Trust Page Test IdP"
         assert result["provider_type"] == "okta"
-        assert result["sp_entity_id"] == "https://test.example.com/saml/metadata"
-        assert result["sp_acs_url"] == "https://test.example.com/saml/acs"
-        assert result["metadata_url"] == "https://test.example.com/saml/metadata"
+        # Per-IdP format: sp_entity_id contains the IdP ID
+        assert result["sp_entity_id"] == f"https://test.example.com/saml/metadata/{enabled_idp.id}"
+        assert result["sp_acs_url"] == f"https://test.example.com/saml/acs/{enabled_idp.id}"
+        assert result["metadata_url"] == f"https://test.example.com/saml/metadata/{enabled_idp.id}"
         assert result["attribute_mapping"]["email"] == "email"
         assert len(result["attribute_display"]) == 4
 

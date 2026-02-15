@@ -21,7 +21,7 @@ def list_identity_providers(tenant_id: TenantArg) -> list[dict]:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               created_by, created_at, updated_at
+               trust_established, created_by, created_at, updated_at
         from saml_identity_providers
         order by created_at desc
         """,
@@ -43,7 +43,7 @@ def get_identity_provider(tenant_id: TenantArg, idp_id: str) -> dict | None:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               created_by, created_at, updated_at
+               trust_established, created_by, created_at, updated_at
         from saml_identity_providers
         where id = :idp_id
         """,
@@ -65,7 +65,7 @@ def get_identity_provider_by_entity_id(tenant_id: TenantArg, entity_id: str) -> 
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               created_by, created_at, updated_at
+               trust_established, created_by, created_at, updated_at
         from saml_identity_providers
         where entity_id = :entity_id
         """,
@@ -78,11 +78,11 @@ def create_identity_provider(
     tenant_id_value: str,
     name: str,
     provider_type: str,
-    entity_id: str,
-    sso_url: str,
-    certificate_pem: str,
     sp_entity_id: str,
     created_by: str,
+    entity_id: str | None = None,
+    sso_url: str | None = None,
+    certificate_pem: str | None = None,
     slo_url: str | None = None,
     metadata_url: str | None = None,
     metadata_xml: str | None = None,
@@ -91,27 +91,13 @@ def create_identity_provider(
     is_default: bool = False,
     require_platform_mfa: bool = False,
     jit_provisioning: bool = False,
+    trust_established: bool = False,
 ) -> dict | None:
     """
     Create a new identity provider.
 
-    Args:
-        tenant_id: Tenant ID for scoping
-        tenant_id_value: The actual tenant ID value to store
-        name: Display name for the IdP
-        provider_type: Type (okta, azure_ad, google, generic)
-        entity_id: IdP entity ID from metadata
-        sso_url: IdP SSO endpoint URL
-        certificate_pem: IdP signing certificate (PEM)
-        sp_entity_id: Auto-generated SP entity ID
-        created_by: User ID who created the IdP
-        slo_url: Optional IdP SLO URL
-        metadata_url: Optional IdP metadata URL for auto-refresh
-        attribute_mapping: SAML attribute mapping
-        is_enabled: Whether IdP is enabled
-        is_default: Whether this is the default IdP
-        require_platform_mfa: Whether to require platform MFA after SAML
-        jit_provisioning: Whether to enable JIT user provisioning
+    For two-step creation, entity_id/sso_url/certificate_pem may be None
+    (pending IdP). Trust is established later.
 
     Returns:
         Dict with created IdP details
@@ -126,19 +112,19 @@ def create_identity_provider(
             tenant_id, name, provider_type, entity_id, sso_url, slo_url,
             certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
             sp_entity_id, attribute_mapping, is_enabled, is_default,
-            require_platform_mfa, jit_provisioning, created_by
+            require_platform_mfa, jit_provisioning, trust_established, created_by
         )
         values (
             :tenant_id, :name, :provider_type, :entity_id, :sso_url, :slo_url,
             :certificate_pem, :metadata_url, :metadata_xml, :metadata_last_fetched_at,
             :sp_entity_id, :attribute_mapping, :is_enabled, :is_default,
-            :require_platform_mfa, :jit_provisioning, :created_by
+            :require_platform_mfa, :jit_provisioning, :trust_established, :created_by
         )
         returning id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  created_by, created_at, updated_at
+                  trust_established, created_by, created_at, updated_at
         """,
         {
             "tenant_id": tenant_id_value,
@@ -157,6 +143,7 @@ def create_identity_provider(
             "is_default": is_default,
             "require_platform_mfa": require_platform_mfa,
             "jit_provisioning": jit_provisioning,
+            "trust_established": trust_established,
             "created_by": created_by,
         },
     )
@@ -204,6 +191,7 @@ def update_identity_provider(
         "attribute_mapping",
         "require_platform_mfa",
         "jit_provisioning",
+        "sp_entity_id",
     }
 
     set_clauses = []
@@ -228,7 +216,7 @@ def update_identity_provider(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  created_by, created_at, updated_at
+                  trust_established, created_by, created_at, updated_at
     """
 
     return fetchone(tenant_id, query, params)
@@ -268,7 +256,7 @@ def update_idp_metadata_fields(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  created_by, created_at, updated_at
+                  trust_established, created_by, created_at, updated_at
         """,
         {
             "idp_id": idp_id,
@@ -324,7 +312,7 @@ def set_idp_enabled(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  created_by, created_at, updated_at
+                  trust_established, created_by, created_at, updated_at
         """,
         {"idp_id": idp_id, "is_enabled": is_enabled},
     )
@@ -352,7 +340,7 @@ def set_idp_default(
                   certificate_pem, metadata_url, metadata_last_fetched_at,
                   metadata_fetch_error, sp_entity_id, attribute_mapping,
                   is_enabled, is_default, require_platform_mfa, jit_provisioning,
-                  created_by, created_at, updated_at
+                  trust_established, created_by, created_at, updated_at
         """,
         {"idp_id": idp_id},
     )
@@ -372,6 +360,57 @@ def delete_identity_provider(tenant_id: TenantArg, idp_id: str) -> int:
     )
 
 
+def set_idp_trust_established(
+    tenant_id: TenantArg,
+    idp_id: str,
+    entity_id: str,
+    sso_url: str,
+    certificate_pem: str,
+    slo_url: str | None = None,
+    metadata_url: str | None = None,
+    metadata_xml: str | None = None,
+) -> dict | None:
+    """
+    Establish trust on a pending IdP by setting its IdP-side fields.
+
+    Sets trust_established=true and populates entity_id, sso_url, certificate_pem
+    (plus optional slo_url, metadata_url, metadata_xml).
+
+    Returns:
+        Dict with updated IdP details, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        update saml_identity_providers
+        set entity_id = :entity_id,
+            sso_url = :sso_url,
+            slo_url = :slo_url,
+            certificate_pem = :certificate_pem,
+            metadata_url = :metadata_url,
+            metadata_xml = :metadata_xml,
+            metadata_last_fetched_at = case when :has_metadata_url then now() else null end,
+            trust_established = true
+        where id = :idp_id
+        returning id, tenant_id, name, provider_type, entity_id, sso_url, slo_url,
+                  certificate_pem, metadata_url, metadata_last_fetched_at,
+                  metadata_fetch_error, sp_entity_id, attribute_mapping,
+                  is_enabled, is_default, require_platform_mfa, jit_provisioning,
+                  trust_established, created_by, created_at, updated_at
+        """,
+        {
+            "idp_id": idp_id,
+            "entity_id": entity_id,
+            "sso_url": sso_url,
+            "slo_url": slo_url,
+            "certificate_pem": certificate_pem,
+            "metadata_url": metadata_url,
+            "metadata_xml": metadata_xml,
+            "has_metadata_url": metadata_url is not None,
+        },
+    )
+
+
 # ============================================================================
 # Query Functions for Login Flow
 # ============================================================================
@@ -381,15 +420,17 @@ def get_public_idp_info(tenant_id: TenantArg, idp_id: str) -> dict | None:
     """
     Get minimal IdP info for the public trust page.
 
-    Returns None if not found or not enabled.
+    Returns None if not found, or if both disabled and trust already established
+    (i.e. intentionally disabled by admin). Pending IdPs (trust_established=false)
+    are always visible so external admins can see SP metadata during setup.
     """
     return fetchone(
         tenant_id,
         """
         select id, name, provider_type, sp_entity_id, attribute_mapping,
-               is_enabled, jit_provisioning
+               is_enabled, jit_provisioning, trust_established
         from saml_identity_providers
-        where id = :idp_id and is_enabled = true
+        where id = :idp_id and (is_enabled = true or trust_established = false)
         """,
         {"idp_id": idp_id},
     )
@@ -428,7 +469,7 @@ def get_default_identity_provider(tenant_id: TenantArg) -> dict | None:
                certificate_pem, metadata_url, metadata_xml, metadata_last_fetched_at,
                metadata_fetch_error, sp_entity_id, attribute_mapping,
                is_enabled, is_default, require_platform_mfa, jit_provisioning,
-               created_by, created_at, updated_at
+               trust_established, created_by, created_at, updated_at
         from saml_identity_providers
         where is_default = true and is_enabled = true
         """,

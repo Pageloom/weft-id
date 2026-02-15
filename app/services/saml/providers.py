@@ -26,7 +26,6 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config, idp_row_to_list_item
-from services.saml.certificates import get_or_create_sp_certificate
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
@@ -127,29 +126,34 @@ def create_identity_provider(
     """
     Create a new IdP configuration.
 
-    Authorization: Requires super_admin role.
+    Supports two modes:
+    - Name-only (two-step): entity_id is None, creates pending IdP with
+      per-IdP SP certificate and metadata URL
+    - Full creation: entity_id is provided, trust is immediately established
 
-    Also ensures SP certificate exists for the tenant.
+    Authorization: Requires super_admin role.
     Logs: saml_idp_created event.
     """
     require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
+    is_full_creation = data.entity_id is not None
 
-    # Ensure SP certificate exists
-    get_or_create_sp_certificate(requesting_user)
+    # Check for duplicate entity_id (only for full creation)
+    if is_full_creation:
+        existing = database.saml.get_identity_provider_by_entity_id(tenant_id, data.entity_id)
+        if existing:
+            raise ConflictError(
+                message=f"An IdP with entity ID '{data.entity_id}' already exists",
+                code="idp_entity_id_exists",
+            )
 
-    # Check for duplicate entity_id
-    existing = database.saml.get_identity_provider_by_entity_id(tenant_id, data.entity_id)
-    if existing:
-        raise ConflictError(
-            message=f"An IdP with entity ID '{data.entity_id}' already exists",
-            code="idp_entity_id_exists",
-        )
-
-    # Generate SP entity ID (ACS URL is derived from this: /saml/metadata -> /saml/acs)
-    sp_entity_id = f"{base_url}/saml/metadata"
+    # For name-only creation, we'll generate the per-IdP sp_entity_id after getting the ID.
+    # Use a placeholder that will be updated after insert (we need the row ID).
+    # For full creation, also use per-IdP format.
+    # We'll use a temporary sp_entity_id and update it after we know the ID.
+    temp_sp_entity_id = f"{base_url}/saml/metadata"
 
     row = database.saml.create_identity_provider(
         tenant_id=tenant_id,
@@ -162,12 +166,13 @@ def create_identity_provider(
         certificate_pem=data.certificate_pem,
         metadata_url=data.metadata_url,
         metadata_xml=data.metadata_xml,
-        sp_entity_id=sp_entity_id,
+        sp_entity_id=temp_sp_entity_id,
         attribute_mapping=data.attribute_mapping,
         is_enabled=data.is_enabled,
         is_default=data.is_default,
         require_platform_mfa=data.require_platform_mfa,
         jit_provisioning=data.jit_provisioning,
+        trust_established=is_full_creation,
         created_by=requesting_user["id"],
     )
 
@@ -179,6 +184,17 @@ def create_identity_provider(
 
     idp_id = str(row["id"])
 
+    # Update sp_entity_id to per-IdP format now that we have the ID
+    per_idp_sp_entity_id = f"{base_url}/saml/metadata/{idp_id}"
+    database.saml.update_identity_provider(tenant_id, idp_id, sp_entity_id=per_idp_sp_entity_id)
+    # Refresh the row to get the updated sp_entity_id
+    row = database.saml.get_identity_provider(tenant_id, idp_id)
+
+    # Generate per-IdP SP certificate
+    from services.saml.idp_sp_certificates import get_or_create_idp_sp_certificate
+
+    get_or_create_idp_sp_certificate(tenant_id, idp_id, requesting_user["id"])
+
     log_event(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
@@ -189,12 +205,11 @@ def create_identity_provider(
             "name": data.name,
             "provider_type": data.provider_type,
             "entity_id": data.entity_id,
-            "is_enabled": data.is_enabled,
+            "trust_established": is_full_creation,
         },
     )
 
-    # Create base IdP group (Phase 2: IdP Group Integration)
-    # This group will contain all users authenticating via this IdP
+    # Create base IdP group
     try:
         groups_service.create_idp_base_group(
             tenant_id=tenant_id,
@@ -202,8 +217,6 @@ def create_identity_provider(
             idp_name=data.name,
         )
     except ConflictError:
-        # Group name already exists - this is fine, the IdP was still created
-        # The admin can manually manage groups if there's a naming conflict
         logger.warning(
             "Could not create base group for IdP %s: group name '%s' already exists",
             idp_id,
@@ -355,6 +368,74 @@ def delete_identity_provider(
     )
 
 
+def establish_idp_trust(
+    requesting_user: RequestingUser,
+    idp_id: str,
+    entity_id: str,
+    sso_url: str,
+    certificate_pem: str,
+    slo_url: str | None = None,
+    metadata_url: str | None = None,
+    metadata_xml: str | None = None,
+) -> IdPConfig:
+    """
+    Establish trust on a pending IdP.
+
+    Sets the IdP-side fields (entity_id, sso_url, certificate_pem) and marks
+    trust_established=true. This completes the second step of two-step creation.
+
+    Authorization: Requires super_admin role.
+    Logs: saml_idp_trust_established event.
+    """
+    require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    existing = database.saml.get_identity_provider(tenant_id, idp_id)
+    if existing is None:
+        raise NotFoundError(message="Identity provider not found", code="idp_not_found")
+
+    # Check for duplicate entity_id
+    duplicate = database.saml.get_identity_provider_by_entity_id(tenant_id, entity_id)
+    if duplicate and str(duplicate["id"]) != idp_id:
+        raise ConflictError(
+            message=f"An IdP with entity ID '{entity_id}' already exists",
+            code="idp_entity_id_exists",
+        )
+
+    row = database.saml.set_idp_trust_established(
+        tenant_id=tenant_id,
+        idp_id=idp_id,
+        entity_id=entity_id,
+        sso_url=sso_url,
+        certificate_pem=certificate_pem,
+        slo_url=slo_url,
+        metadata_url=metadata_url,
+        metadata_xml=metadata_xml,
+    )
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to establish trust",
+            code="trust_establishment_failed",
+        )
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        artifact_type="saml_identity_provider",
+        artifact_id=idp_id,
+        event_type="saml_idp_trust_established",
+        metadata={
+            "name": existing["name"],
+            "entity_id": entity_id,
+        },
+    )
+
+    return idp_row_to_config(row)
+
+
 def set_idp_enabled(
     requesting_user: RequestingUser,
     idp_id: str,
@@ -377,6 +458,13 @@ def set_idp_enabled(
         raise NotFoundError(
             message="Identity provider not found",
             code="idp_not_found",
+        )
+
+    # Cannot enable a pending IdP (trust not established)
+    if enabled and not existing.get("trust_established", True):
+        raise ValidationError(
+            message="Cannot enable IdP before trust is established. Import IdP metadata first.",
+            code="idp_trust_pending",
         )
 
     row = database.saml.set_idp_enabled(tenant_id, idp_id, enabled)
@@ -408,7 +496,8 @@ def get_public_trust_info(tenant_id: str, idp_id: str, base_url: str) -> dict:
 
     sp_entity_id = row["sp_entity_id"]
     sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
-    metadata_url = f"{base_url}/saml/metadata"
+    # Use the sp_entity_id as the metadata URL (it IS the metadata URL)
+    metadata_url = sp_entity_id
 
     # Build human-readable attribute mapping with requirement info
     jit_enabled = bool(row.get("jit_provisioning"))

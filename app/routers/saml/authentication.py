@@ -88,25 +88,33 @@ def _handle_saml_test_response(
     )
 
 
-@router.get("/saml/metadata", response_class=Response)
-def sp_metadata(
+@router.get("/saml/metadata/{idp_id}", response_class=Response)
+def per_idp_sp_metadata(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    idp_id: str,
 ):
     """
-    Return SP metadata XML for IdPs to consume.
+    Return per-IdP SP metadata XML.
 
-    This is a public endpoint that IdPs use to configure SAML integration.
+    Each IdP gets its own EntityID, ACS URL, and signing certificate.
+    This is the primary metadata endpoint for new IdPs.
     """
+    import uuid as uuid_mod
+
+    try:
+        uuid_mod.UUID(idp_id)
+    except ValueError:
+        return Response(status_code=404, content="Not found", media_type="text/plain")
+
     base_url = get_base_url(request)
 
     try:
-        xml = saml_service.get_tenant_sp_metadata_xml(tenant_id, base_url)
+        xml = saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, base_url)
         return Response(content=xml, media_type="application/xml")
     except NotFoundError:
-        # SP certificate not configured yet
         return Response(
-            content="SP certificate not configured. Configure an IdP first.",
+            content="Per-IdP SP certificate not configured.",
             status_code=404,
             media_type="text/plain",
         )
@@ -139,11 +147,11 @@ def public_trust_page(
     except NotFoundError:
         return Response(status_code=404, content="Not found", media_type="text/plain")
 
-    # Fetch metadata XML for inline display (may not exist if no SP cert yet)
+    # Fetch per-IdP metadata XML for inline display
     metadata_xml = None
     try:
-        metadata_xml = saml_service.get_tenant_sp_metadata_xml(tenant_id, base_url)
-    except NotFoundError:
+        metadata_xml = saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, base_url)
+    except (NotFoundError, ServiceError):
         pass
 
     branding = get_branding_for_template(tenant_id)
@@ -204,6 +212,138 @@ def saml_login(
                 "csp_nonce": get_csp_nonce(request),
             },
         )
+
+
+@router.post("/saml/acs/{idp_id}")
+def saml_acs_per_idp(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    idp_id: str,
+    SAMLResponse: Annotated[str, Form()],  # noqa: N803 - SAML spec parameter name
+    RelayState: Annotated[str, Form()] = "/dashboard",  # noqa: N803 - SAML spec parameter name
+):
+    """
+    Per-IdP Assertion Consumer Service (ACS).
+
+    Routes directly to the correct IdP without issuer extraction.
+    Used by new IdPs with per-IdP EntityID format.
+    """
+    # Check if this is a test flow
+    if RelayState.startswith("__test__:"):
+        return _handle_saml_test_response(request, tenant_id, SAMLResponse, RelayState)
+
+    # Get stored request_id for validation
+    expected_request_id = request.session.pop("saml_request_id", None)
+    request.session.pop("saml_idp_id", None)
+
+    # Build request data for python3-saml
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    request_data: dict[str, str | dict[str, str]] = {
+        "https": "on" if forwarded_proto == "https" else "off",
+        "http_host": request.headers.get("x-forwarded-host", request.url.netloc),
+        "script_name": str(request.url.path),
+        "get_data": {},
+        "post_data": {},
+    }
+
+    try:
+        saml_result = saml_service.process_saml_response(
+            tenant_id=tenant_id,
+            idp_id=idp_id,
+            saml_response=SAMLResponse,
+            request_id=expected_request_id,
+            request_data=request_data,
+        )
+        user = saml_service.authenticate_via_saml(tenant_id, saml_result)
+    except ValidationError as e:
+        error_type = "signature_error" if "signature" in str(e).lower() else "invalid_response"
+        if "expired" in str(e).lower():
+            error_type = "expired"
+        return store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type=error_type,
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+        )
+    except NotFoundError as e:
+        if "user" in e.code.lower():
+            email_detail = e.details.get("email") if e.details else None
+            return store_saml_debug_and_respond(
+                request=request,
+                tenant_id=tenant_id,
+                error_type="user_not_found",
+                error_detail=email_detail,
+                saml_response_b64=SAMLResponse,
+                idp_id=idp_id,
+            )
+        return store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="idp_not_found",
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+        )
+    except ServiceError as e:
+        return store_saml_debug_and_respond(
+            request=request,
+            tenant_id=tenant_id,
+            error_type="configuration_error",
+            error_detail=str(e),
+            saml_response_b64=SAMLResponse,
+            idp_id=idp_id,
+        )
+
+    # Check if MFA is required
+    if saml_result.requires_mfa and user.get("mfa_method"):
+        request.session["pending_mfa_user_id"] = str(user["id"])
+        request.session["pending_mfa_method"] = user.get("mfa_method", "email")
+        request.session["pending_saml_relay_state"] = RelayState
+
+        if user.get("mfa_method") == "email":
+            code = create_email_otp(tenant_id, str(user["id"]))
+            primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
+            if primary_email:
+                send_mfa_code_email(primary_email, code)
+
+        return RedirectResponse(url="/mfa/verify", status_code=303)
+
+    # Complete login
+    security_settings = settings_service.get_session_settings(tenant_id)
+    if security_settings:
+        persistent = security_settings.get("persistent_sessions", True)
+        timeout = security_settings.get("session_timeout_seconds")
+    else:
+        persistent = True
+        timeout = None
+
+    if not persistent:
+        max_age = None
+    elif timeout:
+        max_age = timeout
+    else:
+        max_age = 30 * 24 * 3600
+
+    saml_session_data = {
+        "saml_idp_id": saml_result.idp_id,
+        "saml_name_id": saml_result.attributes.name_id,
+        "saml_name_id_format": saml_result.name_id_format,
+        "saml_session_index": saml_result.session_index,
+    }
+
+    from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
+
+    pending_sso = extract_pending_sso(request.session)
+    if pending_sso:
+        saml_session_data.update(pending_sso)
+
+    regenerate_session(request, str(user["id"]), max_age, additional_data=saml_session_data)
+    users_service.update_last_login(tenant_id, str(user["id"]))
+
+    redirect_url = get_post_auth_redirect(request.session, default=RelayState)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/saml/acs")

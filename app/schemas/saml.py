@@ -55,14 +55,19 @@ PROVIDER_SETUP_GUIDES: dict[str, str | None] = {
 
 
 class IdPCreate(BaseModel):
-    """Request schema for creating an IdP."""
+    """Request schema for creating an IdP.
+
+    For two-step creation, only name and provider_type are required.
+    entity_id, sso_url, and certificate_pem can be provided later via
+    trust establishment.
+    """
 
     name: str = Field(..., min_length=1, max_length=255)
     provider_type: str = Field(..., pattern="^(okta|azure_ad|google|generic)$")
-    entity_id: str = Field(..., min_length=1)
-    sso_url: str = Field(..., min_length=1)
+    entity_id: str | None = Field(None, min_length=1)
+    sso_url: str | None = Field(None, min_length=1)
     slo_url: str | None = None
-    certificate_pem: str = Field(..., min_length=1)
+    certificate_pem: str | None = Field(None, min_length=1)
     metadata_url: str | None = Field(None, description="Optional IdP metadata URL for auto-refresh")
     metadata_xml: str | None = Field(None, description="Raw metadata XML from import")
     attribute_mapping: dict[str, str] = Field(default_factory=lambda: DEFAULT_ATTRIBUTE_MAPPING)
@@ -93,21 +98,22 @@ class IdPConfig(BaseModel):
     id: str
     name: str
     provider_type: str
-    entity_id: str
-    sso_url: str
+    entity_id: str | None
+    sso_url: str | None
     slo_url: str | None
-    certificate_pem: str
+    certificate_pem: str | None
     metadata_url: str | None
     metadata_xml: str | None
     metadata_last_fetched_at: datetime | None
     metadata_fetch_error: str | None
     sp_entity_id: str
-    sp_acs_url: str  # Computed from sp_entity_id (shared ACS URL for all IdPs)
+    sp_acs_url: str  # Computed from sp_entity_id
     attribute_mapping: dict[str, str]
     is_enabled: bool
     is_default: bool
     require_platform_mfa: bool
     jit_provisioning: bool
+    trust_established: bool
     created_at: datetime
     updated_at: datetime
 
@@ -122,6 +128,7 @@ class IdPListItem(BaseModel):
     provider_type: str
     is_enabled: bool
     is_default: bool
+    trust_established: bool
     metadata_url: str | None
     metadata_last_fetched_at: datetime | None
     metadata_fetch_error: str | None
@@ -448,6 +455,20 @@ class CertificateRotationResult(BaseModel):
     new_expires_at: datetime
     grace_period_ends_at: datetime
     warning: str = "Update your IdP metadata configuration within the grace period."
+
+
+class IdPSPCertificate(BaseModel):
+    """Per-IdP SP certificate info for display."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    idp_id: str
+    certificate_pem: str
+    expires_at: datetime
+    created_at: datetime
+    has_previous_certificate: bool = False
+    rotation_grace_period_ends_at: datetime | None = None
 
 
 # ============================================================================

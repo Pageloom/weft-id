@@ -5,6 +5,7 @@ from typing import Annotated
 from api_dependencies import require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, status
+from pydantic import BaseModel, Field
 from schemas.saml import (
     CertificateRotationResult,
     DomainBinding,
@@ -17,11 +18,10 @@ from schemas.saml import (
     IdPListResponse,
     IdPMetadataImport,
     IdPMetadataImportXML,
+    IdPSPCertificate,
     IdPUpdate,
     MetadataRefreshResult,
     ProviderPresets,
-    SPCertificate,
-    SPMetadata,
     UnboundDomain,
 )
 from services import saml as saml_service
@@ -296,6 +296,168 @@ def set_default_identity_provider(
 
 
 # =============================================================================
+# Trust Establishment & Per-IdP SP Certificate Endpoints
+# =============================================================================
+
+
+class EstablishTrustRequest(BaseModel):
+    """Request to establish trust on a pending IdP."""
+
+    entity_id: str = Field(..., min_length=1)
+    sso_url: str = Field(..., min_length=1)
+    certificate_pem: str = Field(..., min_length=1)
+    slo_url: str | None = None
+    metadata_url: str | None = None
+    metadata_xml: str | None = None
+
+
+class EstablishTrustFromUrlRequest(BaseModel):
+    """Request to establish trust via metadata URL."""
+
+    metadata_url: str = Field(..., min_length=1)
+
+
+class EstablishTrustFromXmlRequest(BaseModel):
+    """Request to establish trust via metadata XML."""
+
+    metadata_xml: str = Field(..., min_length=1)
+
+
+@router.post("/idps/{idp_id}/establish-trust", response_model=IdPConfig)
+def establish_trust(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    trust_data: EstablishTrustRequest,
+):
+    """
+    Establish trust on a pending IdP with manual configuration.
+
+    Requires super_admin role.
+
+    Completes the second step of two-step IdP creation by providing
+    the IdP-side configuration (entity_id, sso_url, certificate).
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return saml_service.establish_idp_trust(
+            requesting_user,
+            idp_id=idp_id,
+            entity_id=trust_data.entity_id,
+            sso_url=trust_data.sso_url,
+            certificate_pem=trust_data.certificate_pem,
+            slo_url=trust_data.slo_url,
+            metadata_url=trust_data.metadata_url,
+            metadata_xml=trust_data.metadata_xml,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/idps/{idp_id}/establish-trust-url", response_model=IdPConfig)
+def establish_trust_from_url(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    trust_data: EstablishTrustFromUrlRequest,
+):
+    """
+    Establish trust on a pending IdP via metadata URL.
+
+    Requires super_admin role.
+
+    Fetches and parses metadata, then establishes trust.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return saml_service.import_idp_from_metadata_url(
+            requesting_user,
+            name="",
+            provider_type="",
+            metadata_url=trust_data.metadata_url,
+            base_url=base_url,
+            idp_id=idp_id,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/idps/{idp_id}/establish-trust-xml", response_model=IdPConfig)
+def establish_trust_from_xml(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    trust_data: EstablishTrustFromXmlRequest,
+):
+    """
+    Establish trust on a pending IdP via metadata XML.
+
+    Requires super_admin role.
+
+    Parses metadata XML, then establishes trust.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    base_url = _get_base_url(request)
+    try:
+        return saml_service.import_idp_from_metadata_xml(
+            requesting_user,
+            name="",
+            provider_type="",
+            metadata_xml=trust_data.metadata_xml,
+            base_url=base_url,
+            idp_id=idp_id,
+        )
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/idps/{idp_id}/sp-certificate", response_model=IdPSPCertificate)
+def get_idp_sp_certificate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+):
+    """
+    Get the per-IdP SP certificate.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        result = saml_service.get_idp_sp_certificate_for_display(requesting_user, idp_id)
+        if result is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Per-IdP SP certificate not found")
+        return result
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post("/idps/{idp_id}/rotate-sp-certificate", response_model=CertificateRotationResult)
+def rotate_idp_sp_certificate(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    idp_id: str,
+    grace_period_days: int = 7,
+):
+    """
+    Rotate the per-IdP SP certificate with grace period.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        return saml_service.rotate_idp_sp_certificate(requesting_user, idp_id, grace_period_days)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
 # Metadata Import & Refresh Endpoints
 # =============================================================================
 
@@ -394,90 +556,6 @@ def refresh_identity_provider_metadata(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         return saml_service.refresh_idp_from_metadata(requesting_user, idp_id)
-    except ServiceError as exc:
-        raise translate_to_http_exception(exc)
-
-
-# =============================================================================
-# SP Certificate & Metadata Endpoints
-# =============================================================================
-
-
-@router.get("/sp/certificate", response_model=SPCertificate)
-def get_sp_certificate(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_super_admin_api)],
-):
-    """
-    Get the Service Provider certificate for SAML.
-
-    Requires super_admin role.
-
-    Creates a certificate if none exists. Returns the certificate
-    in PEM format (private key is not exposed).
-
-    Returns SP certificate with id, certificate_pem, expires_at, created_at.
-    """
-    requesting_user = build_requesting_user(admin, tenant_id, None)
-    try:
-        return saml_service.get_or_create_sp_certificate(requesting_user)
-    except ServiceError as exc:
-        raise translate_to_http_exception(exc)
-
-
-@router.get("/sp/metadata", response_model=SPMetadata)
-def get_sp_metadata(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_super_admin_api)],
-):
-    """
-    Get Service Provider metadata info.
-
-    Requires super_admin role.
-
-    Returns SP metadata including entity_id, acs_url, metadata_url,
-    certificate, and certificate expiration. This info is needed
-    when configuring the IdP to trust this SP.
-
-    Returns SP metadata for display in admin UI.
-    """
-    requesting_user = build_requesting_user(admin, tenant_id, None)
-    base_url = _get_base_url(request)
-    try:
-        return saml_service.get_sp_metadata(requesting_user, base_url)
-    except ServiceError as exc:
-        raise translate_to_http_exception(exc)
-
-
-@router.post("/sp/certificate/rotate", response_model=CertificateRotationResult)
-def rotate_sp_certificate(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_super_admin_api)],
-    grace_period_days: int = 7,
-):
-    """
-    Rotate the SP certificate with grace period.
-
-    Requires super_admin role.
-
-    Generates a new SP certificate and keeps the old one valid for
-    the grace period. Both certificates are included in the SP metadata
-    during this period, allowing IdP administrators time to update their
-    configuration.
-
-    Query parameters:
-    - grace_period_days: Number of days old cert remains valid (default: 7)
-
-    Returns:
-    - new_certificate_pem: The new certificate in PEM format
-    - new_expires_at: When the new certificate expires
-    - grace_period_ends_at: When the old certificate stops being valid
-    - warning: Reminder to update IdP metadata
-    """
-    requesting_user = build_requesting_user(admin, tenant_id, None)
-    try:
-        return saml_service.rotate_sp_certificate(requesting_user, grace_period_days)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

@@ -57,48 +57,6 @@ def test_get_or_create_sp_certificate_uses_configured_lifetime(test_tenant, test
 
 
 # =============================================================================
-# saml/certificates.py - rotate_sp_certificate
-# =============================================================================
-
-
-def test_rotate_sp_certificate_uses_configured_lifetime(test_tenant, test_super_admin_user):
-    """rotate_sp_certificate passes validity_years from setting."""
-    requesting_user = {
-        "id": str(test_super_admin_user["id"]),
-        "tenant_id": test_tenant["id"],
-        "role": "super_admin",
-    }
-
-    with (
-        patch("services.saml.certificates.database") as mock_db,
-        patch(
-            "services.saml.certificates.generate_sp_certificate",
-            side_effect=_mock_generate_cert,
-        ) as mock_gen,
-        patch("services.saml.certificates.encrypt_private_key", return_value=b"enc"),
-        patch("services.saml.certificates.get_certificate_expiry", return_value=NOW),
-        patch("services.settings.database") as mock_settings_db,
-        patch("services.saml.certificates.log_event"),
-    ):
-        mock_db.saml.get_sp_certificate.return_value = {
-            "id": "old-cert-id",
-            "certificate_pem": "OLD_CERT",
-            "private_key_pem_enc": b"old_enc",
-            "expires_at": NOW,
-        }
-        mock_db.saml.rotate_sp_certificate.return_value = {
-            "id": "new-cert-id",
-        }
-        mock_settings_db.security.get_certificate_lifetime.return_value = 5
-
-        from services.saml.certificates import rotate_sp_certificate
-
-        rotate_sp_certificate(requesting_user)
-
-        mock_gen.assert_called_once_with(test_tenant["id"], validity_years=5)
-
-
-# =============================================================================
 # service_providers/crud.py - _get_or_create_sp_signing_certificate
 # =============================================================================
 

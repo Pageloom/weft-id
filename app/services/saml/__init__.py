@@ -49,9 +49,6 @@ from services.saml.auth import (
 # Re-export from certificates module
 from services.saml.certificates import (
     get_or_create_sp_certificate,
-    get_sp_metadata,
-    get_tenant_sp_metadata_xml,
-    rotate_sp_certificate,
 )
 
 # Re-export from debug module
@@ -78,6 +75,14 @@ from services.saml.idp_certificates import (
     sync_certificates_from_metadata,
 )
 
+# Re-export from idp_sp_certificates module
+from services.saml.idp_sp_certificates import (
+    get_idp_sp_certificate_for_display,
+    get_idp_sp_metadata_xml,
+    get_or_create_idp_sp_certificate,
+    rotate_idp_sp_certificate,
+)
+
 # Re-export from logout module
 from services.saml.logout import (
     initiate_sp_logout,
@@ -98,6 +103,7 @@ from services.saml.metadata import (
 from services.saml.providers import (
     create_identity_provider,
     delete_identity_provider,
+    establish_idp_trust,
     get_identity_provider,
     get_provider_presets,
     get_public_trust_info,
@@ -133,13 +139,15 @@ __all__ = [
     "process_saml_test_response",
     # Certificates
     "get_or_create_sp_certificate",
-    "get_sp_metadata",
-    "get_tenant_sp_metadata_xml",
-    "rotate_sp_certificate",
     # IdP Certificates
     "list_idp_certificates",
     "get_certificates_for_validation",
     "sync_certificates_from_metadata",
+    # Per-IdP SP Certificates
+    "get_or_create_idp_sp_certificate",
+    "get_idp_sp_certificate_for_display",
+    "rotate_idp_sp_certificate",
+    "get_idp_sp_metadata_xml",
     # Debug
     "get_saml_debug_entry",
     "list_saml_debug_entries",
@@ -164,6 +172,7 @@ __all__ = [
     # Providers
     "create_identity_provider",
     "delete_identity_provider",
+    "establish_idp_trust",
     "get_identity_provider",
     "get_provider_presets",
     "get_public_trust_info",

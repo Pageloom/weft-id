@@ -39,6 +39,7 @@ Request → Router → Service → Database → PostgreSQL
 - All writes go through service layer
 - Every service write must emit an event log
 - New pages must be registered in `app/pages.py`
+- All `str` fields in Pydantic input schemas must have `max_length` (names 255, descriptions 2000, URLs 2048, enums 50)
 
 ## Before Committing
 

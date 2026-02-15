@@ -17,7 +17,7 @@ Verify the codebase adheres to architectural principles and design patterns.
 
 Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
-## The Five Principles
+## The Six Principles
 
 ### 1. Activity Tracking & Event Logging (PRIMARY)
 
@@ -53,6 +53,16 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 
 **Exceptions:** Auth flows, SAML ACS/SLO, admin UI conveniences.
 
+### 6. Input Length Validation
+
+**Rule:** Every `str` field in Pydantic input schemas must have `max_length`. Database TEXT columns must have matching constraints.
+
+**Standard limits:** names/titles 255, descriptions 2000, URLs 2048, enum-like 50, subdomains 63, domains 253, IP addresses 45.
+
+- All Create/Update/Import schemas must enforce `max_length` on every `str` field
+- Optional fields use `Field(default=None, max_length=N)`
+- Database should have `CHECK (length(...) <= N)` or `VARCHAR(N)` as backstop
+
 ## Workflow
 
 ### 1. Run Automated Script First
@@ -69,6 +79,11 @@ Options:
 --check api-first       # API coverage
 --check authorization   # Route auth
 ```
+
+**For Input Length Validation (manual, not yet in script):**
+- Scan all Pydantic input schemas (Create, Update, Import) in `app/schemas/`
+- Flag any `str` field missing `max_length`
+- Check `Field(default=None, max_length=N)` pattern for optional strings
 
 ### 2. Investigate Findings
 
@@ -98,6 +113,8 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | SQL without `tenant_id` filter | Tenant Isolation |
 | Router imports database | Architecture |
 | Service operation without API endpoint | API-First |
+| `str` field without `max_length` in input schema | Input Validation |
+| `Field(default=None)` without `max_length` | Input Validation |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 
@@ -108,7 +125,7 @@ See `.claude/references/compliance-patterns.md` for detailed patterns and checkl
 
 **Found in:** [File:line]
 **Severity:** High
-**Principle Violated:** [Activity Logging | Tenant Isolation | Authorization | Service Layer | API-First]
+**Principle Violated:** [Activity Logging | Tenant Isolation | Authorization | Service Layer | API-First | Input Validation]
 **Description:** [What's wrong]
 **Evidence:** [Code snippet]
 **Impact:** [Security, compliance, maintainability]

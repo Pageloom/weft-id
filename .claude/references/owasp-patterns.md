@@ -151,6 +151,28 @@ Use `/deps` agent for dependency scanning.
 - [ ] Logs don't contain sensitive data
 - [ ] Log injection prevented (structured logging)
 
+### 11. Unbounded Input (Resource Exhaustion)
+
+**Red Flag:**
+```python
+# VULNERABLE - no length limit
+class UserInput(BaseModel):
+    name: str
+    description: str | None = None
+
+# SAFE - explicit limits
+class UserInput(BaseModel):
+    name: str = Field(max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+```
+
+**Checklist:**
+- [ ] All Pydantic input schema `str` fields have `max_length`
+- [ ] Database TEXT columns have `CHECK (length(...) <= N)` or use `VARCHAR(N)`
+- [ ] URL fields limited to 2048 characters
+- [ ] XML/large content fields have a reasonable upper bound (e.g., 1MB)
+- [ ] No unbounded TEXT columns accepting user input without validation
+
 ## Severity Guide
 
 - **Critical**: RCE, full database access, authentication bypass

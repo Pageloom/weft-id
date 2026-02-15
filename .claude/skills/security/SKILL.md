@@ -29,6 +29,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 | Auth Failures | A07 | Password handling, session management, MFA |
 | Data Integrity | A08 | Deserialization, YAML/pickle, eval |
 | Logging Failures | A09 | Auth events, log injection |
+| Unbounded Input | - | Missing `max_length` on str fields, unbounded TEXT columns |
 
 ## Workflow
 
@@ -108,6 +109,11 @@ Weft ID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing
 - Check that metadata URL imports validate the fetched XML
 - Look for SSRF in metadata URL fetching
 
+**For Unbounded Input:**
+- Scan Pydantic input schemas for `str` fields without `max_length`
+- Check database TEXT columns for missing length constraints
+- Standard limits: names 255, descriptions 2000, URLs 2048, enum-like 50
+
 ## Key Patterns to Check
 
 See `.claude/references/owasp-patterns.md` for detailed patterns including:
@@ -117,6 +123,7 @@ See `.claude/references/owasp-patterns.md` for detailed patterns including:
 - Access control violations
 - Security misconfiguration
 - Deserialization risks
+- Unbounded input / resource exhaustion
 
 ## Issue Format
 

@@ -96,6 +96,7 @@ def sample_idp_config():
         is_default=False,
         require_platform_mfa=False,
         jit_provisioning=False,
+        trust_established=True,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )

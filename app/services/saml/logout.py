@@ -52,8 +52,10 @@ def initiate_sp_logout(
         if not idp or not idp.get("slo_url"):
             return None
 
-        # Get SP certificate
-        sp_cert = database.saml.get_sp_certificate(tenant_id)
+        # Get SP certificate (per-IdP first, then tenant-level fallback)
+        sp_cert = database.saml.get_idp_sp_certificate(tenant_id, saml_idp_id)
+        if not sp_cert:
+            sp_cert = database.saml.get_sp_certificate(tenant_id)
         if not sp_cert:
             logger.warning(f"No SP certificate for tenant {tenant_id}, skipping SLO")
             return None
@@ -61,9 +63,9 @@ def initiate_sp_logout(
         # Decrypt private key
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
 
-        # Build SAML settings
-        sp_entity_id = f"{base_url}/saml/metadata"
-        sp_acs_url = f"{base_url}/saml/acs"
+        # Build SAML settings using IdP row's sp_entity_id
+        sp_entity_id = idp["sp_entity_id"]
+        sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 
         # Load IdP certificates for multi-cert validation
@@ -141,20 +143,22 @@ def process_idp_logout_request(
             logger.warning(f"IdP-initiated SLO: No IdP found for issuer {issuer}")
             return None
 
-        # Get SP certificate
-        sp_cert = database.saml.get_sp_certificate(tenant_id)
+        # Get SP certificate (per-IdP first, then tenant-level fallback)
+        idp_id = str(idp["id"])
+        sp_cert = database.saml.get_idp_sp_certificate(tenant_id, idp_id)
+        if not sp_cert:
+            sp_cert = database.saml.get_sp_certificate(tenant_id)
         if not sp_cert:
             logger.warning(f"IdP-initiated SLO: No SP certificate for tenant {tenant_id}")
             return None
 
-        # Build SAML settings
+        # Build SAML settings using IdP row's sp_entity_id
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-        sp_entity_id = f"{base_url}/saml/metadata"
-        sp_acs_url = f"{base_url}/saml/acs"
+        sp_entity_id = idp["sp_entity_id"]
+        sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 
         # Load IdP certificates for multi-cert validation
-        idp_id = str(idp["id"])
         idp_certs = get_certificates_for_validation(tenant_id, idp_id)
         if not idp_certs:
             idp_certs = [idp["certificate_pem"]]

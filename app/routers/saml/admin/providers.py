@@ -110,46 +110,18 @@ def create_idp(
     user: Annotated[dict, Depends(get_current_user)],
     name: Annotated[str, Form()],
     provider_type: Annotated[str, Form()],
-    entity_id: Annotated[str, Form()],
-    sso_url: Annotated[str, Form()],
-    certificate_pem: Annotated[str, Form()],
-    slo_url: Annotated[str, Form()] = "",
-    metadata_url: Annotated[str, Form()] = "",
-    attr_email: Annotated[str, Form()] = "email",
-    attr_first_name: Annotated[str, Form()] = "firstName",
-    attr_last_name: Annotated[str, Form()] = "lastName",
-    attr_groups: Annotated[str, Form()] = "groups",
-    is_enabled: Annotated[bool, Form()] = False,
-    is_default: Annotated[bool, Form()] = False,
-    require_platform_mfa: Annotated[bool, Form()] = False,
-    jit_provisioning: Annotated[bool, Form()] = False,
 ):
-    """Create a new identity provider."""
+    """Create a new identity provider (name-only, two-step creation)."""
     requesting_user = build_requesting_user(user, tenant_id, request)
     base_url = get_base_url(request)
 
     data = IdPCreate(
         name=name,
         provider_type=provider_type,
-        entity_id=entity_id,
-        sso_url=sso_url,
-        slo_url=slo_url or None,
-        certificate_pem=certificate_pem,
-        metadata_url=metadata_url or None,
-        attribute_mapping={
-            "email": attr_email,
-            "first_name": attr_first_name,
-            "last_name": attr_last_name,
-            "groups": attr_groups,
-        },
-        is_enabled=is_enabled,
-        is_default=is_default,
-        require_platform_mfa=require_platform_mfa,
-        jit_provisioning=jit_provisioning,
     )
 
     try:
-        saml_service.create_identity_provider(requesting_user, data, base_url)
+        idp = saml_service.create_identity_provider(requesting_user, data, base_url)
     except ValidationError as e:
         return RedirectResponse(
             url=f"{IDP_LIST_URL}/new?error={e.message}",
@@ -161,7 +133,8 @@ def create_idp(
             status_code=303,
         )
 
-    return RedirectResponse(url=f"{IDP_LIST_URL}?success=created", status_code=303)
+    # Redirect to detail page so admin can establish trust
+    return RedirectResponse(url=f"{IDP_LIST_URL}/{idp.id}/details?success=created", status_code=303)
 
 
 @router.post(
@@ -236,32 +209,9 @@ def import_from_metadata_xml(
 # to ensure FastAPI matches them correctly (routes are matched in definition order)
 
 
-@router.post(
-    "/admin/settings/identity-providers/rotate-certificate",
-    dependencies=[Depends(require_super_admin)],
-)
-def rotate_certificate(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-):
-    """Rotate the SP certificate with a 7-day grace period."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    try:
-        saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
-    except NotFoundError:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}?error=No+SP+certificate+exists+to+rotate",
-            status_code=303,
-        )
-    except ServiceError as e:
-        return RedirectResponse(
-            url=f"{IDP_LIST_URL}?error={str(e)}",
-            status_code=303,
-        )
-
-    return RedirectResponse(url=f"{IDP_LIST_URL}?success=rotated", status_code=303)
+# =============================================================================
+# Trust Establishment Routes (must be before {idp_id} catch-all)
+# =============================================================================
 
 
 # =============================================================================
@@ -304,7 +254,6 @@ def idp_tab_details(
 
     try:
         idp, requesting_user = _load_idp_common(request, tenant_id, user, idp_id)
-        sp_metadata = saml_service.get_sp_metadata(requesting_user, get_base_url(request))
         domain_bindings = saml_service.list_domain_bindings(requesting_user, idp_id)
         unbound_domains = saml_service.get_unbound_domains(requesting_user)
     except NotFoundError:
@@ -313,11 +262,14 @@ def idp_tab_details(
         logger.warning("Failed to get IdP: %s", exc)
         return RedirectResponse(url=f"{IDP_LIST_URL}?error={exc.message}", status_code=303)
 
+    # Get per-IdP SP certificate for display
+    sp_certificate = saml_service.get_idp_sp_certificate_for_display(requesting_user, idp_id)
+
     context = get_template_context(
         request,
         tenant_id,
         idp=idp,
-        sp_metadata=sp_metadata,
+        sp_certificate=sp_certificate,
         domain_bindings=domain_bindings.items,
         unbound_domains=unbound_domains,
         base_url=get_base_url(request),
@@ -354,7 +306,7 @@ def idp_tab_certificates(
 
     sp_certificate = None
     try:
-        sp_certificate = saml_service.get_or_create_sp_certificate(requesting_user)
+        sp_certificate = saml_service.get_idp_sp_certificate_for_display(requesting_user, idp_id)
     except ServiceError:
         pass
 
@@ -764,3 +716,153 @@ def delete_idp(
         )
 
     return RedirectResponse(url=f"{IDP_LIST_URL}?success=deleted", status_code=303)
+
+
+# =============================================================================
+# Trust Establishment & Per-IdP Certificate Rotation
+# =============================================================================
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/establish-trust-url",
+    dependencies=[Depends(require_super_admin)],
+)
+def establish_trust_url(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    metadata_url: Annotated[str, Form()],
+):
+    """Establish trust on a pending IdP via metadata URL."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    base_url = get_base_url(request)
+
+    try:
+        saml_service.import_idp_from_metadata_url(
+            requesting_user,
+            name="",  # Not used when idp_id is provided
+            provider_type="",
+            metadata_url=metadata_url,
+            base_url=base_url,
+            idp_id=idp_id,
+        )
+    except ValidationError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
+    )
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/establish-trust-xml",
+    dependencies=[Depends(require_super_admin)],
+)
+def establish_trust_xml(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    metadata_xml: Annotated[str, Form()],
+):
+    """Establish trust on a pending IdP via metadata XML paste."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    base_url = get_base_url(request)
+
+    try:
+        saml_service.import_idp_from_metadata_xml(
+            requesting_user,
+            name="",
+            provider_type="",
+            metadata_xml=metadata_xml,
+            base_url=base_url,
+            idp_id=idp_id,
+        )
+    except ValidationError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
+    )
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/establish-trust-manual",
+    dependencies=[Depends(require_super_admin)],
+)
+def establish_trust_manual(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+    entity_id: Annotated[str, Form()],
+    sso_url: Annotated[str, Form()],
+    certificate_pem: Annotated[str, Form()],
+    slo_url: Annotated[str, Form()] = "",
+):
+    """Establish trust on a pending IdP via manual configuration."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.establish_idp_trust(
+            requesting_user,
+            idp_id=idp_id,
+            entity_id=entity_id,
+            sso_url=sso_url,
+            certificate_pem=certificate_pem,
+            slo_url=slo_url or None,
+        )
+    except ValidationError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={e.message}", status_code=303
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/details?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/details?success=trust_established", status_code=303
+    )
+
+
+@router.post(
+    "/admin/settings/identity-providers/{idp_id}/rotate-sp-certificate",
+    dependencies=[Depends(require_super_admin)],
+)
+def rotate_idp_sp_certificate(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    idp_id: str,
+):
+    """Rotate the per-IdP SP certificate with a 7-day grace period."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        saml_service.rotate_idp_sp_certificate(requesting_user, idp_id, grace_period_days=7)
+    except NotFoundError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/certificates?error={e.message}", status_code=303
+        )
+    except ServiceError as e:
+        return RedirectResponse(
+            url=f"{IDP_LIST_URL}/{idp_id}/certificates?error={str(e)}", status_code=303
+        )
+
+    return RedirectResponse(
+        url=f"{IDP_LIST_URL}/{idp_id}/certificates?success=rotated", status_code=303
+    )

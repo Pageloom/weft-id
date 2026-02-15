@@ -30,6 +30,12 @@ from database.saml.idp_certificates import (
     list_idp_certificates,
     update_idp_certificate_fingerprint,
 )
+from database.saml.idp_sp_certificates import (
+    clear_previous_idp_sp_certificate,
+    create_idp_sp_certificate,
+    get_idp_sp_certificate,
+    rotate_idp_sp_certificate,
+)
 from database.saml.providers import (
     create_identity_provider,
     delete_identity_provider,
@@ -44,6 +50,7 @@ from database.saml.providers import (
     set_idp_default,
     set_idp_enabled,
     set_idp_metadata_error,
+    set_idp_trust_established,
     set_user_idp,
     update_identity_provider,
     update_idp_metadata_fields,
@@ -79,6 +86,7 @@ __all__ = [
     "set_idp_metadata_error",
     "set_idp_enabled",
     "set_idp_default",
+    "set_idp_trust_established",
     "delete_identity_provider",
     "get_enabled_identity_providers",
     "get_public_idp_info",
@@ -99,6 +107,11 @@ __all__ = [
     "count_domain_bindings_for_idp",
     "count_users_without_idp_in_domain",
     "count_users_with_idp_in_domain",
+    # idp_sp_certificates
+    "get_idp_sp_certificate",
+    "create_idp_sp_certificate",
+    "rotate_idp_sp_certificate",
+    "clear_previous_idp_sp_certificate",
     # debug
     "store_debug_entry",
     "get_debug_entries",

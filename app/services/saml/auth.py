@@ -48,8 +48,11 @@ def _prepare_saml_auth(
     from onelogin.saml2.auth import OneLogin_Saml2_Auth
 
     idp = get_idp_for_saml_login(tenant_id, idp_id)
-    sp_cert = database.saml.get_sp_certificate(tenant_id)
 
+    # Try per-IdP SP certificate first, fall back to tenant-level
+    sp_cert = database.saml.get_idp_sp_certificate(tenant_id, idp_id)
+    if sp_cert is None:
+        sp_cert = database.saml.get_sp_certificate(tenant_id)
     if sp_cert is None:
         raise NotFoundError(
             message="SP certificate not configured",
@@ -154,7 +157,7 @@ def get_idp_for_saml_login(tenant_id: str, idp_id: str) -> IdPConfig:
     """
     Get IdP configuration for SAML login by IdP ID.
 
-    Validates that the IdP exists and is enabled.
+    Validates that the IdP exists, is enabled, and has trust established.
 
     No authorization required (used during login flow).
     """
@@ -170,6 +173,12 @@ def get_idp_for_saml_login(tenant_id: str, idp_id: str) -> IdPConfig:
         raise ForbiddenError(
             message="Identity provider is not enabled",
             code="idp_disabled",
+        )
+
+    if not row.get("trust_established", True):
+        raise ForbiddenError(
+            message="Identity provider trust not yet established",
+            code="idp_trust_pending",
         )
 
     return idp_row_to_config(row)

@@ -87,28 +87,6 @@ def admin_session(client, test_tenant_host, test_admin_user):
 
 
 # =============================================================================
-# SP Metadata Endpoint Tests
-# =============================================================================
-
-
-def test_sp_metadata_no_cert(client, test_tenant_host):
-    """Test that /saml/metadata returns 404 when no cert configured."""
-    response = client.get("/saml/metadata", headers={"Host": test_tenant_host})
-
-    assert response.status_code == 404
-    assert "not configured" in response.text
-
-
-def test_sp_metadata_with_cert(super_admin_session, test_tenant_host, test_tenant):
-    """Test that /saml/metadata returns 404 when no cert is configured."""
-    # Just verify the endpoint exists and returns 404 (cert not yet created)
-    # or would work if cert was created
-    response = super_admin_session.get("/saml/metadata", headers={"Host": test_tenant_host})
-    # Without a certificate, returns 404
-    assert response.status_code in (200, 404)
-
-
-# =============================================================================
 # Admin UI Tests
 # =============================================================================
 
@@ -1640,95 +1618,6 @@ def test_slo_post_idp_initiated_failure_redirects_to_login(
 
     assert response.status_code == 303
     assert "/login" in response.headers.get("location", "")
-
-
-# =============================================================================
-# SAML Phase 4: Certificate Rotation Router Tests
-# =============================================================================
-
-
-def test_rotate_certificate_as_super_admin_success(
-    super_admin_session, test_tenant_host, test_tenant, test_super_admin_user, monkeypatch
-):
-    """Test certificate rotation as super admin succeeds."""
-    from schemas.saml import CertificateRotationResult
-    from services import saml as saml_service
-
-    # Mock the rotation to succeed
-    def mock_rotate(*args, **kwargs):
-        return CertificateRotationResult(
-            new_certificate_pem="-----BEGIN CERTIFICATE-----\nNEWCERT\n-----END CERTIFICATE-----",
-            new_expires_at="2035-01-01T00:00:00Z",
-            grace_period_ends_at="2026-01-26T00:00:00Z",
-            warning="Update your IdP configuration within the grace period",
-        )
-
-    monkeypatch.setattr(saml_service, "rotate_sp_certificate", mock_rotate)
-
-    response = super_admin_session.post(
-        "/admin/settings/identity-providers/rotate-certificate",
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    location = response.headers.get("location", "")
-    assert "success=rotated" in location
-
-
-def test_rotate_certificate_as_admin_forbidden(admin_session, test_tenant_host):
-    """Test certificate rotation as admin is forbidden."""
-    response = admin_session.post(
-        "/admin/settings/identity-providers/rotate-certificate",
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    # Should be redirected (forbidden via RedirectError)
-    assert response.status_code in (303, 403)
-
-
-def test_rotate_certificate_no_existing_cert_shows_error(
-    super_admin_session, test_tenant_host, monkeypatch
-):
-    """Test certificate rotation without existing cert shows error."""
-    from services import saml as saml_service
-    from services.exceptions import NotFoundError
-
-    # Mock the rotation to raise NotFoundError
-    def mock_rotate(*args, **kwargs):
-        raise NotFoundError(message="No SP certificate exists", code="sp_cert_not_found")
-
-    monkeypatch.setattr(saml_service, "rotate_sp_certificate", mock_rotate)
-
-    response = super_admin_session.post(
-        "/admin/settings/identity-providers/rotate-certificate",
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    location = response.headers.get("location", "")
-    assert "error=" in location
-
-
-def test_rotate_certificate_unauthenticated_redirects(client, test_tenant_host):
-    """Test certificate rotation when not authenticated redirects to login."""
-    from dependencies import get_tenant_id_from_request
-    from main import app
-
-    app.dependency_overrides[get_tenant_id_from_request] = lambda: "test-tenant-id"
-
-    response = client.post(
-        "/admin/settings/identity-providers/rotate-certificate",
-        headers={"Host": test_tenant_host},
-        follow_redirects=False,
-    )
-
-    app.dependency_overrides.clear()
-
-    # Should redirect to login or return 401/403
-    assert response.status_code in (303, 401, 403)
 
 
 # =============================================================================

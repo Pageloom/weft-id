@@ -67,17 +67,18 @@ def import_idp_from_metadata_url(
     provider_type: str,
     metadata_url: str,
     base_url: str,
+    idp_id: str | None = None,
 ) -> IdPConfig:
     """
-    Import and create an IdP from metadata URL.
+    Import an IdP from metadata URL.
+
+    When idp_id is provided, establishes trust on an existing pending IdP.
+    When idp_id is None, creates a new IdP with trust already established.
 
     Authorization: Requires super_admin role.
 
-    Fetches metadata, parses it, and creates the IdP configuration.
-    The metadata_url is stored for future auto-refresh.
-
     Returns:
-        Created IdPConfig
+        Created or updated IdPConfig
     """
     require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
@@ -85,20 +86,35 @@ def import_idp_from_metadata_url(
     # Fetch and parse metadata
     metadata = fetch_and_parse_idp_metadata(metadata_url)
 
-    # Create IdP using parsed metadata
-    data = IdPCreate(
-        name=name,
-        provider_type=provider_type,
-        entity_id=metadata.entity_id,
-        sso_url=metadata.sso_url,
-        slo_url=metadata.slo_url,
-        certificate_pem=metadata.certificate_pem,
-        metadata_url=metadata_url,
-        metadata_xml=metadata.metadata_xml,
-        is_enabled=False,  # Start disabled, admin must enable
-    )
+    if idp_id:
+        # Establish trust on existing pending IdP
+        from services.saml.providers import establish_idp_trust
 
-    idp = create_identity_provider(requesting_user, data, base_url)
+        idp = establish_idp_trust(
+            requesting_user,
+            idp_id=idp_id,
+            entity_id=metadata.entity_id,
+            sso_url=metadata.sso_url,
+            certificate_pem=metadata.certificate_pem,
+            slo_url=metadata.slo_url,
+            metadata_url=metadata_url,
+            metadata_xml=metadata.metadata_xml,
+        )
+    else:
+        # Create new IdP with full trust
+        data = IdPCreate(
+            name=name,
+            provider_type=provider_type,
+            entity_id=metadata.entity_id,
+            sso_url=metadata.sso_url,
+            slo_url=metadata.slo_url,
+            certificate_pem=metadata.certificate_pem,
+            metadata_url=metadata_url,
+            metadata_xml=metadata.metadata_xml,
+            is_enabled=False,
+        )
+
+        idp = create_identity_provider(requesting_user, data, base_url)
 
     # Sync all certificates from metadata
     if metadata.certificates:
@@ -146,40 +162,51 @@ def import_idp_from_metadata_xml(
     provider_type: str,
     metadata_xml: str,
     base_url: str,
+    idp_id: str | None = None,
 ) -> IdPConfig:
     """
-    Import and create an IdP from raw metadata XML.
+    Import an IdP from raw metadata XML.
+
+    When idp_id is provided, establishes trust on an existing pending IdP.
+    When idp_id is None, creates a new IdP with trust already established.
 
     Authorization: Requires super_admin role.
 
-    Parses the XML and creates the IdP configuration.
-    No metadata_url is stored since this is a direct XML import.
-
     Returns:
-        Created IdPConfig
+        Created or updated IdPConfig
     """
     require_super_admin(requesting_user, log_failure=True, service_name="saml")
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
-    # Parse metadata XML directly
     metadata = parse_idp_metadata_xml_to_schema(metadata_xml)
 
-    # Create IdP using parsed metadata (no metadata_url since imported from XML)
-    data = IdPCreate(
-        name=name,
-        provider_type=provider_type,
-        entity_id=metadata.entity_id,
-        sso_url=metadata.sso_url,
-        slo_url=metadata.slo_url,
-        certificate_pem=metadata.certificate_pem,
-        metadata_url=None,  # No URL to store - imported from raw XML
-        metadata_xml=metadata.metadata_xml,
-        is_enabled=False,  # Start disabled, admin must enable
-    )
+    if idp_id:
+        from services.saml.providers import establish_idp_trust
 
-    idp = create_identity_provider(requesting_user, data, base_url)
+        idp = establish_idp_trust(
+            requesting_user,
+            idp_id=idp_id,
+            entity_id=metadata.entity_id,
+            sso_url=metadata.sso_url,
+            certificate_pem=metadata.certificate_pem,
+            slo_url=metadata.slo_url,
+            metadata_xml=metadata.metadata_xml,
+        )
+    else:
+        data = IdPCreate(
+            name=name,
+            provider_type=provider_type,
+            entity_id=metadata.entity_id,
+            sso_url=metadata.sso_url,
+            slo_url=metadata.slo_url,
+            certificate_pem=metadata.certificate_pem,
+            metadata_url=None,
+            metadata_xml=metadata.metadata_xml,
+            is_enabled=False,
+        )
 
-    # Sync all certificates from metadata
+        idp = create_identity_provider(requesting_user, data, base_url)
+
     if metadata.certificates:
         sync_certificates_from_metadata(requesting_user["tenant_id"], idp.id, metadata.certificates)
 

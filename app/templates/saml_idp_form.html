@@ -15,7 +15,7 @@
             Add Identity Provider
         </h1>
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Configure a new SAML identity provider for SSO authentication.
+            Create a new SAML identity provider. You'll configure the trust relationship on the next page.
         </p>
 
         {% if error %}
@@ -24,147 +24,35 @@
         </div>
         {% endif %}
 
-        <!-- Tabbed Import Interface -->
-        <div class="mb-8">
-            <!-- Tab Navigation -->
-            <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-                <nav class="-mb-px flex space-x-8" aria-label="Import method">
-                    <button type="button" id="tab-url" data-tab="url"
-                            class="tab-button border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600 dark:text-blue-400">
-                        Import from URL
-                    </button>
-                    <button type="button" id="tab-xml" data-tab="xml"
-                            class="tab-button border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600">
-                        Paste Metadata XML
-                    </button>
-                </nav>
+        <form method="post" action="/admin/settings/identity-providers/new" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Name <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="name" name="name" required
+                       placeholder="e.g., Corporate Okta"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
-
-            <!-- Tab Content: Import from URL -->
-            <div id="content-url" class="tab-content">
-                <div class="p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                    <h3 class="font-medium text-blue-900 dark:text-blue-300 mb-2">Import from Metadata URL</h3>
-                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                        Enter your IdP's metadata URL to automatically extract the entity ID, SSO URL, and certificate.
-                    </p>
-                    <form method="post" action="/admin/settings/identity-providers/import-metadata" class="space-y-4">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="url-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Display Name <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" id="url-name" name="name" required
-                                       placeholder="e.g., Corporate Okta"
-                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label for="url-provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Provider Type <span class="text-red-500">*</span>
-                                </label>
-                                <select id="url-provider_type" name="provider_type" required
-                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="okta">Okta</option>
-                                    <option value="azure_ad">Azure AD</option>
-                                    <option value="google">Google Workspace</option>
-                                    <option value="generic" selected>Generic SAML</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="metadata_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Metadata URL <span class="text-red-500">*</span>
-                            </label>
-                            <input type="url" id="metadata_url" name="metadata_url" required
-                                   placeholder="https://your-idp.com/metadata"
-                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The URL where your IdP publishes its SAML metadata</p>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="submit"
-                                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                Import from URL
-                            </button>
-                        </div>
-                    </form>
-                </div>
+            <div>
+                <label for="provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Provider Type <span class="text-red-500">*</span>
+                </label>
+                <select id="provider_type" name="provider_type" required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="okta">Okta</option>
+                    <option value="azure_ad">Azure AD</option>
+                    <option value="google">Google Workspace</option>
+                    <option value="generic" selected>Generic SAML</option>
+                </select>
             </div>
-
-            <!-- Tab Content: Paste XML -->
-            <div id="content-xml" class="tab-content hidden">
-                <div class="p-4 border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
-                    <h3 class="font-medium text-green-900 dark:text-green-300 mb-2">Paste Metadata XML</h3>
-                    <p class="text-sm text-green-800 dark:text-green-300 mb-4">
-                        Paste the raw SAML metadata XML content to automatically extract the configuration.
-                    </p>
-                    <form method="post" action="/admin/settings/identity-providers/import-metadata-xml" class="space-y-4">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label for="xml-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Display Name <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" id="xml-name" name="name" required
-                                       placeholder="e.g., Corporate Okta"
-                                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label for="xml-provider_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Provider Type <span class="text-red-500">*</span>
-                                </label>
-                                <select id="xml-provider_type" name="provider_type" required
-                                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="okta">Okta</option>
-                                    <option value="azure_ad">Azure AD</option>
-                                    <option value="google">Google Workspace</option>
-                                    <option value="generic" selected>Generic SAML</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="metadata_xml" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Metadata XML <span class="text-red-500">*</span>
-                            </label>
-                            <textarea id="metadata_xml" name="metadata_xml" required rows="12"
-                                      placeholder="<?xml version=&quot;1.0&quot;?>&#10;<EntityDescriptor ...>&#10;  ...&#10;</EntityDescriptor>"
-                                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Paste the full SAML metadata XML from your IdP</p>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="submit"
-                                    class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                                Import from XML
-                            </button>
-                        </div>
-                    </form>
-                </div>
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Create Identity Provider
+                </button>
             </div>
-        </div>
-
-        <script nonce="{{ csp_nonce }}">
-            function switchTab(tab) {
-                // Hide all content
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-                // Reset all tabs
-                document.querySelectorAll('.tab-button').forEach(el => {
-                    el.classList.remove('border-blue-500', 'text-blue-600');
-                    el.classList.add('border-transparent', 'text-gray-500');
-                });
-                // Show selected content
-                document.getElementById('content-' + tab).classList.remove('hidden');
-                // Activate selected tab
-                const activeTab = document.getElementById('tab-' + tab);
-                activeTab.classList.remove('border-transparent', 'text-gray-500');
-                activeTab.classList.add('border-blue-500', 'text-blue-600');
-            }
-
-            // Tab click handlers
-            document.querySelectorAll('.tab-button').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    switchTab(this.dataset.tab);
-                });
-            });
-        </script>
+        </form>
     </div>
 </div>
 {% endblock %}

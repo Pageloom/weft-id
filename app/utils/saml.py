@@ -321,6 +321,7 @@ def generate_sp_metadata_xml(
     acs_url: str,
     certificate_pem: str,
     slo_url: str | None = None,
+    previous_certificate_pem: str | None = None,
 ) -> str:
     """
     Generate SP metadata XML for IdPs to consume.
@@ -330,6 +331,7 @@ def generate_sp_metadata_xml(
         acs_url: Assertion Consumer Service URL
         certificate_pem: PEM-encoded SP signing certificate
         slo_url: Optional Single Logout URL
+        previous_certificate_pem: Optional previous cert during rotation grace period
 
     Returns:
         XML metadata string
@@ -360,6 +362,20 @@ def generate_sp_metadata_xml(
           FriendlyName="{friendly_name}"
           isRequired="{is_required}" />"""
 
+    # Build previous certificate KeyDescriptor for rotation grace period
+    prev_cert_section = ""
+    if previous_certificate_pem:
+        prev_lines = previous_certificate_pem.strip().split("\n")
+        prev_data = "".join(line for line in prev_lines if not line.startswith("-----"))
+        prev_cert_section = f"""
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>{prev_data}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>"""
+
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
     xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
@@ -375,7 +391,7 @@ def generate_sp_metadata_xml(
           <ds:X509Certificate>{cert_data}</ds:X509Certificate>
         </ds:X509Data>
       </ds:KeyInfo>
-    </md:KeyDescriptor>
+    </md:KeyDescriptor>{prev_cert_section}
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
     <md:AssertionConsumerService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"

@@ -85,50 +85,6 @@ def test_get_or_create_sp_certificate_as_member_forbidden(test_tenant, test_user
     assert exc_info.value.code == "super_admin_required"
 
 
-def test_get_sp_metadata_success(test_tenant, test_super_admin_user):
-    """Test that super_admin can get SP metadata."""
-    from services import saml as saml_service
-
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-
-    # First ensure certificate exists
-    saml_service.get_or_create_sp_certificate(requesting_user)
-
-    # Get metadata
-    metadata = saml_service.get_sp_metadata(requesting_user, "https://test.example.com")
-
-    assert metadata.entity_id == "https://test.example.com/saml/metadata"
-    assert metadata.acs_url == "https://test.example.com/saml/acs"
-    assert metadata.metadata_url == "https://test.example.com/saml/metadata"
-    assert metadata.certificate_pem.startswith("-----BEGIN CERTIFICATE-----")
-
-
-def test_get_tenant_sp_metadata_xml_success(test_tenant, test_super_admin_user):
-    """Test generating SP metadata XML."""
-    from services import saml as saml_service
-
-    # First create certificate
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    saml_service.get_or_create_sp_certificate(requesting_user)
-
-    # Get XML
-    xml = saml_service.get_tenant_sp_metadata_xml(test_tenant["id"], "https://test.example.com")
-
-    assert "<?xml" in xml
-    assert "EntityDescriptor" in xml
-    assert "https://test.example.com/saml/metadata" in xml
-
-
-def test_get_tenant_sp_metadata_xml_no_cert(test_tenant):
-    """Test that getting XML without cert raises NotFoundError."""
-    from services import saml as saml_service
-
-    with pytest.raises(NotFoundError) as exc_info:
-        saml_service.get_tenant_sp_metadata_xml(test_tenant["id"], "https://test.example.com")
-
-    assert exc_info.value.code == "sp_certificate_not_found"
-
-
 # =============================================================================
 # IdP CRUD Tests
 # =============================================================================
@@ -173,8 +129,8 @@ def test_create_identity_provider_as_super_admin(test_tenant, test_super_admin_u
     assert idp.sso_url == "https://idp.example.com/sso"
     assert idp.is_enabled is False  # Default disabled
     assert idp.is_default is False
-    assert idp.sp_entity_id == "https://test.example.com/saml/metadata"
-    # ACS URL is now derived from sp_entity_id (standard SAML practice)
+    # Per-IdP sp_entity_id includes the IdP ID
+    assert idp.sp_entity_id == f"https://test.example.com/saml/metadata/{idp.id}"
 
     # Verify event logged
     _verify_event_logged(test_tenant["id"], "saml_idp_created", idp.id)
@@ -1373,7 +1329,8 @@ def test_import_idp_from_metadata_xml_success(
     assert idp.slo_url == "https://xml-import-test.example.com/slo"
     assert idp.is_enabled is False  # Default disabled
     assert idp.metadata_url is None  # No URL - imported from raw XML
-    assert idp.sp_entity_id == "https://test.example.com/saml/metadata"
+    # Per-IdP sp_entity_id includes the IdP ID
+    assert idp.sp_entity_id == f"https://test.example.com/saml/metadata/{idp.id}"
 
     # Verify event logged
     _verify_event_logged(test_tenant["id"], "saml_idp_created", idp.id)
@@ -1806,9 +1763,14 @@ def test_process_saml_response_sp_certificate_not_found(
         requesting_user, data, "https://test.example.com"
     )
 
-    # Delete any existing SP certificate to ensure clean state
+    # Delete all SP certificates (per-IdP and tenant-level) to ensure clean state
     import database
 
+    database.execute(
+        test_tenant["id"],
+        "DELETE FROM saml_idp_sp_certificates WHERE tenant_id = :tenant_id",
+        {"tenant_id": test_tenant["id"]},
+    )
     database.execute(
         test_tenant["id"],
         "DELETE FROM saml_sp_certificates WHERE tenant_id = :tenant_id",
@@ -4099,93 +4061,6 @@ def test_get_provider_presets_unknown():
 
 
 # =============================================================================
-# Phase 4: SP Certificate Rotation Tests
-# =============================================================================
-
-
-def test_rotate_sp_certificate_success(test_tenant, test_super_admin_user):
-    """Test successful SP certificate rotation."""
-    from services import saml as saml_service
-
-    tenant_id = str(test_tenant["id"])
-    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
-
-    # First create initial certificate
-    initial_cert = saml_service.get_or_create_sp_certificate(requesting_user)
-    assert initial_cert is not None
-    initial_cert_pem = initial_cert.certificate_pem
-
-    # Rotate the certificate
-    result = saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
-
-    assert result is not None
-    assert result.new_certificate_pem is not None
-    assert result.new_certificate_pem != initial_cert_pem
-    assert result.new_expires_at is not None
-    assert result.grace_period_ends_at is not None
-
-    # Verify the new certificate is returned when getting SP certificate
-    new_cert = saml_service.get_or_create_sp_certificate(requesting_user)
-    assert new_cert.certificate_pem == result.new_certificate_pem
-
-
-def test_rotate_sp_certificate_no_existing_cert(test_tenant, test_super_admin_user):
-    """Test that rotating without existing certificate raises NotFoundError."""
-    from services import saml as saml_service
-    from services.exceptions import NotFoundError
-
-    # Use a fresh tenant without a certificate
-    # (Note: test_tenant may already have a cert from other tests, so we check behavior)
-    tenant_id = str(test_tenant["id"])
-    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
-
-    # First ensure no certificate exists by checking directly
-    import database
-
-    cert = database.saml.get_sp_certificate(tenant_id)
-    if cert is None:
-        # No certificate exists, rotation should fail
-        with pytest.raises(NotFoundError) as exc_info:
-            saml_service.rotate_sp_certificate(requesting_user)
-
-        assert exc_info.value.code == "sp_certificate_not_found"
-
-
-def test_rotate_sp_certificate_as_admin_forbidden(test_tenant, test_admin_user):
-    """Test that admin cannot rotate SP certificate."""
-    from services import saml as saml_service
-    from services.exceptions import ForbiddenError
-
-    tenant_id = str(test_tenant["id"])
-    requesting_user = _make_requesting_user(test_admin_user, tenant_id, "admin")
-
-    with pytest.raises(ForbiddenError) as exc_info:
-        saml_service.rotate_sp_certificate(requesting_user)
-
-    assert exc_info.value.code == "super_admin_required"
-
-
-def test_rotate_sp_certificate_logs_event(test_tenant, test_super_admin_user):
-    """Test that certificate rotation logs an event."""
-    import database
-    from services import saml as saml_service
-
-    tenant_id = str(test_tenant["id"])
-    requesting_user = _make_requesting_user(test_super_admin_user, tenant_id, "super_admin")
-
-    # Create initial certificate
-    saml_service.get_or_create_sp_certificate(requesting_user)
-
-    # Rotate
-    saml_service.rotate_sp_certificate(requesting_user, grace_period_days=7)
-
-    # Verify event was logged
-    events = database.event_log.list_events(tenant_id, limit=10)
-    rotation_events = [e for e in events if e["event_type"] == "saml_sp_certificate_rotated"]
-    assert len(rotation_events) > 0
-
-
-# =============================================================================
 # Phase 4: Single Logout (SLO) Tests
 # =============================================================================
 
@@ -5978,6 +5853,7 @@ class TestProcessIdpLogoutRequestSuccess:
             "sso_url": "https://idp.example.com/sso",
             "certificate_pem": "cert-pem",
             "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "name": "Test IdP",
         }
         sp_cert = {
@@ -5998,9 +5874,10 @@ class TestProcessIdpLogoutRequestSuccess:
                 return_value="https://idp.example.com/slo?SAMLResponse=...",
             ),
             patch("services.saml.logout.extract_issuer_from_response"),
+            patch("services.saml.logout.get_certificates_for_validation", return_value=[]),
         ):
             mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
-            mock_db.saml.get_sp_certificate.return_value = sp_cert
+            mock_db.saml.get_idp_sp_certificate.return_value = sp_cert
 
             result = process_idp_logout_request(
                 tenant_id=tenant_id,
@@ -6019,12 +5896,14 @@ class TestProcessIdpLogoutRequestSuccess:
         from services.saml.logout import process_idp_logout_request
 
         tenant_id = str(uuid4())
+        idp_id = str(uuid4())
         idp_row = {
-            "id": str(uuid4()),
+            "id": idp_id,
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
             "certificate_pem": "cert-pem",
             "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "name": "Test IdP",
         }
         sp_cert = {
@@ -6045,9 +5924,10 @@ class TestProcessIdpLogoutRequestSuccess:
                 return_value="https://idp.example.com/slo?SAMLResponse=...",
             ),
             patch("services.saml.logout.extract_issuer_from_response"),
+            patch("services.saml.logout.get_certificates_for_validation", return_value=[]),
         ):
             mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
-            mock_db.saml.get_sp_certificate.return_value = sp_cert
+            mock_db.saml.get_idp_sp_certificate.return_value = sp_cert
 
             result = process_idp_logout_request(
                 tenant_id=tenant_id,
@@ -6066,17 +5946,20 @@ class TestProcessIdpLogoutRequestSuccess:
         from services.saml.logout import process_idp_logout_request
 
         tenant_id = str(uuid4())
+        idp_id = str(uuid4())
         idp_row = {
-            "id": str(uuid4()),
+            "id": idp_id,
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
             "certificate_pem": "cert-pem",
             "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "name": "Test IdP",
         }
 
         with patch("services.saml.logout.database") as mock_db:
             mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
+            mock_db.saml.get_idp_sp_certificate.return_value = None
             mock_db.saml.get_sp_certificate.return_value = None
 
             result = process_idp_logout_request(
@@ -6096,12 +5979,14 @@ class TestProcessIdpLogoutRequestSuccess:
         from services.saml.logout import process_idp_logout_request
 
         tenant_id = str(uuid4())
+        idp_id = str(uuid4())
         idp_row = {
-            "id": str(uuid4()),
+            "id": idp_id,
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
             "certificate_pem": "cert-pem",
             "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "name": "Test IdP",
         }
         sp_cert = {
@@ -6125,9 +6010,10 @@ class TestProcessIdpLogoutRequestSuccess:
                 "services.saml.logout.build_logout_response",
                 return_value="https://idp.example.com/slo?SAMLResponse=...",
             ),
+            patch("services.saml.logout.get_certificates_for_validation", return_value=[]),
         ):
             mock_db.saml.get_identity_provider_by_entity_id.return_value = idp_row
-            mock_db.saml.get_sp_certificate.return_value = sp_cert
+            mock_db.saml.get_idp_sp_certificate.return_value = sp_cert
 
             result = process_idp_logout_request(
                 tenant_id=tenant_id,
@@ -6146,12 +6032,14 @@ class TestProcessIdpLogoutRequestSuccess:
         from services.saml.logout import process_idp_logout_request
 
         tenant_id = str(uuid4())
+        idp_id = str(uuid4())
         idp_row = {
-            "id": str(uuid4()),
+            "id": idp_id,
             "entity_id": "https://idp.example.com",
             "sso_url": "https://idp.example.com/sso",
             "certificate_pem": "cert-pem",
             "slo_url": None,
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "name": "Test IdP",
         }
 
@@ -6297,7 +6185,7 @@ class TestCreateIdpGroupConflict:
             "sso_url": "https://idp.example.com/sso",
             "slo_url": None,
             "certificate_pem": "cert-pem",
-            "sp_entity_id": "https://sp.example.com/saml/metadata",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
             "metadata_url": None,
             "metadata_last_fetched_at": None,
             "metadata_fetch_error": None,
@@ -6325,7 +6213,7 @@ class TestCreateIdpGroupConflict:
             patch("services.saml.providers.database") as mock_db,
             patch("services.saml.providers.log_event"),
             patch("services.saml.providers.track_activity"),
-            patch("services.saml.providers.get_or_create_sp_certificate"),
+            patch("services.saml.idp_sp_certificates.get_or_create_idp_sp_certificate"),
             patch(
                 "services.saml.providers.groups_service.create_idp_base_group",
                 side_effect=ConflictError(message="Group name exists", code="conflict"),
@@ -6333,6 +6221,7 @@ class TestCreateIdpGroupConflict:
         ):
             mock_db.saml.get_identity_provider_by_entity_id.return_value = None
             mock_db.saml.create_identity_provider.return_value = created_row
+            mock_db.saml.get_identity_provider.return_value = created_row
 
             result = create_identity_provider(requesting_user, data, "https://sp.example.com")
 

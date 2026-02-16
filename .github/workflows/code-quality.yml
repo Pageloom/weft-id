@@ -1,4 +1,4 @@
-name: Type Check
+name: Code Quality
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  typecheck:
+  code-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -36,5 +36,14 @@ jobs:
           poetry config virtualenvs.in-project true
           poetry install --no-interaction
 
+      - name: Lint
+        run: poetry run ruff check app/ tests/
+
+      - name: Check formatting
+        run: poetry run ruff format --check app/ tests/
+
       - name: Type check
         run: poetry run python -m mypy app/
+
+      - name: Compliance check
+        run: python scripts/compliance_check.py

@@ -21,25 +21,16 @@ This helps prevent the same mistakes in future sessions.
 
 Tests must be run via poetry to use the correct virtual environment. The pytest executable is not created by Poetry, so we must invoke it as a Python module.
 
-## Running Linting
+## Running Code Quality Checks
 
-**Wrong:** `ruff check` or assuming pyright is available
-**Right:** `poetry run ruff check`
+**Wrong:** `ruff check` directly, or assuming pyright is available
+**Right:** `./code-quality` (or `./code-quality --fix` to auto-fix lint/format)
 
-Linting must be run via poetry.
+This runs lint (ruff), format check (ruff), type check (mypy), and compliance check in one go. It matches the CI workflow exactly. Individual tools can still be run via poetry (e.g. `poetry run ruff check`, `poetry run mypy app/`), but the script is the standard way.
 
 ## Test Environment
 
 The test environment sets `IS_DEV=true` in `tests/conftest.py`. This is required because production validation would otherwise fail with default secret values.
-
----
-
-## Type Checking
-
-**Wrong:** `poetry run pyright` (not installed)
-**Right:** `poetry run mypy app/` or `poetry run ruff check app/`
-
-This project uses ruff for linting and mypy for type checking (configured in `pyproject.toml` with the pydantic plugin). pyright is not available in the virtualenv.
 
 ---
 

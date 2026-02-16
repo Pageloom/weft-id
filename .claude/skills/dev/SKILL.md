@@ -44,12 +44,11 @@ Request → Router → Service → Database → PostgreSQL
 ## Before Committing
 
 ```bash
-poetry run ruff format app/ tests/      # Format
-poetry run ruff check --fix app/ tests/ # Lint
+./code-quality --fix                    # Lint, format, type check, compliance
 ./test                                  # Tests
 ```
 
-All three must pass.
+Both must pass.
 
 # Note: E2E tests (./test-e2e) are separate and not required before every commit.
 # Run them when changes affect login flows, SAML SSO, or cross-tenant behavior.

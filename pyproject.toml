@@ -8,7 +8,7 @@ packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-fastapi = "^0.128.0"
+fastapi = "^0.129.0"
 uvicorn = {extras = ["standard"], version = "^0.40.0"}
 psycopg = {extras = ["binary"], version = "^3.2.0"}
 psycopg-pool = "^3.2.0"
@@ -18,7 +18,7 @@ jinja2 = "^3.1.0"
 python-multipart = "^0.0.22"
 itsdangerous = "^2.2.0"
 pyotp = "^2.9.0"
-cryptography = "^46.0.0"
+cryptography = "^46.0.5"
 babel = "^2.17.0"
 email-validator = "^2.0.0"
 pydantic = {extras = ["email"], version = "^2.12.5"}
@@ -33,7 +33,7 @@ ua-parser = "^1.0.1"
 pytest = "^8.3.0"
 pytest-asyncio = "^1.3.0"
 httpx = "^0.27.0"
-ruff = "^0.15.0"
+ruff = "^0.15.1"
 mypy = "^1.13.0"
 pytest-cov = "^7.0.0"
 pytest-xdist = "^3.5.0"

@@ -57,15 +57,8 @@ jobs:
 
       - name: Run database migrations
         env:
-          PGHOST: localhost
-          PGPORT: "5432"
-          PGUSER: postgres
-          PGPASSWORD: postgres
-          PGDATABASE: appdb
           POSTGRES_HOST: localhost
-        run: |
-          psql -v ON_ERROR_STOP=1 -f db-init/schema.sql
-          poetry run python db-init/migrate.py
+        run: poetry run python db-init/migrate.py
 
       - name: Run tests
         env:

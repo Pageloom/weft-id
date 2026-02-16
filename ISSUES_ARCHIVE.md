@@ -5,6 +5,30 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### ARCH-001: Router imports directly from database layer
+
+**Status:** Resolved (2026-02-16)
+**Original Severity:** High
+
+**Original Description:**
+`app/routers/dev.py:8` imported `from database.users.core import get_user_by_email`, bypassing the service layer.
+
+**Resolution:** Replaced direct database import with `get_user_id_by_email` from `services.users`. The service utility function already wraps the same database call and returns the user ID string, which is all the dev login endpoint needs.
+
+---
+
+### LOG-003: Missing track_activity in branding service
+
+**Status:** Resolved (2026-02-16)
+**Original Severity:** Medium
+
+**Original Description:**
+`app/services/branding.py` function `randomize_mandala` accepts `RequestingUser` but did not call `track_activity()`.
+
+**Resolution:** Added `track_activity(requesting_user["tenant_id"], requesting_user["id"])` at the start of `randomize_mandala()`, matching the pattern used by other read-only service functions.
+
+---
+
 ### SEC-001: Uploaded SVG content is not sanitized
 
 **Status:** Resolved (2026-02-14)

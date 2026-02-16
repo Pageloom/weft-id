@@ -463,6 +463,7 @@ def randomize_mandala(requesting_user: RequestingUser) -> dict:
     Returns:
         Dict with seed, light_svg, dark_svg.
     """
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
     require_admin(requesting_user)
 
     seed = str(uuid.uuid4())

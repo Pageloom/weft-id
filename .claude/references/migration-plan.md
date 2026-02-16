@@ -9,19 +9,32 @@ the database means wiping the entire volume and replaying all 32 files from scra
 
 This plan replaces that with three things:
 1. A single **baseline schema** that sets up a complete database from zero at any time
-2. A lightweight **forward-only migration runner** (Python + psycopg) with a changelog table
-3. **Auto-migration on container startup** so developers never forget to apply changes
+2. A lightweight **forward-only migration runner** (Python + psycopg) with a log table
+3. **Dev-only auto-migration** via a compose override, plus `make migrate` for all environments
+
+## Key Design Decisions
+
+1. **Dev-only auto-migration.** The `migrate` one-shot service lives in `docker-compose.yml`
+   (the dev compose file). It is not added to `docker-compose.onprem.yml`. Production never auto-migrates.
+
+2. **On-demand utility.** `make migrate` is the standard way to apply migrations in all
+   environments. It wraps `docker compose run --rm migrate`.
+
+3. **Migration log with success/failure tracking.** A `schema_migration_log` table records
+   every migration attempt. Successful migrations cannot be rerun. Failed migrations can be
+   retried. Full error details (Postgres error + Python traceback) are captured for diagnostics.
 
 ## What Changes
 
 ### Files Created
 - `db-init/schema.sql` -- complete baseline schema (consolidated from 32 migrations)
 - `db-init/migrations/.gitkeep` -- directory for future incremental migrations
-- `db-init/migrate.py` -- forward-only migration runner (~100 lines)
+- `db-init/migrate.py` -- forward-only migration runner (~120 lines)
 
 ### Files Modified
-- `docker-compose.yml` -- add `migrate` service, remove `initdb.d` mount
-- `Makefile` -- update `db-reset`, `db-init`, add `migrate` target
+- `docker-compose.yml` -- replace `initdb.d` mount with `migrate` one-shot service
+- `docker-compose.onprem.yml` -- remove `initdb.d` mount (prod uses `make migrate` on demand)
+- `Makefile` -- update `db-reset`/`db-init`, add `migrate` target
 - `CLAUDE.md` -- update migration instructions
 
 ### Files Deleted
@@ -51,15 +64,20 @@ Then reorganize into `db-init/schema.sql` with this structure:
 -- 7. INDEXES
 -- 8. ROW LEVEL SECURITY (policies)
 -- 9. GRANTS (explicit DML grants to appuser)
--- 10. SCHEMA_MIGRATIONS (changelog table)
+-- 10. SCHEMA_MIGRATION_LOG (log table)
 ```
 
-**The `schema_migrations` table:**
+**The `schema_migration_log` table:**
 
 ```sql
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version  TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS schema_migration_log (
+    id              SERIAL PRIMARY KEY,
+    version         TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('success', 'failed')),
+    started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at    TIMESTAMPTZ,
+    error_message   TEXT,
+    error_traceback TEXT
 );
 -- No RLS, no tenant_id -- this is a system table.
 -- Owned by postgres (not appowner) since it's infrastructure.
@@ -68,7 +86,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 When the baseline is applied, it records itself:
 
 ```sql
-INSERT INTO schema_migrations (version) VALUES ('baseline');
+INSERT INTO schema_migration_log (version, status, completed_at)
+VALUES ('baseline', 'success', now());
 ```
 
 **No psql directives.** The file is pure SQL (no `\set`, `\connect`, etc.) so it works
@@ -81,18 +100,23 @@ is safe to run even if roles already exist.
 
 ## Step 2: Write `db-init/migrate.py`
 
-A ~100 line Python script. No framework, no dependencies beyond psycopg (already in stack).
+A ~120 line Python script. No framework, no dependencies beyond psycopg (already in stack).
 
 **Behavior:**
 
 1. Connect to database (via `DATABASE_URL` env var, defaults to local dev)
-2. Check if `schema_migrations` table exists
+2. Check if `schema_migration_log` table exists
 3. **If no:** Fresh database. Run `schema.sql`, which creates everything including
-   `schema_migrations` with the `baseline` record
-4. **If yes:** Existing database. Query applied versions, find pending migration files
-   in `db-init/migrations/`, apply them in lexicographic order
-5. Each migration runs in its own transaction. On success, record in `schema_migrations`.
-   On failure, roll back that migration and exit with error.
+   `schema_migration_log` with the `baseline` success record
+4. **If yes:** Existing database. Query versions with `status = 'success'`, find pending
+   migration files in `db-init/migrations/`, apply them in lexicographic order
+5. Each migration runs in its own transaction:
+   - Record `started_at` with status `failed` (optimistic failure record)
+   - Execute the SQL
+   - On success: update row to `status = 'success'`, set `completed_at`
+   - On failure: update row with `error_message` and `error_traceback`, exit non-zero
+6. A migration is skipped if it has any row with `status = 'success'`
+7. A migration is eligible for rerun if it only has `status = 'failed'` rows
 
 **psql directive handling:** Strip lines starting with `\` before executing. This lets
 migration authors optionally include `\set ON_ERROR_STOP on` for manual psql use without
@@ -107,7 +131,7 @@ breaking the Python runner.
 
 ---
 
-## Step 3: Update `docker-compose.yml`
+## Step 3: Update `docker-compose.yml` (dev)
 
 **Remove** the `initdb.d` volume mount from the `db` service:
 
@@ -116,44 +140,54 @@ breaking the Python runner.
 - ./db-init:/docker-entrypoint-initdb.d:ro
 ```
 
-**Add** a `migrate` one-shot service:
+**Add** the `migrate` one-shot service:
 
 ```yaml
-migrate:
-  image: app:dev-latest
-  container_name: dev_migrate
-  entrypoint: []
-  command: ["python", "/db-init/migrate.py"]
-  working_dir: /app
-  env_file: .env
-  volumes:
-    - ./db-init:/db-init:ro
-  depends_on:
-    db:
-      condition: service_healthy
-  networks: [devnet]
+  migrate:
+    image: app:dev-latest
+    container_name: dev_migrate
+    entrypoint: []
+    command: ["python", "/db-init/migrate.py"]
+    working_dir: /app
+    env_file: .env
+    volumes:
+      - ./db-init:/db-init:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [devnet]
 ```
 
 **Update** `app` and `worker` to depend on migrate:
 
 ```yaml
-app:
-  depends_on:
-    migrate:
-      condition: service_completed_successfully
+  app:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
-worker:
-  depends_on:
-    migrate:
-      condition: service_completed_successfully
+  worker:
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 ```
-
-The migrate service uses the same app image (has psycopg), mounts `db-init/` read-only,
-runs the migration script, and exits. App and worker wait for it to complete.
 
 ---
 
-## Step 4: Update Makefile
+## Step 4: Update `docker-compose.onprem.yml` (prod)
+
+**Remove** the `initdb.d` volume mount from the `db` service:
+
+```yaml
+# REMOVE this line:
+- ./db-init:/docker-entrypoint-initdb.d:ro
+```
+
+No `migrate` service in the prod file. Migrations are run on demand via `make migrate`.
+
+---
+
+## Step 5: Update Makefile
 
 ```makefile
 db-reset: ## Wipe DB volume to force full reinit
@@ -165,26 +199,27 @@ migrate: ## Run pending migrations on running DB
 	$(COMPOSE) run --rm migrate
 ```
 
-The `db-init` target keeps its current behavior (wipe + restart, which now triggers
-the migrate service automatically). The new `migrate` target lets developers manually
-run pending migrations without restarting everything.
+`make up` already uses `docker-compose.yml` which now includes the `migrate` service,
+so auto-migration happens transparently in dev. The `migrate` target lets developers
+manually run pending migrations without restarting everything.
 
 ---
 
-## Step 5: Delete Old Migration Files
+## Step 6: Delete Old Migration Files
 
 Remove all 32 files (`00000_bootstrap.sql` through `00031_sp_group_assignments.sql`) and
 `README.md` from `db-init/`. Git history preserves them.
 
 ---
 
-## Step 6: Update CLAUDE.md
+## Step 7: Update CLAUDE.md
 
 Update the migration instructions section to reflect the new workflow:
-- How to create a new migration
-- How to apply migrations (`make migrate` or automatic on `make up`)
+- How to create a new migration (4-digit numbered `.sql` in `db-init/migrations/`)
+- How to apply migrations (`make migrate` or automatic on `make up` in dev)
 - How to reset the database (`make db-init`)
 - Migration file conventions (pure SQL, 4-digit numbering, `SET LOCAL ROLE appowner`)
+- Migration log: how to check status, what happens on failure, how to retry
 
 ---
 
@@ -193,29 +228,23 @@ Update the migration instructions section to reflect the new workflow:
 1. **Fresh database setup:**
    - `make db-init` (wipes volume, starts containers, migrate service applies baseline)
    - App starts, dev users are seeded, everything works
-   - `schema_migrations` table contains `baseline` record
+   - `schema_migration_log` table contains `baseline` success record
 
 2. **Incremental migration:**
    - Create a test migration in `db-init/migrations/0001_test.sql` with a trivial change
    - `make migrate` applies it
-   - `schema_migrations` table shows both `baseline` and `0001_test`
+   - `schema_migration_log` shows `baseline` (success) and `0001_test` (success)
    - Run `make migrate` again: "No pending migrations" (idempotent)
 
-3. **Schema equivalence:**
+3. **Failed migration and retry:**
+   - Create a migration with intentional SQL error
+   - `make migrate` fails, logs error with full details in `schema_migration_log`
+   - Fix the migration file
+   - `make migrate` retries it successfully
+   - Log shows both the failed attempt and the successful retry
+
+4. **Schema equivalence:**
    - Compare `pg_dump --schema-only` from the baseline-initialized DB against the original
    - Verify tables, indexes, constraints, RLS policies, grants all match
 
-4. **Tests still pass:** `./test`
-
----
-
-## Design Decisions
-
-1. **Runner language:** Python + psycopg (recommended). Reuses existing dependency, ~80-100
-   lines, robust error handling and transaction support. Shell + psql was rejected as more
-   fragile.
-
-2. **Auto-migrate on startup:** Yes (recommended). A one-shot `migrate` service in
-   docker-compose runs before the app starts. Zero friction for developers.
-
-3. **Old db-init files:** Delete them. Git history preserves them. Clean slate in the repo.
+5. **Tests still pass:** `./test`

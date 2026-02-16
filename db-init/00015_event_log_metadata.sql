@@ -18,8 +18,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLE: event_log_metadata
@@ -152,3 +152,5 @@ COMMENT ON COLUMN event_logs.metadata_hash IS
 -- Index for JOIN performance (though FK already creates one)
 CREATE INDEX IF NOT EXISTS idx_event_logs_metadata_hash
     ON event_logs (metadata_hash);
+
+COMMIT;

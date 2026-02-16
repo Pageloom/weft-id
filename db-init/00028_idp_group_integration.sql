@@ -10,8 +10,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- FOREIGN KEY CONSTRAINT
@@ -79,3 +79,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_idp_name_unique
 -- Index for efficient IdP group lookups (partial index excludes NULL idp_id)
 CREATE INDEX IF NOT EXISTS idx_groups_idp_id
     ON groups(idp_id) WHERE idp_id IS NOT NULL;
+
+COMMIT;

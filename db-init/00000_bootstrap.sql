@@ -188,6 +188,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS user_emails_primary_per_user
     WHERE is_primary;
 
 -- ============================================================================
+-- TABLE OWNERSHIP
+-- ============================================================================
+-- Tables above were created by the postgres superuser. Transfer ownership to
+-- appowner so that later migrations running as appowner can ALTER these tables
+-- and create foreign keys referencing them.
+
+ALTER TABLE tenants OWNER TO appowner;
+ALTER TABLE users OWNER TO appowner;
+ALTER TABLE user_emails OWNER TO appowner;
+
+-- ============================================================================
 -- EXPLICIT GRANTS (for tables created in this script)
 -- ============================================================================
 -- The ALTER DEFAULT PRIVILEGES above only applies to *future* tables.

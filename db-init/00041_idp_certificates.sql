@@ -8,8 +8,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLE: idp_certificates
@@ -102,3 +102,5 @@ FROM saml_identity_providers
 WHERE certificate_pem IS NOT NULL
   AND certificate_pem != ''
 ON CONFLICT DO NOTHING;
+
+COMMIT;

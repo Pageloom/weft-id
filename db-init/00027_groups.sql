@@ -15,8 +15,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLES
@@ -253,3 +253,5 @@ BEGIN
             WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
     END IF;
 END $$;
+
+COMMIT;

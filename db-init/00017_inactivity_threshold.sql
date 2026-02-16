@@ -11,8 +11,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- ALTER TABLE
@@ -24,3 +24,5 @@ ALTER TABLE tenant_security_settings
 
 COMMENT ON COLUMN tenant_security_settings.inactivity_threshold_days IS
     'Number of days of inactivity before a user is automatically inactivated. NULL means disabled (no automatic inactivation). Common values: 14, 30, 60, 90.';
+
+COMMIT;

@@ -7,8 +7,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- ALTER TABLE: oauth2_clients
@@ -24,3 +24,5 @@ COMMENT ON COLUMN oauth2_clients.description IS
 
 COMMENT ON COLUMN oauth2_clients.is_active IS
     'Whether the client is active. Inactive clients cannot authenticate.';
+
+COMMIT;

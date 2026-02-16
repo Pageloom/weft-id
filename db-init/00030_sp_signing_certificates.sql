@@ -11,8 +11,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLE: sp_signing_certificates
@@ -102,3 +102,5 @@ $$
         END IF;
     END
 $$;
+
+COMMIT;

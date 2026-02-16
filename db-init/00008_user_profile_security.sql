@@ -11,8 +11,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- ALTER TABLE
@@ -27,3 +27,5 @@ COMMENT ON COLUMN tenant_security_settings.allow_users_edit_profile IS
 
 COMMENT ON COLUMN tenant_security_settings.allow_users_add_emails IS
     'Whether regular users can add alternative email addresses to their account. Super admins are always allowed. Default is true.';
+
+COMMIT;

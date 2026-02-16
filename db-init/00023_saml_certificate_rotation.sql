@@ -16,8 +16,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- ALTER TABLE: saml_sp_certificates
@@ -41,3 +41,5 @@ COMMENT ON COLUMN saml_sp_certificates.previous_expires_at IS
 
 COMMENT ON COLUMN saml_sp_certificates.rotation_grace_period_ends_at IS
     'When the grace period ends. After this, previous cert can be cleared.';
+
+COMMIT;

@@ -15,8 +15,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- ALTER TABLE
@@ -58,3 +58,5 @@ CREATE INDEX IF NOT EXISTS idx_users_inactivated
 CREATE INDEX IF NOT EXISTS idx_users_anonymized
     ON users (tenant_id, is_anonymized)
     WHERE is_anonymized = true;
+
+COMMIT;

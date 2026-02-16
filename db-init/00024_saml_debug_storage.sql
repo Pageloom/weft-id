@@ -11,8 +11,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- CREATE TABLE: saml_debug_entries
@@ -63,3 +63,5 @@ COMMENT ON TABLE saml_debug_entries IS
 -- ============================================================================
 
 GRANT SELECT, INSERT, DELETE ON saml_debug_entries TO appuser;
+
+COMMIT;

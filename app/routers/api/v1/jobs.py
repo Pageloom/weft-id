@@ -5,7 +5,7 @@ from typing import Annotated
 from api_dependencies import get_current_user_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from schemas.bg_tasks import JobDetail, JobListResponse
 from services import bg_tasks as bg_tasks_service
 from services.exceptions import ServiceError
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 class DeleteJobsRequest(BaseModel):
     """Request body for deleting jobs."""
 
-    job_ids: list[str]
+    job_ids: list[Annotated[str, Field(min_length=1, max_length=36)]]
 
 
 class DeleteJobsResponse(BaseModel):

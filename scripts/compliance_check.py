@@ -943,16 +943,22 @@ def check_input_length_violations(report: ComplianceReport) -> None:
     """
     Check that all str fields in Pydantic input schemas have max_length.
 
-    Scans app/schemas/*.py for BaseModel subclasses whose names match input
-    schema patterns, then checks each str or str | None field for max_length
-    in Field() metadata.
+    Scans app/schemas/*.py and app/routers/**/*.py for BaseModel subclasses
+    whose names match input schema patterns, then checks each str or
+    str | None field for max_length in Field() metadata.
     """
-    schemas_path = get_app_path() / "schemas"
+    app_path = get_app_path()
 
-    if not schemas_path.exists():
-        return
+    # Collect Python files from schemas/ and routers/ (inline models)
+    py_files: list[Path] = []
+    schemas_path = app_path / "schemas"
+    routers_path = app_path / "routers"
+    if schemas_path.exists():
+        py_files.extend(schemas_path.glob("*.py"))
+    if routers_path.exists():
+        py_files.extend(routers_path.rglob("*.py"))
 
-    for py_file in schemas_path.glob("*.py"):
+    for py_file in py_files:
         if py_file.name.startswith("__"):
             continue
 

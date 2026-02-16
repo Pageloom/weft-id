@@ -303,24 +303,24 @@ def set_default_identity_provider(
 class EstablishTrustRequest(BaseModel):
     """Request to establish trust on a pending IdP."""
 
-    entity_id: str = Field(..., min_length=1)
-    sso_url: str = Field(..., min_length=1)
-    certificate_pem: str = Field(..., min_length=1)
-    slo_url: str | None = None
-    metadata_url: str | None = None
-    metadata_xml: str | None = None
+    entity_id: str = Field(..., min_length=1, max_length=2048)
+    sso_url: str = Field(..., min_length=1, max_length=2048)
+    certificate_pem: str = Field(..., min_length=1, max_length=16000)
+    slo_url: str | None = Field(None, max_length=2048)
+    metadata_url: str | None = Field(None, max_length=2048)
+    metadata_xml: str | None = Field(None, max_length=1000000)
 
 
 class EstablishTrustFromUrlRequest(BaseModel):
     """Request to establish trust via metadata URL."""
 
-    metadata_url: str = Field(..., min_length=1)
+    metadata_url: str = Field(..., min_length=1, max_length=2048)
 
 
 class EstablishTrustFromXmlRequest(BaseModel):
     """Request to establish trust via metadata XML."""
 
-    metadata_xml: str = Field(..., min_length=1)
+    metadata_xml: str = Field(..., min_length=1, max_length=1000000)
 
 
 @router.post("/idps/{idp_id}/establish-trust", response_model=IdPConfig)

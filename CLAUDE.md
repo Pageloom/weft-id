@@ -16,7 +16,7 @@ Weft-ID is a multi-tenant identity federation platform that acts as middleware b
 **Read `.claude/THOUGHT_ERRORS.md`** for common mistakes to avoid. Key gotchas:
 
 - **Tests**: Use `poetry run python -m pytest` or `./test` (not `pytest` directly)
-- **Linting**: Use `ruff check` (not `mypy` or `pyright`)
+- **Code quality**: Run `./code-quality` (lint, format, type check, compliance)
 - **UUIDs**: Convert to string when comparing across boundaries
 - **Background jobs**: Restart worker container, not app container
 - **Mocking sessions**: Patch `starlette.requests.Request.session`, not client cookies
@@ -251,27 +251,16 @@ poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage
 
 Note: Tests run in parallel by default (`-n auto` configured in `pytest.ini`).
 
-**Linting:**
+**Code quality (lint, format, type check, compliance):**
 ```bash
-poetry run ruff check app/ tests/           # Check for issues
-poetry run ruff check --fix app/ tests/     # Auto-fix issues
-```
-
-**Formatting:**
-```bash
-poetry run ruff format app/ tests/          # Format code
+./code-quality                              # Run all checks (CI-equivalent)
+./code-quality --fix                        # Auto-fix lint/format, then check types and compliance
 ```
 
 **Dependency security scanning:**
 ```bash
 python scripts/deps_check.py                # Scan dependencies
 python scripts/deps_check.py --include-dev  # Include dev deps
-```
-
-**Architectural compliance:**
-```bash
-python scripts/compliance_check.py          # Check all principles
-python scripts/compliance_check.py --check activity  # Specific check
 ```
 
 **E2E tests (Playwright):**
@@ -353,10 +342,9 @@ The CSS is built during the Docker image build process, so running `make up` wil
 4. CSS rebuilds automatically if watch mode is running
 
 **Before committing code:**
-1. Run formatting: `poetry run ruff format app/ tests/`
-2. Run linting: `poetry run ruff check --fix app/ tests/`
-3. Run tests: `./test` (or `poetry run python -m pytest`)
-4. If you modified templates and didn't use watch mode: `make build-css`
+1. Run code quality checks: `./code-quality --fix`
+2. Run tests: `./test`
+3. If you modified templates and didn't use watch mode: `make build-css`
 
 All checks must pass before committing.
 

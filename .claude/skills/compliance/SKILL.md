@@ -68,10 +68,11 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 ### 1. Run Automated Script First
 
 ```bash
-python scripts/compliance_check.py
+./code-quality                         # Full suite (lint, format, types, compliance)
+python scripts/compliance_check.py     # Compliance only
 ```
 
-Options:
+Compliance-only options:
 ```bash
 --check architecture    # Router imports
 --check activity        # Activity/event logging

@@ -91,9 +91,8 @@ make sh-app          # Shell into app container
 ```bash
 ./test                                      # Run tests (parallelized by default)
 ./test --cov=app --cov-report=term-missing  # Run tests with coverage
-poetry run ruff check --fix app/ tests/     # Lint and auto-fix
-poetry run ruff format app/ tests/          # Format code
-poetry run mypy app/                        # Type checking
+./code-quality                              # Run all quality checks (lint, format, types, compliance)
+./code-quality --fix                        # Auto-fix lint/format, then check types and compliance
 ```
 
 ### Frontend/CSS Development

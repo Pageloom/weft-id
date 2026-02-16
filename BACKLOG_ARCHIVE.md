@@ -2599,3 +2599,88 @@ from the main test suite.
 - [x] Sign-in as pre-existing user: a user that already exists on the SP side authenticates via IdP and is matched to their existing SP account
 
 ---
+
+## Branding: Custom Site Title & Nav Bar Title Visibility
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want to replace "WeftId" with my own title in the navigation header and browser tab
+So that the platform feels like my own product when my users interact with it
+
+As an admin
+I want to optionally hide the title text from the navigation bar
+So that I can show only my logo without a text label, while keeping a meaningful browser tab title
+
+**Context:**
+
+"WeftId" currently appears in two places: the nav bar header (next to the logo) and the HTML `<title>` tag (as a suffix on every page, e.g. "Users - WeftId"). Both are hardcoded. The branding settings page already manages logo customization. This feature extends it with title customization.
+
+The nav bar visibility toggle is independent of the custom title. An admin might want to hide the title even when using the default "WeftId" name (logo-only nav bar), or show a custom title in both places.
+
+**Acceptance Criteria:**
+
+- [x] New "Site Title" section on the existing branding settings page (`/admin/settings/branding`)
+- [x] Text field: "Site title" with 30-character max length (default: "WeftId")
+- [x] Custom title replaces "WeftId" in the nav bar header
+- [x] Custom title replaces "WeftId" in the HTML `<title>` suffix on all pages (e.g. "Users - My Platform")
+- [x] Toggle: "Show title in navigation bar" (default: on)
+- [x] When toggled off, the title text is hidden from the nav bar but still used in `<title>`
+- [x] Empty or whitespace-only title field falls back to "WeftId" (never leave `<title>` blank)
+- [x] API support: `GET/PUT /api/v1/branding` includes `site_title` and `show_title_in_nav` fields
+- [x] Event log entry when settings are changed (existing `branding_settings_updated` event, add new fields to metadata)
+- [x] Database: add `site_title` (text, nullable) and `show_title_in_nav` (boolean, default true) columns to `tenant_branding`
+
+**Effort:** S
+**Value:** Medium (Brand consistency for white-label deployments)
+
+---
+
+## Enforce Input Length Limits on All Text Fields
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want all user-supplied and system-generated text fields to have reasonable maximum length constraints at both the database and application validation layers
+So that the system is protected against oversized payloads, resource exhaustion, and data quality issues
+
+**Context:**
+
+An audit of the database schema found **81 unbounded TEXT columns** across 22 tables, with **zero VARCHAR length constraints** at the database level (only 2 columns use `VARCHAR(32)` for metadata hashes). While some Pydantic schemas enforce `max_length` on input models (names, descriptions), the coverage is inconsistent and the database itself provides no backstop. This means a malicious or buggy client could insert arbitrarily large strings into any TEXT column.
+
+**Completed Work:**
+
+**Phase 1: Application validation (Pydantic schemas):**
+- [x] All input schemas (Create, Update, Import, Establish) enforce `max_length` on every `str` field
+- [x] `BrandingSettingsUpdate.site_title` enforces the documented 30-char limit
+- [x] Tenant create/update schemas enforce name (255) and subdomain (63)
+- [x] SP schemas enforce entity_id (2048), acs_url (2048), slo_url (2048), description (2000)
+- [x] IdP schemas enforce entity_id (2048), sso_url (2048), slo_url (2048), metadata_url (2048)
+- [x] OAuth2 schemas enforce client_id (255), redirect_uri (2048), code_challenge (128)
+- [x] Validation errors return user-friendly messages indicating the maximum allowed length
+
+**Phase 2: Database constraints (migration):**
+- [x] Migration adds `CHECK (length(column) <= N)` or converts `TEXT` to `VARCHAR(N)` for all user-facing fields
+- [x] Enum-like fields converted to `VARCHAR(50)` or appropriate size
+- [x] URL fields get `CHECK (length(...) <= 2048)`
+- [x] Crypto fields get `CHECK (length(...) <= 16000)`
+- [x] XML/large content fields get `CHECK (length(...) <= 1000000)`
+- [x] Migration verifies no existing data exceeds the new limits before applying constraints
+- [x] All existing data fits within the proposed limits (pre-check query in migration)
+
+**Phase 3: Best practices enforcement:**
+- [x] CLAUDE.md best practices updated to require `max_length` on all Pydantic `str` fields
+- [x] Compliance check (`scripts/compliance_check.py`) optionally flags Pydantic models without `max_length`
+- [x] Reference docs updated with standard length limits for each field category
+
+**Tests:**
+- [x] Pydantic validation rejects strings exceeding max_length for each input schema
+- [x] Database rejects inserts/updates exceeding column limits
+- [x] All existing tests continue to pass (limits are generous enough for real data)
+
+**Effort:** M
+**Value:** High (Defense-in-depth against oversized payloads, data quality, DoS prevention)
+
+---

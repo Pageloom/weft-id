@@ -11,6 +11,8 @@ import struct
 from datetime import UTC, datetime
 from unittest.mock import patch
 
+import pytest
+
 
 def _make_png(width: int = 64, height: int = 64) -> bytes:
     """Create a minimal valid PNG."""
@@ -23,7 +25,19 @@ def _make_png(width: int = 64, height: int = 64) -> bytes:
     return magic + ihdr_length + ihdr_type + ihdr_data + ihdr_crc + iend
 
 
-def test_serve_logo_success(client, test_host):
+@pytest.fixture(autouse=True)
+def _override_tenant(client):
+    """Override tenant resolution so tests don't hit the database."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: (
+        "00000000-0000-0000-0000-000000000099"
+    )
+    yield
+
+
+def test_serve_logo_success(client):
     """Serves logo with correct content-type and cache headers."""
     png_data = _make_png(64, 64)
     updated = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -36,7 +50,7 @@ def test_serve_logo_success(client, test_host):
             "updated_at": updated,
         },
     ):
-        resp = client.get("/branding/logo/light", headers={"host": test_host})
+        resp = client.get("/branding/logo/light")
 
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
@@ -45,15 +59,15 @@ def test_serve_logo_success(client, test_host):
     assert resp.content == png_data
 
 
-def test_serve_logo_not_found(client, test_host):
+def test_serve_logo_not_found(client):
     """Returns 404 when no logo exists for the slot."""
     with patch("services.branding.database.branding.get_logo", return_value=None):
-        resp = client.get("/branding/logo/dark", headers={"host": test_host})
+        resp = client.get("/branding/logo/dark")
 
     assert resp.status_code == 404
 
 
-def test_serve_logo_etag_304(client, test_host):
+def test_serve_logo_etag_304(client):
     """Returns 304 when If-None-Match matches the ETag."""
 
     png_data = _make_png(64, 64)
@@ -69,7 +83,7 @@ def test_serve_logo_etag_304(client, test_host):
         },
     ):
         # First request to capture the ETag
-        resp = client.get("/branding/logo/light", headers={"host": test_host})
+        resp = client.get("/branding/logo/light")
 
     assert resp.status_code == 200
     etag = resp.headers["ETag"]
@@ -85,19 +99,19 @@ def test_serve_logo_etag_304(client, test_host):
     ):
         resp2 = client.get(
             "/branding/logo/light",
-            headers={"host": test_host, "if-none-match": etag},
+            headers={"if-none-match": etag},
         )
 
     assert resp2.status_code == 304
 
 
-def test_serve_logo_invalid_slot(client, test_host):
+def test_serve_logo_invalid_slot(client):
     """Invalid slot value returns 422."""
-    resp = client.get("/branding/logo/invalid", headers={"host": test_host})
+    resp = client.get("/branding/logo/invalid")
     assert resp.status_code == 422
 
 
-def test_serve_logo_svg(client, test_host):
+def test_serve_logo_svg(client):
     """SVG logos are served with correct content-type."""
     svg_data = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>'
     updated = datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC)
@@ -110,13 +124,13 @@ def test_serve_logo_svg(client, test_host):
             "updated_at": updated,
         },
     ):
-        resp = client.get("/branding/logo/light", headers={"host": test_host})
+        resp = client.get("/branding/logo/light")
 
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/svg+xml"
 
 
-def test_serve_logo_must_revalidate(client, test_host):
+def test_serve_logo_must_revalidate(client):
     """Cache-Control includes must-revalidate."""
     png_data = _make_png(64, 64)
     updated = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
@@ -129,7 +143,7 @@ def test_serve_logo_must_revalidate(client, test_host):
             "updated_at": updated,
         },
     ):
-        resp = client.get("/branding/logo/light", headers={"host": test_host})
+        resp = client.get("/branding/logo/light")
 
     assert "must-revalidate" in resp.headers["cache-control"]
     assert "public" in resp.headers["cache-control"]

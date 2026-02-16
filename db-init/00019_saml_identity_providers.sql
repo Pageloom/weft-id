@@ -15,8 +15,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLE: saml_sp_certificates
@@ -263,3 +263,5 @@ CREATE TRIGGER trg_saml_idp_updated_at
     BEFORE UPDATE ON saml_identity_providers
     FOR EACH ROW
     EXECUTE FUNCTION update_saml_idp_updated_at();
+
+COMMIT;

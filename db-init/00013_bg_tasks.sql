@@ -3,6 +3,9 @@
 -- NO RLS - the worker process polls this table without tenant context.
 -- The worker sets SET LOCAL app.tenant_id before executing job handlers.
 
+BEGIN;
+SET LOCAL ROLE appowner;
+
 CREATE TABLE IF NOT EXISTS bg_tasks (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -30,3 +33,5 @@ CREATE INDEX idx_bg_tasks_tenant_type ON bg_tasks(tenant_id, job_type, created_a
 
 -- Grant permissions to appuser (worker runs as appuser)
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE bg_tasks TO appuser;
+
+COMMIT;

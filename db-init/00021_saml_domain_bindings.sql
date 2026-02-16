@@ -13,6 +13,9 @@
 -- Domain-to-IdP Binding Table
 -- =============================================================================
 
+BEGIN;
+SET LOCAL ROLE appowner;
+
 CREATE TABLE IF NOT EXISTS saml_idp_domain_bindings
 (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,3 +104,5 @@ COMMENT ON COLUMN saml_idp_domain_bindings.idp_id IS
 
 COMMENT ON COLUMN users.auth_method IS
     'Authentication method override: automatic (use routing) or password_only (bypass SAML)';
+
+COMMIT;

@@ -3,6 +3,9 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
+BEGIN;
+SET LOCAL ROLE appowner;
+
 -- Add MFA columns to users table
 DO
 $$
@@ -152,3 +155,5 @@ $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE mfa_totp TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE mfa_email_codes TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE mfa_backup_codes TO appuser;
+
+COMMIT;

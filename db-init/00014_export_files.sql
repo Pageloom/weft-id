@@ -2,6 +2,9 @@
 -- Tracks export files for download and cleanup.
 -- RLS enabled for tenant isolation.
 
+BEGIN;
+SET LOCAL ROLE appowner;
+
 CREATE TABLE IF NOT EXISTS export_files (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -47,3 +50,5 @@ CREATE POLICY export_files_tenant_isolation ON export_files
 
 -- Grant permissions to appuser
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE export_files TO appuser;
+
+COMMIT;

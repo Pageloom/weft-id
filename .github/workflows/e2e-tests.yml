@@ -1,6 +1,8 @@
 name: E2E Tests
 
 on:
+  schedule:
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       test_filter:
@@ -9,12 +11,39 @@ on:
         default: ""
 
 jobs:
+  check-activity:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - id: check
+        run: |
+          SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
+          COUNT=$(gh api repos/${{ github.repository }}/commits?since=$SINCE --jq 'length')
+          echo "should_run=$( [ "$COUNT" -gt 0 ] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   e2e:
+    needs: [check-activity]
+    if: always() && (needs.check-activity.result == 'skipped' || needs.check-activity.outputs.should_run == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Create .env from dev example
+        run: |
+          cp .env.dev.example .env
+          sed -i 's/^BYPASS_OTP=false/BYPASS_OTP=true/' .env
+
+      - name: Build Tailwind CSS
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          ./tailwindcss-linux-x64 -i static/css/input.css -o static/css/output.css --minify
 
       - name: Generate self-signed TLS certificates
         run: |
@@ -28,17 +57,17 @@ jobs:
 
       - name: Add /etc/hosts entries
         run: |
-          echo "127.0.0.1 pageloom.localhost e2e-idp.pageloom.localhost e2e-sp.pageloom.localhost" \
+          echo "127.0.0.1 pageloom.localhost dev.pageloom.localhost e2e-idp.pageloom.localhost e2e-sp.pageloom.localhost" \
             | sudo tee -a /etc/hosts
 
       - name: Start Docker Compose services
-        run: docker compose up --build -d
+        run: docker compose up --build -d app db reverse-proxy maildev migrate memcached
 
       - name: Wait for services to be ready
         run: |
           echo "Waiting for app to be reachable via nginx..."
           for i in $(seq 1 60); do
-            if curl -sk -o /dev/null -w '%{http_code}' https://e2e-idp.pageloom.localhost/login 2>/dev/null | grep -q '200'; then
+            if curl -sk -o /dev/null -w '%{http_code}' https://dev.pageloom.localhost/login 2>/dev/null | grep -q '200'; then
               echo "App is ready (attempt $i)"
               exit 0
             fi

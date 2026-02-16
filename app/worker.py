@@ -50,6 +50,13 @@ def _load_saml_refresh() -> Any:
     return refresh_saml_metadata()
 
 
+def _load_certificate_rotation() -> Any:
+    """Import and run the certificate rotation/cleanup job."""
+    from jobs.rotate_certificates import rotate_and_cleanup_certificates
+
+    return rotate_and_cleanup_certificates()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -71,6 +78,7 @@ class Worker:
         cleanup_interval_hours: int = 1,
         inactivation_interval_hours: int = 24,
         saml_refresh_interval_hours: int = 24,
+        cert_rotation_interval_hours: int = 24,
     ) -> None:
         """Initialize the worker.
 
@@ -79,6 +87,7 @@ class Worker:
             cleanup_interval_hours: Hours between cleanup runs
             inactivation_interval_hours: Hours between idle user inactivation checks
             saml_refresh_interval_hours: Hours between SAML metadata refresh runs
+            cert_rotation_interval_hours: Hours between certificate rotation/cleanup checks
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -97,6 +106,11 @@ class Worker:
                 "SAML metadata refresh",
                 _load_saml_refresh,
                 timedelta(hours=saml_refresh_interval_hours),
+            ),
+            PeriodicJob(
+                "certificate rotation",
+                _load_certificate_rotation,
+                timedelta(hours=cert_rotation_interval_hours),
             ),
         ]
 

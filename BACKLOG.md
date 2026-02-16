@@ -58,54 +58,70 @@ Since we already serve unique metadata per relationship (per-SP IdP metadata, pe
 
 ---
 
-## IdP-Side Certificate Rotation & Lifecycle Management
+## Opportunistic Certificate Cleanup on Metadata Serving
 
 **User Story:**
-As a super admin
-I want IdP signing certificates to rotate automatically before expiry and clean up expired certificates
-So that I do not have to manually track and rotate certificates for each downstream SP
+As a system operator
+I want expired grace-period certificates to be cleaned up immediately when the SP metadata endpoint is called
+So that stale previous certificates are removed promptly without waiting for the daily background job
 
 **Context:**
 
-When WeftId acts as an IdP, each downstream SP gets a per-SP signing certificate (table: `sp_signing_certificates`). Dual-certificate metadata during the grace period already works. However, there is no automatic rotation, no cleanup of expired previous certificates (`clear_previous_signing_certificate()` exists but is never called), and no guard against initiating a rotation while one is already in progress.
+The daily background job (`rotate_certificates.py`) handles certificate cleanup after the grace period expires. However, the metadata endpoint (`/saml/idp/metadata/{sp_id}`) is a natural trigger point. If an SP is fetching metadata, and the grace period has already expired, we can clean up the previous certificate inline. This is a lightweight write (null out 4 columns) that makes the cleanup more responsive. Uses the existing `sp_signing_certificate_cleanup_completed` event type.
 
 **Acceptance Criteria:**
 
-**Rotation guard:**
-- [ ] `rotate_sp_signing_certificate()` rejects rotation when `rotation_grace_period_ends_at` is in the future
-- [ ] Raises `ValidationError` with message "Certificate rotation already in progress"
-- [ ] Applies regardless of whether the active rotation was manual or automatic
-
-**Auto-rotation background job:**
-- [ ] New background job in `app/jobs/` runs daily
-- [ ] Queries all `sp_signing_certificates` across tenants
-- [ ] For certs expiring within 90 days with no active rotation: generate new cert using tenant's lifetime setting, set 90-day grace period
-- [ ] For certs with expired grace period: call `clear_previous_signing_certificate()` to remove old cert from database
-- [ ] Returns summary: `{rotated: int, cleaned_up: int, errors: list}`
-
-**Grace period behavior:**
-- [ ] Manual rotation: 7-day grace period (existing behavior, unchanged)
-- [ ] Auto-rotation: 90-day grace period
-- [ ] In both cases: when grace period ends, old cert removed from metadata AND database simultaneously (by the background job)
-
-**Event logging:**
-- [ ] `sp_signing_certificate_auto_rotated` event with metadata: `{sp_id, grace_period_days, new_expires_at}`
-- [ ] `sp_signing_certificate_cleanup_completed` event when expired cert is removed
-
-**Tests:**
-- [ ] Rotation guard rejects during active rotation
-- [ ] Background job auto-rotates certs expiring within 90 days
-- [ ] Background job skips certs with active rotation
-- [ ] Background job cleans up expired previous certs
-- [ ] Auto-rotation uses configurable lifetime setting
+- [ ] When the per-SP metadata endpoint is called, check if `rotation_grace_period_ends_at` has passed
+- [ ] If expired, call `clear_previous_signing_certificate()` inline before serving metadata
+- [ ] Log `sp_signing_certificate_cleanup_completed` event with `SYSTEM_ACTOR_ID`
+- [ ] Metadata response is not delayed significantly (cleanup is a simple UPDATE)
+- [ ] If cleanup fails, log a warning but still serve the metadata (do not break the endpoint)
+- [ ] Background job still runs as a safety net (no change to existing behavior)
+- [ ] Tests cover: cleanup triggered on metadata fetch, cleanup failure doesn't break metadata, no cleanup when grace period is still active
 
 **Key files:**
-- Modify: `app/services/service_providers/signing_certs.py` (rotation guard)
-- New: `app/jobs/rotate_certificates.py` (background job)
-- Register in: `app/jobs/registry.py`
+- Modify: `app/services/service_providers/metadata.py` (add cleanup check before serving)
 
-**Effort:** M
-**Value:** High (Automates certificate lifecycle, prevents expiry-related outages)
+**Effort:** S
+**Value:** Medium (More responsive cleanup, reduces stale data window)
+
+---
+
+## Configurable Certificate Rotation Window in Security Settings
+
+**User Story:**
+As a super admin
+I want to configure the certificate rotation window (how far before expiry auto-rotation starts)
+So that I can control how long downstream SPs have to update their trust configuration
+
+**Context:**
+
+The auto-rotation background job currently uses a hardcoded 90-day window: certificates are rotated when they expire within 90 days, and the grace period is also 90 days. Different organizations may want shorter or longer windows depending on how quickly their SP partners can update. This setting should appear in Admin > Settings > Security, next to the existing certificate validity setting.
+
+**Acceptance Criteria:**
+
+- [ ] New DB column `certificate_rotation_window_days` in `tenant_security_settings` (default 90)
+- [ ] Migration adds the column with CHECK constraint for allowed values
+- [ ] Admin > Settings > Security page shows "Certificate rotation window" setting next to certificate validity
+- [ ] Options: 90 (default), 60, 30, and 14 days
+- [ ] Information text explains the setting: during this window, the upcoming certificate appears in SP metadata so downstream SPs can update their trust
+- [ ] `get_certificate_rotation_window()` function in database/security and services/settings
+- [ ] Background job uses the tenant's configured window instead of hardcoded 90 days
+- [ ] Cross-tenant query in `get_certificates_needing_rotation_or_cleanup()` joins with security settings to use per-tenant window
+- [ ] Event log entry when setting is changed (`tenant_certificate_rotation_window_updated`)
+- [ ] API endpoint for reading/updating the setting
+- [ ] Tests cover: default value, custom values, background job respects setting
+
+**Key files:**
+- Migration: `db-init/migrations/NNNN_add_certificate_rotation_window.sql`
+- Modify: `app/database/security.py`, `app/services/settings.py`
+- Modify: `app/database/sp_signing_certificates.py` (query uses tenant setting)
+- Modify: `app/jobs/rotate_certificates.py` (uses tenant setting instead of constant)
+- Modify: `app/routers/admin.py` and template (security settings UI)
+- Modify: `app/constants/event_types.py` (new event type)
+
+**Effort:** S
+**Value:** Medium (Organizational flexibility for rotation timing)
 
 ---
 

@@ -93,6 +93,14 @@ def rotate_sp_signing_certificate(
             code="sp_signing_certificate_not_found",
         )
 
+    # Guard: reject rotation if one is already in progress
+    grace_end = current.get("rotation_grace_period_ends_at")
+    if grace_end is not None and grace_end > datetime.now(UTC):
+        raise ValidationError(
+            message="Certificate rotation already in progress",
+            code="sp_signing_certificate_rotation_in_progress",
+        )
+
     # Generate new certificate
     from services.settings import get_certificate_lifetime
 

@@ -2684,3 +2684,44 @@ An audit of the database schema found **81 unbounded TEXT columns** across 22 ta
 **Value:** High (Defense-in-depth against oversized payloads, data quality, DoS prevention)
 
 ---
+
+## IdP-Side Certificate Rotation & Lifecycle Management
+
+**Status:** Complete
+
+**Summary:** Added automatic certificate lifecycle management for per-SP signing certificates. A rotation guard in `rotate_sp_signing_certificate()` prevents initiating a new rotation while one is already in progress (grace period active). A new daily background job auto-rotates certificates expiring within 90 days and cleans up previous certificates after their grace period ends. Two new event types track automated actions.
+
+**Acceptance Criteria:**
+
+**Rotation guard:**
+- [x] `rotate_sp_signing_certificate()` rejects rotation when `rotation_grace_period_ends_at` is in the future
+- [x] Raises `ValidationError` with message "Certificate rotation already in progress"
+- [x] Applies regardless of whether the active rotation was manual or automatic
+
+**Auto-rotation background job:**
+- [x] New background job in `app/jobs/rotate_certificates.py` runs daily
+- [x] Queries all `sp_signing_certificates` across tenants (UNSCOPED)
+- [x] For certs expiring within 90 days with no active rotation: generate new cert using tenant's lifetime setting, set 90-day grace period
+- [x] For certs with expired grace period: call `clear_previous_signing_certificate()` to remove old cert from database
+- [x] Returns summary: `{rotated: int, cleaned_up: int, errors: list}`
+
+**Grace period behavior:**
+- [x] Manual rotation: 7-day grace period (existing behavior, unchanged)
+- [x] Auto-rotation: 90-day grace period
+- [x] When grace period ends, old cert removed from metadata AND database (by the background job)
+
+**Event logging:**
+- [x] `sp_signing_certificate_auto_rotated` event with metadata: `{sp_id, grace_period_days, new_expires_at}`
+- [x] `sp_signing_certificate_cleanup_completed` event when expired cert is removed
+
+**Tests:**
+- [x] Rotation guard rejects during active rotation
+- [x] Background job auto-rotates certs expiring within 90 days
+- [x] Background job skips certs with active rotation
+- [x] Background job cleans up expired previous certs
+- [x] Auto-rotation uses configurable lifetime setting
+
+**Effort:** M
+**Value:** High (Automates certificate lifecycle, prevents expiry-related outages)
+
+---

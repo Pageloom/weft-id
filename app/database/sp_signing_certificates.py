@@ -4,6 +4,51 @@ from typing import Any
 
 from database._core import TenantArg, fetchone
 
+# ---------------------------------------------------------------------------
+# Cross-tenant queries (used by background worker)
+# ---------------------------------------------------------------------------
+
+
+def get_certificates_needing_rotation_or_cleanup() -> list[dict]:
+    """Get all SP signing certificates that need rotation or cleanup.
+
+    This is a cross-tenant query used by the worker for auto-rotation.
+    Does not use RLS (called without tenant context).
+
+    Returns two categories:
+    - Needs rotation: expires within 90 days, no active rotation in progress
+    - Needs cleanup: grace period has expired
+
+    Returns:
+        List of dicts with id, sp_id, tenant_id, expires_at,
+        rotation_grace_period_ends_at, and action ('rotate' or 'cleanup').
+    """
+    from psycopg.rows import dict_row
+
+    from ._core import get_pool
+
+    pool = get_pool()
+    with pool.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                select id, sp_id, tenant_id, expires_at,
+                       rotation_grace_period_ends_at,
+                       'rotate' as action
+                from sp_signing_certificates
+                where expires_at < now() + interval '90 days'
+                  and rotation_grace_period_ends_at is null
+                union all
+                select id, sp_id, tenant_id, expires_at,
+                       rotation_grace_period_ends_at,
+                       'cleanup' as action
+                from sp_signing_certificates
+                where rotation_grace_period_ends_at is not null
+                  and rotation_grace_period_ends_at < now()
+                """
+            )
+            return list(cur.fetchall())
+
 
 def get_signing_certificate(tenant_id: TenantArg, sp_id: str) -> dict | None:
     """Get the signing certificate for a specific service provider.

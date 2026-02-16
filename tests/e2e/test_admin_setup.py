@@ -1,4 +1,9 @@
-"""E2E tests for admin UI SP/IdP management via metadata XML import.
+"""E2E tests for admin UI SP/IdP registration via the two-step creation flow.
+
+The new flow is:
+  1. Create the SP or IdP with a display name only
+  2. Redirected to the details page (pending trust)
+  3. Establish trust by importing metadata (URL, XML, or manual entry)
 
 The testbed has already created the primary SAML config between the two tenants.
 These tests verify the admin UI works by importing *crafted* metadata XML (with
@@ -64,82 +69,94 @@ T8LgM4JC638MXYM=</ds:X509Certificate>
 
 
 class TestIdpAdminRegistersSp:
-    """IdP admin imports SP metadata XML to register a new Service Provider."""
+    """IdP admin creates a new SP via the two-step flow (name, then trust)."""
 
-    def test_idp_admin_registers_sp_via_xml(self, page, login, idp_config, sp_config):
-        """Import SP metadata XML at the IdP and verify it appears in the list.
+    def test_idp_admin_registers_sp_via_xml(self, page, login, idp_config):
+        """Create an SP, then establish trust by pasting SP metadata XML.
 
-        Uses crafted metadata XML with a unique entity ID to avoid conflicting
-        with the testbed's existing SP registration.
+        Step 1: Create SP with name only
+        Step 2: On details page, switch to 'Metadata XML' tab and paste XML
         """
         idp_base = idp_config["base_url"]
 
         # Login to IdP as super admin
         login(idp_base, idp_config["admin_email"])
 
-        # Navigate to SP creation page
+        # Step 1: Create SP with name only
         page.goto(f"{idp_base}/admin/settings/service-providers/new")
-
-        # Click the "Metadata XML" tab
-        page.locator("[data-tab='metadata-xml']").click()
-
-        # Fill in the form
         sp_name = "E2E Test SP (XML Import)"
-        page.locator("#xml-name").fill(sp_name)
-        page.locator("#metadata-xml").fill(_SP_METADATA_XML)
+        page.locator("#sp-name").fill(sp_name)
+        page.get_by_role("button", name="Create").click()
 
-        # Submit the form (use no_wait_after to avoid Playwright aborting
-        # the POST→303→GET redirect chain)
-        xml_form = page.locator(
-            "form[action='/admin/settings/service-providers/import-metadata-xml']"
+        # Should redirect to the new SP's details page (pending trust)
+        page.wait_for_url(
+            "**/admin/settings/service-providers/*/details**success=created**",
+            timeout=10000,
         )
-        xml_form.locator("button[type='submit']").click(no_wait_after=True)
-        page.wait_for_timeout(2000)
 
-        # Navigate to SP list to verify the import succeeded
+        # Step 2: Establish trust via Metadata XML tab
+        page.locator("[data-tab='trust-xml']").click()
+        page.locator("#trust-metadata-xml").fill(_SP_METADATA_XML)
+        page.locator("#tab-trust-xml button[type='submit']").click()
+
+        # Should redirect back to details with trust established
+        page.wait_for_url(
+            "**/admin/settings/service-providers/*/details**",
+            timeout=10000,
+        )
+
+        # Verify trust is established: the Entity ID should be visible
+        # (only shown after trust is established)
+        page.get_by_text("https://e2e-test-app.example.com/saml/metadata").first.wait_for(
+            timeout=5000
+        )
+
+        # Verify the SP appears in the list
         page.goto(f"{idp_base}/admin/settings/service-providers")
-
-        # Verify the new SP is visible in the list
         assert page.locator(f"text={sp_name}").is_visible()
 
 
 class TestSpAdminRegistersIdp:
-    """SP admin imports IdP metadata XML to register a new Identity Provider."""
+    """SP admin creates a new IdP via the two-step flow (name, then trust)."""
 
-    def test_sp_admin_registers_idp_via_xml(self, page, login, idp_config, sp_config):
-        """Import IdP metadata XML at the SP and verify it appears in the list.
+    def test_sp_admin_registers_idp_via_xml(self, page, login, sp_config):
+        """Create an IdP, then establish trust by pasting IdP metadata XML.
 
-        Uses crafted metadata XML with a unique entity ID to avoid conflicting
-        with the testbed's existing IdP registration.
+        Step 1: Create IdP with name and provider type
+        Step 2: On details page, switch to 'Paste Metadata XML' tab and paste XML
         """
         sp_base = sp_config["base_url"]
 
         # Login to SP as super admin
         login(sp_base, sp_config["admin_email"])
 
-        # Navigate to IdP creation page
+        # Step 1: Create IdP with name and provider type
         page.goto(f"{sp_base}/admin/settings/identity-providers/new")
-
-        # Click the "Paste Metadata XML" tab
-        page.locator("#tab-xml").click()
-
-        # Fill in the form
         idp_name = "E2E Test IdP (XML Import)"
-        page.locator("#xml-name").fill(idp_name)
-        page.locator("#xml-provider_type").select_option("generic")
-        page.locator("#metadata_xml").fill(_IDP_METADATA_XML)
+        page.locator("#name").fill(idp_name)
+        page.locator("#provider_type").select_option("generic")
+        page.get_by_role("button", name="Create Identity Provider").click()
 
-        # Submit the form
-        xml_form = page.locator(
-            "form[action='/admin/settings/identity-providers/import-metadata-xml']"
+        # Should redirect to the new IdP's details page (pending trust)
+        page.wait_for_url(
+            "**/admin/settings/identity-providers/*/details**success=created**",
+            timeout=10000,
         )
-        xml_form.locator("button[type='submit']").click()
 
-        # Should redirect to IdP list with success
-        page.wait_for_url("**/admin/settings/identity-providers**success=created**", timeout=10000)
+        # Step 2: Establish trust via Paste Metadata XML tab
+        page.locator("#tab-xml").click()
+        page.locator("#trust-metadata-xml").fill(_IDP_METADATA_XML)
+        page.locator("#trust-content-xml button[type='submit']").click()
 
-        # Verify success message
-        page.locator("text=Identity provider created successfully").wait_for(timeout=5000)
+        # Should redirect back to details with trust established
+        page.wait_for_url(
+            "**/admin/settings/identity-providers/*/details**",
+            timeout=10000,
+        )
 
-        # Verify the new IdP is visible in the list
+        # Verify trust is established: success message or entity ID shown
+        page.locator("text=Trust established successfully").wait_for(timeout=5000)
+
+        # Verify the IdP appears in the list
+        page.goto(f"{sp_base}/admin/settings/identity-providers")
         assert page.locator(f"text={idp_name}").is_visible()

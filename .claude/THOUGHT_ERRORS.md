@@ -158,6 +158,24 @@ When logging events for operations involving two entities (membership, relations
 
 ---
 
+## Database Name Confusion
+
+**Wrong:** Assuming the database is named `weftid` or `weft_id`
+**Right:** The database name is `appdb`
+
+This catches agents that guess the DB name from the project name. Always use `appdb`.
+
+---
+
+## The `appowner` Role Cannot Log In
+
+**Wrong:** Connecting to Postgres as `appowner` to run migrations or queries
+**Right:** Connect as `postgres` superuser. Migrations use `SET LOCAL ROLE appowner` internally for DDL ownership.
+
+The `appowner` role exists for object ownership but has `NOLOGIN`. Direct connections as `appowner` will fail with an authentication error.
+
+---
+
 ## Running Database Migrations Without Full Reset
 
 **Wrong:** `make db-reset` (destroys all data), or manually running SQL files with `psql`

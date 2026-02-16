@@ -162,6 +162,7 @@ def step_3_register_sp(log, idp_tenant_id: str, idp_admin_id: str, sp_subdomain:
         entity_id=entity_id,
         acs_url=acs_url,
         created_by=idp_admin_id,
+        trust_established=True,
     )
     if not sp:
         raise RuntimeError("Failed to create service provider")
@@ -267,6 +268,7 @@ def step_5_register_idp(
         is_enabled=True,
         is_default=True,
         jit_provisioning=True,
+        trust_established=True,
     )
     if not idp:
         raise RuntimeError("Failed to create identity provider")

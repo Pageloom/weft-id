@@ -1,0 +1,93 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_filter:
+        description: "pytest -k filter (leave blank for all)"
+        required: false
+        default: ""
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Generate self-signed TLS certificates
+        run: |
+          mkdir -p .devcerts
+          openssl req -x509 -nodes -newkey rsa:2048 \
+            -keyout .devcerts/dev.key \
+            -out .devcerts/dev.crt \
+            -days 1 \
+            -subj '/CN=pageloom.localhost' \
+            -addext 'subjectAltName=DNS:pageloom.localhost,DNS:*.pageloom.localhost'
+
+      - name: Add /etc/hosts entries
+        run: |
+          echo "127.0.0.1 pageloom.localhost e2e-idp.pageloom.localhost e2e-sp.pageloom.localhost" \
+            | sudo tee -a /etc/hosts
+
+      - name: Start Docker Compose services
+        run: docker compose up --build -d
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for app to be reachable via nginx..."
+          for i in $(seq 1 60); do
+            if curl -sk -o /dev/null -w '%{http_code}' https://e2e-idp.pageloom.localhost/login 2>/dev/null | grep -q '200'; then
+              echo "App is ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for app"
+          docker compose logs --tail=50
+          exit 1
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxmlsec1-dev libxmlsec1-openssl pkg-config
+
+      - name: Install Poetry
+        run: pipx install poetry==2.2.1
+
+      - name: Cache virtualenv
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: e2e-venv-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Python dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      - name: Install Playwright browsers
+        run: poetry run playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: |
+          FILTER="${{ github.event.inputs.test_filter }}"
+          if [ -n "$FILTER" ]; then
+            ./test-e2e -k "$FILTER"
+          else
+            ./test-e2e
+          fi
+
+      - name: Docker Compose logs
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Stop services
+        if: always()
+        run: docker compose down

@@ -107,6 +107,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "service_provider_trust_established": "Trust established with downstream service provider",
     "sp_metadata_refreshed": "Service provider metadata refreshed from URL",
     "sp_metadata_reimported": "Service provider metadata re-imported from XML",
+    "sp_signing_certificate_auto_rotated": (
+        "Per-SP signing certificate automatically rotated before expiry"
+    ),
+    "sp_signing_certificate_cleanup_completed": (
+        "Previous SP signing certificate removed after grace period"
+    ),
     "sp_signing_certificate_created": "Per-SP signing certificate generated",
     "sp_signing_certificate_rotated": "Per-SP signing certificate rotated",
     # SAML IdP / SP Group Assignments

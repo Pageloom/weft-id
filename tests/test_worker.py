@@ -5,7 +5,7 @@ This test file covers the Worker class in worker.py:
 - Shutdown handling
 - Periodic job scheduling (_check_periodic_jobs)
 - Periodic job execution (_run_job)
-- Job loader functions (_load_cleanup, _load_inactivation, _load_saml_refresh)
+- Job loader functions (_load_cleanup, _load_inactivation, etc.)
 - Task processing (success, unknown handler, exception)
 - Tenant-scoped session usage
 """
@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 3
+    assert len(worker._periodic_jobs) == 4
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -64,6 +64,11 @@ def test_worker_init_defaults():
     assert saml.name == "SAML metadata refresh"
     assert saml.interval == timedelta(hours=24)
     assert saml.last_run is None
+
+    cert_rotation = worker._periodic_jobs[3]
+    assert cert_rotation.name == "certificate rotation"
+    assert cert_rotation.interval == timedelta(hours=24)
+    assert cert_rotation.last_run is None
 
 
 def test_worker_init_custom_values():
@@ -125,7 +130,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 3
+    assert worker._run_job.call_count == 4
     for job in worker._periodic_jobs:
         assert job.last_run == now
 
@@ -163,9 +168,11 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
     worker._periodic_jobs[0].last_run = now - timedelta(hours=2)
     worker._periodic_jobs[1].last_run = now - timedelta(minutes=5)
     worker._periodic_jobs[2].last_run = now - timedelta(minutes=5)
+    worker._periodic_jobs[3].last_run = now - timedelta(minutes=5)
 
     old_last_run_1 = worker._periodic_jobs[1].last_run
     old_last_run_2 = worker._periodic_jobs[2].last_run
+    old_last_run_3 = worker._periodic_jobs[3].last_run
 
     worker._check_periodic_jobs()
 
@@ -175,6 +182,7 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
     # Others unchanged
     assert worker._periodic_jobs[1].last_run == old_last_run_1
     assert worker._periodic_jobs[2].last_run == old_last_run_2
+    assert worker._periodic_jobs[3].last_run == old_last_run_3
 
 
 # =============================================================================
@@ -251,6 +259,19 @@ def test_load_saml_refresh(mock_refresh):
 
     mock_refresh.assert_called_once()
     assert result == {"refreshed_count": 2}
+
+
+@patch("jobs.rotate_certificates.rotate_and_cleanup_certificates")
+def test_load_certificate_rotation(mock_rotate):
+    """Test _load_certificate_rotation imports and calls the job."""
+    from worker import _load_certificate_rotation
+
+    mock_rotate.return_value = {"rotated": 1, "cleaned_up": 2, "errors": []}
+
+    result = _load_certificate_rotation()
+
+    mock_rotate.assert_called_once()
+    assert result == {"rotated": 1, "cleaned_up": 2, "errors": []}
 
 
 # =============================================================================

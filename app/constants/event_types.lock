@@ -75,6 +75,8 @@ sp_group_unassigned
 sp_groups_bulk_assigned
 sp_metadata_refreshed
 sp_metadata_reimported
+sp_signing_certificate_auto_rotated
+sp_signing_certificate_cleanup_completed
 sp_signing_certificate_created
 sp_signing_certificate_rotated
 sso_assertion_issued

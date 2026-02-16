@@ -62,6 +62,7 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
           PGDATABASE: appdb
+          POSTGRES_HOST: localhost
         run: |
           psql -v ON_ERROR_STOP=1 -f db-init/schema.sql
           poetry run python db-init/migrate.py

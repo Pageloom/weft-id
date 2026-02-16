@@ -141,7 +141,7 @@ def create_identity_provider(
     is_full_creation = data.entity_id is not None
 
     # Check for duplicate entity_id (only for full creation)
-    if is_full_creation:
+    if is_full_creation and data.entity_id is not None:
         existing = database.saml.get_identity_provider_by_entity_id(tenant_id, data.entity_id)
         if existing:
             raise ConflictError(
@@ -221,6 +221,12 @@ def create_identity_provider(
             "Could not create base group for IdP %s: group name '%s' already exists",
             idp_id,
             data.name,
+        )
+
+    if row is None:
+        raise ValidationError(
+            message="Failed to create identity provider",
+            code="idp_creation_failed",
         )
 
     return idp_row_to_config(row)

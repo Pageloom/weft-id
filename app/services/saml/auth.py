@@ -62,9 +62,20 @@ def _prepare_saml_auth(
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
     sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
 
+    if not idp.entity_id or not idp.sso_url:
+        raise ValidationError(
+            message="IdP entity ID and SSO URL are required for SAML authentication",
+            code="idp_incomplete_config",
+        )
+
     # Load IdP certificates for multi-cert validation
     idp_certs = get_certificates_for_validation(tenant_id, idp_id)
     if not idp_certs:
+        if not idp.certificate_pem:
+            raise ValidationError(
+                message="IdP has no certificates configured",
+                code="idp_no_certificate",
+            )
         idp_certs = [idp.certificate_pem]
 
     settings = build_saml_settings(

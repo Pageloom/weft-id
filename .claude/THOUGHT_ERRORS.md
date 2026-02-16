@@ -160,7 +160,7 @@ When logging events for operations involving two entities (membership, relations
 
 ## Running Database Migrations Without Full Reset
 
-**Wrong:** `make db-reset` (destroys all data)
-**Right:** Run migration as postgres superuser: `docker compose exec -T db psql -U postgres -d appdb -f /docker-entrypoint-initdb.d/00027_groups.sql`
+**Wrong:** `make db-reset` (destroys all data), or manually running SQL files with `psql`
+**Right:** `make migrate` (applies any pending migrations from `db-init/migrations/`)
 
-Migrations use `SET ROLE appowner` which requires superuser privileges. The `appuser` role cannot execute this. When you need to apply a new migration without losing data, run it as the `postgres` user instead of `appuser`.
+The migration runner (`db-init/migrate.py`) handles transaction management, error logging, and idempotent reruns. In dev, migrations also run automatically on `make up`.

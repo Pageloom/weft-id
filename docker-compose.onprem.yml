@@ -4,6 +4,7 @@
 # Usage:
 #   1. Run ./devscripts/onprem-setup.sh to generate certs and .env
 #   2. docker compose -f docker-compose.onprem.yml up -d
+#   3. Apply migrations: make migrate-onprem
 
 services:
   reverse-proxy:
@@ -78,7 +79,6 @@ services:
       POSTGRES_DB: appdb
     volumes:
       - dbdata:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:5432:5432"   # bind to localhost only (safe)
     healthcheck:
@@ -88,6 +88,24 @@ services:
       retries: 20
     networks: [ onpremnet ]
     restart: unless-stopped
+
+  migrate:
+    image: app:onprem-latest
+    container_name: onprem_migrate
+    entrypoint: []
+    command: ["python", "/db-init/migrate.py"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: db
+      POSTGRES_DB: appdb
+    volumes:
+      - ./db-init:/db-init:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [onpremnet]
+    profiles: ["migrate"]
 
 volumes:
   dbdata:

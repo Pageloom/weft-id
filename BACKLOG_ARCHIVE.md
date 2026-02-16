@@ -4,6 +4,30 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Baseline Schema & Forward-Only Migration System
+
+**Status:** Complete
+
+**Summary:** Replaced 46 sequential SQL migration files in `db-init/` with a single consolidated `schema.sql` baseline and a lightweight Python migration runner (`migrate.py`). The runner detects fresh, pre-existing, and already-migrated databases automatically. In dev, migrations run on `make up` via a `migrate` one-shot service. In production, migrations run on demand via `make migrate-onprem`. A `schema_migration_log` table tracks all migration attempts with success/failure status, timestamps, and error details.
+
+**Acceptance Criteria:**
+
+- [x] `db-init/schema.sql` contains the complete current schema (roles, tables, indexes, RLS, grants)
+- [x] Old 46 migration files deleted (preserved in git history)
+- [x] `db-init/migrate.py` detects fresh vs existing database
+- [x] Fresh DB: applies `schema.sql` baseline, records `baseline` as successful
+- [x] Existing DB: finds pending `.sql` files in `db-init/migrations/`, applies in order
+- [x] Each migration runs in its own transaction with success/failure logging
+- [x] Skips already-applied migrations (idempotent), allows retry of failed ones
+- [x] `migrate` one-shot service in `docker-compose.yml` (dev auto-migration)
+- [x] `migrate` service with `profiles: ["migrate"]` in `docker-compose.onprem.yml`
+- [x] `make migrate` and `make migrate-onprem` targets added
+- [x] `make db-init` wipes volume and reinitializes
+- [x] CLAUDE.md and THOUGHT_ERRORS.md updated with new workflow
+- [x] All existing tests pass
+
+---
+
 ## Fix and Redesign IdP Attribute Mapping
 
 **Status:** Complete

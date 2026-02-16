@@ -2,6 +2,7 @@
 -- sp_requested_attributes: structured list from SP metadata RequestedAttribute elements
 -- attribute_mapping: admin-controlled mapping of IdP attrs to SP-specific URIs
 
+BEGIN;
 SET LOCAL ROLE appowner;
 
 ALTER TABLE service_providers
@@ -13,3 +14,5 @@ COMMENT ON COLUMN service_providers.sp_requested_attributes IS
 
 COMMENT ON COLUMN service_providers.attribute_mapping IS
     'Admin-controlled mapping of IdP attribute keys to SP-expected URIs. Format: {"email": "sp_uri", ...}. NULL means use global defaults.';
+
+COMMIT;

@@ -4,6 +4,7 @@
 -- Pattern: CHECK (col IS NULL OR length(col) <= N)
 -- Idempotent: checks pg_constraint before adding each constraint
 
+BEGIN;
 SET LOCAL ROLE appowner;
 
 -- Safety check: verify no existing data exceeds proposed limits
@@ -294,3 +295,5 @@ SELECT _add_check_if_not_exists('mfa_totp', 'chk_mfa_totp_secret_enc_length', 'l
 
 -- Clean up helper function
 DROP FUNCTION _add_check_if_not_exists(TEXT, TEXT, TEXT);
+
+COMMIT;

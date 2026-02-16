@@ -63,10 +63,8 @@ jobs:
           PGPASSWORD: postgres
           PGDATABASE: appdb
         run: |
-          for f in db-init/[0-9]*.sql; do
-            echo "Applying $f ..."
-            psql -v ON_ERROR_STOP=1 -f "$f"
-          done
+          psql -v ON_ERROR_STOP=1 -f db-init/schema.sql
+          poetry run python db-init/migrate.py
 
       - name: Run tests
         env:

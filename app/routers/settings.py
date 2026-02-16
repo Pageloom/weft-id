@@ -1,6 +1,6 @@
 """Settings routes (privileged domains, branding, security)."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from dependencies import (
     build_requesting_user,
@@ -268,13 +268,16 @@ def update_admin_security(
             return render_error_page(request, tenant_id, exc)
 
     # Parse certificate lifetime (empty string means keep current)
-    cert_lifetime_years: int | None = None
+    cert_lifetime_years: Literal[1, 2, 3, 5, 10] | None = None
     if certificate_lifetime:
         try:
-            cert_lifetime_years = int(certificate_lifetime)
+            parsed_lifetime = int(certificate_lifetime)
+            if parsed_lifetime not in (1, 2, 3, 5, 10):
+                raise ValueError("Invalid lifetime value")
+            cert_lifetime_years = parsed_lifetime  # type: ignore[assignment]
         except ValueError:
             exc = ValidationError(
-                message="Certificate lifetime must be a number",
+                message="Certificate lifetime must be 1, 2, 3, 5, or 10 years",
                 code="invalid_certificate_lifetime",
                 field="max_certificate_lifetime_years",
             )

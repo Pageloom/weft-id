@@ -59,9 +59,13 @@ def test_get_branding_as_admin(client, override_api_auth):
     assert data["show_title_in_nav"] is True
 
 
-def test_get_branding_unauthenticated(client, test_host):
+def test_get_branding_unauthenticated(client):
     """Unauthenticated request is rejected (401 or 403)."""
-    resp = client.get("/api/v1/branding", headers={"host": test_host})
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "fake-tenant-id"
+    resp = client.get("/api/v1/branding")
     assert resp.status_code in (401, 403)
 
 
@@ -276,9 +280,13 @@ def test_randomize_mandala_as_admin(client, override_api_auth):
     assert "<svg" in data["dark_svg"]
 
 
-def test_randomize_mandala_unauthenticated(client, test_host):
+def test_randomize_mandala_unauthenticated(client):
     """Unauthenticated request is rejected."""
-    resp = client.post("/api/v1/branding/mandala/randomize", headers={"host": test_host})
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "fake-tenant-id"
+    resp = client.post("/api/v1/branding/mandala/randomize")
     assert resp.status_code in (401, 403)
 
 
@@ -324,12 +332,15 @@ def test_save_mandala_as_admin(client, override_api_auth):
     assert data["has_logo_dark"] is True
 
 
-def test_save_mandala_unauthenticated(client, test_host):
+def test_save_mandala_unauthenticated(client):
     """Unauthenticated request is rejected."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "fake-tenant-id"
     resp = client.post(
         "/api/v1/branding/mandala/save",
         json={"seed": "test"},
-        headers={"host": test_host},
     )
     assert resp.status_code in (401, 403)
 

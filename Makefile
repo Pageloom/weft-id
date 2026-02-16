@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css sso-testbed
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css sso-testbed
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -28,10 +28,16 @@ up-onprem: ## Build and start all onprem services (detached)
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans
 
-db-reset: ## Wipe DB volume to force bootstrap rerun
+db-reset: ## Wipe DB volume to force full reinit
 	$(COMPOSE) down -v
 
-db-init: db-reset up ## Wipe DB and restart (full reinit)
+db-init: db-reset up ## Wipe DB and restart (runs baseline + migrations)
+
+migrate: ## Run pending migrations on running dev DB
+	$(COMPOSE) run --rm migrate
+
+migrate-onprem: ## Run pending migrations on running onprem DB
+	$(COMPOSE) -f docker-compose.onprem.yml --profile migrate run --rm migrate
 
 prune: ## Docker prune (containers/images/networks not in use)
 	docker system prune -f

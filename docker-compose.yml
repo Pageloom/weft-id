@@ -30,6 +30,9 @@ services:
       - ./storage:/app/storage
       - ./static:/app/static:cached
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks:
       - devnet
 
@@ -47,10 +50,29 @@ services:
     command: ["python", "worker.py"]
     working_dir: /app
     depends_on:
-      - db
-      - memcached
+      migrate:
+        condition: service_completed_successfully
+      memcached:
+        condition: service_started
     networks:
       - devnet
+
+  migrate:
+    image: app:dev-latest
+    container_name: dev_migrate
+    entrypoint: []
+    command: ["python", "/db-init/migrate.py"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: db
+      POSTGRES_DB: appdb
+    volumes:
+      - ./db-init:/db-init:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [devnet]
 
   maildev:
     image: maildev/maildev:2.0.5
@@ -77,7 +99,6 @@ services:
       POSTGRES_DB: appdb
     volumes:
       - dbdata:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:5432:5432"   # bind to localhost only (safe)
     healthcheck:

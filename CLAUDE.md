@@ -92,7 +92,10 @@ app/
 └── constants/        # Enums and constants
 tests/                # Mirrors app/ structure
 ├── e2e/              # Playwright E2E tests (run via ./test-e2e)
-db-init/              # SQL migrations (sequential numbering)
+db-init/              # Database schema baseline + migration runner
+  schema.sql          # Complete baseline schema (applied on fresh DB)
+  migrate.py          # Forward-only migration runner
+  migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
 .claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
 .claude/references/   # Detailed patterns and checklists for agents
@@ -302,13 +305,29 @@ make watch-css   # Watch templates and auto-rebuild CSS (recommended for active 
 make help        # Show all available targets
 ```
 
-**Running a migration on demand:**
+**Database migrations:**
 
-Migrations in `db-init/` run automatically on first DB init. To run a new migration against a running dev database:
+Migrations run automatically on `make up` in dev (via the `migrate` one-shot service).
+
 ```bash
-docker compose exec -T db psql -U postgres -d appdb < db-init/00031_example.sql
+make migrate         # Apply pending migrations on running dev DB
+make migrate-onprem  # Apply pending migrations on running onprem DB
+make db-init         # Wipe DB volume and reinitialize (baseline + migrations)
 ```
-Replace the filename with the migration to run. The `-T` flag disables TTY allocation so the file pipes correctly.
+
+**Creating a new migration:**
+1. Create a `.sql` file in `db-init/migrations/` with 4-digit prefix: `0001_description.sql`
+2. Write pure SQL (no `BEGIN/COMMIT`, no psql directives like `\set`)
+3. Use `SET LOCAL ROLE appowner;` at the top for DDL ownership
+4. The runner wraps each migration in its own transaction
+
+**Checking migration status:**
+```bash
+docker compose exec -T db psql -U postgres -d appdb \
+  -c "SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id"
+```
+
+**On failure:** The runner logs the error in `schema_migration_log`, rolls back the transaction, and exits non-zero. Fix the migration file and rerun `make migrate` to retry.
 
 ### Frontend Development Workflow
 
@@ -355,7 +374,7 @@ All checks must pass before committing.
 3. **Read service functions must track activity** - call `track_activity(tenant_id, user_id)` at the start of read-only service functions
 4. **Authorization via `app/pages.py`** - single source of truth for page access and navigation
 5. **New pages must be registered in `app/pages.py`** - each route checks access via this file
-6. **Migrations** go in `db-init/` with sequential numbering (check existing files for next number)
+6. **Migrations** go in `db-init/migrations/` with 4-digit numbering (e.g. `0001_description.sql`). Pure SQL, no `BEGIN/COMMIT`, use `SET LOCAL ROLE appowner` for DDL
 7. **Run formatting and linting** before committing code
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`
 9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete

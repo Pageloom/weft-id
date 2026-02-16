@@ -88,7 +88,7 @@ class EmailList(BaseModel):
 class EmailCreate(BaseModel):
     """Request to add a new email address."""
 
-    email: EmailStr
+    email: EmailStr = Field(..., max_length=320)
 
 
 class EmailVerifyRequest(BaseModel):
@@ -235,7 +235,7 @@ class UserCreate(BaseModel):
 
     first_name: str = Field(..., min_length=1, max_length=255, description="User's first name")
     last_name: str = Field(..., min_length=1, max_length=255, description="User's last name")
-    email: EmailStr = Field(..., description="Primary email address")
+    email: EmailStr = Field(..., max_length=320, description="Primary email address")
     role: str = Field(
         "member",
         max_length=50,

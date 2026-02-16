@@ -13,8 +13,8 @@
 -- ============================================================================
 \set ON_ERROR_STOP on
 
--- Switch to appowner role for DDL
-set local role appowner;
+BEGIN;
+SET LOCAL ROLE appowner;
 
 -- ============================================================================
 -- TABLE: service_providers
@@ -121,3 +121,5 @@ CREATE TRIGGER trg_service_providers_updated_at
     BEFORE UPDATE ON service_providers
     FOR EACH ROW
     EXECUTE FUNCTION update_service_providers_updated_at();
+
+COMMIT;

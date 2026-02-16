@@ -1,4 +1,6 @@
 -- Add SLO URL column to service_providers for Single Logout support
+
+BEGIN;
 SET LOCAL ROLE appowner;
 
 ALTER TABLE service_providers
@@ -6,3 +8,5 @@ ALTER TABLE service_providers
 
 COMMENT ON COLUMN service_providers.slo_url IS
     'Single Logout Service URL for the downstream SP. Extracted from metadata or manually entered.';
+
+COMMIT;

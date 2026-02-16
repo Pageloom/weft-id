@@ -1,7 +1,6 @@
 # Weft ID
 
-[![Lint](https://github.com/pageloom/weft-id/actions/workflows/lint.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/lint.yml)
-[![Type Check](https://github.com/pageloom/weft-id/actions/workflows/typecheck.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/typecheck.yml)
+[![Code Quality](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml)
 [![Tests](https://github.com/pageloom/weft-id/actions/workflows/tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/tests.yml)
 
 Weft ID is an open-source identity federation layer that aggregates multiple identity providers into a single,

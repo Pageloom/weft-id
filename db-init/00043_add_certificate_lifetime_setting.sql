@@ -1,4 +1,6 @@
 \set ON_ERROR_STOP on
+
+BEGIN;
 SET LOCAL ROLE appowner;
 
 ALTER TABLE tenant_security_settings
@@ -10,3 +12,5 @@ ALTER TABLE tenant_security_settings
 
 COMMENT ON COLUMN tenant_security_settings.max_certificate_lifetime_years
     IS 'Maximum lifetime in years for newly generated signing certificates';
+
+COMMIT;

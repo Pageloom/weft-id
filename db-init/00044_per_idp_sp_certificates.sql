@@ -3,6 +3,7 @@
 -- Each IdP now gets its own SP certificate, EntityID, and metadata URL.
 -- IdP creation becomes two-step: name first, trust establishment later.
 
+BEGIN;
 SET LOCAL ROLE appowner;
 
 -- =============================================================================
@@ -57,3 +58,5 @@ ALTER TABLE saml_identity_providers
 UPDATE saml_identity_providers
     SET trust_established = true
     WHERE entity_id IS NOT NULL;
+
+COMMIT;

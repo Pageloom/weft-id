@@ -6,58 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Dynamic Attribute Declarations in SAML Metadata
-
-**User Story:**
-As a super admin
-I want SAML metadata on both sides of the federation to reflect the actual configured attribute mappings
-So that when I or an external admin imports metadata, the declared attributes match what will actually be sent or expected, enabling accurate configuration alignment
-
-**Context:**
-
-Metadata attribute declarations are currently disconnected from the actual attribute mappings:
-
-- **IdP side** (us as IdP, per-SP metadata at `/saml/idp/metadata/{sp_id}`): Always emits hardcoded `SAML_ATTRIBUTE_URIS` defaults, even though each SP has its own `attribute_mapping` that may differ. An SP admin importing our metadata sees default attribute names, not the names we'll actually send.
-
-- **SP side** (us as SP, per-IdP metadata): Does not generate `<md:RequestedAttribute>` elements at all. An upstream IdP admin importing our metadata gets no signal about which attributes we expect.
-
-Since we already serve unique metadata per relationship (per-SP IdP metadata, per-IdP SP metadata), there's no blast radius. Changing one SP's mapping only affects that SP's metadata endpoint. Attribute declarations in metadata are advisory (not enforced at protocol level), so updating them doesn't break existing trust. It just makes the metadata more accurate.
-
-**Acceptance Criteria:**
-
-**IdP metadata (per-SP):**
-- [ ] `generate_idp_metadata_xml()` accepts an `attribute_mapping` parameter (the SP's configured mapping)
-- [ ] `<saml:Attribute>` elements in IdP metadata reflect the SP's actual `attribute_mapping` values, not hardcoded defaults
-- [ ] When no per-SP mapping exists, fall back to default attribute URIs (current behavior)
-- [ ] Per-SP metadata service (`get_sp_idp_metadata_xml`) passes the SP's `attribute_mapping` to the generator
-- [ ] Tenant-level metadata (`get_tenant_idp_metadata_xml`) continues using defaults (no SP context)
-
-**SP metadata (per-IdP):**
-- [ ] SP metadata generator emits `<md:AttributeConsumingService>` with `<md:RequestedAttribute>` elements
-- [ ] Requested attributes reflect the IdP's configured `attribute_mapping` (what we expect to receive)
-- [ ] Each `<md:RequestedAttribute>` includes `Name` (the configured attribute URI) and `FriendlyName` (the platform field label)
-
-**Depends on:** None (Per-IdP SP Metadata & Trust Establishment is complete)
-
-**Automatically kept in sync:**
-- [ ] No manual "regenerate metadata" step. Metadata endpoints read the current `attribute_mapping` at request time, so changes are reflected immediately.
-
-**Tests:**
-- [ ] IdP metadata for an SP with custom mapping includes the custom attribute URIs, not defaults
-- [ ] IdP metadata for an SP with no custom mapping uses defaults
-- [ ] Tenant-level IdP metadata still uses defaults
-- [ ] SP metadata includes `RequestedAttribute` elements matching the IdP's mapping (when per-IdP SP metadata exists)
-
-**Key files:**
-- Modify: `app/utils/saml_idp.py` (`generate_idp_metadata_xml` to accept attribute mapping)
-- Modify: `app/services/service_providers/metadata.py` (pass SP's mapping to generator)
-- Modify: `app/utils/saml.py` (SP metadata generation, add `RequestedAttribute` support)
-
-**Effort:** S
-**Value:** High (Makes metadata a living, accurate document. Enables both sides to validate configuration alignment.)
-
----
-
 ## Opportunistic Certificate Cleanup on Metadata Serving
 
 **User Story:**

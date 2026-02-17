@@ -2783,3 +2783,31 @@ So that I can establish trust with each IdP independently, rotate certificates p
 **Value:** High (Eliminates the metadata chicken-and-egg problem, clearer admin workflow)
 
 ---
+
+## Dynamic Attribute Declarations in SAML Metadata
+
+**Status:** Complete
+
+**Summary:** Made SAML metadata attribute declarations dynamic instead of hardcoded. Both IdP metadata (per-SP) and SP metadata (per-IdP) generators now accept an optional `attribute_mapping` parameter. The service layer passes the stored mapping through so metadata accurately reflects actual configured attributes. When no custom mapping exists, defaults are used (preserving existing behavior).
+
+**Acceptance Criteria:**
+
+**IdP metadata (per-SP):**
+- [x] `generate_idp_metadata_xml()` accepts an `attribute_mapping` parameter (the SP's configured mapping)
+- [x] `<saml:Attribute>` elements in IdP metadata reflect the SP's actual `attribute_mapping` values, not hardcoded defaults
+- [x] When no per-SP mapping exists, fall back to default attribute URIs (current behavior)
+- [x] Per-SP metadata service (`get_sp_idp_metadata_xml`) passes the SP's `attribute_mapping` to the generator
+- [x] Tenant-level metadata (`get_tenant_idp_metadata_xml`) continues using defaults (no SP context)
+
+**SP metadata (per-IdP):**
+- [x] SP metadata generator emits `<md:AttributeConsumingService>` with `<md:RequestedAttribute>` elements
+- [x] Requested attributes reflect the IdP's configured `attribute_mapping` (what we expect to receive)
+- [x] Each `<md:RequestedAttribute>` includes `Name` (the configured attribute URI) and `FriendlyName` (the platform field label)
+
+**Automatically kept in sync:**
+- [x] No manual "regenerate metadata" step. Metadata endpoints read the current `attribute_mapping` at request time, so changes are reflected immediately.
+
+**Effort:** S
+**Value:** High (Makes metadata a living, accurate document. Enables both sides to validate configuration alignment.)
+
+---

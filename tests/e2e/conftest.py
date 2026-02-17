@@ -1,8 +1,11 @@
 """E2E test fixtures for SAML SSO flows.
 
-Uses Playwright to drive a real browser against two WeftId tenants
-(one as IdP, one as SP) running in Docker. The testbed is provisioned
-via `sso_testbed.py --json-output` and torn down after the session.
+Uses Playwright to drive a real browser against WeftId tenants
+running in Docker. Two testbed configurations are available:
+
+  - Two-tenant (sso_testbed.py): IdP + SP for basic SSO flows
+  - Three-tenant chain (sso_chain_testbed.py): upstream IdP → mid → leaf SP
+  - Extras (sso_extras_testbed.py): domain binding + group hierarchy data
 
 Prerequisites:
     - Docker services running (make up)
@@ -43,33 +46,46 @@ def _flush_memcached():
 
 
 # ---------------------------------------------------------------------------
-# Session-scoped testbed fixture
+# Generic runner
 # ---------------------------------------------------------------------------
 
 
-def _run_testbed(*extra_args: str) -> str:
-    """Run sso_testbed.py inside the app container and return stdout."""
+def _run_script(script: str, *extra_args: str, timeout: int = 60) -> str:
+    """Run a Python script inside the app container and return stdout."""
     cmd = [
         *DOCKER_COMPOSE,
         "exec",
         "-T",
         "app",
         "python",
+        script,
+        *extra_args,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{script} failed (rc={result.returncode}):\n"
+            f"stdout: {result.stdout}\n"
+            f"stderr: {result.stderr}"
+        )
+    return result.stdout
+
+
+def _run_testbed(*extra_args: str) -> str:
+    """Run sso_testbed.py inside the app container."""
+    return _run_script(
         "./dev/sso_testbed.py",
         "--idp-subdomain",
         IDP_SUBDOMAIN,
         "--sp-subdomain",
         SP_SUBDOMAIN,
         *extra_args,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"sso_testbed.py failed (rc={result.returncode}):\n"
-            f"stdout: {result.stdout}\n"
-            f"stderr: {result.stderr}"
-        )
-    return result.stdout
+    )
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped testbed fixture (two-tenant)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
@@ -105,6 +121,83 @@ def sp_config(e2e_config):
 
 
 # ---------------------------------------------------------------------------
+# Session-scoped extras fixture (domain binding + group hierarchy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def extras_config(e2e_config):
+    """Add domain binding and group hierarchy test data to the two-tenant setup.
+
+    Depends on e2e_config to ensure the base testbed is provisioned first.
+    """
+    stdout = _run_script(
+        "./dev/sso_extras_testbed.py",
+        "--json-output",
+        "--idp-subdomain",
+        IDP_SUBDOMAIN,
+        "--sp-subdomain",
+        SP_SUBDOMAIN,
+    )
+    return json.loads(stdout)
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped chain fixture (three-tenant)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def chain_config():
+    """Provision three tenants wired in a chain for passthrough SSO testing.
+
+    upstream (IdP) → mid (IdP/SP) → leaf (SP)
+
+    Yields the JSON config dict. Tears down after session.
+    """
+    _flush_memcached()
+    stdout = _run_script(
+        "./dev/sso_chain_testbed.py",
+        "--json-output",
+        timeout=90,
+    )
+    config = json.loads(stdout)
+    import pprint
+
+    pprint.pp(config)
+    yield config
+
+    try:
+        _run_script("./dev/sso_chain_testbed.py", "--teardown")
+    except Exception as exc:
+        print(f"Warning: chain testbed teardown failed: {exc}", file=sys.stderr)
+
+
+@pytest.fixture(scope="session")
+def upstream_config(chain_config):
+    """Shorthand for the upstream IdP portion of chain_config."""
+    return chain_config["upstream"]
+
+
+@pytest.fixture(scope="session")
+def mid_config(chain_config):
+    """Shorthand for the mid IdP/SP portion of chain_config."""
+    return chain_config["mid"]
+
+
+@pytest.fixture(scope="session")
+def leaf_config(chain_config):
+    """Shorthand for the leaf SP portion of chain_config."""
+    return chain_config["leaf"]
+
+
+@pytest.fixture(scope="session")
+def chain_user(chain_config):
+    """Shorthand for the chain test user credentials."""
+    return chain_config["chain_user"]
+
+
+# ---------------------------------------------------------------------------
 # Browser configuration
 # ---------------------------------------------------------------------------
 
@@ -129,7 +222,7 @@ def login(page):
     """Return a function that logs a user in via the dev-only instant login endpoint.
 
     Usage:
-        login(base_url, email, password)
+        login(base_url, email)
 
     Uses GET /dev/login?email=... to set a session cookie and redirect
     to /dashboard. The full multi-step login flow is tested separately

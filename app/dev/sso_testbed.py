@@ -140,33 +140,41 @@ def step_2_create_test_users(log, idp_subdomain: str, sp_subdomain: str):
 def step_3_register_sp(log, idp_tenant_id: str, idp_admin_id: str, sp_subdomain: str) -> dict:
     """Register the SP tenant as a Service Provider in the IdP tenant.
 
+    Creates the SP with a temporary entity_id. The entity_id and acs_url
+    are updated to per-IdP format in step_5b after the IdP record is created.
+
     Returns the created/existing SP record.
     """
     log.info("--- Step 3: Register SP in IdP tenant ---")
 
+    sp_name = f"{sp_subdomain.title()} SP"
     base_url = _base_url(sp_subdomain)
-    entity_id = f"{base_url}/saml/metadata"
-    acs_url = f"{base_url}/saml/acs"
 
-    existing = database.service_providers.get_service_provider_by_entity_id(
-        idp_tenant_id, entity_id
+    # Look up by name (entity_id changes to per-IdP format after step 5b)
+    existing = database.fetchone(
+        idp_tenant_id,
+        "select * from service_providers where name = :name limit 1",
+        {"name": sp_name},
     )
     if existing:
-        log.info("SP already registered: %s", entity_id)
+        log.info("SP already registered: %s (id=%s)", sp_name, existing["id"])
         return existing
+
+    temp_entity_id = f"{base_url}/saml/metadata"
+    temp_acs_url = f"{base_url}/saml/acs"
 
     sp = database.service_providers.create_service_provider(
         tenant_id=idp_tenant_id,
         tenant_id_value=idp_tenant_id,
-        name=f"{sp_subdomain.title()} SP",
-        entity_id=entity_id,
-        acs_url=acs_url,
+        name=sp_name,
+        entity_id=temp_entity_id,
+        acs_url=temp_acs_url,
         created_by=idp_admin_id,
         trust_established=True,
     )
     if not sp:
         raise RuntimeError("Failed to create service provider")
-    log.info("Created SP: %s (id=%s)", entity_id, sp["id"])
+    log.info("Created SP: %s (id=%s)", sp_name, sp["id"])
     return sp
 
 
@@ -234,8 +242,9 @@ def step_5_register_idp(
 ) -> str:
     """Register the IdP tenant as an Identity Provider in the SP tenant.
 
-    The entity_id must match the per-SP metadata URL because that's what the
-    IdP uses as the Issuer in SAML Responses.
+    The IdP entity_id uses the per-SP metadata URL because that's what the
+    IdP uses as the Issuer in SAML Responses. The sp_entity_id is set to a
+    temporary value and updated to per-IdP format in step_5b.
 
     Returns the IdP id (as string).
     """
@@ -245,7 +254,8 @@ def step_5_register_idp(
     sp_base_url = _base_url(sp_subdomain)
     idp_entity_id = f"{idp_base_url}/saml/idp/metadata/{sp_id}"
     sso_url = f"{idp_base_url}/saml/idp/sso"
-    sp_entity_id = f"{sp_base_url}/saml/metadata"
+    # Temp sp_entity_id (updated to per-IdP format in step 5b)
+    temp_sp_entity_id = f"{sp_base_url}/saml/metadata"
 
     existing = database.saml.providers.get_identity_provider_by_entity_id(
         sp_tenant_id, idp_entity_id
@@ -262,7 +272,7 @@ def step_5_register_idp(
         entity_id=idp_entity_id,
         sso_url=sso_url,
         certificate_pem=idp_signing_cert_pem,
-        sp_entity_id=sp_entity_id,
+        sp_entity_id=temp_sp_entity_id,
         created_by=sp_admin_id,
         attribute_mapping=ATTRIBUTE_MAPPING,
         is_enabled=True,
@@ -286,6 +296,53 @@ def step_5_register_idp(
     )
 
     return idp_id
+
+
+def step_5b_update_per_idp_metadata(
+    log,
+    idp_tenant_id: str,
+    sp_tenant_id: str,
+    sp_admin_id: str,
+    sp_subdomain: str,
+    sp_id: str,
+    idp_id: str,
+):
+    """Update SP and IdP records to use per-IdP entity_id and ACS URL.
+
+    Also creates the per-IdP SP certificate used for signing AuthnRequests
+    to this specific IdP.
+    """
+    log.info("--- Step 5b: Per-IdP SP metadata ---")
+
+    sp_base_url = _base_url(sp_subdomain)
+    per_idp_entity_id = f"{sp_base_url}/saml/metadata/{idp_id}"
+    per_idp_acs_url = f"{sp_base_url}/saml/acs/{idp_id}"
+
+    # Update IdP record's sp_entity_id at SP tenant
+    database.saml.providers.update_identity_provider(
+        sp_tenant_id, idp_id, sp_entity_id=per_idp_entity_id
+    )
+    log.info("Updated IdP sp_entity_id to %s", per_idp_entity_id)
+
+    # Update SP record's entity_id and acs_url at IdP tenant
+    database.execute(
+        idp_tenant_id,
+        """
+        update service_providers
+        set entity_id = :entity_id, acs_url = :acs_url, updated_at = now()
+        where id = cast(:sp_id as uuid)
+        """,
+        {"entity_id": per_idp_entity_id, "acs_url": per_idp_acs_url, "sp_id": sp_id},
+    )
+    log.info("Updated SP entity_id to %s", per_idp_entity_id)
+
+    # Create per-IdP SP certificate (needs system_context for event logging)
+    from services.saml.idp_sp_certificates import get_or_create_idp_sp_certificate
+    from utils.request_context import system_context
+
+    with system_context():
+        get_or_create_idp_sp_certificate(sp_tenant_id, idp_id, sp_admin_id)
+    log.info("Ensured per-IdP SP certificate for IdP %s", idp_id)
 
 
 def step_6_create_group_and_assign_sp(
@@ -426,7 +483,7 @@ def _print_summary(log, idp_subdomain: str, sp_subdomain: str, sp_id: str):
     log.info("  IdPs: %s/admin/settings/identity-providers", sp_url)
     log.info("")
     log.info("IdP metadata: %s/saml/idp/metadata/%s", idp_url, sp_id)
-    log.info("SP metadata:  %s/saml/metadata", sp_url)
+    log.info("SP metadata:  %s/admin/settings/identity-providers (per-IdP URLs)", sp_url)
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +565,17 @@ def main(
         sp_subdomain,
         sp_id,
         idp_signing_cert_pem,
+    )
+
+    # Step 5b: Update to per-IdP metadata URLs and create per-IdP SP certificate
+    step_5b_update_per_idp_metadata(
+        log,
+        idp_tenant_id,
+        sp_tenant_id,
+        sp_admin["id"],
+        sp_subdomain,
+        sp_id,
+        idp_id,
     )
 
     # Step 6: Create group and assign SP for access control

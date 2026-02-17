@@ -37,7 +37,7 @@ Since we already serve unique metadata per relationship (per-SP IdP metadata, pe
 - [ ] Requested attributes reflect the IdP's configured `attribute_mapping` (what we expect to receive)
 - [ ] Each `<md:RequestedAttribute>` includes `Name` (the configured attribute URI) and `FriendlyName` (the platform field label)
 
-**Depends on:** Per-IdP SP Metadata & Trust Establishment (for SP-side generation)
+**Depends on:** None (Per-IdP SP Metadata & Trust Establishment is complete)
 
 **Automatically kept in sync:**
 - [ ] No manual "regenerate metadata" step. Metadata endpoints read the current `attribute_mapping` at request time, so changes are reflected immediately.
@@ -125,78 +125,6 @@ The auto-rotation background job currently uses a hardcoded 90-day window: certi
 
 ---
 
-## Per-IdP SP Metadata & Trust Establishment
-
-**User Story:**
-As a super admin
-I want each identity provider to have its own unique EntityID, metadata URL, and signing certificate when WeftId acts as an SP
-So that I can establish trust with each IdP independently, rotate certificates per-IdP without affecting others, and avoid the chicken-and-egg problem during initial setup
-
-**Context:**
-
-Today, WeftId as an SP serves a single global metadata at `/saml/metadata` with one tenant-wide certificate. This means certificate rotation affects all IdPs simultaneously. Additionally, adding an IdP requires its metadata upfront, creating a chicken-and-egg problem (the IdP needs WeftId's metadata to configure, but WeftId needs the IdP's metadata to create the record).
-
-The solution mirrors the IdP-side approach: each IdP gets a unique metadata URL (`/saml/metadata/{idp_id}`), a unique EntityID, and its own signing certificate. IdP creation becomes two-step: create with name only (get metadata URL immediately), then import IdP metadata later.
-
-**Acceptance Criteria:**
-
-**Data model:**
-- [ ] New table `saml_idp_sp_certificates` with: `id`, `idp_id` (unique FK), `tenant_id`, `certificate_pem`, `private_key_pem_enc`, `expires_at`, `created_by`, `created_at`, rotation columns (`previous_certificate_pem`, `previous_private_key_pem_enc`, `previous_expires_at`, `rotation_grace_period_ends_at`)
-- [ ] RLS policy for tenant isolation
-- [ ] Make `entity_id`, `sso_url`, `certificate_pem` nullable on `saml_identity_providers` (pending IdPs have these as NULL)
-- [ ] Add `trust_established` boolean column (default false), backfill true for existing IdPs
-- [ ] Migration generates per-IdP certificates for all existing IdPs
-
-**Per-IdP metadata endpoint:**
-- [ ] `GET /saml/metadata/{idp_id}` (public, unauthenticated)
-- [ ] Returns SP metadata with EntityID `{base_url}/saml/metadata/{idp_id}`, ACS URL `{base_url}/saml/acs/{idp_id}`, and per-IdP certificate
-- [ ] During grace period, includes both current and previous certificates
-
-**Per-IdP ACS endpoint:**
-- [ ] `POST /saml/acs/{idp_id}` routes SAML response to correct IdP config
-- [ ] Uses per-IdP certificate for request signing
-- [ ] Existing global `/saml/acs` remains for backwards compatibility
-
-**Two-step IdP creation (chicken-and-egg solution):**
-- [ ] Step 1: Create IdP with just a name. Immediately generates per-IdP SP certificate and metadata URL
-- [ ] IdP is in pending state (`trust_established = false`) until metadata is obtained
-- [ ] IdP detail page shows per-IdP metadata URL (public link) that admin can share with the IdP counterpart
-- [ ] Step 2: Fetch metadata from IdP's metadata URL, or import metadata XML. Sets `trust_established = true`
-- [ ] After trust established, IdP detail page shows normal view
-
-**Legacy endpoint removal:**
-- [ ] Delete `/saml/metadata` endpoint entirely (no deprecation, no fallback)
-- [ ] Delete tenant-wide `saml_sp_certificates` table and all related code (service, database, router)
-- [ ] Remove the SP certificate rotation button from the IdP list page (rotation now happens per-IdP)
-
-**API:**
-- [ ] `GET /api/v1/saml/identity-providers/{idp_id}` includes `sp_metadata_url`, `sp_entity_id`, `sp_acs_url`
-- [ ] `POST /api/v1/saml/identity-providers/{idp_id}/rotate-sp-certificate` rotates per-IdP SP cert
-
-**Event logging:**
-- [ ] `saml_idp_sp_certificate_created` on cert generation
-- [ ] `saml_idp_trust_established` when metadata is imported
-
-**Tests:**
-- [ ] Per-IdP metadata returns correct EntityID, ACS URL, certificate
-- [ ] Per-IdP ACS routes to correct IdP
-- [ ] Two-step creation flow (name only, then metadata fetch/import)
-- [ ] Migration generates certs for existing IdPs
-- [ ] Legacy `/saml/metadata` endpoint is removed (returns 404 or not routed)
-- [ ] No references to `saml_sp_certificates` remain in application code
-
-**Key files:**
-- New migration in `db-init/`
-- New: `app/database/saml/idp_sp_certificates.py`
-- New: `app/services/saml/idp_sp_certificates.py`
-- Modify: `app/routers/saml/` (per-IdP metadata and ACS endpoints)
-- Modify: IdP creation flow (routers, services, templates)
-
-**Effort:** XL
-**Value:** High (Enables independent per-IdP certificate management, solves chicken-and-egg)
-
----
-
 ## SP-Side Certificate Rotation & Lifecycle Management
 
 **User Story:**
@@ -206,9 +134,9 @@ So that IdP administrators can transition smoothly without SSO breaking
 
 **Context:**
 
-Mirrors Item 2 but for the SP side (per-IdP signing certificates from the Per-IdP SP Metadata item). Requires Per-IdP SP Metadata & Trust Establishment to be complete first.
+Mirrors Item 2 but for the SP side (per-IdP signing certificates from the Per-IdP SP Metadata item). Per-IdP SP Metadata & Trust Establishment is now complete.
 
-**Depends on:** Per-IdP SP Metadata & Trust Establishment
+**Depends on:** None (Per-IdP SP Metadata & Trust Establishment is complete)
 
 **Acceptance Criteria:**
 
@@ -244,7 +172,7 @@ Mirrors Item 2 but for the SP side (per-IdP signing certificates from the Per-Id
 **Key files:**
 - Modify: `app/utils/saml.py:319` (dual-cert SP metadata generation)
 - Modify: `app/jobs/rotate_certificates.py` (extend from IdP-Side Rotation item)
-- Modify: `app/services/saml/idp_sp_certificates.py` (rotation guard, from Per-IdP SP Metadata item)
+- Modify: `app/services/saml/idp_sp_certificates.py` (rotation guard, from per-IdP SP metadata feature)
 
 **Effort:** M
 **Value:** High

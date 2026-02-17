@@ -2759,3 +2759,27 @@ So that I can establish trust with each IdP independently, rotate certificates p
 **Value:** High (Enables independent per-IdP certificate management, solves chicken-and-egg)
 
 ---
+
+## Step-by-Step SP Registration (Trust Establishment Flow)
+
+**Status:** Complete
+
+**Summary:** Implemented two-step SP registration where Step 1 creates the SP with just a name (generating a per-SP signing certificate immediately), and Step 2 establishes trust via metadata import (URL or XML) or manual configuration. This eliminates the metadata chicken-and-egg problem where both parties needed each other's metadata before either could configure.
+
+**Acceptance Criteria:**
+
+- [x] `trust_established` boolean column on `service_providers` (default `false`)
+- [x] `entity_id` and `acs_url` nullable for pending SPs
+- [x] Unique constraint on `entity_id` allows multiple NULLs
+- [x] SSO flow checks `trust_established = true` before processing (rejects pending SPs)
+- [x] Create SP with name only, eagerly generate per-SP signing certificate
+- [x] SP detail page shows setup UI when `trust_established = false`
+- [x] Trust established via metadata URL import, metadata XML paste, or manual config
+- [x] `establish_trust_from_metadata_url()` and `establish_trust_from_metadata_xml()` service functions
+- [x] Existing SPs backfilled with `trust_established = true`
+- [x] Event logging for creation and trust establishment
+
+**Effort:** M
+**Value:** High (Eliminates the metadata chicken-and-egg problem, clearer admin workflow)
+
+---

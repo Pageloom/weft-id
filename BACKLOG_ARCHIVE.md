@@ -2725,3 +2725,37 @@ An audit of the database schema found **81 unbounded TEXT columns** across 22 ta
 **Value:** High (Automates certificate lifecycle, prevents expiry-related outages)
 
 ---
+
+## Per-IdP SP Metadata & Trust Establishment
+
+**Status:** Complete (implemented in commit 74ad65c, Feb 15 2026)
+
+**User Story:**
+As a super admin
+I want each identity provider to have its own unique EntityID, metadata URL, and signing certificate when WeftId acts as an SP
+So that I can establish trust with each IdP independently, rotate certificates per-IdP without affecting others, and avoid the chicken-and-egg problem during initial setup
+
+**What was implemented:**
+
+- [x] New table `saml_idp_sp_certificates` with rotation support, RLS, tenant isolation
+- [x] `entity_id`, `sso_url`, `certificate_pem` nullable on `saml_identity_providers` (pending state)
+- [x] `trust_established` boolean column with backfill for existing IdPs
+- [x] `GET /saml/metadata/{idp_id}` (public, per-IdP SP metadata with unique EntityID, ACS URL, certificate)
+- [x] Grace period includes both current and previous certificates
+- [x] `POST /saml/acs/{idp_id}` per-IdP ACS endpoint (global `/saml/acs` kept for backward compatibility)
+- [x] Two-step IdP creation: name only first, then metadata import/paste/manual
+- [x] IdP detail page shows per-IdP metadata URL in pending state
+- [x] Trust establishment via URL import, XML paste, or manual entry
+- [x] API includes `sp_metadata_url`, `sp_entity_id`, `sp_acs_url`
+- [x] `saml_idp_sp_certificate_created` event on cert generation
+- [x] Per-IdP metadata returns correct EntityID, ACS URL, certificate (unit tests)
+- [x] Two-step creation flow tested (unit + E2E)
+
+**Remaining cleanup (not blocking):**
+- Legacy `/saml/metadata` generic endpoint removed, but tenant-wide `saml_sp_certificates` table still exists (used as fallback)
+- Per-IdP SP certificate rotation API endpoint not yet exposed
+
+**Effort:** XL
+**Value:** High (Enables independent per-IdP certificate management, solves chicken-and-egg)
+
+---

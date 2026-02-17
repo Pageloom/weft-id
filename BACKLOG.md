@@ -179,68 +179,6 @@ Mirrors Item 2 but for the SP side (per-IdP signing certificates from the Per-Id
 
 ---
 
-## Step-by-Step SP Registration (Trust Establishment Flow)
-
-**User Story:**
-As a super admin
-I want to register a service provider in two steps (name first, then trust configuration)
-So that I can share WeftId's metadata with the SP immediately, avoiding the chicken-and-egg problem where both parties need each other's metadata before either can configure
-
-**Context:**
-
-Today, SP registration requires entity_id and ACS URL upfront (whether via metadata import or manual entry). But this creates a deadlock: the SP needs WeftId's metadata to configure their side, and WeftId needs the SP's metadata to create the SP record. The admin has to configure both sides in the right order, often guessing or going back and forth.
-
-The fix is a two-step flow. Step 1 creates the SP with just a name. WeftId immediately generates a per-SP signing certificate and makes the IdP metadata URL available. The admin can copy that URL and send it to the SP counterpart. Step 2 is establishing trust: importing the SP's metadata (preferably via URL), with manual configuration available as a de-emphasized fallback.
-
-**Technical notes:**
-- The signing certificate depends only on `tenant_id`, not on the SP's `entity_id`. Cert generation at Step 1 is safe.
-- WeftId's own entity ID for the SP is derived from the SP's UUID (`/saml/idp/metadata/{sp_id}`), independent of the SP's entity_id field.
-- Pending SPs (no entity_id) are invisible to SSO routing. No special rejection logic needed.
-
-**Acceptance Criteria:**
-
-**Data model:**
-
-- [ ] Add `trust_established` boolean column to `service_providers` (default `false`)
-- [ ] Migration backfills `trust_established = true` for all existing SPs
-- [ ] Make `entity_id` and `acs_url` nullable (currently NOT NULL). Pending SPs have these as NULL.
-- [ ] SSO flow checks `trust_established = true` AND `enabled = true` before processing. Pending SPs are excluded.
-- [ ] Unique constraint on `entity_id` must allow multiple NULLs (Postgres does this by default)
-
-**Step 1: Create SP (name only):**
-
-- [ ] New "Add Service Provider" form: only a name field (required, unique per tenant)
-- [ ] On submit: create SP record with `trust_established = false`, `entity_id = NULL`, `acs_url = NULL`
-- [ ] Eagerly generate per-SP signing certificate (existing behavior, just decoupled from metadata)
-- [ ] Redirect to the SP detail page, which shows the setup/trust establishment UI
-- [ ] API: `POST /api/v1/service-providers/` accepts `name` only (entity_id and acs_url become optional)
-
-**Step 2: SP detail page (pending state):**
-
-- [ ] When `trust_established = false`, the SP detail page shows a "Setup" banner or state indicator
-- [ ] Prominently display WeftId's metadata URL for this SP (copy button) so admin can share it with the SP
-- [ ] Primary action: "Import SP Metadata" section (metadata URL import is the default/recommended option)
-- [ ] Secondary action: metadata XML paste (available but not the default)
-- [ ] De-emphasized action: manual configuration of entity_id, ACS URL, SLO URL (collapsed or "Advanced" label)
-- [ ] Once metadata is imported or manual config is saved, set `trust_established = true`
-- [ ] After trust is established, the SP detail page shows the normal view (existing behavior)
-
-**Existing SP behavior (no regression):**
-
-- [ ] Existing fully-configured SPs (backfilled `trust_established = true`) work exactly as before
-- [ ] The SP list page shows a visual indicator for pending vs configured SPs
-- [ ] All existing tests continue to pass
-
-**Event logging:**
-
-- [ ] `service_provider_created` event on Step 1 (name-only creation)
-- [ ] `service_provider_trust_established` event when trust is established (metadata import or manual config)
-
-**Effort:** M
-**Value:** High (Eliminates the metadata chicken-and-egg problem, clearer admin workflow)
-
----
-
 ## Per-SP NameID Configuration
 
 **User Story:**
@@ -327,41 +265,6 @@ So that I do not have to manually manage group memberships for users from known 
 
 **Effort:** S-M
 **Value:** Medium (Reduces admin toil for common onboarding pattern)
-
----
-
-## User Export (CSV)
-
-**User Story:**
-As an admin
-I want to export the current filtered user list as a CSV file
-So that I can use the data for auditing, compliance reporting, and operational tasks outside the platform
-
-**Acceptance Criteria:**
-
-**Frontend Export:**
-
-- [ ] "Export" button on the users list page
-- [ ] Exports the current filtered/searched result set (respects active search, role filters, status filters)
-- [ ] Downloads as a `.csv` file with a timestamped filename (e.g., `users_2026-02-07.csv`)
-- [ ] CSV columns: Name, Email, Role, Status, Auth Method, Last Login, Last Activity, Created At
-- [ ] Handles large exports gracefully (streaming response, not buffered in memory)
-- [ ] Export limited to admin+ role
-
-**API Endpoint:**
-
-- [ ] `GET /api/v1/users/export?format=csv` with same filter parameters as list endpoint
-- [ ] Supports `format=csv` (default) and `format=json` for programmatic use
-- [ ] Streams response for large datasets
-- [ ] Admin+ authorization required
-
-**Event Logging:**
-
-- [ ] Export action logged as audit event (`users_exported` event type)
-- [ ] Event metadata includes: format, filter criteria, row count
-
-**Effort:** S
-**Value:** High (Frequently needed for compliance and operations, low implementation cost)
 
 ---
 

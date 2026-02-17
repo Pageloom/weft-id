@@ -323,6 +323,68 @@ class TestGenerateIdPMetadataXML:
         for svc in slo_services:
             assert svc.attrib["Location"] == "https://idp.example.com/saml/idp/slo"
 
+    def test_default_attributes_when_no_mapping(self):
+        """Default SAML_ATTRIBUTE_URIS attributes appear when no mapping provided."""
+        from utils.saml_assertion import SAML_ATTRIBUTE_URIS
+
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        attrs = idp_desc.findall(f"{{{saml_ns}}}Attribute")
+
+        assert len(attrs) == len(SAML_ATTRIBUTE_URIS)
+        names = {a.attrib["Name"] for a in attrs}
+        friendly_names = {a.attrib["FriendlyName"] for a in attrs}
+        for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
+            assert uri in names
+            assert friendly_name in friendly_names
+
+    def test_custom_attribute_mapping(self):
+        """Custom mapping overrides default attributes in metadata."""
+        custom_mapping = {
+            "email": "urn:oid:0.9.2342.19200300.100.1.3",
+            "firstName": "urn:oid:2.5.4.42",
+        }
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+            attribute_mapping=custom_mapping,
+        )
+        root = DefusedET.fromstring(xml)
+        saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        attrs = idp_desc.findall(f"{{{saml_ns}}}Attribute")
+
+        assert len(attrs) == 2
+        attr_map = {a.attrib["FriendlyName"]: a.attrib["Name"] for a in attrs}
+        assert attr_map == custom_mapping
+
+    def test_none_attribute_mapping_uses_defaults(self):
+        """Explicitly passing None uses default attributes."""
+        from utils.saml_assertion import SAML_ATTRIBUTE_URIS
+
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+            attribute_mapping=None,
+        )
+        root = DefusedET.fromstring(xml)
+        saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        attrs = idp_desc.findall(f"{{{saml_ns}}}Attribute")
+
+        assert len(attrs) == len(SAML_ATTRIBUTE_URIS)
+
 
 # =============================================================================
 # parse_sp_metadata_xml: fallback ACS and PEM header edge cases

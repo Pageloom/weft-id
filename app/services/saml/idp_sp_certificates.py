@@ -199,9 +199,14 @@ def get_idp_sp_metadata_xml(
 
     previous_cert = cert.get("previous_certificate_pem")
 
+    # Fetch IdP's attribute mapping so metadata reflects actual attributes
+    idp_row = database.saml.get_identity_provider(tenant_id, idp_id)
+    idp_attribute_mapping = idp_row.get("attribute_mapping") if idp_row else None
+
     return generate_sp_metadata_xml(
         entity_id=entity_id,
         acs_url=acs_url,
         certificate_pem=cert["certificate_pem"],
         previous_certificate_pem=previous_cert,
+        attribute_mapping=idp_attribute_mapping,
     )

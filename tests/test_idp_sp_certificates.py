@@ -329,6 +329,110 @@ class TestGetIdpSpMetadataXml:
 
         assert exc_info.value.code == "idp_sp_certificate_not_found"
 
+    def test_passes_idp_attribute_mapping_to_generator(self):
+        """IdP's attribute_mapping is forwarded to generate_sp_metadata_xml."""
+        from unittest.mock import patch
+
+        from services import saml as saml_service
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        custom_mapping = {
+            "urn:oid:0.9.2342.19200300.100.1.3": "email",
+            "urn:oid:2.5.4.42": "firstName",
+        }
+
+        cert_pem = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n"
+            "-----END CERTIFICATE-----"
+        )
+
+        with (
+            patch("services.saml.idp_sp_certificates.database") as mock_db,
+            patch("services.saml.idp_sp_certificates.generate_sp_metadata_xml") as mock_gen,
+        ):
+            mock_db.saml.get_idp_sp_certificate.return_value = {
+                "certificate_pem": cert_pem,
+                "previous_certificate_pem": None,
+            }
+            mock_db.saml.get_identity_provider.return_value = {
+                "id": idp_id,
+                "attribute_mapping": custom_mapping,
+            }
+            mock_gen.return_value = "<xml/>"
+
+            saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, "https://test.example.com")
+
+            mock_gen.assert_called_once()
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["attribute_mapping"] == custom_mapping
+
+    def test_no_idp_attribute_mapping_passes_none(self):
+        """When IdP has no attribute_mapping, None is passed to the generator."""
+        from unittest.mock import patch
+
+        from services import saml as saml_service
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        cert_pem = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n"
+            "-----END CERTIFICATE-----"
+        )
+
+        with (
+            patch("services.saml.idp_sp_certificates.database") as mock_db,
+            patch("services.saml.idp_sp_certificates.generate_sp_metadata_xml") as mock_gen,
+        ):
+            mock_db.saml.get_idp_sp_certificate.return_value = {
+                "certificate_pem": cert_pem,
+                "previous_certificate_pem": None,
+            }
+            mock_db.saml.get_identity_provider.return_value = {
+                "id": idp_id,
+                "attribute_mapping": None,
+            }
+            mock_gen.return_value = "<xml/>"
+
+            saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, "https://test.example.com")
+
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["attribute_mapping"] is None
+
+    def test_idp_not_found_uses_no_mapping(self):
+        """When IdP row is not found, no attribute mapping is passed."""
+        from unittest.mock import patch
+
+        from services import saml as saml_service
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        cert_pem = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n"
+            "-----END CERTIFICATE-----"
+        )
+
+        with (
+            patch("services.saml.idp_sp_certificates.database") as mock_db,
+            patch("services.saml.idp_sp_certificates.generate_sp_metadata_xml") as mock_gen,
+        ):
+            mock_db.saml.get_idp_sp_certificate.return_value = {
+                "certificate_pem": cert_pem,
+                "previous_certificate_pem": None,
+            }
+            mock_db.saml.get_identity_provider.return_value = None
+            mock_gen.return_value = "<xml/>"
+
+            saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, "https://test.example.com")
+
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["attribute_mapping"] is None
+
 
 # =============================================================================
 # Two-Step IdP Creation: Name-Only Mode

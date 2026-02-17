@@ -102,4 +102,5 @@ def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
         sso_url=sso_url,
         certificate_pem=cert["certificate_pem"],
         slo_url=slo_url,
+        attribute_mapping=sp_row.get("attribute_mapping"),
     )

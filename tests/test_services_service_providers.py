@@ -965,6 +965,59 @@ class TestGetSPIdPMetadataXML:
             with pytest.raises(NotFoundError, match="IdP certificate not configured"):
                 sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
 
+    def test_passes_sp_attribute_mapping_to_generator(self):
+        """SP's attribute_mapping is forwarded to generate_idp_metadata_xml."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        custom_mapping = {
+            "email": "urn:oid:0.9.2342.19200300.100.1.3",
+            "firstName": "urn:oid:2.5.4.42",
+        }
+
+        with (
+            patch("services.service_providers.metadata.database") as mock_db,
+            patch("services.service_providers.metadata.generate_idp_metadata_xml") as mock_gen,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, attribute_mapping=custom_mapping
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                "certificate_pem": SAMPLE_CERT_PEM,
+            }
+            mock_gen.return_value = "<xml/>"
+
+            sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
+
+            mock_gen.assert_called_once()
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["attribute_mapping"] == custom_mapping
+
+    def test_no_attribute_mapping_passes_none(self):
+        """When SP has no attribute_mapping, None is passed to the generator."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+
+        with (
+            patch("services.service_providers.metadata.database") as mock_db,
+            patch("services.service_providers.metadata.generate_idp_metadata_xml") as mock_gen,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, attribute_mapping=None
+            )
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
+                "certificate_pem": SAMPLE_CERT_PEM,
+            }
+            mock_gen.return_value = "<xml/>"
+
+            sp_service.get_sp_idp_metadata_xml(tenant_id, sp_id, "https://idp.example.com")
+
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["attribute_mapping"] is None
+
 
 # =============================================================================
 # list_service_providers with cert expiry enrichment

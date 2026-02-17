@@ -429,6 +429,67 @@ def test_generate_sp_metadata_xml_without_slo_url(sample_certificate):
     assert "SingleLogoutService" not in xml
 
 
+def test_generate_sp_metadata_xml_custom_attribute_mapping(sample_certificate):
+    """Custom attribute mapping overrides default RequestedAttribute elements."""
+    from defusedxml import ElementTree as DefusedET
+
+    cert_pem, _ = sample_certificate
+    custom_mapping = {
+        "urn:oid:0.9.2342.19200300.100.1.3": "email",
+        "urn:oid:2.5.4.42": "firstName",
+    }
+
+    xml = generate_sp_metadata_xml(
+        entity_id="https://sp.example.com/saml/metadata",
+        acs_url="https://sp.example.com/saml/acs",
+        certificate_pem=cert_pem,
+        attribute_mapping=custom_mapping,
+    )
+
+    root = DefusedET.fromstring(xml)
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+    sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+    acs_elem = sp_desc.find(f"{{{md_ns}}}AttributeConsumingService")
+    req_attrs = acs_elem.findall(f"{{{md_ns}}}RequestedAttribute")
+
+    assert len(req_attrs) == 2
+    attr_map = {a.attrib["Name"]: a.attrib["FriendlyName"] for a in req_attrs}
+    assert attr_map == custom_mapping
+
+    # email field should be required
+    for a in req_attrs:
+        if a.attrib["FriendlyName"] == "email":
+            assert a.attrib["isRequired"] == "true"
+        else:
+            assert a.attrib["isRequired"] == "false"
+
+
+def test_generate_sp_metadata_xml_default_attributes(sample_certificate):
+    """No mapping uses default SAML_ATTRIBUTE_URIS for RequestedAttribute."""
+    from defusedxml import ElementTree as DefusedET
+
+    from app.utils.saml_assertion import SAML_ATTRIBUTE_URIS
+
+    cert_pem, _ = sample_certificate
+
+    xml = generate_sp_metadata_xml(
+        entity_id="https://sp.example.com/saml/metadata",
+        acs_url="https://sp.example.com/saml/acs",
+        certificate_pem=cert_pem,
+    )
+
+    root = DefusedET.fromstring(xml)
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+    sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+    acs_elem = sp_desc.find(f"{{{md_ns}}}AttributeConsumingService")
+    req_attrs = acs_elem.findall(f"{{{md_ns}}}RequestedAttribute")
+
+    assert len(req_attrs) == len(SAML_ATTRIBUTE_URIS)
+    names = {a.attrib["Name"] for a in req_attrs}
+    for uri in SAML_ATTRIBUTE_URIS.values():
+        assert uri in names
+
+
 # =============================================================================
 # SAML Settings Builder Tests
 # =============================================================================

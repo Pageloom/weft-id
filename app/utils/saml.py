@@ -322,6 +322,7 @@ def generate_sp_metadata_xml(
     certificate_pem: str,
     slo_url: str | None = None,
     previous_certificate_pem: str | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> str:
     """
     Generate SP metadata XML for IdPs to consume.
@@ -332,6 +333,8 @@ def generate_sp_metadata_xml(
         certificate_pem: PEM-encoded SP signing certificate
         slo_url: Optional Single Logout URL
         previous_certificate_pem: Optional previous cert during rotation grace period
+        attribute_mapping: Optional IdP attribute mapping {idp_attr_name: platform_field}.
+            Uses defaults if None.
 
     Returns:
         XML metadata string
@@ -351,11 +354,23 @@ def generate_sp_metadata_xml(
 
     # Build requested attributes for AttributeConsumingService
     attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-    required_attrs = {"email"}  # only email is required
     attr_elements = ""
-    for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
-        is_required = "true" if friendly_name in required_attrs else "false"
-        attr_elements += f"""
+    if attribute_mapping:
+        # IdP mapping: key = IdP attribute name (Name), value = platform field (FriendlyName)
+        for idp_attr_name, platform_field in attribute_mapping.items():
+            is_required = "true" if platform_field == "email" else "false"
+            attr_elements += f"""
+      <md:RequestedAttribute
+          Name="{idp_attr_name}"
+          NameFormat="{attr_format}"
+          FriendlyName="{platform_field}"
+          isRequired="{is_required}" />"""
+    else:
+        # Default: SAML_ATTRIBUTE_URIS key = friendlyName, value = URI
+        required_attrs = {"email"}
+        for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
+            is_required = "true" if friendly_name in required_attrs else "false"
+            attr_elements += f"""
       <md:RequestedAttribute
           Name="{uri}"
           NameFormat="{attr_format}"

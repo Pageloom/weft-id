@@ -193,6 +193,7 @@ def generate_idp_metadata_xml(
     sso_url: str,
     certificate_pem: str,
     slo_url: str | None = None,
+    attribute_mapping: dict[str, str] | None = None,
 ) -> str:
     """Generate SAML IdP metadata XML for downstream SPs to consume.
 
@@ -201,6 +202,7 @@ def generate_idp_metadata_xml(
         sso_url: Single Sign-On service URL
         certificate_pem: PEM-encoded IdP signing certificate
         slo_url: Optional Single Logout service URL
+        attribute_mapping: Optional {friendlyName: URI} mapping. Uses defaults if None.
 
     Returns:
         XML metadata string
@@ -224,7 +226,7 @@ def generate_idp_metadata_xml(
     # Build attribute declarations so SPs know what to expect
     attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
     attr_elements = ""
-    for friendly_name, uri in SAML_ATTRIBUTE_URIS.items():
+    for friendly_name, uri in (attribute_mapping or SAML_ATTRIBUTE_URIS).items():
         attr_elements += f"""
     <saml:Attribute
         Name="{uri}"

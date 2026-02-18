@@ -122,6 +122,7 @@ def test_auto_rotates_cert_expiring_soon(mock_database, mock_session, mock_log_e
     current = _make_current_cert(sp_id=cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 90
 
     new_expires = datetime.now(UTC) + timedelta(days=3650)
     rotate_result = {"id": str(uuid4()), "sp_id": cert["sp_id"]}
@@ -204,6 +205,7 @@ def test_handles_mixed_certs(mock_database, mock_session, mock_log_event):
     current = _make_current_cert(sp_id=rotate_cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 90
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
     db_rotate.return_value = {
         "id": str(uuid4()),
@@ -250,6 +252,7 @@ def test_per_cert_errors_dont_stop_processing(mock_database, mock_session, mock_
     current = _make_current_cert(sp_id=cert2["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 90
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
     db_rotate.return_value = {
         "id": str(uuid4()),
@@ -275,7 +278,7 @@ def test_per_cert_errors_dont_stop_processing(mock_database, mock_session, mock_
 @patch("jobs.rotate_certificates.session")
 @patch("jobs.rotate_certificates.database")
 def test_rotation_event_logging(mock_database, mock_session, mock_log_event):
-    """Verifies event logging for auto-rotation with correct metadata."""
+    """Verifies event logging for auto-rotation includes tenant's rotation window."""
     from jobs.rotate_certificates import rotate_and_cleanup_certificates
 
     cert = _make_cert(action="rotate")
@@ -287,6 +290,7 @@ def test_rotation_event_logging(mock_database, mock_session, mock_log_event):
     current = _make_current_cert(sp_id=cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 5
+    mock_database.security.get_certificate_rotation_window.return_value = 60
 
     rotate_result_id = str(uuid4())
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
@@ -315,7 +319,7 @@ def test_rotation_event_logging(mock_database, mock_session, mock_log_event):
     assert kw["artifact_id"] == rotate_result_id
     assert kw["event_type"] == "sp_signing_certificate_auto_rotated"
     assert kw["metadata"]["sp_id"] == str(cert["sp_id"])
-    assert kw["metadata"]["grace_period_days"] == 90
+    assert kw["metadata"]["grace_period_days"] == 60
     assert kw["metadata"]["validity_years"] == 5
     assert str(new_expires) in kw["metadata"]["new_expires_at"]
 
@@ -378,6 +382,7 @@ def test_uses_tenant_certificate_lifetime(mock_database, mock_session, mock_log_
     current = _make_current_cert(sp_id=cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 3
+    mock_database.security.get_certificate_rotation_window.return_value = 90
 
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
     db_rotate.return_value = {
@@ -426,6 +431,7 @@ def test_skips_rotation_when_cert_disappears(mock_database, mock_session, mock_l
     mock_session.return_value.__exit__ = MagicMock(return_value=False)
 
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 90
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = None
 
     with _patch_crypto()[0], _patch_crypto()[1], _patch_crypto()[2]:
@@ -498,6 +504,7 @@ def test_cleanup_error_doesnt_stop_rotation(mock_database, mock_session, mock_lo
     current = _make_current_cert(sp_id=rotate_cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 90
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
     db_rotate.return_value = {
         "id": str(uuid4()),
@@ -516,8 +523,8 @@ def test_cleanup_error_doesnt_stop_rotation(mock_database, mock_session, mock_lo
 @patch("jobs.rotate_certificates.log_event")
 @patch("jobs.rotate_certificates.session")
 @patch("jobs.rotate_certificates.database")
-def test_rotation_uses_90_day_grace_period(mock_database, mock_session, mock_log_event):
-    """Verifies that auto-rotation uses a 90-day grace period."""
+def test_rotation_uses_tenant_configured_window(mock_database, mock_session, mock_log_event):
+    """Verifies that auto-rotation uses the tenant's configured rotation window."""
     from jobs.rotate_certificates import rotate_and_cleanup_certificates
 
     cert = _make_cert(action="rotate")
@@ -529,6 +536,7 @@ def test_rotation_uses_90_day_grace_period(mock_database, mock_session, mock_log
     current = _make_current_cert(sp_id=cert["sp_id"])
     mock_database.sp_signing_certificates.get_signing_certificate.return_value = current
     mock_database.security.get_certificate_lifetime.return_value = 10
+    mock_database.security.get_certificate_rotation_window.return_value = 30
     db_rotate = mock_database.sp_signing_certificates.rotate_signing_certificate
     db_rotate.return_value = {
         "id": str(uuid4()),
@@ -538,10 +546,15 @@ def test_rotation_uses_90_day_grace_period(mock_database, mock_session, mock_log
     with _patch_crypto()[0], _patch_crypto()[1], _patch_crypto()[2]:
         rotate_and_cleanup_certificates()
 
+    # Verify it fetched the rotation window from DB
+    mock_database.security.get_certificate_rotation_window.assert_called_once_with(
+        str(cert["tenant_id"])
+    )
+
     kw = db_rotate.call_args[1]
     grace_end = kw["rotation_grace_period_ends_at"]
 
-    # Should be approximately 90 days from now
-    expected = datetime.now(UTC) + timedelta(days=90)
+    # Should be approximately 30 days from now (tenant's configured window)
+    expected = datetime.now(UTC) + timedelta(days=30)
     delta = abs((grace_end - expected).total_seconds())
     assert delta < 5  # Within 5 seconds

@@ -35,44 +35,6 @@ The daily background job (`rotate_certificates.py`) handles certificate cleanup 
 
 ---
 
-## Configurable Certificate Rotation Window in Security Settings
-
-**User Story:**
-As a super admin
-I want to configure the certificate rotation window (how far before expiry auto-rotation starts)
-So that I can control how long downstream SPs have to update their trust configuration
-
-**Context:**
-
-The auto-rotation background job currently uses a hardcoded 90-day window: certificates are rotated when they expire within 90 days, and the grace period is also 90 days. Different organizations may want shorter or longer windows depending on how quickly their SP partners can update. This setting should appear in Admin > Settings > Security, next to the existing certificate validity setting.
-
-**Acceptance Criteria:**
-
-- [ ] New DB column `certificate_rotation_window_days` in `tenant_security_settings` (default 90)
-- [ ] Migration adds the column with CHECK constraint for allowed values
-- [ ] Admin > Settings > Security page shows "Certificate rotation window" setting next to certificate validity
-- [ ] Options: 90 (default), 60, 30, and 14 days
-- [ ] Information text explains the setting: during this window, the upcoming certificate appears in SP metadata so downstream SPs can update their trust
-- [ ] `get_certificate_rotation_window()` function in database/security and services/settings
-- [ ] Background job uses the tenant's configured window instead of hardcoded 90 days
-- [ ] Cross-tenant query in `get_certificates_needing_rotation_or_cleanup()` joins with security settings to use per-tenant window
-- [ ] Event log entry when setting is changed (`tenant_certificate_rotation_window_updated`)
-- [ ] API endpoint for reading/updating the setting
-- [ ] Tests cover: default value, custom values, background job respects setting
-
-**Key files:**
-- Migration: `db-init/migrations/NNNN_add_certificate_rotation_window.sql`
-- Modify: `app/database/security.py`, `app/services/settings.py`
-- Modify: `app/database/sp_signing_certificates.py` (query uses tenant setting)
-- Modify: `app/jobs/rotate_certificates.py` (uses tenant setting instead of constant)
-- Modify: `app/routers/admin.py` and template (security settings UI)
-- Modify: `app/constants/event_types.py` (new event type)
-
-**Effort:** S
-**Value:** Medium (Organizational flexibility for rotation timing)
-
----
-
 ## SP-Side Certificate Rotation & Lifecycle Management
 
 **User Story:**

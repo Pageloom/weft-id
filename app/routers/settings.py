@@ -204,6 +204,7 @@ def admin_security(
             allow_users_add_emails=settings.allow_users_add_emails,
             inactivity_threshold_days=settings.inactivity_threshold_days,
             max_certificate_lifetime_years=settings.max_certificate_lifetime_years,
+            certificate_rotation_window_days=settings.certificate_rotation_window_days,
             success=success,
             error=error,
         ),
@@ -221,6 +222,7 @@ def update_admin_security(
     allow_users_add_emails: Annotated[str, Form()] = "",
     inactivity_threshold: Annotated[str, Form()] = "",
     certificate_lifetime: Annotated[str, Form()] = "",
+    rotation_window: Annotated[str, Form()] = "",
 ):
     """Update security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
@@ -283,6 +285,22 @@ def update_admin_security(
             )
             return render_error_page(request, tenant_id, exc)
 
+    # Parse rotation window (empty string means keep current)
+    rotation_window_days: Literal[14, 30, 60, 90] | None = None
+    if rotation_window:
+        try:
+            parsed_window = int(rotation_window)
+            if parsed_window not in (14, 30, 60, 90):
+                raise ValueError("Invalid rotation window value")
+            rotation_window_days = parsed_window  # type: ignore[assignment]
+        except ValueError:
+            exc = ValidationError(
+                message="Certificate rotation window must be 14, 30, 60, or 90 days",
+                code="invalid_rotation_window",
+                field="certificate_rotation_window_days",
+            )
+            return render_error_page(request, tenant_id, exc)
+
     # Parse checkboxes (checked = "true", unchecked = "")
     try:
         settings_update = TenantSecuritySettingsUpdate(
@@ -292,6 +310,7 @@ def update_admin_security(
             allow_users_add_emails=allow_users_add_emails == "true",
             inactivity_threshold_days=inactivity_days,
             max_certificate_lifetime_years=cert_lifetime_years,
+            certificate_rotation_window_days=rotation_window_days,
         )
     except PydanticValidationError as e:
         # Convert Pydantic validation error to service error

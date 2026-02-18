@@ -17,7 +17,8 @@ def get_security_settings(tenant_id: TenantArg) -> dict | None:
         """
         select session_timeout_seconds, persistent_sessions,
                allow_users_edit_profile, allow_users_add_emails,
-               inactivity_threshold_days, max_certificate_lifetime_years
+               inactivity_threshold_days, max_certificate_lifetime_years,
+               certificate_rotation_window_days
         from tenant_security_settings
         where tenant_id = :tenant_id
         """,
@@ -106,6 +107,7 @@ def update_security_settings(
     allow_users_add_emails: bool,
     inactivity_threshold_days: int | None,
     max_certificate_lifetime_years: int,
+    certificate_rotation_window_days: int,
     updated_by: str,
     tenant_id_value: str,
 ) -> int:
@@ -120,6 +122,7 @@ def update_security_settings(
         allow_users_add_emails: Whether users can add email addresses
         inactivity_threshold_days: Days before inactive users are auto-inactivated (None = disabled)
         max_certificate_lifetime_years: Lifetime in years for new signing certificates
+        certificate_rotation_window_days: Days before expiry to trigger auto-rotation
         updated_by: User ID of the person making the update
         tenant_id_value: The actual tenant ID value to store in the record
 
@@ -133,13 +136,13 @@ def update_security_settings(
             tenant_id, session_timeout_seconds, persistent_sessions,
             allow_users_edit_profile, allow_users_add_emails,
             inactivity_threshold_days, max_certificate_lifetime_years,
-            updated_by
+            certificate_rotation_window_days, updated_by
         )
         values (
             :tenant_id, :timeout_seconds, :persistent_sessions,
             :allow_users_edit_profile, :allow_users_add_emails,
             :inactivity_threshold_days, :max_certificate_lifetime_years,
-            :updated_by
+            :certificate_rotation_window_days, :updated_by
         )
         on conflict (tenant_id)
         do update set
@@ -149,6 +152,7 @@ def update_security_settings(
             allow_users_add_emails = :allow_users_add_emails,
             inactivity_threshold_days = :inactivity_threshold_days,
             max_certificate_lifetime_years = :max_certificate_lifetime_years,
+            certificate_rotation_window_days = :certificate_rotation_window_days,
             updated_at = now(),
             updated_by = :updated_by
         """,
@@ -160,6 +164,7 @@ def update_security_settings(
             "allow_users_add_emails": allow_users_add_emails,
             "inactivity_threshold_days": inactivity_threshold_days,
             "max_certificate_lifetime_years": max_certificate_lifetime_years,
+            "certificate_rotation_window_days": certificate_rotation_window_days,
             "updated_by": updated_by,
         },
     )
@@ -201,6 +206,25 @@ def get_certificate_lifetime(tenant_id: TenantArg) -> int:
         {"tenant_id": tenant_id},
     )
     return result["max_certificate_lifetime_years"] if result else 10
+
+
+def get_certificate_rotation_window(tenant_id: TenantArg) -> int:
+    """
+    Get the certificate rotation window in days for a tenant.
+
+    Returns:
+        Number of days, or 90 (default) if not configured
+    """
+    result = fetchone(
+        tenant_id,
+        """
+        select certificate_rotation_window_days
+        from tenant_security_settings
+        where tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+    return result["certificate_rotation_window_days"] if result else 90
 
 
 def get_all_tenants_with_inactivity_threshold() -> list[dict]:

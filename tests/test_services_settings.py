@@ -762,3 +762,119 @@ def test_get_certificate_lifetime_configured(test_tenant, test_super_admin_user)
     result = settings_service.get_certificate_lifetime(test_tenant["id"])
 
     assert result == 3
+
+
+# =============================================================================
+# Certificate Rotation Window Tests
+# =============================================================================
+
+
+def test_get_security_settings_includes_rotation_window_default(test_tenant, test_super_admin_user):
+    """Test that get_security_settings returns default rotation window of 90."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    result = settings_service.get_security_settings(requesting_user)
+
+    assert result.certificate_rotation_window_days == 90
+
+
+def test_update_security_settings_with_rotation_window(test_tenant, test_super_admin_user):
+    """Test updating rotation window setting."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=30)
+
+    result = settings_service.update_security_settings(requesting_user, settings_update)
+
+    assert result.certificate_rotation_window_days == 30
+
+    # Verify it persists
+    result = settings_service.get_security_settings(requesting_user)
+    assert result.certificate_rotation_window_days == 30
+
+
+def test_update_rotation_window_logs_dedicated_event(test_tenant, test_super_admin_user):
+    """Test that changing rotation window logs a dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set initial value
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=60)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Change to a different value
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=30)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Verify the dedicated event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=5)
+    window_events = [
+        e for e in events if e["event_type"] == "tenant_certificate_rotation_window_updated"
+    ]
+    assert len(window_events) >= 1
+    latest = window_events[0]
+    assert latest["metadata"]["old_days"] == 60
+    assert latest["metadata"]["new_days"] == 30
+
+
+def test_update_rotation_window_same_value_no_dedicated_event(test_tenant, test_super_admin_user):
+    """Test that setting same rotation window does not log dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set to 60
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=60)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Set to 60 again (same value)
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=60)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Check that the second update did NOT produce a dedicated rotation window event
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    window_events = [
+        e for e in events if e["event_type"] == "tenant_certificate_rotation_window_updated"
+    ]
+    # Only the first change (from default 90 -> 60) should have logged
+    assert len(window_events) == 1
+
+
+def test_get_certificate_rotation_window_default(test_tenant):
+    """Test get_certificate_rotation_window returns 90 when not configured."""
+    result = settings_service.get_certificate_rotation_window(test_tenant["id"])
+
+    assert result == 90
+
+
+def test_get_certificate_rotation_window_configured(test_tenant, test_super_admin_user):
+    """Test get_certificate_rotation_window returns configured value."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=14)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    result = settings_service.get_certificate_rotation_window(test_tenant["id"])
+
+    assert result == 14
+
+
+def test_rotation_window_invalid_value_fails():
+    """Test that invalid rotation window value fails at Pydantic validation."""
+    from pydantic_core import ValidationError as PydanticValidationError
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(certificate_rotation_window_days=45)  # Not in [14,30,60,90]
+
+
+def test_rotation_window_valid_values():
+    """Test that all valid rotation window values are accepted."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    for days in [14, 30, 60, 90]:
+        update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=days)
+        assert update.certificate_rotation_window_days == days

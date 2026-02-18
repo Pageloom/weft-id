@@ -60,6 +60,10 @@ class TenantSecuritySettings(BaseModel):
         10,
         description="Lifetime in years for newly generated signing certificates",
     )
+    certificate_rotation_window_days: int = Field(
+        90,
+        description="Days before expiry to trigger auto-rotation and grace period duration",
+    )
 
 
 class TenantSecuritySettingsUpdate(BaseModel):
@@ -85,4 +89,8 @@ class TenantSecuritySettingsUpdate(BaseModel):
     max_certificate_lifetime_years: Literal[1, 2, 3, 5, 10] | None = Field(
         None,
         description="Lifetime in years for newly generated signing certificates",
+    )
+    certificate_rotation_window_days: Literal[14, 30, 60, 90] | None = Field(
+        None,
+        description="Days before expiry to trigger auto-rotation and grace period duration",
     )

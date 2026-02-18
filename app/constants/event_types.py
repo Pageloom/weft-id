@@ -82,6 +82,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "privileged_domain_added": "Privileged email domain added",
     "privileged_domain_deleted": "Privileged email domain removed",
     "tenant_certificate_lifetime_updated": "Certificate lifetime setting changed",
+    "tenant_certificate_rotation_window_updated": "Certificate rotation window setting changed",
     "tenant_settings_updated": "Tenant settings updated",
     # Background Tasks & Exports
     "export_task_created": "Background export job created",

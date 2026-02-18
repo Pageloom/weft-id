@@ -1,7 +1,7 @@
 """Automatic SP signing certificate rotation and cleanup.
 
 This module provides the scheduled job that:
-1. Auto-rotates per-SP signing certificates expiring within 90 days.
+1. Auto-rotates per-SP signing certificates based on the tenant's configured rotation window.
 2. Cleans up previous certificates after their grace period has expired.
 """
 
@@ -21,8 +21,6 @@ from utils.saml import (
 
 logger = logging.getLogger(__name__)
 
-ROTATION_GRACE_PERIOD_DAYS = 90
-
 
 def rotate_and_cleanup_certificates() -> dict[str, Any]:
     """
@@ -31,9 +29,9 @@ def rotate_and_cleanup_certificates() -> dict[str, Any]:
     This function is called directly by the worker's periodic timer (daily),
     not as a queued job.
 
-    For each certificate needing rotation (expires within 90 days):
+    For each certificate needing rotation (expires within the tenant's configured window):
     - Generate a new certificate using the tenant's configured lifetime
-    - Rotate with a 90-day grace period for SP migration
+    - Rotate with a grace period matching the tenant's rotation window
     - Log auto-rotation event
 
     For each certificate needing cleanup (grace period expired):
@@ -131,8 +129,9 @@ def _rotate_certificate(cert: dict[str, Any]) -> bool:
     sp_id = str(cert["sp_id"])
 
     with session(tenant_id=tenant_id):
-        # Get tenant's configured certificate lifetime
+        # Get tenant's configured certificate lifetime and rotation window
         lifetime = database.security.get_certificate_lifetime(tenant_id)
+        rotation_window = database.security.get_certificate_rotation_window(tenant_id)
 
         # Generate new certificate
         new_cert_pem, new_key_pem = generate_sp_certificate(tenant_id, validity_years=lifetime)
@@ -149,7 +148,7 @@ def _rotate_certificate(cert: dict[str, Any]) -> bool:
             )
             return False
 
-        grace_period_ends = datetime.now(UTC) + timedelta(days=ROTATION_GRACE_PERIOD_DAYS)
+        grace_period_ends = datetime.now(UTC) + timedelta(days=rotation_window)
 
         result = database.sp_signing_certificates.rotate_signing_certificate(
             tenant_id=tenant_id,
@@ -174,7 +173,7 @@ def _rotate_certificate(cert: dict[str, Any]) -> bool:
             event_type="sp_signing_certificate_auto_rotated",
             metadata={
                 "sp_id": sp_id,
-                "grace_period_days": ROTATION_GRACE_PERIOD_DAYS,
+                "grace_period_days": rotation_window,
                 "grace_period_ends_at": str(grace_period_ends),
                 "new_expires_at": str(new_expires_at),
                 "old_expires_at": str(cert["expires_at"]),

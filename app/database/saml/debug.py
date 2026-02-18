@@ -1,6 +1,6 @@
 """SAML debug entry database operations."""
 
-from database._core import TenantArg, fetchall, fetchone
+from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def store_debug_entry(
@@ -118,7 +118,7 @@ def delete_old_debug_entries(hours: int = 24) -> int:
     """
     Delete debug entries older than the specified hours.
 
-    Does not use RLS (called by background job).
+    Uses UNSCOPED to bypass RLS (system task).
 
     Args:
         hours: Age threshold in hours (default 24)
@@ -126,17 +126,11 @@ def delete_old_debug_entries(hours: int = 24) -> int:
     Returns:
         Number of entries deleted
     """
-    from database._core import get_pool
-    from psycopg.rows import dict_row
-
-    pool = get_pool()
-    with pool.connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                delete from saml_debug_entries
-                where created_at < now() - interval '%s hours'
-                """,
-                (hours,),
-            )
-            return cur.rowcount
+    return execute(
+        UNSCOPED,
+        """
+        delete from saml_debug_entries
+        where created_at < now() - make_interval(hours => :hours)
+        """,
+        {"hours": hours},
+    )

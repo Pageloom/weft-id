@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Configurable Certificate Rotation Window in Security Settings
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want to configure the certificate rotation window (how far before expiry auto-rotation starts)
+So that I can control how long downstream SPs have to update their trust configuration
+
+**Acceptance Criteria:**
+
+- [x] New DB column `certificate_rotation_window_days` in `tenant_security_settings` (default 90)
+- [x] Migration adds the column with CHECK constraint for allowed values
+- [x] Admin > Settings > Security page shows "Certificate rotation window" setting next to certificate validity
+- [x] Options: 90 (default), 60, 30, and 14 days
+- [x] Information text explains the setting: during this window, the upcoming certificate appears in SP metadata so downstream SPs can update their trust
+- [x] `get_certificate_rotation_window()` function in database/security and services/settings
+- [x] Background job uses the tenant's configured window instead of hardcoded 90 days
+- [x] Cross-tenant query in `get_certificates_needing_rotation_or_cleanup()` joins with security settings to use per-tenant window
+- [x] Event log entry when setting is changed (`tenant_certificate_rotation_window_updated`)
+- [x] API endpoint for reading/updating the setting (via existing security settings endpoint)
+- [x] Tests cover: default value, custom values, background job respects setting
+
+---
+
 ## Baseline Schema & Forward-Only Migration System
 
 **Status:** Complete

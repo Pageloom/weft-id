@@ -32,19 +32,23 @@ def get_certificates_needing_rotation_or_cleanup() -> list[dict]:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                select id, sp_id, tenant_id, expires_at,
-                       rotation_grace_period_ends_at,
+                select sc.id, sc.sp_id, sc.tenant_id, sc.expires_at,
+                       sc.rotation_grace_period_ends_at,
                        'rotate' as action
-                from sp_signing_certificates
-                where expires_at < now() + interval '90 days'
-                  and rotation_grace_period_ends_at is null
+                from sp_signing_certificates sc
+                left join tenant_security_settings tss
+                    on tss.tenant_id = sc.tenant_id
+                where sc.expires_at < now() + make_interval(
+                    days => coalesce(tss.certificate_rotation_window_days, 90)
+                )
+                  and sc.rotation_grace_period_ends_at is null
                 union all
-                select id, sp_id, tenant_id, expires_at,
-                       rotation_grace_period_ends_at,
+                select sc.id, sc.sp_id, sc.tenant_id, sc.expires_at,
+                       sc.rotation_grace_period_ends_at,
                        'cleanup' as action
-                from sp_signing_certificates
-                where rotation_grace_period_ends_at is not null
-                  and rotation_grace_period_ends_at < now()
+                from sp_signing_certificates sc
+                where sc.rotation_grace_period_ends_at is not null
+                  and sc.rotation_grace_period_ends_at < now()
                 """
             )
             return list(cur.fetchall())

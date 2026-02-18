@@ -97,6 +97,7 @@ def test_get_current_user_with_valid_session_timeout(test_user, test_admin_user)
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
+        certificate_rotation_window_days=90,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_user["tenant_id"],
     )
@@ -129,6 +130,7 @@ def test_get_current_user_with_expired_session_timeout(test_user, test_admin_use
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
+        certificate_rotation_window_days=90,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_user["tenant_id"],
     )
@@ -264,6 +266,7 @@ def test_get_current_user_session_timeout(test_tenant, test_user):
         allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
+        certificate_rotation_window_days=90,
         updated_by=test_user["id"],
         tenant_id_value=test_tenant["id"],
     )

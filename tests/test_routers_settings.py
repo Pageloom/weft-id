@@ -794,3 +794,102 @@ def test_security_template_has_certificate_lifetime_field():
 
     assert 'name="certificate_lifetime"' in template_content
     assert "Certificate Lifetime" in template_content
+
+
+# =============================================================================
+# Certificate Rotation Window Route Tests
+# =============================================================================
+
+
+def test_update_tenant_security_with_rotation_window(test_super_admin_user, override_auth, mocker):
+    """Test updating security with rotation window form field."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "rotation_window": "30",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=1" in response.headers["location"]
+    mock_update.assert_called_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["certificate_rotation_window_days"] == 30
+
+
+def test_update_tenant_security_empty_rotation_window(test_super_admin_user, override_auth, mocker):
+    """Test that empty rotation window keeps the default."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "rotation_window": "",  # Empty = keep default
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_update.assert_called_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert call_kwargs["certificate_rotation_window_days"] == 90
+
+
+def test_update_tenant_security_invalid_rotation_window_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with invalid rotation window shows error."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+            "rotation_window": "45",  # Invalid: not in [14, 30, 60, 90]
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+def test_security_template_has_rotation_window_field():
+    """Test that the security settings template includes rotation window dropdown."""
+    import os
+
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+    )
+    with open(template_path) as f:
+        template_content = f.read()
+
+    assert 'name="rotation_window"' in template_content
+    assert "Certificate Rotation Window" in template_content

@@ -83,6 +83,7 @@ sso_assertion_issued
 sso_consent_denied
 super_admin_self_reactivated
 tenant_certificate_lifetime_updated
+tenant_certificate_rotation_window_updated
 tenant_settings_updated
 totp_setup_initiated
 user_anonymized

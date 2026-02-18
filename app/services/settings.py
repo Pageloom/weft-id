@@ -269,6 +269,7 @@ def get_security_settings(
             allow_users_add_emails=True,
             inactivity_threshold_days=None,
             max_certificate_lifetime_years=10,
+            certificate_rotation_window_days=90,
         )
 
     return TenantSecuritySettings(
@@ -278,6 +279,7 @@ def get_security_settings(
         allow_users_add_emails=settings.get("allow_users_add_emails", True),
         inactivity_threshold_days=settings.get("inactivity_threshold_days"),
         max_certificate_lifetime_years=settings.get("max_certificate_lifetime_years", 10),
+        certificate_rotation_window_days=settings.get("certificate_rotation_window_days", 90),
     )
 
 
@@ -397,6 +399,22 @@ def get_certificate_lifetime(tenant_id: str) -> int:
     return database.security.get_certificate_lifetime(tenant_id)
 
 
+def get_certificate_rotation_window(tenant_id: str) -> int:
+    """
+    Get the certificate rotation window in days for a tenant.
+
+    This is a utility function that does not require authorization,
+    intended for use by the background rotation job.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Number of days for rotation window (default 90)
+    """
+    return database.security.get_certificate_rotation_window(tenant_id)
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,
@@ -466,6 +484,11 @@ def update_security_settings(
         if settings_update.max_certificate_lifetime_years is not None
         else current.get("max_certificate_lifetime_years", 10)
     )
+    rotation_window = (
+        settings_update.certificate_rotation_window_days
+        if settings_update.certificate_rotation_window_days is not None
+        else current.get("certificate_rotation_window_days", 90)
+    )
 
     # Build changes metadata for logging
     changes: dict = {}
@@ -499,6 +522,11 @@ def update_security_settings(
             "old": current.get("max_certificate_lifetime_years", 10),
             "new": cert_lifetime,
         }
+    if settings_update.certificate_rotation_window_days is not None:
+        changes["certificate_rotation_window_days"] = {
+            "old": current.get("certificate_rotation_window_days", 90),
+            "new": rotation_window,
+        }
 
     # Update in database
     database.security.update_security_settings(
@@ -509,6 +537,7 @@ def update_security_settings(
         allow_users_add_emails=allow_emails,
         inactivity_threshold_days=inactivity_days,
         max_certificate_lifetime_years=cert_lifetime,
+        certificate_rotation_window_days=rotation_window,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -539,6 +568,22 @@ def update_security_settings(
                 },
             )
 
+    # Log dedicated event when rotation window changes
+    if settings_update.certificate_rotation_window_days is not None:
+        old_window = current.get("certificate_rotation_window_days", 90)
+        if old_window != rotation_window:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="tenant_settings",
+                artifact_id=tenant_id,
+                event_type="tenant_certificate_rotation_window_updated",
+                metadata={
+                    "old_days": old_window,
+                    "new_days": rotation_window,
+                },
+            )
+
     return TenantSecuritySettings(
         session_timeout_seconds=timeout,
         persistent_sessions=persistent,
@@ -546,4 +591,5 @@ def update_security_settings(
         allow_users_add_emails=allow_emails,
         inactivity_threshold_days=inactivity_days,
         max_certificate_lifetime_years=cert_lifetime,
+        certificate_rotation_window_days=rotation_window,
     )

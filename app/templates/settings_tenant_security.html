@@ -132,6 +132,30 @@
             </div>
 
             <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+                <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Certificate Rotation Window</h2>
+                <div class="mb-6">
+                    <label for="rotation_window" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Auto-rotation and grace period window
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        Controls how far before expiry auto-rotation starts and how long the grace period
+                        lasts for downstream service providers to update their trust configuration.
+                    </p>
+
+                    <select
+                        name="rotation_window"
+                        id="rotation_window"
+                        class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="14" {% if certificate_rotation_window_days == 14 %}selected{% endif %}>14 days</option>
+                        <option value="30" {% if certificate_rotation_window_days == 30 %}selected{% endif %}>30 days</option>
+                        <option value="60" {% if certificate_rotation_window_days == 60 %}selected{% endif %}>60 days</option>
+                        <option value="90" {% if certificate_rotation_window_days == 90 or certificate_rotation_window_days is none %}selected{% endif %}>90 days</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
                 <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">User Permissions</h2>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Control what regular users can modify in their own accounts. Super admins are always exempt from these restrictions.

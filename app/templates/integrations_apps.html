@@ -2,8 +2,10 @@
 
 {% block title %}Apps - Integrations - {{ site_title }}{% endblock %}
 
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
 {% block content %}
-<div class="max-w-6xl">
+<div>
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -49,14 +51,13 @@
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Redirect URIs</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                     {% for client in clients %}
-                    <tr class="{% if not client.is_active %}opacity-60{% endif %}">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if not client.is_active %}opacity-60{% endif %}">
                         <td class="px-4 py-4">
-                            <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ client.name }}</div>
+                            <a href="/admin/integrations/apps/{{ client.client_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">{{ client.name }}</a>
                             {% if client.description %}
                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ client.description }}</div>
                             {% endif %}
@@ -71,8 +72,9 @@
                             None
                             {% endif %}
                         </td>
-                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
-                            {{ fmt_datetime(client.created_at) }}
+                        {% set rel_created = fmt_relative(client.created_at) %}
+                        <td class="px-4 py-4 text-sm text-gray-600 dark:text-gray-400" title="{{ rel_created[1] }}">
+                            {{ rel_created[0] }}
                         </td>
                         <td class="px-4 py-4">
                             {% if client.is_active %}
@@ -84,13 +86,6 @@
                                 Inactive
                             </span>
                             {% endif %}
-                        </td>
-                        <td class="px-4 py-4 text-right">
-                            <a href="/admin/integrations/apps/{{ client.client_id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300" title="View details">
-                                <svg class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                            </a>
                         </td>
                     </tr>
                     {% endfor %}

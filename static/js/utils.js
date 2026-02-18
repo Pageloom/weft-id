@@ -137,9 +137,10 @@ const WeftUtils = {
     /**
      * Make a bulk action bar sticky at the bottom of the viewport when visible.
      *
-     * When the bar becomes visible (has its .hidden class removed), it is
-     * positioned fixed at the bottom with a shadow. A spacer element prevents
-     * content jump. When the bar is hidden again, styles are cleaned up.
+     * The bar sits in its natural flow position. CSS `position: sticky; bottom: 0`
+     * makes it stick to the viewport bottom only when scrolled past its natural
+     * position. An IntersectionObserver on a sentinel div detects stuck state and
+     * adds a shadow when stuck. A MutationObserver handles show/hide toggling.
      *
      * @param {string|HTMLElement} elementOrId - Element or element ID
      */
@@ -149,42 +150,47 @@ const WeftUtils = {
             : elementOrId;
         if (!el) return;
 
-        var spacer = document.createElement('div');
-        spacer.style.display = 'none';
-        el.parentNode.insertBefore(spacer, el.nextSibling);
+        // Sentinel element placed right after the bar to detect stuck state
+        var sentinel = document.createElement('div');
+        sentinel.style.height = '1px';
+        sentinel.style.visibility = 'hidden';
+        sentinel.style.pointerEvents = 'none';
+        sentinel.style.display = 'none';
+        el.parentNode.insertBefore(sentinel, el.nextSibling);
 
         function applySticky() {
-            // Defer to next frame so the browser has laid out the element
             requestAnimationFrame(function() {
                 if (el.classList.contains('hidden')) return;
-                // Temporarily remove fixed positioning to measure natural height
-                el.style.position = '';
-                var rect = el.getBoundingClientRect();
-                var h = Math.max(rect.height, 48);
-                spacer.style.display = 'block';
-                spacer.style.height = h + 'px';
-                el.style.position = 'fixed';
+                el.style.position = 'sticky';
                 el.style.bottom = '0';
-                el.style.left = '0';
-                el.style.right = '0';
                 el.style.zIndex = '40';
-                el.style.borderRadius = '0';
-                el.style.boxShadow = '0 -2px 8px rgba(0,0,0,0.15)';
-                el.style.padding = '0.75rem 2rem';
+                sentinel.style.display = '';
             });
         }
 
         function removeSticky() {
-            spacer.style.display = 'none';
             el.style.position = '';
             el.style.bottom = '';
-            el.style.left = '';
-            el.style.right = '';
             el.style.zIndex = '';
-            el.style.borderRadius = '';
             el.style.boxShadow = '';
-            el.style.padding = '';
+            sentinel.style.display = 'none';
         }
+
+        // IntersectionObserver detects when sentinel scrolls out of view,
+        // meaning the bar is stuck at the viewport bottom
+        var io = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (el.classList.contains('hidden')) return;
+                if (entry.isIntersecting) {
+                    // Sentinel visible: bar is in natural position
+                    el.style.boxShadow = '';
+                } else {
+                    // Sentinel not visible: bar is stuck
+                    el.style.boxShadow = '0 -2px 8px rgba(0,0,0,0.15)';
+                }
+            });
+        }, { threshold: 0 });
+        io.observe(sentinel);
 
         // Observe class changes to detect show/hide
         var observer = new MutationObserver(function() {

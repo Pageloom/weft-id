@@ -3,6 +3,8 @@ name: E2E Tests
 on:
   schedule:
     - cron: '0 6 * * *'
+  pull_request:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       test_filter:
@@ -25,9 +27,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  remove-label:
+    if: github.event_name == 'pull_request' && github.event.label.name == 'run-e2e'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove run-e2e label
+        run: gh api repos/${{ github.repository }}/issues/${{ github.event.number }}/labels/run-e2e -X DELETE
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   e2e:
-    needs: [check-activity]
-    if: always() && (needs.check-activity.result == 'skipped' || needs.check-activity.outputs.should_run == 'true')
+    needs: [check-activity, remove-label]
+    if: |
+      always()
+      && (needs.remove-label.result == 'skipped' || needs.remove-label.result == 'success')
+      && (
+        (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e')
+        || (github.event_name == 'schedule' && needs.check-activity.outputs.should_run == 'true')
+        || github.event_name == 'workflow_dispatch'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

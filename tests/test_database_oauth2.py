@@ -770,47 +770,54 @@ def test_clients_isolated_by_tenant(test_tenant, test_admin_user):
         {"subdomain": tenant2_subdomain},
     )
 
-    # Create admin for tenant2
-    admin2 = database.users.create_user(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        first_name="Admin",
-        last_name="Two",
-        email=f"admin2-{uuid4().hex[:8]}@example.com",
-        role="super_admin",
-    )
+    try:
+        # Create admin for tenant2
+        admin2 = database.users.create_user(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            first_name="Admin",
+            last_name="Two",
+            email=f"admin2-{uuid4().hex[:8]}@example.com",
+            role="super_admin",
+        )
 
-    # Create client in tenant1
-    client1 = database.oauth2.create_normal_client(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        name="Tenant 1 Client",
-        redirect_uris=["https://tenant1.com/callback"],
-        created_by=test_admin_user["id"],
-    )
+        # Create client in tenant1
+        client1 = database.oauth2.create_normal_client(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            name="Tenant 1 Client",
+            redirect_uris=["https://tenant1.com/callback"],
+            created_by=test_admin_user["id"],
+        )
 
-    # Create client in tenant2
-    client2 = database.oauth2.create_normal_client(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        name="Tenant 2 Client",
-        redirect_uris=["https://tenant2.com/callback"],
-        created_by=admin2["user_id"],
-    )
+        # Create client in tenant2
+        client2 = database.oauth2.create_normal_client(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            name="Tenant 2 Client",
+            redirect_uris=["https://tenant2.com/callback"],
+            created_by=admin2["user_id"],
+        )
 
-    # Tenant1 should not see tenant2's client
-    found = database.oauth2.get_client_by_client_id(test_tenant["id"], client2["client_id"])
-    assert found is None
+        # Tenant1 should not see tenant2's client
+        found = database.oauth2.get_client_by_client_id(test_tenant["id"], client2["client_id"])
+        assert found is None
 
-    # Tenant2 should not see tenant1's client
-    found = database.oauth2.get_client_by_client_id(tenant2["id"], client1["client_id"])
-    assert found is None
+        # Tenant2 should not see tenant1's client
+        found = database.oauth2.get_client_by_client_id(tenant2["id"], client1["client_id"])
+        assert found is None
 
-    # Each tenant should see only their own client
-    tenant1_clients = database.oauth2.get_all_clients(test_tenant["id"])
-    tenant1_client_ids = [c["client_id"] for c in tenant1_clients]
-    assert client1["client_id"] in tenant1_client_ids
-    assert client2["client_id"] not in tenant1_client_ids
+        # Each tenant should see only their own client
+        tenant1_clients = database.oauth2.get_all_clients(test_tenant["id"])
+        tenant1_client_ids = [c["client_id"] for c in tenant1_clients]
+        assert client1["client_id"] in tenant1_client_ids
+        assert client2["client_id"] not in tenant1_client_ids
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": tenant2["id"]},
+        )
 
 
 def test_tokens_isolated_by_tenant(test_tenant, normal_oauth2_client, test_user):
@@ -830,57 +837,64 @@ def test_tokens_isolated_by_tenant(test_tenant, normal_oauth2_client, test_user)
         {"subdomain": tenant2_subdomain},
     )
 
-    # Create user in tenant2
-    user2 = database.users.create_user(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        first_name="User",
-        last_name="Two",
-        email=f"user2-{uuid4().hex[:8]}@example.com",
-        role="member",
-    )
+    try:
+        # Create user in tenant2
+        user2 = database.users.create_user(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            first_name="User",
+            last_name="Two",
+            email=f"user2-{uuid4().hex[:8]}@example.com",
+            role="member",
+        )
 
-    # Create client in tenant2
-    admin2 = database.users.create_user(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        first_name="Admin",
-        last_name="Two",
-        email=f"admin2-{uuid4().hex[:8]}@example.com",
-        role="super_admin",
-    )
+        # Create client in tenant2
+        admin2 = database.users.create_user(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            first_name="Admin",
+            last_name="Two",
+            email=f"admin2-{uuid4().hex[:8]}@example.com",
+            role="super_admin",
+        )
 
-    client2 = database.oauth2.create_normal_client(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        name="Tenant 2 Client",
-        redirect_uris=["https://tenant2.com/callback"],
-        created_by=admin2["user_id"],
-    )
+        client2 = database.oauth2.create_normal_client(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            name="Tenant 2 Client",
+            redirect_uris=["https://tenant2.com/callback"],
+            created_by=admin2["user_id"],
+        )
 
-    # Create token in tenant1
-    token1 = database.oauth2.create_access_token(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        client_id=normal_oauth2_client["id"],
-        user_id=test_user["id"],
-    )
+        # Create token in tenant1
+        token1 = database.oauth2.create_access_token(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+        )
 
-    # Create token in tenant2
-    token2 = database.oauth2.create_access_token(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        client_id=client2["id"],
-        user_id=user2["user_id"],
-    )
+        # Create token in tenant2
+        token2 = database.oauth2.create_access_token(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            client_id=client2["id"],
+            user_id=user2["user_id"],
+        )
 
-    # Tenant1 should not validate tenant2's token
-    result = database.oauth2.validate_token(token2, test_tenant["id"])
-    assert result is None
+        # Tenant1 should not validate tenant2's token
+        result = database.oauth2.validate_token(token2, test_tenant["id"])
+        assert result is None
 
-    # Tenant2 should not validate tenant1's token
-    result = database.oauth2.validate_token(token1, tenant2["id"])
-    assert result is None
+        # Tenant2 should not validate tenant1's token
+        result = database.oauth2.validate_token(token1, tenant2["id"])
+        assert result is None
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": tenant2["id"]},
+        )
 
 
 def test_authorization_codes_isolated_by_tenant(test_tenant, normal_oauth2_client, test_user):
@@ -900,68 +914,75 @@ def test_authorization_codes_isolated_by_tenant(test_tenant, normal_oauth2_clien
         {"subdomain": tenant2_subdomain},
     )
 
-    # Create user and client in tenant2
-    user2 = database.users.create_user(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        first_name="User",
-        last_name="Two",
-        email=f"user2-{uuid4().hex[:8]}@example.com",
-        role="member",
-    )
+    try:
+        # Create user and client in tenant2
+        user2 = database.users.create_user(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            first_name="User",
+            last_name="Two",
+            email=f"user2-{uuid4().hex[:8]}@example.com",
+            role="member",
+        )
 
-    admin2 = database.users.create_user(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        first_name="Admin",
-        last_name="Two",
-        email=f"admin2-{uuid4().hex[:8]}@example.com",
-        role="super_admin",
-    )
+        admin2 = database.users.create_user(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            first_name="Admin",
+            last_name="Two",
+            email=f"admin2-{uuid4().hex[:8]}@example.com",
+            role="super_admin",
+        )
 
-    client2 = database.oauth2.create_normal_client(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        name="Tenant 2 Client",
-        redirect_uris=["https://tenant2.com/callback"],
-        created_by=admin2["user_id"],
-    )
+        client2 = database.oauth2.create_normal_client(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            name="Tenant 2 Client",
+            redirect_uris=["https://tenant2.com/callback"],
+            created_by=admin2["user_id"],
+        )
 
-    # Create code in tenant1
-    code1 = database.oauth2.create_authorization_code(
-        tenant_id=test_tenant["id"],
-        tenant_id_value=test_tenant["id"],
-        client_id=normal_oauth2_client["id"],
-        user_id=test_user["id"],
-        redirect_uri=normal_oauth2_client["redirect_uris"][0],
-    )
+        # Create code in tenant1
+        code1 = database.oauth2.create_authorization_code(
+            tenant_id=test_tenant["id"],
+            tenant_id_value=test_tenant["id"],
+            client_id=normal_oauth2_client["id"],
+            user_id=test_user["id"],
+            redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        )
 
-    # Create code in tenant2
-    code2 = database.oauth2.create_authorization_code(
-        tenant_id=tenant2["id"],
-        tenant_id_value=tenant2["id"],
-        client_id=client2["id"],
-        user_id=user2["user_id"],
-        redirect_uri=client2["redirect_uris"][0],
-    )
+        # Create code in tenant2
+        code2 = database.oauth2.create_authorization_code(
+            tenant_id=tenant2["id"],
+            tenant_id_value=tenant2["id"],
+            client_id=client2["id"],
+            user_id=user2["user_id"],
+            redirect_uri=client2["redirect_uris"][0],
+        )
 
-    # Tenant1 should not validate tenant2's code
-    result = database.oauth2.validate_and_consume_code(
-        tenant_id=test_tenant["id"],
-        code=code2,
-        client_id=normal_oauth2_client["id"],
-        redirect_uri=normal_oauth2_client["redirect_uris"][0],
-    )
-    assert result is None
+        # Tenant1 should not validate tenant2's code
+        result = database.oauth2.validate_and_consume_code(
+            tenant_id=test_tenant["id"],
+            code=code2,
+            client_id=normal_oauth2_client["id"],
+            redirect_uri=normal_oauth2_client["redirect_uris"][0],
+        )
+        assert result is None
 
-    # Tenant2 should not validate tenant1's code
-    result = database.oauth2.validate_and_consume_code(
-        tenant_id=tenant2["id"],
-        code=code1,
-        client_id=client2["id"],
-        redirect_uri=client2["redirect_uris"][0],
-    )
-    assert result is None
+        # Tenant2 should not validate tenant1's code
+        result = database.oauth2.validate_and_consume_code(
+            tenant_id=tenant2["id"],
+            code=code1,
+            client_id=client2["id"],
+            redirect_uri=client2["redirect_uris"][0],
+        )
+        assert result is None
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": tenant2["id"]},
+        )
 
 
 def test_cross_tenant_token_validation_blocked(test_tenant, normal_oauth2_client, test_user):
@@ -989,7 +1010,14 @@ def test_cross_tenant_token_validation_blocked(test_tenant, normal_oauth2_client
         {"subdomain": tenant2_subdomain},
     )
 
-    # Try to validate tenant1's token using tenant2's context
-    result = database.oauth2.validate_token(token, tenant2["id"])
+    try:
+        # Try to validate tenant1's token using tenant2's context
+        result = database.oauth2.validate_token(token, tenant2["id"])
 
-    assert result is None  # Should fail due to RLS
+        assert result is None  # Should fail due to RLS
+    finally:
+        database.execute(
+            database.UNSCOPED,
+            "DELETE FROM tenants WHERE id = :id",
+            {"id": tenant2["id"]},
+        )

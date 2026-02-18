@@ -30,6 +30,8 @@ jobs:
   remove-label:
     if: github.event_name == 'pull_request' && github.event.label.name == 'run-e2e'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Remove run-e2e label
         run: gh api repos/${{ github.repository }}/issues/${{ github.event.number }}/labels/run-e2e -X DELETE

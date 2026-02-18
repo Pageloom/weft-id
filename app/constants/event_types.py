@@ -63,6 +63,12 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "idp_certificate_activated": "Deprecated: IdP certificate activation",
     "idp_certificate_deactivated": "Deprecated: IdP certificate deactivation",
     "idp_certificate_removed": "Deprecated: IdP certificate removed manually",
+    "saml_idp_sp_certificate_auto_rotated": (
+        "Per-IdP SP certificate automatically rotated before expiry"
+    ),
+    "saml_idp_sp_certificate_cleanup_completed": (
+        "Previous per-IdP SP certificate removed after grace period"
+    ),
     "saml_idp_sp_certificate_created": "Per-IdP SP certificate generated",
     "saml_idp_sp_certificate_rotated": "Per-IdP SP certificate rotated",
     "saml_idp_trust_established": "Trust established with upstream identity provider",

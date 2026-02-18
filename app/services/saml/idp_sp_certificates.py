@@ -6,6 +6,7 @@ to individual IdPs rather than affecting the entire tenant.
 """
 
 import logging
+from datetime import UTC, datetime
 
 import database
 from schemas.saml import CertificateRotationResult, IdPSPCertificate
@@ -111,7 +112,7 @@ def rotate_idp_sp_certificate(
 
     Authorization: Requires super_admin role.
     """
-    from datetime import UTC, datetime, timedelta
+    from datetime import timedelta
 
     require_super_admin(requesting_user, log_failure=True, service_name="saml")
     tenant_id = requesting_user["tenant_id"]
@@ -127,6 +128,14 @@ def rotate_idp_sp_certificate(
         raise NotFoundError(
             message="No per-IdP SP certificate exists to rotate",
             code="idp_sp_certificate_not_found",
+        )
+
+    # Guard: reject rotation if one is already in progress
+    grace_end = current.get("rotation_grace_period_ends_at")
+    if grace_end is not None and grace_end > datetime.now(UTC):
+        raise ValidationError(
+            message="Certificate rotation already in progress",
+            code="idp_sp_certificate_rotation_in_progress",
         )
 
     # Generate new certificate

@@ -240,7 +240,7 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
 
         # Directly delete the cert from DB to simulate missing cert
 
-        from database._core import execute
+        from database import execute
 
         execute(
             tenant_id,
@@ -285,6 +285,69 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
             e for e in events if e["event_type"] == "saml_idp_sp_certificate_rotated"
         ]
         assert len(rotation_events) >= 1
+
+    def test_rotate_rejects_during_active_grace_period(
+        self, test_tenant, test_super_admin_user, fast_sp_certificate
+    ):
+        """Rotation is rejected when a grace period is active."""
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        tenant_id = str(test_tenant["id"])
+        requesting_user = _make_requesting_user(test_super_admin_user, tenant_id)
+
+        idp = saml_service.create_identity_provider(
+            requesting_user,
+            IdPCreate(name="Guard Test IdP", provider_type="okta"),
+            "https://test.example.com",
+        )
+
+        # First rotation succeeds
+        saml_service.rotate_idp_sp_certificate(requesting_user, idp.id)
+
+        # Second rotation should be rejected (grace period active)
+        with pytest.raises(ValidationError) as exc_info:
+            saml_service.rotate_idp_sp_certificate(requesting_user, idp.id)
+
+        assert exc_info.value.code == "idp_sp_certificate_rotation_in_progress"
+
+    def test_rotate_allows_after_grace_period_expired(
+        self, test_tenant, test_super_admin_user, fast_sp_certificate
+    ):
+        """Rotation succeeds when the grace period has already expired."""
+        from datetime import UTC, datetime, timedelta
+
+        from database import execute
+        from schemas.saml import IdPCreate
+        from services import saml as saml_service
+
+        tenant_id = str(test_tenant["id"])
+        requesting_user = _make_requesting_user(test_super_admin_user, tenant_id)
+
+        idp = saml_service.create_identity_provider(
+            requesting_user,
+            IdPCreate(name="Expired Grace IdP", provider_type="okta"),
+            "https://test.example.com",
+        )
+
+        # Rotate once
+        saml_service.rotate_idp_sp_certificate(requesting_user, idp.id)
+
+        # Manually backdate the grace period to the past
+        past = datetime.now(UTC) - timedelta(days=1)
+        execute(
+            tenant_id,
+            """
+            UPDATE saml_idp_sp_certificates
+            SET rotation_grace_period_ends_at = :past
+            WHERE idp_id = :idp_id
+            """,
+            {"past": past, "idp_id": idp.id},
+        )
+
+        # Second rotation should now succeed
+        result = saml_service.rotate_idp_sp_certificate(requesting_user, idp.id)
+        assert result.new_certificate_pem is not None
 
 
 # =============================================================================

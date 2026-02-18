@@ -56,6 +56,8 @@ saml_idp_disabled
 saml_idp_enabled
 saml_idp_metadata_refreshed
 saml_idp_set_default
+saml_idp_sp_certificate_auto_rotated
+saml_idp_sp_certificate_cleanup_completed
 saml_idp_sp_certificate_created
 saml_idp_sp_certificate_rotated
 saml_idp_trust_established

@@ -34,6 +34,7 @@ from database.saml.idp_sp_certificates import (
     clear_previous_idp_sp_certificate,
     create_idp_sp_certificate,
     get_idp_sp_certificate,
+    get_idp_sp_certificates_needing_rotation_or_cleanup,
     rotate_idp_sp_certificate,
 )
 from database.saml.providers import (
@@ -109,6 +110,7 @@ __all__ = [
     "count_users_with_idp_in_domain",
     # idp_sp_certificates
     "get_idp_sp_certificate",
+    "get_idp_sp_certificates_needing_rotation_or_cleanup",
     "create_idp_sp_certificate",
     "rotate_idp_sp_certificate",
     "clear_previous_idp_sp_certificate",

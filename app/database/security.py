@@ -1,6 +1,6 @@
 """Security settings database operations."""
 
-from ._core import TenantArg, execute, fetchone
+from ._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def get_security_settings(tenant_id: TenantArg) -> dict | None:
@@ -232,23 +232,16 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
     Get all tenants that have inactivity threshold configured.
 
     This is a cross-tenant query used by the worker for auto-inactivation.
-    Does not use RLS (called without tenant context).
+    Uses UNSCOPED to bypass RLS (system task).
 
     Returns:
         List of dicts with tenant_id and inactivity_threshold_days
     """
-    from psycopg.rows import dict_row
-
-    from ._core import get_pool
-
-    pool = get_pool()
-    with pool.connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                select tenant_id, inactivity_threshold_days
-                from tenant_security_settings
-                where inactivity_threshold_days is not null
-            """
-            )
-            return list(cur.fetchall())
+    return fetchall(
+        UNSCOPED,
+        """
+        select tenant_id, inactivity_threshold_days
+        from tenant_security_settings
+        where inactivity_threshold_days is not null
+        """,
+    )

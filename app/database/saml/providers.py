@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import UNSCOPED, TenantArg, execute, fetchall, fetchone
 
 
 def list_identity_providers(tenant_id: TenantArg) -> list[dict]:
@@ -534,22 +534,16 @@ def get_idps_with_metadata_url() -> list[dict]:
     Get all IdPs that have a metadata URL configured (across all tenants).
 
     Used by the background refresh job.
-    Does not use RLS (called without tenant context).
+    Uses UNSCOPED to bypass RLS (system task).
 
     Returns:
         List of IdP dicts with tenant_id for scoping
     """
-    from database._core import get_pool
-    from psycopg.rows import dict_row
-
-    pool = get_pool()
-    with pool.connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
-                select id, tenant_id, name, metadata_url
-                from saml_identity_providers
-                where metadata_url is not null
-            """
-            )
-            return list(cur.fetchall())
+    return fetchall(
+        UNSCOPED,
+        """
+        select id, tenant_id, name, metadata_url
+        from saml_identity_providers
+        where metadata_url is not null
+        """,
+    )

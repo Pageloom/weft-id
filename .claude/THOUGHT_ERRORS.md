@@ -182,3 +182,23 @@ The `appowner` role exists for object ownership but has `NOLOGIN`. Direct connec
 **Right:** `make migrate` (applies any pending migrations from `db-init/migrations/`)
 
 The migration runner (`db-init/migrate.py`) handles transaction management, error logging, and idempotent reruns. In dev, migrations also run automatically on `make up`.
+
+---
+
+## Importing from Private Modules
+
+**Wrong:** `from database._core import UNSCOPED, fetchall` (importing from an underscore-prefixed private module)
+**Right:** `from database import UNSCOPED, fetchall` (importing from the public package)
+
+Do not import from private (`_`-prefixed) modules. Instead, import from the parent package that re-exports those symbols. For example, `database.__init__` re-exports `UNSCOPED`, `fetchall`, `fetchone`, `execute`, and `session` from `database._core`.
+
+**Exception:** Modules *inside* the `database/` package itself must import from `_core` directly (e.g., `from ._core import ...` or `from database._core import ...`) because the package `__init__` has not finished loading when submodules are first imported.
+
+---
+
+## Cross-Tenant Queries: Use UNSCOPED, Not Raw Pool
+
+**Wrong:** `get_pool()` then `pool.connection()` to bypass RLS for background worker queries
+**Right:** `fetchall(UNSCOPED, query)` or `execute(UNSCOPED, query, params)`
+
+The `UNSCOPED` sentinel skips the `SET LOCAL app.tenant_id` call, giving the query cross-tenant visibility. This is cleaner and uses the standard database helpers instead of duplicating connection management. Use it for background worker queries that need to scan across all tenants.

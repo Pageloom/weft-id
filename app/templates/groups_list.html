@@ -2,8 +2,10 @@
 
 {% block title %}Groups - {{ site_title }}{% endblock %}
 
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
 {% block content %}
-<div class="max-w-6xl">
+<div>
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Groups</h1>
@@ -100,7 +102,7 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for group in groups %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if not group.is_valid %}opacity-60{% endif %}">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if not group.is_valid %}opacity-60{% endif %}">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
                                 {{ group.name }}
@@ -136,10 +138,9 @@
                                 {{ group.member_count }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ fmt_datetime(group.created_at) }}
-                            </span>
+                        {% set rel_created = fmt_relative(group.created_at) %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_created[1] }}">
+                            {{ rel_created[0] }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
                             <a href="/admin/groups/{{ group.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">

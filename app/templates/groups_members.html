@@ -257,15 +257,12 @@
                         {{ sort_header('status', 'Status') }}
                         {{ sort_header('created_at', 'Joined') }}
                         {{ sort_header('last_activity_at', 'Last Activity') }}
-                        {% if group.group_type == 'weftid' %}
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                        {% endif %}
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% if members %}
                         {% for m in members %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700{% if group.group_type == 'weftid' %} cursor-pointer{% endif %}">
                             {% if group.group_type == 'weftid' %}
                             <td class="px-4 py-4">
                                 <input type="checkbox" name="user_ids" value="{{ m.user_id }}" form="bulk-remove-form"
@@ -273,13 +270,13 @@
                             </td>
                             {% endif %}
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <a href="/users/{{ m.user_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                     {% if m.is_anonymized %}
-                                    <span class="text-gray-500 dark:text-gray-400 italic">[Anonymized User]</span>
+                                    <span class="italic">[Anonymized User]</span>
                                     {% else %}
                                     {{ m.last_name }}, {{ m.first_name }}
                                     {% endif %}
-                                </div>
+                                </a>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ m.email or '' }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -305,19 +302,11 @@
                                 {% set rel_activity = fmt_relative(m.last_activity_at) %}
                                 <span title="{{ rel_activity[1] }}">{{ rel_activity[0] }}</span>
                             </td>
-                            {% if group.group_type == 'weftid' %}
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                <a href="#" class="confirm-link text-red-600 hover:text-red-800 dark:text-red-400"
-                                    data-confirm="Remove {{ m.first_name }} {{ m.last_name }} from this group?"
-                                    data-destructive="true"
-                                    data-action="/admin/groups/{{ group.id }}/members/{{ m.user_id }}/remove">Remove</a>
-                            </td>
-                            {% endif %}
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="{% if group.group_type == 'weftid' %}8{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            <td colspan="{% if group.group_type == 'weftid' %}7{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                 {% if search %}No members found matching "{{ search }}"{% else %}No members in this group.{% endif %}
                             </td>
                         </tr>
@@ -496,25 +485,16 @@
         });
     });
 
-    // Single-row remove links
-    document.querySelectorAll('.confirm-link').forEach(function(link) {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            var action = this.dataset.action;
-            var message = this.dataset.confirm;
-            var isDestructive = this.dataset.destructive === 'true';
-            WeftUtils.confirm(message, function() {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = action;
-                var csrf = document.createElement('input');
-                csrf.type = 'hidden';
-                csrf.name = 'csrf_token';
-                csrf.value = '{{ csrf_token() }}';
-                form.appendChild(csrf);
-                document.body.appendChild(form);
-                form.submit();
-            }, { destructive: isDestructive });
+    // Click-to-toggle: clicking a row toggles its checkbox
+    document.querySelectorAll('tbody tr').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            var tag = e.target.closest('a, input, button');
+            if (tag) return;
+            var cb = row.querySelector('.member-checkbox');
+            if (cb) {
+                cb.checked = !cb.checked;
+                updateBulkBar();
+            }
         });
     });
 

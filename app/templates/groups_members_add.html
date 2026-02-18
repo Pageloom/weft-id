@@ -219,19 +219,19 @@
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {% if users %}
                             {% for u in users %}
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                                 <td class="px-4 py-4">
                                     <input type="checkbox" name="user_ids" value="{{ u.id }}"
                                         class="user-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                    <a href="/users/{{ u.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                         {% if u.is_anonymized %}
-                                        <span class="text-gray-500 dark:text-gray-400 italic">[Anonymized User]</span>
+                                        <span class="italic">[Anonymized User]</span>
                                         {% else %}
                                         {{ u.last_name }}, {{ u.first_name }}
                                         {% endif %}
-                                    </div>
+                                    </a>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ u.email or '' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -381,6 +381,19 @@
             WeftUtils.confirm(message, function() {
                 form.submit();
             }, { destructive: isDestructive });
+        });
+    });
+
+    // Click-to-toggle: clicking a row toggles its checkbox
+    document.querySelectorAll('tbody tr').forEach(function(row) {
+        row.addEventListener('click', function(e) {
+            var tag = e.target.closest('a, input, button');
+            if (tag) return;
+            var cb = row.querySelector('.user-checkbox');
+            if (cb) {
+                cb.checked = !cb.checked;
+                updateBulkBar();
+            }
         });
     });
 

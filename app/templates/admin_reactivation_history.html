@@ -2,8 +2,10 @@
 
 {% block title %}Reactivation History - {{ site_title }}{% endblock %}
 
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
 {% block content %}
-<div class="max-w-4xl">
+<div>
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Reactivation History</h1>
@@ -47,7 +49,7 @@
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% for req in requests %}
-                    <tr>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 {{ req.first_name }} {{ req.last_name }}
@@ -74,10 +76,9 @@
                                 {{ req.decided_by_name or 'Unknown' }}
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ fmt_datetime(req.decided_at) if req.decided_at else 'N/A' }}
-                            </div>
+                        {% set rel_decided = fmt_relative(req.decided_at) %}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_decided[1] }}">
+                            {{ rel_decided[0] }}
                         </td>
                     </tr>
                     {% endfor %}

@@ -6057,6 +6057,144 @@ class TestProcessIdpLogoutRequestSuccess:
 
 
 # =============================================================================
+# logout.py: initiate_sp_logout certificate fallback and error handling
+# =============================================================================
+
+
+class TestInitiateSpLogoutCertFallback:
+    """Test SP-initiated SLO certificate resolution paths."""
+
+    def test_falls_back_to_tenant_cert_when_per_idp_cert_missing(self):
+        """Uses tenant-level SP cert when per-IdP cert doesn't exist."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import initiate_sp_logout
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        idp_row = {
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
+        }
+        sp_cert = {
+            "certificate_pem": "sp-cert-pem",
+            "private_key_pem_enc": "encrypted-key",
+        }
+
+        with (
+            patch("services.saml.logout.database") as mock_db,
+            patch("services.saml.logout.decrypt_private_key", return_value="decrypted-key"),
+            patch("services.saml.logout.build_saml_settings", return_value={"settings": True}),
+            patch(
+                "services.saml.logout.build_logout_request",
+                return_value=("https://idp.example.com/slo?SAMLRequest=...", "req_123"),
+            ),
+            patch("services.saml.logout.get_certificates_for_validation", return_value=[]),
+        ):
+            mock_db.saml.get_identity_provider.return_value = idp_row
+            mock_db.saml.get_idp_sp_certificate.return_value = None
+            mock_db.saml.get_sp_certificate.return_value = sp_cert
+
+            result = initiate_sp_logout(
+                tenant_id=tenant_id,
+                saml_idp_id=idp_id,
+                name_id="user@example.com",
+                name_id_format=None,
+                session_index=None,
+                base_url="https://sp.example.com",
+            )
+
+            assert result is not None
+            mock_db.saml.get_sp_certificate.assert_called_once_with(tenant_id)
+
+    def test_returns_none_when_no_cert_at_all(self):
+        """Returns None when neither per-IdP nor tenant-level cert exists."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import initiate_sp_logout
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+        idp_row = {
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "certificate_pem": "cert-pem",
+            "slo_url": "https://idp.example.com/slo",
+            "sp_entity_id": f"https://sp.example.com/saml/metadata/{idp_id}",
+        }
+
+        with patch("services.saml.logout.database") as mock_db:
+            mock_db.saml.get_identity_provider.return_value = idp_row
+            mock_db.saml.get_idp_sp_certificate.return_value = None
+            mock_db.saml.get_sp_certificate.return_value = None
+
+            result = initiate_sp_logout(
+                tenant_id=tenant_id,
+                saml_idp_id=idp_id,
+                name_id="user@example.com",
+                name_id_format=None,
+                session_index=None,
+                base_url="https://sp.example.com",
+            )
+
+            assert result is None
+
+    def test_exception_returns_none(self):
+        """Unexpected exceptions are caught and return None."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import initiate_sp_logout
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        with patch("services.saml.logout.database") as mock_db:
+            mock_db.saml.get_identity_provider.side_effect = RuntimeError("DB down")
+
+            result = initiate_sp_logout(
+                tenant_id=tenant_id,
+                saml_idp_id=idp_id,
+                name_id="user@example.com",
+                name_id_format=None,
+                session_index=None,
+                base_url="https://sp.example.com",
+            )
+
+            assert result is None
+
+
+class TestProcessIdpLogoutRequestExceptionHandling:
+    """Test IdP-initiated SLO exception handling."""
+
+    def test_exception_returns_none(self):
+        """Unexpected exceptions during processing are caught and return None."""
+        from unittest.mock import patch
+        from uuid import uuid4
+
+        from services.saml.logout import process_idp_logout_request
+
+        tenant_id = str(uuid4())
+
+        with patch("services.saml.logout.database") as mock_db:
+            mock_db.saml.get_identity_provider_by_entity_id.side_effect = RuntimeError("DB down")
+
+            result = process_idp_logout_request(
+                tenant_id=tenant_id,
+                saml_request="PHNhbWxSZXF1ZXN0Pg==",
+                base_url="https://sp.example.com",
+                issuer="https://idp.example.com",
+            )
+
+            assert result is None
+
+
+# =============================================================================
 # providers.py: edge cases
 # =============================================================================
 

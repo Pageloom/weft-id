@@ -4,6 +4,38 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Audit and Harden SAML SLO (Single Logout) End-to-End
+
+**Status:** Complete
+
+**Summary:** Audited the full SLO implementation across all layers (database, schemas, services, routers, templates, API). All configuration paths were already complete: SP metadata import extracts SLO URLs, IdP metadata advertises SLO endpoints, SP detail page shows/edits SLO URL, API create/update accepts SLO URL, and manual registration supports SLO entry. The E2E testbed was missing SLO URL configuration, so it was updated. Added E2E tests for SP-initiated and IdP-initiated SLO flows. Filled unit test coverage gaps in `app/services/saml/logout.py` (86% to 100%) covering certificate fallback paths and exception handlers.
+
+**Acceptance Criteria:**
+
+Configuration audit:
+- [x] SP metadata import extracts SLO endpoint URL (verified: `parse_sp_metadata_xml()` extracts from both POST and Redirect bindings)
+- [x] IdP metadata includes SingleLogoutService endpoint (verified: `generate_idp_metadata_xml()` adds both bindings)
+- [x] SP detail page shows SLO URL (verified: `saml_idp_sp_tab_details.html`)
+- [x] SP detail page allows editing SLO URL (verified: manual trust entry form)
+- [x] API `POST /api/v1/service-providers` accepts SLO URL (verified: SPCreate schema includes slo_url)
+- [x] API `PATCH /api/v1/service-providers/{sp_id}` accepts SLO URL (verified: SPUpdate schema includes slo_url)
+- [x] Manual SP registration supports SLO URL entry (verified: trust establishment form)
+
+E2E tests:
+- [x] SP-initiated SLO: SSO to SP, logout at SP, redirect through IdP SLO, return to SP /login?slo=complete, IdP session cleared
+- [x] IdP-initiated SLO: SSO to SP, logout at IdP, propagation to SPs (server-to-server), IdP session cleared
+- [x] Session index correlation verified at unit test level (existing coverage in `test_utils_saml_slo.py` and `test_services_service_providers_slo.py`)
+
+Unit tests:
+- [x] Certificate fallback: per-IdP cert missing, falls back to tenant-level cert
+- [x] No certificate at all: returns None gracefully
+- [x] Exception handling: `initiate_sp_logout()` and `process_idp_logout_request()` catch-all handlers
+
+Testbed fix:
+- [x] `sso_testbed.py` now configures SLO URLs on SP and IdP records
+
+---
+
 ## Configurable Certificate Rotation Window in Security Settings
 
 **Status:** Complete

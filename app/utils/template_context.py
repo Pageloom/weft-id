@@ -54,6 +54,12 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         mandala_favicon = f"data:image/svg+xml;base64,{b64}"
         branding = get_branding_for_template(str(user["tenant_id"]))
 
+    # If user logged in via SAML with SLO configured, allow the IdP SLO URL
+    # in CSP form-action so the logout form's redirect chain can reach the IdP.
+    saml_slo_url = request.session.get("saml_slo_url") if hasattr(request, "session") else None
+    if saml_slo_url and not getattr(request.state, "csp_form_action_url", None):
+        request.state.csp_form_action_url = saml_slo_url
+
     context = {
         "request": request,
         "user": user,

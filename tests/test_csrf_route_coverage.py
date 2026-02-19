@@ -177,6 +177,7 @@ class TestCSRFRouteCoverage:
         expected_exempt = {
             "/api/": "API routes use Bearer token authentication",
             "/saml/acs": "SAML Assertion Consumer Service receives POST from external IdPs",
+            "/saml/slo": "SAML SP SLO endpoint receives POST from external IdPs",
             "/saml/idp/sso": "SAML IdP SSO endpoint receives POST from external SPs",
             "/saml/idp/slo": "SAML IdP SLO endpoint receives POST from external SPs",
             "/oauth2/token": "OAuth2 token endpoint is called by OAuth clients",
@@ -203,6 +204,9 @@ class TestCSRFRouteCoverage:
         intentionally_exempt_routes = {
             # SAML ACS receives POST from external Identity Providers
             ("/saml/acs", "post"): "Receives SAML assertions from external IdPs",
+            # SAML SP SLO receives POST from external Identity Providers
+            ("/saml/slo", "post"): "Receives SLO requests/responses from external IdPs",
+            ("/saml/slo", "get"): "Receives SLO redirects from external IdPs",
             # OAuth2 token endpoint is called by OAuth clients
             ("/oauth2/token", "post"): "OAuth2 token endpoint called by OAuth clients",
         }

@@ -252,6 +252,7 @@ class SAMLAuthResult(BaseModel):
     name_id_format: str | None = None  # Needed for SLO (Phase 4)
     idp_id: str
     idp_name: str | None = None  # For group sync logging
+    slo_url: str | None = None  # IdP SLO URL for CSP form-action
     user_id: str | None = None  # Set after user lookup
     requires_mfa: bool = False
     groups: list[str] = Field(default_factory=list)  # Group claims from assertion

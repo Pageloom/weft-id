@@ -331,6 +331,7 @@ def saml_acs_per_idp(
         "saml_name_id": saml_result.attributes.name_id,
         "saml_name_id_format": saml_result.name_id_format,
         "saml_session_index": saml_result.session_index,
+        "saml_slo_url": saml_result.slo_url,
     }
 
     from routers.saml_idp._helpers import extract_pending_sso, get_post_auth_redirect
@@ -533,6 +534,7 @@ def saml_acs(
         "saml_name_id": saml_result.attributes.name_id,
         "saml_name_id_format": saml_result.name_id_format,
         "saml_session_index": saml_result.session_index,
+        "saml_slo_url": saml_result.slo_url,
     }
 
     # Preserve pending SSO context through session regeneration

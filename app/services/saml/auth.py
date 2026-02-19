@@ -333,6 +333,7 @@ def process_saml_response(
         name_id_format=attrs["name_id_format"],
         idp_id=idp_id,
         idp_name=idp.name,
+        slo_url=idp.slo_url,
         requires_mfa=idp.require_platform_mfa,
         groups=attrs["groups"],
     )

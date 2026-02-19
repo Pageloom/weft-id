@@ -169,6 +169,7 @@ def step_3_register_sp(log, idp_tenant_id: str, idp_admin_id: str, sp_subdomain:
         name=sp_name,
         entity_id=temp_entity_id,
         acs_url=temp_acs_url,
+        slo_url=f"{base_url}/saml/slo",
         created_by=idp_admin_id,
         trust_established=True,
     )
@@ -264,6 +265,8 @@ def step_5_register_idp(
         log.info("IdP already registered: %s", idp_entity_id)
         return str(existing["id"])
 
+    slo_url = f"{idp_base_url}/saml/idp/slo"
+
     idp = database.saml.providers.create_identity_provider(
         tenant_id=sp_tenant_id,
         tenant_id_value=sp_tenant_id,
@@ -271,6 +274,7 @@ def step_5_register_idp(
         provider_type="generic",
         entity_id=idp_entity_id,
         sso_url=sso_url,
+        slo_url=slo_url,
         certificate_pem=idp_signing_cert_pem,
         sp_entity_id=temp_sp_entity_id,
         created_by=sp_admin_id,

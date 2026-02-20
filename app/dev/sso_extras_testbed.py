@@ -5,6 +5,8 @@ Adds to the existing sso_testbed setup:
   - A domain-binding test user at the IdP tenant
   - Privileged domain + binding at the SP tenant
   - Parent/child group hierarchy at the IdP tenant for inherited access tests
+  - A no-access user (not in any group) for access denial tests
+  - A second SSO user for switch-account tests
 
 Requires: sso_testbed.py to have run first.
 
@@ -305,6 +307,68 @@ def main(
             {"idp_id": sp_idp_id, "email": hierarchy_email},
         )
 
+    # --- 3. No-access user (for access denial tests) ---
+    log.info("--- No-access user ---")
+    no_access_email = "no-access@acme.com"
+    add_user(
+        idp_subdomain,
+        no_access_email,
+        DEV_PASSWORD,
+        role="member",
+        first_name="NoAccess",
+        last_name="User",
+    )
+    log.info("Created no-access user %s (not in any group)", no_access_email)
+
+    # --- 4. Second SSO user (for switch-account tests) ---
+    log.info("--- Second SSO user ---")
+    second_sso_email = "sso-user-b@acme.com"
+    add_user(
+        idp_subdomain,
+        second_sso_email,
+        DEV_PASSWORD,
+        role="member",
+        first_name="Second",
+        last_name="SsoUser",
+    )
+
+    # Add to SSO Users group so they have SP access
+    second_sso_user = _get_user_by_email(idp_tid, second_sso_email)
+    if sso_group and second_sso_user:
+        group_id = str(sso_group["id"])
+        if not database.groups.is_group_member(idp_tid, group_id, second_sso_user["id"]):
+            database.groups.add_group_member(
+                tenant_id=idp_tid,
+                tenant_id_value=idp_tid,
+                group_id=group_id,
+                user_id=second_sso_user["id"],
+            )
+            log.info("Added %s to SSO Users group at IdP", second_sso_email)
+
+    # Create pre-existing user at SP for second SSO user (linked to IdP)
+    add_user(
+        sp_subdomain,
+        second_sso_email,
+        DEV_PASSWORD,
+        role="member",
+        first_name="Second",
+        last_name="SsoUser",
+    )
+    if sp_idp_id:
+        database.execute(
+            sp_tid,
+            """
+            update users set saml_idp_id = :idp_id
+            where id = (
+                select ue.user_id from user_emails ue
+                join users u on u.id = ue.user_id
+                where ue.email = :email and ue.is_primary = true
+                limit 1
+            )
+            """,
+            {"idp_id": sp_idp_id, "email": second_sso_email},
+        )
+
     if json_output:
         config = {
             "domain_binding": {
@@ -322,6 +386,14 @@ def main(
                 "test_email": hierarchy_email,
                 "test_password": DEV_PASSWORD,
                 "sp_id": sp_id,
+            },
+            "no_access_user": {
+                "email": no_access_email,
+                "password": DEV_PASSWORD,
+            },
+            "second_sso_user": {
+                "email": second_sso_email,
+                "password": DEV_PASSWORD,
             },
         }
         print(json.dumps(config, indent=2))

@@ -5,6 +5,54 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### E2E: Per-SP Certificate Rotation Not Tested End-to-End
+
+**Status:** Resolved (2026-02-20)
+**Original Severity:** Medium
+
+**Original Description:**
+Per-SP signing certificates can be rotated with a grace period, but no E2E test verified that SSO continues to work after rotation.
+
+**Resolution:** Added `TestCertificateRotation` in `tests/e2e/test_sso_edge_cases.py`. The test performs baseline SSO, rotates the per-SP signing certificate via the IdP admin UI, syncs the new certificate to the SP's IdP certificate store, then verifies SSO completes successfully with the new certificate.
+
+---
+
+### E2E: Consent Denial and Error Response Not Tested
+
+**Status:** Resolved (2026-02-20)
+**Original Severity:** Medium
+
+**Original Description:**
+The consent screen allows users to cancel SSO, but no E2E test covered the cancel path.
+
+**Resolution:** Added `TestConsentDenial` in `tests/e2e/test_sso_edge_cases.py`. The test initiates IdP-initiated SSO, clicks Cancel at the consent screen, and verifies the user is redirected to the IdP dashboard (not the SP) and remains logged in.
+
+---
+
+### E2E: Unauthorized User SP Access Denial Not Tested
+
+**Status:** Resolved (2026-02-20)
+**Original Severity:** Medium
+
+**Original Description:**
+Group-based access gating was tested for the positive case but no E2E test verified that a user without SP access is denied.
+
+**Resolution:** Added `TestUnauthorizedUserAccess` in `tests/e2e/test_sso_edge_cases.py`. Added a no-access user (`no-access@acme.com`) to the extras testbed who is not in any group. The test logs in as this user, attempts IdP-initiated SSO, and verifies the "Access Denied" error page renders with group membership messaging.
+
+---
+
+### E2E: Switch Account During SSO Not Tested
+
+**Status:** Resolved (2026-02-20)
+**Original Severity:** Low
+
+**Original Description:**
+The consent screen has a "switch account" flow that clears the auth session while preserving the pending SSO context, but no E2E test exercised it.
+
+**Resolution:** Added `TestSwitchAccount` in `tests/e2e/test_sso_edge_cases.py`. Added a second SSO user (`sso-user-b@acme.com`) to the extras testbed. The test logs in as user A, reaches the consent page, clicks "Use a different account", completes the full multi-step login as user B (email verify, password, MFA), verifies user B's email appears on the consent page, and confirms SSO completes successfully.
+
+---
+
 ### ARCH-001: Router imports directly from database layer
 
 **Status:** Resolved (2026-02-16)

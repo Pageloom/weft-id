@@ -3,6 +3,7 @@
 import base64
 import datetime
 from typing import Any
+from xml.sax.saxutils import escape as _xml_escape
 
 import settings
 from cryptography import x509
@@ -309,6 +310,12 @@ def generate_sp_metadata_xml(
     Returns:
         XML metadata string
     """
+    # Escape entities for XML attribute values
+    _entities = {'"': "&quot;", "'": "&apos;"}
+
+    def esc(v: str) -> str:
+        return _xml_escape(v, _entities)
+
     # Extract the raw certificate data (without PEM headers)
     cert_lines = certificate_pem.strip().split("\n")
     cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
@@ -320,7 +327,7 @@ def generate_sp_metadata_xml(
         slo_section = f"""
     <md:SingleLogoutService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-        Location="{slo_url}" />"""
+        Location="{esc(slo_url)}" />"""
 
     # Build requested attributes for AttributeConsumingService
     attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
@@ -331,9 +338,9 @@ def generate_sp_metadata_xml(
             is_required = "true" if platform_field == "email" else "false"
             attr_elements += f"""
       <md:RequestedAttribute
-          Name="{idp_attr_name}"
+          Name="{esc(idp_attr_name)}"
           NameFormat="{attr_format}"
-          FriendlyName="{platform_field}"
+          FriendlyName="{esc(platform_field)}"
           isRequired="{is_required}" />"""
     else:
         # Default: SAML_ATTRIBUTE_URIS key = friendlyName, value = URI
@@ -342,9 +349,9 @@ def generate_sp_metadata_xml(
             is_required = "true" if friendly_name in required_attrs else "false"
             attr_elements += f"""
       <md:RequestedAttribute
-          Name="{uri}"
+          Name="{esc(uri)}"
           NameFormat="{attr_format}"
-          FriendlyName="{friendly_name}"
+          FriendlyName="{esc(friendly_name)}"
           isRequired="{is_required}" />"""
 
     # Build previous certificate KeyDescriptor for rotation grace period
@@ -361,11 +368,14 @@ def generate_sp_metadata_xml(
       </ds:KeyInfo>
     </md:KeyDescriptor>"""
 
+    entity_id_esc = esc(entity_id)
+    acs_url_esc = esc(acs_url)
+
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
     xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
-    entityID="{entity_id}">
+    entityID="{entity_id_esc}">
   <md:SPSSODescriptor
       AuthnRequestsSigned="true"
       WantAssertionsSigned="true"
@@ -380,7 +390,7 @@ def generate_sp_metadata_xml(
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
     <md:AssertionConsumerService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-        Location="{acs_url}"
+        Location="{acs_url_esc}"
         index="0"
         isDefault="true" />{slo_section}
     <md:AttributeConsumingService index="0" isDefault="true">

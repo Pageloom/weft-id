@@ -389,6 +389,63 @@ class TestGenerateIdPMetadataXML:
 
         assert len(attrs) == len(SAML_ATTRIBUTE_URIS)
 
+    def test_xml_injection_in_attribute_mapping_value(self):
+        """Attribute mapping values with XML special chars are escaped."""
+        malicious_mapping = {
+            "email": 'foo"/><Evil xmlns="http://evil',
+        }
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+            attribute_mapping=malicious_mapping,
+        )
+        # Must still be valid XML (no injection breakout)
+        root = DefusedET.fromstring(xml)
+
+        # The injected element must NOT exist
+        evil = root.findall(".//{http://evil}*")
+        assert len(evil) == 0, "XML injection succeeded: injected element found"
+
+        # The escaped value should round-trip correctly in the attribute
+        saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        attrs = idp_desc.findall(f"{{{saml_ns}}}Attribute")
+        assert len(attrs) == 1
+        assert attrs[0].attrib["Name"] == 'foo"/><Evil xmlns="http://evil'
+
+    def test_xml_injection_in_attribute_mapping_key(self):
+        """Attribute mapping keys with XML special chars are escaped."""
+        malicious_mapping = {
+            '<script>alert("xss")</script>': "urn:oid:1.2.3",
+        }
+        xml = generate_idp_metadata_xml(
+            entity_id="https://idp.example.com/saml/idp/metadata",
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+            attribute_mapping=malicious_mapping,
+        )
+        root = DefusedET.fromstring(xml)
+        assert "<script>" not in xml
+
+        saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        idp_desc = root.find(f"{{{md_ns}}}IDPSSODescriptor")
+        attrs = idp_desc.findall(f"{{{saml_ns}}}Attribute")
+        assert len(attrs) == 1
+        assert attrs[0].attrib["FriendlyName"] == '<script>alert("xss")</script>'
+
+    def test_xml_injection_in_entity_id(self):
+        """Entity ID with XML special chars is escaped."""
+        xml = generate_idp_metadata_xml(
+            entity_id='https://idp.example.com/saml?a=1&b=2"',
+            sso_url="https://idp.example.com/saml/idp/sso",
+            certificate_pem=SAMPLE_CERT_PEM,
+        )
+        root = DefusedET.fromstring(xml)
+        assert root.attrib["entityID"] == 'https://idp.example.com/saml?a=1&b=2"'
+
 
 # =============================================================================
 # parse_sp_metadata_xml: fallback ACS and PEM header edge cases

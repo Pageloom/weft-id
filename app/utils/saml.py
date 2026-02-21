@@ -2,7 +2,6 @@
 
 import base64
 import datetime
-from defusedxml import ElementTree as ET
 from typing import Any
 
 import settings
@@ -12,6 +11,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.x509.oid import NameOID
+from defusedxml import ElementTree as DefusedET
 
 
 def _get_encryption_key() -> bytes:
@@ -169,7 +169,7 @@ def extract_idp_advertised_attributes(metadata_xml: str) -> list[dict[str, str]]
     md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
 
     try:
-        root = ET.fromstring(metadata_xml)
+        root = DefusedET.fromstring(metadata_xml)
     except Exception:
         return []
 
@@ -295,12 +295,7 @@ def fetch_idp_metadata(url: str, timeout: int = 10) -> str:
         # is fetched directly with full TLS verification.
         parsed = urlparse(url)
         base = settings.BASE_DOMAIN
-        if (
-            settings.IS_DEV
-            and base
-            and parsed.hostname
-            and parsed.hostname.endswith(base)
-        ):
+        if settings.IS_DEV and base and parsed.hostname and parsed.hostname.endswith(base):
             original_host = parsed.hostname
             port = parsed.port or 443
             parsed = parsed._replace(netloc=f"reverse-proxy:{port}")
@@ -547,7 +542,7 @@ def extract_issuer_from_response(saml_response_b64: str) -> str | None:
         xml_str = xml_bytes.decode("utf-8")
 
         # Parse the XML
-        root = ET.fromstring(xml_str)
+        root = DefusedET.fromstring(xml_str)
 
         # SAML namespace
         namespaces = {

@@ -172,6 +172,8 @@ def clear_previous_signing_certificate(tenant_id: TenantArg, sp_id: str) -> dict
             previous_expires_at = null,
             rotation_grace_period_ends_at = null
         where sp_id = :sp_id
+          and rotation_grace_period_ends_at is not null
+          and rotation_grace_period_ends_at < now()
         returning id, sp_id, tenant_id, certificate_pem, private_key_pem_enc,
                   expires_at, created_by, created_at,
                   previous_certificate_pem, previous_private_key_pem_enc,

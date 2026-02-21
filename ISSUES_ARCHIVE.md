@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### SQL Column Length: user_emails.email missing CHECK constraint
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+
+**Original Description:**
+The `email` column in `user_emails` (type `citext`) had no `CHECK (length(email) <= N)` constraint. The application validates email length via Pydantic `EmailStr` with `max_length=320`, but there was no database-level backstop.
+
+**Resolution:** Added migration `0002_add_user_emails_email_length_check.sql` with `ALTER TABLE ... ADD CONSTRAINT chk_user_emails_email_length CHECK (length(email) <= 320)`. Also fixed the compliance scanner to cross-reference migrations when checking `schema.sql`, so constraints added via ALTER TABLE ADD CONSTRAINT in migrations are recognized as covering baseline schema columns.
+
+---
+
 ### Activity Logging: Missing track_activity() in 4 read functions
 
 **Status:** Resolved (2026-02-21)

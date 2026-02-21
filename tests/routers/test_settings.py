@@ -410,7 +410,7 @@ def test_tenant_security_form_action_url_is_correct():
 
     # Read the template file directly
     template_path = os.path.join(
-        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
     )
     with open(template_path) as f:
         template_content = f.read()
@@ -787,7 +787,7 @@ def test_security_template_has_certificate_lifetime_field():
     import os
 
     template_path = os.path.join(
-        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
     )
     with open(template_path) as f:
         template_content = f.read()
@@ -886,7 +886,7 @@ def test_security_template_has_rotation_window_field():
     import os
 
     template_path = os.path.join(
-        os.path.dirname(__file__), "..", "app", "templates", "settings_tenant_security.html"
+        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
     )
     with open(template_path) as f:
         template_content = f.read()

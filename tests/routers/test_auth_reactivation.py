@@ -23,7 +23,7 @@ TEST_PASSWORD_HASH = (
 def setup_app_directory():
     """Change to app directory so templates can be found."""
     original_cwd = os.getcwd()
-    app_dir = Path(__file__).parent.parent / "app"
+    app_dir = Path(__file__).parent.parent.parent / "app"
     os.chdir(app_dir)
     yield
     os.chdir(original_cwd)

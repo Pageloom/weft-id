@@ -3,7 +3,7 @@
 import base64
 import datetime
 import hashlib
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from typing import Any
 
 import settings
@@ -160,13 +160,11 @@ def extract_idp_advertised_attributes(metadata_xml: str) -> list[dict[str, str]]
     Returns:
         List of dicts with 'name' and 'friendly_name' keys.
     """
-    from defusedxml import ElementTree as DefusedET
-
     saml_ns = "urn:oasis:names:tc:SAML:2.0:assertion"
     md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
 
     try:
-        root = DefusedET.fromstring(metadata_xml)
+        root = ET.fromstring(metadata_xml)
     except Exception:
         return []
 

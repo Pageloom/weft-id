@@ -1046,8 +1046,9 @@ CREATE POLICY saml_sp_certificates_tenant_isolation ON public.saml_sp_certificat
 
 -- saml_idp_sp_certificates
 ALTER TABLE public.saml_idp_sp_certificates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON public.saml_idp_sp_certificates
-    USING ((tenant_id = (current_setting('app.tenant_id'::text))::uuid));
+CREATE POLICY saml_idp_sp_certificates_tenant_isolation ON public.saml_idp_sp_certificates
+    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
 
 -- saml_debug_entries (no RLS - accessed by system processes)
 

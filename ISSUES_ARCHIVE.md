@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] RLS Policy Defect on saml_idp_sp_certificates Table
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** High
+**OWASP Category:** A01:2021 - Broken Access Control
+
+**Original Description:**
+The `saml_idp_sp_certificates` table had a defective RLS policy: missing `WITH CHECK` clause (writes bypassed tenant scoping), missing `true` parameter in `current_setting()` (errors instead of NULL when unset), and missing `NULLIF()` handling for empty strings.
+
+**Resolution:** Fixed the baseline schema policy to use the standard pattern with `NULLIF(current_setting(..., true), '')` and both `USING` and `WITH CHECK` clauses. Added migration `0004_fix_saml_idp_sp_certificates_rls.sql` to correct running databases. Updated the compliance scanner to recognize migration-based RLS fixes so future corrections are automatically detected.
+
+---
+
 ### [SECURITY] SSO consent flow not bound to authenticated user
 
 **Status:** Resolved (2026-02-21)

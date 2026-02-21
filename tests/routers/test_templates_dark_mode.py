@@ -35,7 +35,7 @@ EXEMPT_CLASSES = {
 
 def get_all_templates():
     """Get all HTML template files."""
-    template_dir = Path(__file__).parent.parent / "app" / "templates"
+    template_dir = Path(__file__).parent.parent.parent / "app" / "templates"
     return list(template_dir.glob("*.html"))
 
 
@@ -142,7 +142,7 @@ class TestCriticalTemplatesDarkMode:
     )
     def test_critical_template_has_dark_mode(self, template_name: str):
         """Critical templates must have dark mode support."""
-        template_dir = Path(__file__).parent.parent / "app" / "templates"
+        template_dir = Path(__file__).parent.parent.parent / "app" / "templates"
         template_path = template_dir / template_name
 
         assert template_path.exists(), f"Template {template_name} not found"

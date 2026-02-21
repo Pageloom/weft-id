@@ -18,7 +18,7 @@ from utils.csp_nonce import generate_csp_nonce, get_csp_nonce
 def setup_app_directory():
     """Change to app directory so templates can be found."""
     original_cwd = os.getcwd()
-    app_dir = Path(__file__).parent.parent / "app"
+    app_dir = Path(__file__).parent.parent.parent / "app"
     os.chdir(app_dir)
     yield
     os.chdir(original_cwd)
@@ -123,7 +123,7 @@ class TestTemplateScriptNonceBackstop:
     new inline scripts are added without CSP nonce protection.
     """
 
-    TEMPLATES_DIR = Path(__file__).parent.parent / "app" / "templates"
+    TEMPLATES_DIR = Path(__file__).parent.parent.parent / "app" / "templates"
 
     # Pattern to match inline <script> tags without nonce attribute
     # (External scripts with src= are allowed without nonce since CSP allows 'self')
@@ -211,7 +211,7 @@ class TestInlineEventHandlerBackstop:
     addEventListener in nonce-protected script blocks.
     """
 
-    TEMPLATES_DIR = Path(__file__).parent.parent / "app" / "templates"
+    TEMPLATES_DIR = Path(__file__).parent.parent.parent / "app" / "templates"
 
     # Pattern to match inline event handler attributes
     # Covers all standard DOM event handler attributes

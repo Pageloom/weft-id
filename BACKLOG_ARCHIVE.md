@@ -4,6 +4,12 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Opportunistic Certificate Cleanup on Metadata Serving
+
+**Status:** Declined (not worth the complexity; background job is sufficient)
+
+---
+
 ## Audit and Harden SAML SLO (Single Logout) End-to-End
 
 **Status:** Complete

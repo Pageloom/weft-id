@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### E2E: Custom Attribute Mapping in SAML Assertions Not Tested
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Low
+
+**Original Description:**
+SPs can be configured with custom attribute mappings (custom URIs for standard attributes). No E2E test verified that configured attribute mappings actually appear in the SAML assertion consumed by the SP. Unit tests covered the mapping logic but not the full sign/deliver/parse round-trip.
+
+**Resolution:** Added Python-level integration test in `tests/test_saml_attribute_roundtrip.py`. True E2E testing via Playwright can't inspect signed assertion content, so the test exercises the real round-trip at the code level: the IdP builds a signed assertion with custom attribute URIs, then the SP parses it with python3-saml (real signature validation) and extracts attributes via the production `_extract_mapped_attributes` function. Covers default mapping, Azure AD long URIs, partial custom mapping, and multi-valued group claims.
+
+---
+
 ### E2E: Per-SP Certificate Rotation Not Tested End-to-End
 
 **Status:** Resolved (2026-02-20)

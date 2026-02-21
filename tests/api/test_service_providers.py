@@ -708,6 +708,26 @@ class TestUpdateAPI:
         data = response.json()
         assert data["attribute_mapping"] == new_mapping
 
+    def test_patch_nameid_format(self, sp_api_client, api_host, sample_sp):
+        """Can update nameid_format via PATCH."""
+        updated_sp = sample_sp.model_copy(
+            update={"nameid_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"}
+        )
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=updated_sp,
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+                json={"nameid_format": "persistent"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nameid_format"] == "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+
     def test_patch_unauthenticated(self, client, api_host):
         """Unauthenticated requests return 401."""
         response = client.patch(

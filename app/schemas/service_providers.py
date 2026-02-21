@@ -1,7 +1,7 @@
 """Pydantic schemas for downstream SAML Service Provider management."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -61,6 +61,9 @@ class SPUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
     acs_url: str | None = Field(None, min_length=1, max_length=2048)
     slo_url: str | None = Field(None, min_length=1, max_length=2048)
+    nameid_format: Literal["emailAddress", "persistent", "transient", "unspecified"] | None = Field(
+        None, max_length=50
+    )
     include_group_claims: bool | None = None
     attribute_mapping: (
         dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None

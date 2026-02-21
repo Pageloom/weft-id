@@ -480,6 +480,41 @@ def sp_edit(
         )
 
 
+@router.post("/{sp_id}/edit-nameid-format", response_class=HTMLResponse)
+def sp_edit_nameid_format(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    nameid_format: str = Form(""),
+):
+    """Update an SP's NameID format."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    valid_formats = {"emailAddress", "persistent", "transient", "unspecified"}
+    if nameid_format not in valid_formats:
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error=Invalid NameID format", status_code=303
+        )
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    from schemas.service_providers import SPUpdate
+
+    try:
+        data = SPUpdate(nameid_format=nameid_format)  # type: ignore[arg-type]
+        sp_service.update_service_provider(requesting_user, sp_id, data)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=nameid_format_updated", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to update NameID format: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )
+
+
 @router.post("/{sp_id}/edit-attributes", response_class=HTMLResponse)
 def sp_edit_attributes(
     request: Request,

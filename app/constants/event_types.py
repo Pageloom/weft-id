@@ -108,6 +108,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # SAML IdP / Service Providers
     "service_provider_created": "Downstream service provider registered",
     "service_provider_updated": "Downstream service provider configuration updated",
+    "sp_nameid_format_updated": "NameID format changed for downstream service provider",
     "service_provider_enabled": "Downstream service provider enabled",
     "service_provider_disabled": "Downstream service provider disabled",
     "service_provider_deleted": "Downstream service provider removed",

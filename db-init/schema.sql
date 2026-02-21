@@ -803,6 +803,24 @@ CREATE TABLE public.sp_group_assignments (
 
 ALTER TABLE public.sp_group_assignments OWNER TO appowner;
 
+-- sp_nameid_mappings (per-SP persistent NameID values)
+CREATE TABLE public.sp_nameid_mappings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    sp_id uuid NOT NULL,
+    nameid_value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sp_nameid_mappings_pkey PRIMARY KEY (id),
+    CONSTRAINT uq_sp_nameid_mapping UNIQUE (tenant_id, user_id, sp_id),
+    CONSTRAINT sp_nameid_mappings_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
+    CONSTRAINT sp_nameid_mappings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
+    CONSTRAINT sp_nameid_mappings_sp_id_fkey FOREIGN KEY (sp_id) REFERENCES public.service_providers(id) ON DELETE CASCADE,
+    CONSTRAINT chk_sp_nameid_value_length CHECK (length(nameid_value) <= 255)
+);
+
+ALTER TABLE public.sp_nameid_mappings OWNER TO appowner;
+
 -- ============================================================================
 -- 8. INDEXES
 -- ============================================================================
@@ -927,6 +945,10 @@ CREATE INDEX idx_sp_signing_certificates_tenant ON public.sp_signing_certificate
 -- sp_group_assignments
 CREATE INDEX idx_sp_group_assignments_tenant_sp ON public.sp_group_assignments USING btree (tenant_id, sp_id);
 CREATE INDEX idx_sp_group_assignments_tenant_group ON public.sp_group_assignments USING btree (tenant_id, group_id);
+
+-- sp_nameid_mappings
+CREATE INDEX idx_sp_nameid_mappings_tenant ON public.sp_nameid_mappings USING btree (tenant_id);
+CREATE INDEX idx_sp_nameid_mappings_user_sp ON public.sp_nameid_mappings USING btree (user_id, sp_id);
 
 -- ============================================================================
 -- 9. TRIGGERS
@@ -1123,6 +1145,12 @@ CREATE POLICY sp_group_assignments_tenant_isolation ON public.sp_group_assignmen
     USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
     WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
 
+-- sp_nameid_mappings
+ALTER TABLE public.sp_nameid_mappings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY sp_nameid_mappings_tenant_isolation ON public.sp_nameid_mappings
+    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+
 -- ============================================================================
 -- 11. EXPLICIT GRANTS
 -- ============================================================================
@@ -1160,6 +1188,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.group_lineage TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.service_providers TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sp_signing_certificates TO appuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sp_group_assignments TO appuser;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.sp_nameid_mappings TO appuser;
 
 -- ============================================================================
 -- 12. SCHEMA MIGRATION LOG

@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+from constants.nameid_formats import NAMEID_FORMAT_EMAIL, NAMEID_FORMAT_PERSISTENT
 from services.exceptions import NotFoundError, ValidationError
 from services.service_providers import (
     build_sso_response,
@@ -10,6 +11,8 @@ from services.service_providers import (
     get_sp_by_entity_id,
     get_user_consent_info,
 )
+
+_RESOLVE_EMAIL = ("alice@example.com", NAMEID_FORMAT_EMAIL)
 
 # ============================================================================
 # get_service_provider_by_id
@@ -121,6 +124,10 @@ class TestBuildSsoResponse:
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
             ),
@@ -143,6 +150,10 @@ class TestBuildSsoResponse:
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
             patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
@@ -237,6 +248,10 @@ class TestBuildSsoResponse:
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
             ),
@@ -261,6 +276,10 @@ class TestBuildSsoResponse:
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
             patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
@@ -292,6 +311,10 @@ class TestBuildSsoResponse:
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
             ) as mock_build,
@@ -316,6 +339,10 @@ class TestBuildSsoResponse:
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
             patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
@@ -344,6 +371,10 @@ class TestBuildSsoResponse:
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
             patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
@@ -450,6 +481,78 @@ class TestGetUserConsentInfo:
 
 
 # ============================================================================
+# build_sso_response: resolve_name_id integration
+# ============================================================================
+
+
+class TestBuildSsoResponseNameId:
+    """Tests that build_sso_response calls resolve_name_id and uses its output."""
+
+    def _setup_mocks(self, mock_db):
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
+            "id": "sp-1",
+            "name": "Test SP",
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+            "trust_established": True,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+        mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+        mock_db.saml.get_sp_certificate.return_value = {
+            "certificate_pem": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            "private_key_pem_enc": "encrypted-key",
+        }
+        mock_db.users.get_user_by_id.return_value = {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.user_emails.get_primary_email.return_value = {
+            "email": "alice@example.com",
+        }
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_resolve_name_id_called_and_output_used(self, mock_db, mock_log_event):
+        """resolve_name_id is called during SSO and its values flow to the assertion."""
+        self._setup_mocks(mock_db)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=("persistent-opaque-id", NAMEID_FORMAT_PERSISTENT),
+            ) as mock_resolve,
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        mock_resolve.assert_called_once_with(
+            tenant_id="tenant-1",
+            user_id="user-1",
+            sp_id="sp-1",
+            nameid_format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+            user_email="alice@example.com",
+        )
+
+        call_kwargs = mock_build.call_args[1]
+        assert call_kwargs["name_id"] == "persistent-opaque-id"
+        assert call_kwargs["name_id_format"] == NAMEID_FORMAT_PERSISTENT
+
+
+# ============================================================================
 # build_sso_response: attribute_mapping passthrough
 # ============================================================================
 
@@ -499,6 +602,10 @@ class TestBuildSsoResponseAttributeMapping:
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
             patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),
             ) as mock_build,
@@ -522,6 +629,10 @@ class TestBuildSsoResponseAttributeMapping:
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
             patch(
                 "utils.saml_assertion.build_saml_response",
                 return_value=("base64-response", "_session123"),

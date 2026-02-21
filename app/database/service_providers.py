@@ -140,6 +140,7 @@ def update_service_provider(
         "description",
         "acs_url",
         "slo_url",
+        "nameid_format",
         "include_group_claims",
         "attribute_mapping",
         "enabled",

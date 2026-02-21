@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | - |
 | Medium | 0 | - |
-| Low | 1 | Security (A01) |
+| Low | 0 | - |
 
 **Last security scan:** 2026-02-21 (full OWASP assessment, first review. 5 of 6 issues resolved.)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
@@ -23,13 +23,5 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
 
 ---
-
-## [SECURITY] SSO consent flow not bound to authenticated user
-
-**Found in:** `app/routers/saml_idp/sso.py:127-138`
-**Severity:** Low
-**OWASP Category:** A01:2021 - Broken Access Control
-**Description:** The pending SSO context (`pending_sso_sp_id`, etc.) is stored in the session without recording which `user_id` initiated it. If a session were reused by a different user, they could complete another user's SSO flow. Session regeneration on login prevents this in practice.
-**Remediation:** Store `pending_sso_user_id` in session and validate it matches on consent.
 
 ---

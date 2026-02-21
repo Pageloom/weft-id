@@ -287,11 +287,19 @@ def fetch_sp_metadata(url: str, timeout: int = 10) -> str:
         headers = {"Accept": "application/xml, text/xml, application/samlmetadata+xml"}
         ssl_ctx = None
 
-        # Route internal URLs through the reverse-proxy container so that
-        # *.BASE_DOMAIN hostnames (unresolvable inside Docker) reach nginx.
+        # In dev, route internal URLs through the reverse-proxy container so
+        # that *.BASE_DOMAIN hostnames (unresolvable inside Docker) reach
+        # nginx. TLS verification is skipped because the proxy uses a
+        # self-signed cert and a rewritten hostname.  In production the URL
+        # is fetched directly with full TLS verification.
         parsed = urlparse(url)
         base = settings.BASE_DOMAIN
-        if base and parsed.hostname and parsed.hostname.endswith(base):
+        if (
+            settings.IS_DEV
+            and base
+            and parsed.hostname
+            and parsed.hostname.endswith(base)
+        ):
             original_host = parsed.hostname
             port = parsed.port or 443
             parsed = parsed._replace(netloc=f"reverse-proxy:{port}")

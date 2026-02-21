@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [TEST] Integration tests for database/service_providers.py (41% coverage)
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+
+**Original Description:**
+9 functions in `database/service_providers.py` had no integration tests. The module handles the full CRUD lifecycle for downstream SAML service providers, including JSONB serialization for `attribute_mapping` and `sp_requested_attributes`, conditional trust establishment, and metadata refresh.
+
+**Resolution:**
+Created `tests/database/test_service_providers.py` with 21 integration tests covering all 9 functions. Tests verify JSONB round-trips, `update_service_provider` filtering of disallowed fields, `establish_trust` conditional guard (no-op when already established), `refresh_sp_metadata_fields` scope (only metadata fields updated), and full CRUD lifecycle including not-found edge cases.
+
+---
+
 ### [TEST] Integration tests for database/groups/memberships.py (28% coverage)
 
 **Status:** Resolved (2026-02-21)

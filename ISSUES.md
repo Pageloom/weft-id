@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 5 | database integration test gaps (5) |
+| Medium | 4 | database integration test gaps (4) |
 | Low | 0 | |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
@@ -21,27 +21,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
-
----
-
-## [TEST] Integration tests for database/service_providers.py (41% coverage)
-
-**Found in:** `app/database/service_providers.py`, no existing test file
-**Severity:** Medium
-**Description:** 9 functions with no integration tests. This module handles the full CRUD lifecycle for downstream SAML service providers, including trust establishment and metadata refresh. The SQL includes JSONB serialization (`json.dumps` for `attribute_mapping` and `sp_requested_attributes`) and conditional updates (`WHERE trust_established = false`).
-**Untested functions:**
-- `list_service_providers()` - basic listing
-- `get_service_provider()` - by ID
-- `get_service_provider_by_entity_id()` - by entity_id
-- `create_service_provider()` - INSERT with JSONB fields
-- `update_service_provider()` - dynamic SET clause from kwargs, JSONB serialization
-- `set_service_provider_enabled()` - toggle via update
-- `refresh_sp_metadata_fields()` - partial update of metadata-derived fields
-- `establish_trust()` - conditional update (`WHERE trust_established = false`)
-- `delete_service_provider()` - DELETE
-
-**What to test:** Full CRUD lifecycle (create, read, update, delete). Verify JSONB fields round-trip correctly. Test `establish_trust` only works when `trust_established = false` and is a no-op when already established. Test `update_service_provider` ignores disallowed fields. Test `refresh_sp_metadata_fields` updates only metadata fields.
-**Test file:** Create `tests/database/test_service_providers.py`
 
 ---
 

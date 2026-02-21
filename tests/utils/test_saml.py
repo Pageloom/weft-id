@@ -1031,8 +1031,8 @@ def test_get_encryption_key_with_valid_32_byte_key():
         assert len(base64.urlsafe_b64decode(result)) == 32
 
 
-def test_get_encryption_key_with_invalid_key_falls_back_to_hash():
-    """Test encryption key generation falls back to SHA256 hash for invalid keys."""
+def test_get_encryption_key_with_invalid_key_falls_back_to_hkdf():
+    """Test encryption key generation falls back to HKDF derivation for invalid keys."""
     import base64
 
     with patch("app.utils.saml.settings") as mock_settings:

@@ -1140,3 +1140,654 @@ def test_bulk_add_group_members_empty_list(test_tenant):
     )
 
     assert count == 0
+
+
+# =============================================================================
+# Search, Filter, and Bulk Remove Tests
+# (search_group_members, count_group_members_filtered, search_available_users,
+#  count_available_users, bulk_remove_group_members)
+# =============================================================================
+
+# Pre-computed argon2 hash reused for quick user creation in search tests
+_SEARCH_TEST_PW = (
+    "$argon2id$v=19$m=65536,t=3,p=4$WIhSoX0J3BrSyeyhzWPUdA$"
+    "XhgXtxJyazeshxAIXw91bA0OXmrY/p0MydMEKzoZPP8"
+)
+
+
+def _make_search_user(
+    tenant_id,
+    first_name,
+    last_name,
+    role="member",
+    is_inactivated=False,
+    is_anonymized=False,
+):
+    """Create a user with a primary verified email for search/filter tests."""
+    from uuid import uuid4
+
+    import database
+
+    suffix = str(uuid4())[:8]
+    email = f"{first_name.lower()}-{suffix}@example.com"
+
+    user = database.fetchone(
+        tenant_id,
+        """
+        INSERT INTO users (
+            tenant_id, password_hash, first_name, last_name, role,
+            is_inactivated, is_anonymized
+        ) VALUES (
+            :tenant_id, :password_hash, :first_name, :last_name, :role,
+            :is_inactivated, :is_anonymized
+        ) RETURNING id, first_name, last_name, role
+        """,
+        {
+            "tenant_id": tenant_id,
+            "password_hash": _SEARCH_TEST_PW,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": role,
+            "is_inactivated": is_inactivated,
+            "is_anonymized": is_anonymized,
+        },
+    )
+
+    database.execute(
+        tenant_id,
+        """
+        INSERT INTO user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        VALUES (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": tenant_id, "user_id": user["id"], "email": email},
+    )
+
+    user["email"] = email
+    return user
+
+
+# -- search_group_members -----------------------------------------------------
+
+
+def test_search_group_members_no_filters(test_tenant):
+    """Test search_group_members returns members with extended info."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Search Members Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Anderson")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Brown", role="admin")
+
+    for u in [alice, bob]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    results = database.groups.search_group_members(test_tenant["id"], group["id"])
+
+    assert len(results) == 2
+    for r in results:
+        assert "role" in r
+        assert "is_inactivated" in r
+        assert "is_anonymized" in r
+        assert "email" in r
+        assert "last_activity_at" in r
+
+
+def test_search_group_members_text_search(test_tenant):
+    """Test tokenized text search: AND across tokens, OR within a token."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Text Search Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Anderson")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Brown")
+
+    for u in [alice, bob]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    # Single token matches first name
+    results = database.groups.search_group_members(test_tenant["id"], group["id"], search="Alice")
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(alice["id"])
+
+    # Single token matches last name
+    results = database.groups.search_group_members(test_tenant["id"], group["id"], search="Brown")
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(bob["id"])
+
+    # Multi-token AND: both tokens must match one user
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], search="Alice Anderson"
+    )
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(alice["id"])
+
+    # Multi-token AND: mismatched tokens find nobody
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], search="Alice Brown"
+    )
+    assert len(results) == 0
+
+
+def test_search_group_members_role_filter(test_tenant):
+    """Test filtering group members by role."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Role Filter Test",
+    )
+
+    member = _make_search_user(test_tenant["id"], "Regular", "Member")
+    admin = _make_search_user(test_tenant["id"], "Admin", "Usr", role="admin")
+    sa = _make_search_user(test_tenant["id"], "Super", "Adm", role="super_admin")
+
+    for u in [member, admin, sa]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    # Single role filter
+    results = database.groups.search_group_members(test_tenant["id"], group["id"], roles=["admin"])
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(admin["id"])
+
+    # Multiple roles
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], roles=["member", "super_admin"]
+    )
+    assert len(results) == 2
+    ids = {str(r["user_id"]) for r in results}
+    assert str(member["id"]) in ids
+    assert str(sa["id"]) in ids
+
+    # Invalid roles are silently ignored, no filter applied
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], roles=["nonexistent"]
+    )
+    assert len(results) == 3
+
+
+def test_search_group_members_status_filter(test_tenant):
+    """Test filtering group members by status (active/inactivated/anonymized)."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Status Filter Test",
+    )
+
+    active = _make_search_user(test_tenant["id"], "Active", "User")
+    inactivated = _make_search_user(test_tenant["id"], "Inactive", "User", is_inactivated=True)
+    anonymized = _make_search_user(
+        test_tenant["id"], "Anon", "User", is_inactivated=True, is_anonymized=True
+    )
+
+    for u in [active, inactivated, anonymized]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    # Active only
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], statuses=["active"]
+    )
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(active["id"])
+
+    # Inactivated only
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], statuses=["inactivated"]
+    )
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(inactivated["id"])
+
+    # Anonymized only
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], statuses=["anonymized"]
+    )
+    assert len(results) == 1
+    assert str(results[0]["user_id"]) == str(anonymized["id"])
+
+    # Combined statuses
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], statuses=["active", "inactivated"]
+    )
+    assert len(results) == 2
+
+
+def test_search_group_members_sorting_and_pagination(test_tenant):
+    """Test sort fields and pagination."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Sort Pagination Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Zulu")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Adams")
+    carol = _make_search_user(test_tenant["id"], "Carol", "Middle")
+
+    for u in [alice, bob, carol]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    # Sort by name ascending (last_name first)
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], sort_field="name", sort_order="asc"
+    )
+    assert results[0]["last_name"] == "Adams"
+    assert results[1]["last_name"] == "Middle"
+    assert results[2]["last_name"] == "Zulu"
+
+    # Sort by name descending
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], sort_field="name", sort_order="desc"
+    )
+    assert results[0]["last_name"] == "Zulu"
+    assert results[2]["last_name"] == "Adams"
+
+    # Pagination: page_size=2
+    page1 = database.groups.search_group_members(
+        test_tenant["id"],
+        group["id"],
+        sort_field="name",
+        sort_order="asc",
+        page=1,
+        page_size=2,
+    )
+    page2 = database.groups.search_group_members(
+        test_tenant["id"],
+        group["id"],
+        sort_field="name",
+        sort_order="asc",
+        page=2,
+        page_size=2,
+    )
+    assert len(page1) == 2
+    assert len(page2) == 1
+    all_ids = {str(r["user_id"]) for r in page1 + page2}
+    assert len(all_ids) == 3
+
+    # Invalid sort field falls back to created_at (no crash)
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], sort_field="bogus"
+    )
+    assert len(results) == 3
+
+    # Invalid sort order falls back to desc (no crash)
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], sort_order="bogus"
+    )
+    assert len(results) == 3
+
+    # last_activity_at sort with no activity records (NULL, no crash)
+    results = database.groups.search_group_members(
+        test_tenant["id"], group["id"], sort_field="last_activity_at"
+    )
+    assert len(results) == 3
+
+
+# -- count_group_members_filtered ----------------------------------------------
+
+
+def test_count_group_members_filtered_no_filters(test_tenant):
+    """Test basic count with no filters."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count No Filter Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Count")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Count")
+
+    for u in [alice, bob]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    count = database.groups.count_group_members_filtered(test_tenant["id"], group["id"])
+    assert count == 2
+
+
+def test_count_group_members_filtered_with_filters(test_tenant):
+    """Test count with search, role, and status filters."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count Filters Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Smith")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Smith", role="admin")
+    carol = _make_search_user(test_tenant["id"], "Carol", "Jones", is_inactivated=True)
+
+    for u in [alice, bob, carol]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    # Search filter
+    assert (
+        database.groups.count_group_members_filtered(test_tenant["id"], group["id"], search="Smith")
+        == 2
+    )
+
+    # Role filter
+    assert (
+        database.groups.count_group_members_filtered(
+            test_tenant["id"], group["id"], roles=["admin"]
+        )
+        == 1
+    )
+
+    # Status filter
+    assert (
+        database.groups.count_group_members_filtered(
+            test_tenant["id"], group["id"], statuses=["inactivated"]
+        )
+        == 1
+    )
+
+    # Combined: active Smiths who are members
+    assert (
+        database.groups.count_group_members_filtered(
+            test_tenant["id"],
+            group["id"],
+            search="Smith",
+            roles=["member"],
+            statuses=["active"],
+        )
+        == 1
+    )
+
+
+def test_count_group_members_filtered_matches_search(test_tenant):
+    """Test that count equals the number of search results."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count Match Test",
+    )
+
+    users = [
+        _make_search_user(test_tenant["id"], "Alice", "Smith"),
+        _make_search_user(test_tenant["id"], "Bob", "Smith", role="admin"),
+        _make_search_user(test_tenant["id"], "Carol", "Jones", is_inactivated=True),
+    ]
+    for u in users:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    kwargs = {"search": "Smith", "roles": ["member"]}
+    results = database.groups.search_group_members(test_tenant["id"], group["id"], **kwargs)
+    count = database.groups.count_group_members_filtered(test_tenant["id"], group["id"], **kwargs)
+    assert count == len(results)
+    assert count == 1
+
+
+# -- search_available_users ----------------------------------------------------
+
+
+def test_search_available_users_excludes_members(test_tenant):
+    """Test that users already in the group are excluded."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Available Exclude Test",
+    )
+
+    member = _make_search_user(test_tenant["id"], "Member", "User")
+    nonmember = _make_search_user(test_tenant["id"], "Available", "User")
+
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), group["id"], str(member["id"])
+    )
+
+    results = database.groups.search_available_users(test_tenant["id"], group["id"])
+
+    result_ids = {str(r["id"]) for r in results}
+    assert str(member["id"]) not in result_ids
+    assert str(nonmember["id"]) in result_ids
+
+
+def test_search_available_users_excludes_service_accounts(test_tenant):
+    """Test that OAuth2 B2B service account users are excluded."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Service Acct Test",
+    )
+
+    regular = _make_search_user(test_tenant["id"], "Regular", "User")
+
+    # Create a B2B client which auto-creates a service user
+    b2b = database.oauth2.create_b2b_client(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Test B2B",
+        role="admin",
+        created_by=str(regular["id"]),
+    )
+
+    results = database.groups.search_available_users(test_tenant["id"], group["id"])
+
+    result_ids = {str(r["id"]) for r in results}
+    assert str(regular["id"]) in result_ids
+    assert str(b2b["service_user_id"]) not in result_ids
+
+
+def test_search_available_users_with_filters(test_tenant):
+    """Test search, role, and status filters for available users."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Available Filter Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Wonderland")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Builder", role="admin")
+    carol = _make_search_user(test_tenant["id"], "Carol", "Inactive", is_inactivated=True)
+
+    # Text search
+    results = database.groups.search_available_users(test_tenant["id"], group["id"], search="Alice")
+    result_ids = {str(r["id"]) for r in results}
+    assert str(alice["id"]) in result_ids
+    assert str(bob["id"]) not in result_ids
+
+    # Role filter
+    results = database.groups.search_available_users(
+        test_tenant["id"], group["id"], roles=["admin"]
+    )
+    result_ids = {str(r["id"]) for r in results}
+    assert str(bob["id"]) in result_ids
+    assert str(alice["id"]) not in result_ids
+
+    # Status filter
+    results = database.groups.search_available_users(
+        test_tenant["id"], group["id"], statuses=["inactivated"]
+    )
+    result_ids = {str(r["id"]) for r in results}
+    assert str(carol["id"]) in result_ids
+    assert str(alice["id"]) not in result_ids
+
+
+def test_search_available_users_sorting_and_pagination(test_tenant):
+    """Test sorting and pagination for available users."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Available Sort Page Test",
+    )
+
+    _make_search_user(test_tenant["id"], "Alice", "Zulu")
+    _make_search_user(test_tenant["id"], "Bob", "Adams")
+    _make_search_user(test_tenant["id"], "Carol", "Middle")
+
+    # Default sort is name asc
+    results = database.groups.search_available_users(test_tenant["id"], group["id"])
+    assert results[0]["last_name"] == "Adams"
+    assert results[1]["last_name"] == "Middle"
+    assert results[2]["last_name"] == "Zulu"
+
+    # Pagination
+    page1 = database.groups.search_available_users(
+        test_tenant["id"], group["id"], page=1, page_size=2
+    )
+    page2 = database.groups.search_available_users(
+        test_tenant["id"], group["id"], page=2, page_size=2
+    )
+    assert len(page1) == 2
+    assert len(page2) == 1
+    all_ids = {str(r["id"]) for r in page1 + page2}
+    assert len(all_ids) == 3
+
+    # Invalid sort field falls back to name (no crash)
+    results = database.groups.search_available_users(
+        test_tenant["id"], group["id"], sort_field="bogus"
+    )
+    assert len(results) == 3
+
+
+# -- count_available_users -----------------------------------------------------
+
+
+def test_count_available_users_matches_search(test_tenant):
+    """Test that count matches search results with same filters."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Count Available Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Smith")
+    _make_search_user(test_tenant["id"], "Bob", "Smith", role="admin")
+
+    # Add Alice to the group so only Bob is available
+    database.groups.add_group_member(
+        test_tenant["id"], str(test_tenant["id"]), group["id"], str(alice["id"])
+    )
+
+    # No filters
+    count = database.groups.count_available_users(test_tenant["id"], group["id"])
+    results = database.groups.search_available_users(test_tenant["id"], group["id"], page_size=1000)
+    assert count == len(results)
+    assert count == 1  # Only Bob
+
+    # With filters
+    count = database.groups.count_available_users(test_tenant["id"], group["id"], roles=["admin"])
+    results = database.groups.search_available_users(
+        test_tenant["id"], group["id"], roles=["admin"], page_size=1000
+    )
+    assert count == len(results)
+    assert count == 1
+
+    count = database.groups.count_available_users(
+        test_tenant["id"], group["id"], search="Nonexistent"
+    )
+    assert count == 0
+
+
+# -- bulk_remove_group_members -------------------------------------------------
+
+
+def test_bulk_remove_group_members(test_tenant):
+    """Test removing multiple members atomically."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Remove Test",
+    )
+
+    alice = _make_search_user(test_tenant["id"], "Alice", "Remove")
+    bob = _make_search_user(test_tenant["id"], "Bob", "Remove")
+    carol = _make_search_user(test_tenant["id"], "Carol", "Keep")
+
+    for u in [alice, bob, carol]:
+        database.groups.add_group_member(
+            test_tenant["id"], str(test_tenant["id"]), group["id"], str(u["id"])
+        )
+
+    assert database.groups.count_group_members(test_tenant["id"], group["id"]) == 3
+
+    removed = database.groups.bulk_remove_group_members(
+        test_tenant["id"],
+        group["id"],
+        [str(alice["id"]), str(bob["id"])],
+    )
+
+    assert removed == 2
+    assert database.groups.count_group_members(test_tenant["id"], group["id"]) == 1
+    assert not database.groups.is_group_member(test_tenant["id"], group["id"], str(alice["id"]))
+    assert not database.groups.is_group_member(test_tenant["id"], group["id"], str(bob["id"]))
+    assert database.groups.is_group_member(test_tenant["id"], group["id"], str(carol["id"]))
+
+
+def test_bulk_remove_group_members_empty_list(test_tenant):
+    """Test bulk remove with empty list returns 0."""
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Remove Empty Test",
+    )
+
+    removed = database.groups.bulk_remove_group_members(test_tenant["id"], group["id"], [])
+    assert removed == 0
+
+
+def test_bulk_remove_group_members_nonexistent_users(test_tenant):
+    """Test bulk remove with nonexistent user IDs returns 0."""
+    from uuid import uuid4
+
+    import database
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Bulk Remove Nonexistent Test",
+    )
+
+    removed = database.groups.bulk_remove_group_members(
+        test_tenant["id"],
+        group["id"],
+        [str(uuid4()), str(uuid4())],
+    )
+    assert removed == 0

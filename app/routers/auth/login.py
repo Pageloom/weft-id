@@ -242,7 +242,7 @@ def verify_code(
         value=trust_cookie_value,
         max_age=trust_max_age,
         httponly=True,
-        samesite="lax",
+        samesite="strict",
         secure=not settings.IS_DEV,
     )
     return redirect

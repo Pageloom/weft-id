@@ -298,3 +298,50 @@ Quality:
 **Effort:** S-M
 **Value:** Medium (DRY, consistency, maintainability)
 
+---
+
+## Reorganize tests/ into packages mirroring app/ structure
+
+**User Story:**
+As a developer
+I want test files organized into packages that mirror the app/ directory structure
+So that tests are easy to navigate and locate by layer
+
+**Context:**
+
+The 120+ flat test files in `tests/` use a naming convention
+(`test_routers_auth.py`, `test_services_users_crud.py`, etc.) to approximate
+hierarchy. As the codebase grows, a flat listing is increasingly hard to
+navigate. The app itself uses packages (`app/services/users/`,
+`app/database/groups/`, etc.) and the tests don't reflect that hierarchy.
+
+Move test files into subdirectory packages that mirror `app/`:
+
+- `tests/api/` — API endpoint tests
+- `tests/routers/` — Router/HTTP layer tests (with sub-packages for auth,
+  users, saml_idp, etc.)
+- `tests/services/` — Service layer tests
+- `tests/database/` — Database query tests
+- `tests/utils/` — Utility tests
+- `tests/jobs/` — Background job tests
+- Top-level cross-cutting tests (`test_pages.py`, `test_auth_coverage.py`)
+  stay at root
+
+**Implementation notes:**
+- Root `conftest.py` stays in place (pytest discovers conftest.py
+  hierarchically)
+- `pytest.ini` `pythonpath = tests` continues to work
+- Mock targets are unaffected (they reference `app.*`, not test paths)
+- Each new package needs `__init__.py`
+- Purely mechanical: ~120 file moves + renames, no logic changes
+- Start with shallow structure (by layer), not deep mirror of every sub-package
+
+**Acceptance Criteria:**
+
+- [ ] `./test` passes with identical results
+- [ ] All test files are in a package matching their app layer
+- [ ] No flat test files remain at `tests/` root except cross-cutting concerns
+
+**Effort:** S
+**Value:** Low-Medium (Developer experience, navigation)
+

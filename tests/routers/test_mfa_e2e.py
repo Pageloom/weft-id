@@ -59,7 +59,7 @@ def mfa_client(test_tenant):
 
     # Change to app directory so templates can be found
     original_cwd = os.getcwd()
-    app_dir = Path(__file__).parent.parent / "app"
+    app_dir = Path(__file__).parent.parent.parent / "app"
     os.chdir(app_dir)
 
     client = TestClient(app)

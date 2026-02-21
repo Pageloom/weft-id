@@ -250,9 +250,13 @@ Background jobs run in a separate worker container.
 ./test                                                         # Run all tests (parallelized by default)
 poetry run python -m pytest                                    # Full command
 poetry run python -m pytest --cov=app --cov-report=term-missing  # With coverage report
+make watch-tests                                               # Watch mode: auto-rerun only affected tests on file changes
+./test --testmon                                               # Run only tests affected by recent changes (one-time)
 ```
 
 Note: Tests run in parallel by default (`-n auto` configured in `pytest.ini`).
+
+**Watch mode** (`make watch-tests`) uses `pytest-testmon` to intelligently run only tests affected by your code changes. On first run, it builds a coverage database (`.testmondata`). Subsequent runs only execute tests that cover the changed code, providing much faster feedback than running the full suite.
 
 **Code quality (lint, format, type check, compliance):**
 ```bash
@@ -356,9 +360,13 @@ The CSS is built during the Docker image build process, so running `make up` wil
 
 **Starting a development session:**
 1. Start Docker services: `make up`
-2. (Optional) Start CSS watch mode: `make watch-css` (in separate terminal)
+2. (Optional) Start watch modes in separate terminals:
+   - CSS: `make watch-css` - auto-rebuild CSS on template changes
+   - Tests: `make watch-tests` - intelligently rerun only affected tests on code changes
 3. Work on code/templates normally
-4. CSS rebuilds automatically if watch mode is running
+4. Watch modes provide immediate feedback if running
+
+**Note on test watch mode**: The first run builds a coverage database. After that, only tests affected by your changes will run, making iterations much faster (e.g., changing one function might run 5 tests instead of 500).
 
 **Before committing code:**
 1. Run code quality checks: `./code-quality --fix`
@@ -379,6 +387,7 @@ All checks must pass before committing.
 8. **API-first methodology** - any functionality available in the web client must also be exposed via API endpoints under `/api/v1/`
 9. **Backlog management** - after completing a BACKLOG.md item, move it to BACKLOG_ARCHIVE.md with status marked as Complete
 10. **All string fields must have `max_length`** - every `str` field in Pydantic input schemas (Create, Update, Import) must specify `max_length`. Use these standard limits: names/titles 255, descriptions 2000, URLs 2048, enum-like fields 50, subdomains 63, domains 253. Database columns should have matching `CHECK` constraints or `VARCHAR(N)` types.
+11. **Use watch mode during development** - run `make watch-tests` in a separate terminal to get immediate feedback on code changes. It intelligently reruns only affected tests, providing fast iteration cycles (seconds instead of minutes).
 
 ## Testing Requirements
 

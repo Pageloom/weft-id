@@ -74,11 +74,20 @@ Lists with bulk actions (e.g., group member management) follow additional rules:
 
 **Reference templates:** `groups_members.html` (remove pattern), `groups_members_add.html` (add pattern).
 
+## Continuous Development
+
+**During active development**, use watch mode for immediate feedback:
+```bash
+make watch-tests    # Auto-rerun only affected tests on file changes
+```
+
+This runs only tests affected by your changes, providing fast feedback (seconds instead of minutes). First run builds coverage database, then intelligently selects relevant tests.
+
 ## Before Committing
 
 ```bash
 ./code-quality --fix                    # Lint, format, type check, compliance
-./test                                  # Tests
+./test                                  # Tests (full suite)
 ```
 
 Both must pass.

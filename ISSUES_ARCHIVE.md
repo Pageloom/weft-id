@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] SSO consent flow not bound to authenticated user
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Low
+**OWASP Category:** A01:2021 - Broken Access Control
+
+**Original Description:**
+The pending SSO context (`pending_sso_sp_id`, etc.) was stored in the session without recording which `user_id` initiated it. If a session were reused by a different user, they could complete another user's SSO flow. Session regeneration on login prevented this in practice.
+
+**Resolution:** Store `pending_sso_user_id` in the session when SSO context is created (both SP-initiated and IdP-initiated). Validate it matches the current user on consent GET and POST. The MFA verification handler stamps the binding after session regeneration. The switch-account flow intentionally drops the binding so re-authentication re-binds to the new user.
+
+---
+
 ### [SECURITY] Session cookie missing `Secure` flag in production
 
 **Status:** Resolved (2026-02-21)

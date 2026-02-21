@@ -2,7 +2,6 @@
 
 import base64
 import datetime
-import hashlib
 from defusedxml import ElementTree as ET
 from typing import Any
 
@@ -11,6 +10,7 @@ from cryptography import x509
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.x509.oid import NameOID
 
 
@@ -24,10 +24,15 @@ def _get_encryption_key() -> bytes:
             return base64.urlsafe_b64encode(key_bytes)
     except Exception:
         pass
-    # Fallback: derive from the string (not ideal but better than random)
-    # Use first 32 bytes of SHA256 hash
-    key_hash = hashlib.sha256(key_str.encode()).digest()
-    return base64.urlsafe_b64encode(key_hash)
+    # Fallback: derive a proper key using HKDF
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"saml-key-encryption",
+    )
+    key_bytes = hkdf.derive(key_str.encode())
+    return base64.urlsafe_b64encode(key_bytes)
 
 
 _cipher = Fernet(_get_encryption_key())

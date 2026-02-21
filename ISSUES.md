@@ -10,8 +10,8 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 2 | SSRF, RLS policy defect |
-| Medium | 1 | XML Injection |
+| High | 1 | SSRF |
+| Medium | 7 | XML Injection, database integration test gaps (6) |
 | Low | 2 | SLO validation, cert cleanup race |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
@@ -20,7 +20,132 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last refactor scan:** 2026-02-12 (standard full scan, 4 prior items resolved, 2 new)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
-**Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
+**Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
+
+---
+
+## [TEST] Integration tests for database/groups/memberships.py (28% coverage)
+
+**Found in:** `app/database/groups/memberships.py`, `tests/database/test_groups.py`
+**Severity:** Medium
+**Description:** 5 of 12 functions have no integration tests. The untested functions build dynamic SQL with search tokenization, role/status filtering, and pagination. Their SQL is never executed against the real schema in tests.
+**Untested functions:**
+- `search_group_members()` - dynamic WHERE clauses, 6 sort fields, role/status filters, ILIKE search tokenization
+- `count_group_members_filtered()` - matching filter logic for pagination counts
+- `search_available_users()` - NOT EXISTS subquery excluding current members and service accounts
+- `count_available_users()` - matching count query
+- `bulk_remove_group_members()` - transactional multi-delete via `session()` context manager
+
+**Already tested:** `get_group_members`, `count_group_members`, `is_group_member`, `add_group_member`, `remove_group_member`, `bulk_add_group_members`, `get_user_groups`
+**What to test:** Create a group with several members (varying roles, statuses). Test each search/filter/sort combination against the real database. Verify `bulk_remove_group_members` atomicity (partial failure rolls back). Verify `search_available_users` correctly excludes existing members and OAuth2 service users.
+**Test file:** Add tests to existing `tests/database/test_groups.py`
+
+---
+
+## [TEST] Integration tests for database/service_providers.py (41% coverage)
+
+**Found in:** `app/database/service_providers.py`, no existing test file
+**Severity:** Medium
+**Description:** 9 functions with no integration tests. This module handles the full CRUD lifecycle for downstream SAML service providers, including trust establishment and metadata refresh. The SQL includes JSONB serialization (`json.dumps` for `attribute_mapping` and `sp_requested_attributes`) and conditional updates (`WHERE trust_established = false`).
+**Untested functions:**
+- `list_service_providers()` - basic listing
+- `get_service_provider()` - by ID
+- `get_service_provider_by_entity_id()` - by entity_id
+- `create_service_provider()` - INSERT with JSONB fields
+- `update_service_provider()` - dynamic SET clause from kwargs, JSONB serialization
+- `set_service_provider_enabled()` - toggle via update
+- `refresh_sp_metadata_fields()` - partial update of metadata-derived fields
+- `establish_trust()` - conditional update (`WHERE trust_established = false`)
+- `delete_service_provider()` - DELETE
+
+**What to test:** Full CRUD lifecycle (create, read, update, delete). Verify JSONB fields round-trip correctly. Test `establish_trust` only works when `trust_established = false` and is a no-op when already established. Test `update_service_provider` ignores disallowed fields. Test `refresh_sp_metadata_fields` updates only metadata fields.
+**Test file:** Create `tests/database/test_service_providers.py`
+
+---
+
+## [TEST] Integration tests for database/sp_group_assignments.py (32% coverage)
+
+**Found in:** `app/database/sp_group_assignments.py`, no existing test file
+**Severity:** Medium
+**Description:** 9 functions with no integration tests. This module handles SP-to-group access control, including hierarchical access checks using the `group_lineage` closure table. The `user_can_access_sp()` and `get_accessible_sps_for_user()` queries join across 3-4 tables (`group_memberships`, `group_lineage`, `sp_group_assignments`, `service_providers`). These are critical authorization queries that should be validated against the real schema.
+**Untested functions:**
+- `list_assignments_for_sp()` - JOIN with groups
+- `list_assignments_for_group()` - JOIN with service_providers
+- `create_assignment()` - INSERT with RETURNING
+- `delete_assignment()` - DELETE by composite key
+- `bulk_create_assignments()` - dynamic VALUES clause with ON CONFLICT DO NOTHING
+- `user_can_access_sp()` - 3-table JOIN using closure table for hierarchical access
+- `get_accessible_sps_for_user()` - 4-table JOIN, filters on `enabled` and `trust_established`
+- `count_assignments_for_sp()` - simple count
+- `count_assignments_for_sps()` - aggregate counts returned as dict
+
+**What to test:** Create a group hierarchy (parent > child), assign SP to parent group, add user to child group. Verify `user_can_access_sp()` returns True (inherited access via lineage). Verify `get_accessible_sps_for_user()` returns the SP. Verify direct membership also works. Test `bulk_create_assignments` with duplicate handling. Test that disabled/untrusted SPs are excluded from `get_accessible_sps_for_user`.
+**Test file:** Create `tests/database/test_sp_group_assignments.py`
+**Fixture dependencies:** Requires `test_tenant`, `test_user`, a group, a service provider, and group lineage rows.
+
+---
+
+## [TEST] Integration tests for database/users/saml_assignment.py (67% coverage)
+
+**Found in:** `app/database/users/saml_assignment.py`, `tests/database/test_users.py`
+**Severity:** Medium
+**Description:** 7 of 8 functions have no integration tests. This module handles user-to-IdP assignment, password wiping, email unverification, and bulk domain binding operations. The bulk operations use `ANY(:user_ids)` array syntax. The `get_user_auth_info()` query is used by the email-first login flow to determine authentication routing, making it security-critical.
+**Untested functions:**
+- `get_user_auth_info()` - JOIN users + user_emails, returns auth routing info (has_password, saml_idp_id, is_inactivated)
+- `wipe_user_password()` - sets password_hash to null
+- `unverify_user_emails()` - sets verified_at to null, increments verify_nonce
+- `get_users_by_email_domain()` - LIKE query with domain pattern
+- `bulk_assign_users_to_idp()` - UPDATE with `ANY(:user_ids)` array
+- `bulk_inactivate_users()` - UPDATE setting is_inactivated + clearing saml_idp_id
+- `bulk_unverify_emails()` - UPDATE user_emails for multiple users
+
+**What to test:** Create users with passwords and verified emails. Test `get_user_auth_info` returns correct has_password/saml_idp_id. Test `wipe_user_password` actually nulls the hash. Test `unverify_user_emails` clears verified_at and bumps nonce. Test bulk operations affect the right rows and respect empty-list guard. Create users with domain emails, verify `get_users_by_email_domain` finds them.
+**Test file:** Add tests to existing `tests/database/test_users.py`
+**Fixture dependencies:** Needs a SAML IdP record (requires `saml_idp_configs` table row).
+
+---
+
+## [TEST] Integration tests for SAML certificate modules (57%/58% coverage)
+
+**Found in:** `app/database/saml/idp_certificates.py` (57%), `app/database/sp_signing_certificates.py` (58%)
+**Severity:** Medium
+**Description:** Both certificate modules have roughly half their functions untested. These handle certificate lifecycle (create, read, rotate, cleanup, delete) for both IdP certificates and per-SP signing certificates. The rotation logic in `sp_signing_certificates.py` moves the current cert to `previous_*` columns and sets grace period fields, which is important to validate against the real schema.
+
+**Untested in `idp_certificates.py`** (3 of 6):
+- `get_idp_certificate()` - by cert ID
+- `get_idp_certificate_by_fingerprint()` - duplicate detection
+- `delete_idp_certificate()` - DELETE returning bool
+- `update_idp_certificate_fingerprint()` - backfill migration helper
+
+**Untested in `sp_signing_certificates.py`** (3 of 5):
+- `create_signing_certificate()` - INSERT with encrypted private key
+- `rotate_signing_certificate()` - UPDATE moving current to previous_* columns
+- `clear_previous_signing_certificate()` - cleanup after grace period
+
+**What to test:** For IdP certs: create, retrieve by ID and fingerprint, delete. For SP signing certs: create, rotate (verify previous_* columns populated), clear previous (verify nulled). Both modules need a SAML IdP record and/or a service provider as fixtures.
+**Test file:** Create `tests/database/test_certificates.py` covering both modules
+**Fixture dependencies:** Needs a SAML IdP config row and a service provider row.
+
+---
+
+## [TEST] Integration tests for small database modules (40%/60%/67% coverage)
+
+**Found in:** `app/database/sp_nameid_mappings.py` (40%), `app/database/saml/security.py` (60%), `app/database/groups/selection.py` (67%)
+**Severity:** Medium
+**Description:** Three small modules each have 1-3 untested functions. Grouped together because each is too small for a standalone issue but the SQL should still be validated.
+
+**Untested in `sp_nameid_mappings.py`** (1 of 2):
+- `get_or_create_nameid_mapping()` - INSERT ON CONFLICT DO NOTHING + SELECT for race safety. Generates a UUID NameID value. Important to verify the upsert pattern works against the real unique constraint.
+
+**Untested in `saml/security.py`** (2 of 4):
+- `count_users_without_idp_in_domain()` - JOIN users + user_emails with LIKE pattern, filters on verified_at and saml_idp_id IS NULL
+- `count_users_with_idp_in_domain()` - same pattern but filters on specific idp_id
+
+**Untested in `groups/selection.py`** (1 of 3):
+- `get_groups_for_user_select()` - lists groups excluding those a user already belongs to (NOT EXISTS subquery)
+
+**What to test:** For nameid mappings: create a mapping, verify get returns it, call get_or_create again for same pair, verify same mapping returned (idempotent). For security counts: create users with domain emails, some with IdP, some without, verify counts are correct. For selection: create groups, add user to one, verify the other appears in the select list.
+**Test file:** Create `tests/database/test_sp_nameid_mappings.py` and add to existing `tests/database/test_groups.py` and `tests/database/test_security.py`
 
 ---
 
@@ -171,44 +296,6 @@ def _handle_slo_request(...):
     # Only clear session after validating the request came from a registered SP
     request.session.clear()
     ...
-```
-
----
-
-## [SECURITY] RLS Policy Defect on saml_idp_sp_certificates Table
-
-**Found in:** `db-init/schema.sql:1049-1050`
-**Severity:** High
-**OWASP Category:** A01:2021 - Broken Access Control
-**Description:** The `saml_idp_sp_certificates` table has a defective RLS policy with three problems compared to every other tenant-isolated table in the schema:
-
-1. **Missing `WITH CHECK` clause**: The policy only has `USING` (governs SELECT/UPDATE/DELETE visibility) but no `WITH CHECK` (governs INSERT/UPDATE write validation). This means INSERT and UPDATE operations bypass tenant scoping entirely for this table.
-
-2. **Missing `true` parameter in `current_setting()`**: All other tables use `current_setting('app.tenant_id'::text, true)` which returns NULL when the setting is absent. This table uses `current_setting('app.tenant_id'::text)` which raises an ERROR when `app.tenant_id` is not set, causing unexpected failures in code paths that use `UNSCOPED` queries.
-
-3. **Missing `NULLIF()` handling**: Other tables that were added around the same time (e.g., `saml_sp_certificates`, `service_providers`) wrap the setting in `NULLIF(..., ''::text)` to handle empty strings. This table does not.
-
-**Attack Scenario:** An application bug or code path that fails to set `app.tenant_id` before inserting into `saml_idp_sp_certificates` could write a certificate row associated with Tenant A while operating in a Tenant B context. Because there is no `WITH CHECK`, PostgreSQL will not reject the insert even if the `tenant_id` in the row does not match the session's `app.tenant_id`.
-
-**Evidence:**
-```sql
--- saml_idp_sp_certificates (DEFECTIVE - line 1049)
-CREATE POLICY tenant_isolation ON public.saml_idp_sp_certificates
-    USING ((tenant_id = (current_setting('app.tenant_id'::text))::uuid));
-
--- Every other table uses this pattern (e.g., saml_sp_certificates - line 1043)
-CREATE POLICY saml_sp_certificates_tenant_isolation ON public.saml_sp_certificates
-    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
-    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
-```
-**Impact:** Tenant isolation bypass on writes to the per-IdP SP signing certificates table. Could allow cross-tenant certificate contamination.
-**Remediation:** Replace the policy to match the standard pattern:
-
-```sql
-DROP POLICY tenant_isolation ON public.saml_idp_sp_certificates;
-CREATE POLICY saml_idp_sp_certificates_tenant_isolation ON public.saml_idp_sp_certificates
-    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
-    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
 ```
 
 ---

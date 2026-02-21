@@ -405,6 +405,10 @@ def update_service_provider(
         update_fields["acs_url"] = data.acs_url
     if data.slo_url is not None:
         update_fields["slo_url"] = data.slo_url
+    if data.nameid_format is not None:
+        from constants.nameid_formats import NAMEID_FORMAT_LABELS
+
+        update_fields["nameid_format"] = NAMEID_FORMAT_LABELS[data.nameid_format]
     if data.include_group_claims is not None:
         update_fields["include_group_claims"] = data.include_group_claims
     if data.attribute_mapping is not None:
@@ -415,6 +419,9 @@ def update_service_provider(
             message="At least one field must be provided for update",
             code="sp_update_no_fields",
         )
+
+    # Track old nameid_format for change detection
+    old_nameid_format = existing.get("nameid_format")
 
     row = database.service_providers.update_service_provider(tenant_id, sp_id, **update_fields)
 
@@ -432,6 +439,20 @@ def update_service_provider(
         event_type="service_provider_updated",
         metadata={"changed_fields": list(update_fields.keys())},
     )
+
+    # Emit specific event when nameid_format actually changes
+    if "nameid_format" in update_fields and update_fields["nameid_format"] != old_nameid_format:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="service_provider",
+            artifact_id=sp_id,
+            event_type="sp_nameid_format_updated",
+            metadata={
+                "old_format": old_nameid_format,
+                "new_format": update_fields["nameid_format"],
+            },
+        )
 
     config = _row_to_config(row)
 

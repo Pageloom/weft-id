@@ -220,7 +220,22 @@
         {% endif %}
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NameID Format</dt>
-            <dd class="mt-1 text-sm text-gray-900 dark:text-gray-100 font-mono">{{ sp.nameid_format }}</dd>
+            <dd class="mt-1">
+                <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/edit-nameid-format" class="flex items-center gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select name="nameid_format"
+                            class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="emailAddress" {% if sp.nameid_format == 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress' %}selected{% endif %}>Email Address</option>
+                        <option value="persistent" {% if sp.nameid_format == 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent' %}selected{% endif %}>Persistent</option>
+                        <option value="transient" {% if sp.nameid_format == 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' %}selected{% endif %}>Transient</option>
+                        <option value="unspecified" {% if sp.nameid_format == 'urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified' %}selected{% endif %}>Unspecified</option>
+                    </select>
+                    <button type="submit"
+                            class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Save
+                    </button>
+                </form>
+            </dd>
         </div>
         <div>
             <dt class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</dt>

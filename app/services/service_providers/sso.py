@@ -147,10 +147,20 @@ def build_sso_response(
         if group_names:
             user_attributes["groups"] = group_names
 
-    # 6. Build SAML Response
+    # 6. Resolve NameID value and format
+    from services.service_providers.nameid import resolve_name_id
+
     issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
     name_id_format = sp_row.get(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+    )
+
+    name_id, resolved_format = resolve_name_id(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        sp_id=sp_id,
+        nameid_format=name_id_format,
+        user_email=email,
     )
 
     # 6b. Get per-SP attribute mapping (if configured)
@@ -160,8 +170,8 @@ def build_sso_response(
         issuer_entity_id=issuer_entity_id,
         sp_entity_id=sp_entity_id,
         sp_acs_url=sp_row["acs_url"],
-        name_id=email,
-        name_id_format=name_id_format,
+        name_id=name_id,
+        name_id_format=resolved_format,
         authn_request_id=authn_request_id,
         user_attributes=user_attributes,
         certificate_pem=cert["certificate_pem"],

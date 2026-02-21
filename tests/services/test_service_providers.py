@@ -1370,6 +1370,102 @@ class TestUpdateServiceProvider:
                 tenant_id, sp_id, include_group_claims=True
             )
 
+    def test_update_nameid_format_maps_label_to_uri(self, make_requesting_user):
+        """nameid_format update maps short label to full URI."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(nameid_format="persistent")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        row["nameid_format"] = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.nameid_format == "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id,
+                sp_id,
+                nameid_format="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+            )
+
+    def test_nameid_format_change_emits_specific_event(self, make_requesting_user):
+        """Changing nameid_format emits sp_nameid_format_updated event."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(nameid_format="persistent")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+        row["nameid_format"] = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            existing = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+            mock_db.service_providers.get_service_provider.return_value = existing
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Should have two events: service_provider_updated + sp_nameid_format_updated
+            assert mock_log.call_count == 2
+            event_types = [call[1]["event_type"] for call in mock_log.call_args_list]
+            assert "service_provider_updated" in event_types
+            assert "sp_nameid_format_updated" in event_types
+
+            # Check the nameid format event metadata
+            nameid_call = [
+                c
+                for c in mock_log.call_args_list
+                if c[1]["event_type"] == "sp_nameid_format_updated"
+            ][0]
+            assert nameid_call[1]["metadata"]["old_format"] == existing["nameid_format"]
+            assert (
+                nameid_call[1]["metadata"]["new_format"]
+                == "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
+            )
+
+    def test_same_nameid_format_skips_specific_event(self, make_requesting_user):
+        """Setting nameid_format to same value does not emit specific event."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(nameid_format="emailAddress")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Only service_provider_updated, no sp_nameid_format_updated
+            assert mock_log.call_count == 1
+            assert mock_log.call_args[1]["event_type"] == "service_provider_updated"
+
 
 # =============================================================================
 # enable_service_provider

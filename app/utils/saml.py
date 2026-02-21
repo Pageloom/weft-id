@@ -266,60 +266,24 @@ def parse_idp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
 
 
 def fetch_idp_metadata(url: str, timeout: int = 10) -> str:
-    """
-    Fetch IdP metadata XML from a URL.
+    """Fetch IdP metadata XML from a URL.
+
+    Validates the URL for SSRF safety (scheme, resolved IP) and enforces a
+    response size limit before returning the raw XML.
 
     Args:
-        url: Metadata URL
+        url: Metadata URL (https required in production)
         timeout: Request timeout in seconds
 
     Returns:
         Raw XML metadata string
 
     Raises:
-        ValueError: If fetch fails or returns non-XML content
+        ValueError: If fetch fails, URL is unsafe, or returns non-XML content
     """
-    import ssl
-    import urllib.request
-    from urllib.error import HTTPError, URLError
-    from urllib.parse import urlparse, urlunparse
+    from utils.url_safety import fetch_metadata_xml
 
-    try:
-        headers = {"Accept": "application/xml, text/xml, application/samlmetadata+xml"}
-        ssl_ctx = None
-
-        # In dev, route internal URLs through the reverse-proxy container so
-        # that *.BASE_DOMAIN hostnames (unresolvable inside Docker) reach
-        # nginx. TLS verification is skipped because the proxy uses a
-        # self-signed cert and a rewritten hostname.  In production the URL
-        # is fetched directly with full TLS verification.
-        parsed = urlparse(url)
-        base = settings.BASE_DOMAIN
-        if settings.IS_DEV and base and parsed.hostname and parsed.hostname.endswith(base):
-            original_host = parsed.hostname
-            port = parsed.port or 443
-            parsed = parsed._replace(netloc=f"reverse-proxy:{port}")
-            headers["Host"] = original_host
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
-
-        req = urllib.request.Request(urlunparse(parsed), headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
-            content: str = response.read().decode("utf-8")
-
-            # Basic validation that it looks like XML
-            if not content.strip().startswith("<?xml") and not content.strip().startswith("<"):
-                raise ValueError("Response does not appear to be XML")
-
-            return content
-
-    except HTTPError as e:
-        raise ValueError(f"HTTP error fetching metadata: {e.code} {e.reason}") from e
-    except URLError as e:
-        raise ValueError(f"Failed to fetch metadata: {e.reason}") from e
-    except TimeoutError:
-        raise ValueError(f"Timeout fetching metadata (>{timeout}s)") from None
+    return fetch_metadata_xml(url, timeout=timeout)
 
 
 def generate_sp_metadata_xml(

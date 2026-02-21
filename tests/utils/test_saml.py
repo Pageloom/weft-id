@@ -302,10 +302,19 @@ def test_parse_idp_metadata_xml_invalid_xml():
 # =============================================================================
 
 
-@patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_success(mock_urlopen, sample_idp_metadata_xml):
+@patch("app.utils.url_safety.urllib.request.urlopen")
+@patch("app.utils.url_safety.socket.getaddrinfo")
+@patch("app.utils.url_safety.settings")
+def test_fetch_idp_metadata_success(
+    mock_settings, mock_getaddrinfo, mock_urlopen, sample_idp_metadata_xml
+):
     """Test successful metadata fetch."""
+    mock_settings.IS_DEV = False
+    mock_settings.BASE_DOMAIN = ""
+    mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
+
     mock_response = MagicMock()
+    mock_response.headers = {}
     mock_response.read.return_value = sample_idp_metadata_xml.encode("utf-8")
     mock_urlopen.return_value.__enter__.return_value = mock_response
 
@@ -329,19 +338,31 @@ def test_fetch_idp_metadata_success(mock_urlopen, sample_idp_metadata_xml):
     ],
     ids=["http_error", "network_error", "timeout"],
 )
-@patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_error(mock_urlopen, exception, match):
+@patch("app.utils.url_safety.urllib.request.urlopen")
+@patch("app.utils.url_safety.socket.getaddrinfo")
+@patch("app.utils.url_safety.settings")
+def test_fetch_idp_metadata_error(mock_settings, mock_getaddrinfo, mock_urlopen, exception, match):
     """Test that fetch errors raise ValueError."""
+    mock_settings.IS_DEV = False
+    mock_settings.BASE_DOMAIN = ""
+    mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
     mock_urlopen.side_effect = exception
 
     with pytest.raises(ValueError, match=match):
         fetch_idp_metadata("https://idp.example.com/metadata")
 
 
-@patch("urllib.request.urlopen")
-def test_fetch_idp_metadata_non_xml_response(mock_urlopen):
+@patch("app.utils.url_safety.urllib.request.urlopen")
+@patch("app.utils.url_safety.socket.getaddrinfo")
+@patch("app.utils.url_safety.settings")
+def test_fetch_idp_metadata_non_xml_response(mock_settings, mock_getaddrinfo, mock_urlopen):
     """Test that non-XML response raises ValueError."""
+    mock_settings.IS_DEV = False
+    mock_settings.BASE_DOMAIN = ""
+    mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
+
     mock_response = MagicMock()
+    mock_response.headers = {}
     mock_response.read.return_value = b"This is not XML content"
     mock_urlopen.return_value.__enter__.return_value = mock_response
 

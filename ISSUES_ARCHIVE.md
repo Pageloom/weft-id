@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] SSRF via Metadata URL Fetch
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** High
+**OWASP Category:** A10:2021 - Server-Side Request Forgery (SSRF)
+
+**Original Description:**
+`fetch_sp_metadata()` and `fetch_idp_metadata()` accepted arbitrary URLs without validating scheme or target host. `urllib.request.urlopen` supports `file://`, `ftp://`, and `http://` schemes by default, and no blocklist prevented requests to internal networks (169.254.169.254, 127.0.0.1, etc.). No response size limit either.
+
+**Resolution:** Created `app/utils/url_safety.py` with shared SSRF protection. Validates URL scheme (https only in production, http also allowed in dev), resolves hostname via `socket.getaddrinfo`, rejects private/reserved IP ranges (loopback, RFC 1918, link-local, cloud metadata, IPv6 equivalents, IPv4-mapped IPv6). Enforces a 5 MB response size limit. Both `fetch_sp_metadata` and `fetch_idp_metadata` now delegate to the shared `fetch_metadata_xml()`. Dev-mode reverse-proxy handling for `*.BASE_DOMAIN` URLs is preserved (skips IP validation since hostname is rewritten to container name, but still validates scheme).
+
+---
+
 ### [SECURITY] RLS Policy Defect on saml_idp_sp_certificates Table
 
 **Status:** Resolved (2026-02-21)

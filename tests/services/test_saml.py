@@ -1400,17 +1400,27 @@ def test_import_idp_from_metadata_url_success(
     test_tenant, test_super_admin_user, sample_idp_metadata_xml, monkeypatch
 ):
     """Test importing an IdP from a metadata URL."""
-    import urllib.request
+    import socket
     from unittest.mock import MagicMock
 
     from services import saml as saml_service
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(
         test_super_admin_user, str(test_tenant["id"]), "super_admin"
     )
 
+    # Mock DNS resolution for SSRF validation
+    monkeypatch.setattr(
+        app.utils.url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    )
+
     # Mock urlopen to return valid metadata
     mock_response = MagicMock()
+    mock_response.headers = {}
     mock_response.read.return_value = sample_idp_metadata_xml.encode()
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
@@ -1418,7 +1428,7 @@ def test_import_idp_from_metadata_url_success(
     def mock_urlopen(*args, **kwargs):
         return mock_response
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
 
     idp = saml_service.import_idp_from_metadata_url(
         requesting_user=requesting_user,
@@ -1440,20 +1450,29 @@ def test_import_idp_from_metadata_url_network_error(
     test_tenant, test_super_admin_user, monkeypatch
 ):
     """Test that network errors during URL import are handled."""
+    import socket
     import urllib.error
-    import urllib.request
 
     from services import saml as saml_service
     from services.exceptions import ValidationError
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(
         test_super_admin_user, str(test_tenant["id"]), "super_admin"
     )
 
+    # Mock DNS resolution for SSRF validation
+    monkeypatch.setattr(
+        app.utils.url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    )
+
     def mock_urlopen(*args, **kwargs):
         raise urllib.error.URLError("Connection refused")
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
 
     with pytest.raises(ValidationError) as exc_info:
         saml_service.import_idp_from_metadata_url(
@@ -1495,11 +1514,13 @@ def test_refresh_all_idp_metadata_with_urls_success(
     test_tenant, sample_idp_metadata_xml, monkeypatch
 ):
     """Test refresh_all_idp_metadata with IdPs that have URLs configured."""
-    import urllib.request
+    import socket
     from unittest.mock import MagicMock
 
     import database
     from services import saml as saml_service
+
+    import app.utils.url_safety
 
     # Mock database to return a test IdP with metadata URL
     mock_idps = [
@@ -1539,8 +1560,16 @@ def test_refresh_all_idp_metadata_with_urls_success(
         "services.saml.metadata.sync_certificates_from_metadata", lambda *a, **kw: None
     )
 
+    # Mock DNS resolution for SSRF validation
+    monkeypatch.setattr(
+        app.utils.url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    )
+
     # Mock urlopen to return valid metadata
     mock_response = MagicMock()
+    mock_response.headers = {}
     mock_response.read.return_value = sample_idp_metadata_xml.encode()
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
@@ -1548,7 +1577,7 @@ def test_refresh_all_idp_metadata_with_urls_success(
     def mock_urlopen(*args, **kwargs):
         return mock_response
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
 
     # Refresh all metadata
     result = saml_service.refresh_all_idp_metadata()
@@ -1564,11 +1593,13 @@ def test_refresh_all_idp_metadata_with_urls_success(
 @pytest.mark.skipif(not HAS_SAML_LIBRARY, reason="python3-saml not installed")
 def test_refresh_all_idp_metadata_partial_failure(test_tenant, monkeypatch):
     """Test refresh_all_idp_metadata handles partial failures gracefully."""
+    import socket
     import urllib.error
-    import urllib.request
 
     import database
     from services import saml as saml_service
+
+    import app.utils.url_safety
 
     # Mock database to return a test IdP with metadata URL
     mock_idps = [
@@ -1588,11 +1619,18 @@ def test_refresh_all_idp_metadata_partial_failure(test_tenant, monkeypatch):
 
     monkeypatch.setattr(database.saml, "set_idp_metadata_error", mock_set_error)
 
+    # Mock DNS resolution for SSRF validation
+    monkeypatch.setattr(
+        app.utils.url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    )
+
     # Mock urlopen to always fail
     def mock_urlopen(*args, **kwargs):
         raise urllib.error.URLError("Connection timeout")
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
 
     # Refresh all should not raise, even with failures
     result = saml_service.refresh_all_idp_metadata()
@@ -1611,11 +1649,13 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
     test_tenant, test_super_admin_user, test_idp_data, monkeypatch
 ):
     """Test that refresh tracks which fields were updated."""
-    import urllib.request
+    import socket
     from unittest.mock import MagicMock
 
     from schemas.saml import IdPCreate
     from services import saml as saml_service
+
+    import app.utils.url_safety
 
     requesting_user = _make_requesting_user(
         test_super_admin_user, str(test_tenant["id"]), "super_admin"
@@ -1658,7 +1698,15 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>"""
 
+    # Mock DNS resolution for SSRF validation
+    monkeypatch.setattr(
+        app.utils.url_safety.socket,
+        "getaddrinfo",
+        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    )
+
     mock_response = MagicMock()
+    mock_response.headers = {}
     mock_response.read.return_value = updated_metadata.encode()
     mock_response.__enter__ = lambda s: s
     mock_response.__exit__ = MagicMock(return_value=False)
@@ -1666,7 +1714,7 @@ def test_refresh_all_idp_metadata_tracks_updated_fields(
     def mock_urlopen(*args, **kwargs):
         return mock_response
 
-    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(app.utils.url_safety.urllib.request, "urlopen", mock_urlopen)
 
     # Refresh
     result = saml_service.refresh_all_idp_metadata()

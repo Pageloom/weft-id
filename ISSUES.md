@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | SSRF |
+| High | 0 | |
 | Medium | 7 | XML Injection, database integration test gaps (6) |
 | Low | 2 | SLO validation, cert cleanup race |
 
@@ -146,58 +146,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 **What to test:** For nameid mappings: create a mapping, verify get returns it, call get_or_create again for same pair, verify same mapping returned (idempotent). For security counts: create users with domain emails, some with IdP, some without, verify counts are correct. For selection: create groups, add user to one, verify the other appears in the select list.
 **Test file:** Create `tests/database/test_sp_nameid_mappings.py` and add to existing `tests/database/test_groups.py` and `tests/database/test_security.py`
-
----
-
-## [SECURITY] SSRF via Metadata URL Fetch
-
-**Found in:** `app/utils/saml_idp.py:264-322` (`fetch_sp_metadata`), also `app/utils/saml.py:268-323` (`fetch_idp_metadata`)
-**Severity:** High
-**OWASP Category:** A10:2021 - Server-Side Request Forgery (SSRF)
-**Description:** The `fetch_sp_metadata()` and `fetch_idp_metadata()` functions accept arbitrary URLs without validating the scheme or target host. `urllib.request.urlopen` supports `file://`, `ftp://`, and `http://` schemes by default, and no host blocklist prevents requests to internal networks.
-**Attack Scenario:** A super_admin (tenant-level administrator in a multi-tenant SaaS) provides a metadata URL targeting internal resources. For example:
-- `file:///etc/passwd` reads local files
-- `http://169.254.169.254/latest/meta-data/` accesses cloud instance metadata (AWS/GCP credentials)
-- `http://localhost:5432/` port-scans internal services
-
-While XML parsing will fail for non-XML responses (preventing direct exfiltration), the HTTP request itself is still made, enabling port scanning and interaction with internal services. Additionally, `response.read()` has no size limit, risking memory exhaustion from large responses.
-**Evidence:**
-```python
-# saml_idp.py:264 - No scheme or host validation
-def fetch_sp_metadata(url: str, timeout: int = 10) -> str:
-    ...
-    req = urllib.request.Request(urlunparse(parsed), headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx) as response:
-        content: str = response.read().decode("utf-8")  # No size limit
-```
-**Impact:** Internal network reconnaissance, cloud credential theft, local file read attempts, memory exhaustion via unbounded response.
-**Remediation:**
-1. Validate URL scheme is `https://` only (or `http://` in dev mode)
-2. Resolve the hostname and reject private/internal IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, ::1)
-3. Add a response size limit (e.g., 5 MB) using `response.read(max_size)`
-4. Apply the same validation to both `fetch_sp_metadata` and `fetch_idp_metadata`
-
-Example fix:
-```python
-from urllib.parse import urlparse
-import ipaddress, socket
-
-_MAX_METADATA_SIZE = 5 * 1024 * 1024  # 5 MB
-
-def _validate_metadata_url(url: str) -> None:
-    parsed = urlparse(url)
-    if parsed.scheme not in ("https", "http"):
-        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
-    if not parsed.hostname:
-        raise ValueError("URL missing hostname")
-    # Resolve and check IP
-    try:
-        ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
-    except (socket.gaierror, ValueError):
-        raise ValueError(f"Cannot resolve hostname: {parsed.hostname}")
-    if ip.is_private or ip.is_loopback or ip.is_link_local:
-        raise ValueError("URL targets a private/internal address")
-```
 
 ---
 

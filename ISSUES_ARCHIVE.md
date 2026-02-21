@@ -5,6 +5,71 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Session cookie missing `Secure` flag in production
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** High
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:**
+Starlette's `SessionMiddleware` defaults to `https_only=False`. The session cookie can be transmitted over plain HTTP, enabling session hijacking via network sniffing.
+
+**Resolution:** Pass `https_only=not settings.IS_DEV` to `DynamicSessionMiddleware` in `app/main.py`. Added test verifying the Secure flag is set when `https_only=True`.
+
+---
+
+### [SECURITY] Inconsistent defusedxml usage allows XML bomb attacks
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** High
+**OWASP Category:** A03:2021 - Injection
+
+**Original Description:**
+`app/utils/saml.py` (`extract_issuer_from_response`) and `app/services/branding.py` (SVG validation) used stdlib `xml.etree.ElementTree` instead of `defusedxml`, making them vulnerable to billion-laughs entity expansion DoS attacks.
+
+**Resolution:** Replaced the stdlib import with `from defusedxml import ElementTree as ET` in both files. Also removed the redundant local `defusedxml` import in `saml.py` since the module-level import now covers it.
+
+---
+
+### [SECURITY] TLS verification disabled for internal metadata fetching
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+**OWASP Category:** A02:2021 - Cryptographic Failures
+
+**Original Description:**
+When fetching SAML metadata from URLs matching `*.BASE_DOMAIN`, TLS certificate verification was completely disabled to route through the Docker reverse-proxy, even in production.
+
+**Resolution:** Gated the reverse-proxy routing (and associated TLS bypass) on `settings.IS_DEV`. Production metadata fetches now use full TLS verification. Applied to both `app/utils/saml.py` and `app/utils/saml_idp.py`.
+
+---
+
+### [SECURITY] Weak key derivation fallback for SAML private key encryption
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+**OWASP Category:** A02:2021 - Cryptographic Failures
+
+**Original Description:**
+The fallback path in `_get_encryption_key()` used raw SHA256 to derive a Fernet key, which is not a proper key derivation function (no salt, no iteration count).
+
+**Resolution:** Replaced SHA256 with HKDF-SHA256 from `cryptography.hazmat.primitives.kdf.hkdf`, using `info=b"saml-key-encryption"` as context.
+
+---
+
+### [SECURITY] Trust cookie uses SameSite=Lax instead of Strict
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Low
+**OWASP Category:** A05:2021 - Security Misconfiguration
+
+**Original Description:**
+The 30-day email verification trust cookie used `samesite="lax"`, allowing it to be sent on top-level cross-site navigations.
+
+**Resolution:** Changed trust cookie to `samesite="strict"` in `app/routers/auth/login.py`. Short-lived email verification cookies remain at Lax, which is appropriate for their use case.
+
+---
+
 ### SQL Column Length: user_emails.email missing CHECK constraint
 
 **Status:** Resolved (2026-02-21)

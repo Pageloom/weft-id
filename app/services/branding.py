@@ -3,9 +3,9 @@
 import re
 import struct
 import uuid
-from defusedxml import ElementTree as ET
 
 import database
+from defusedxml import ElementTree as DefusedET
 from schemas.branding import BrandingSettings, BrandingSettingsUpdate, LogoMode, LogoSlot
 from services.activity import track_activity
 from services.auth import require_admin
@@ -150,8 +150,8 @@ def _validate_svg_content(data: bytes) -> None:
         )
 
     try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
+        root = DefusedET.fromstring(text)
+    except DefusedET.ParseError:
         raise ValidationError(
             message="SVG contains invalid XML",
             code="invalid_svg",

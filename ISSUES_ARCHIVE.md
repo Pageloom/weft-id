@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Certificate Cleanup Race Condition
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Low
+**OWASP Category:** A04:2021 - Insecure Design
+
+**Original Description:**
+The certificate cleanup UPDATE in `clear_previous_signing_certificate()` and `clear_previous_idp_sp_certificate()` did not re-verify that `rotation_grace_period_ends_at` had actually expired. If an admin manually rotated a certificate between the background job's SELECT and UPDATE, the cleanup would clear the newly-set previous certificate, bypassing its grace period.
+
+**Resolution:**
+Added `AND rotation_grace_period_ends_at IS NOT NULL AND rotation_grace_period_ends_at < now()` to the WHERE clause of both `clear_previous_signing_certificate()` in `app/database/sp_signing_certificates.py` and `clear_previous_idp_sp_certificate()` in `app/database/saml/idp_sp_certificates.py`. The UPDATE now only proceeds when the grace period has genuinely expired, making it safe against concurrent manual rotations.
+
+---
+
 ### [SECURITY] SLO LogoutRequest Processed Without Validation
 
 **Status:** Resolved (2026-02-21)

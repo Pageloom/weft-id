@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 6 | database integration test gaps (6) |
-| Low | 1 | cert cleanup race |
+| Low | 0 | |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
@@ -148,45 +148,5 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Test file:** Create `tests/database/test_sp_nameid_mappings.py` and add to existing `tests/database/test_groups.py` and `tests/database/test_security.py`
 
 ---
-
-## [SECURITY] Certificate Cleanup Race Condition
-
-**Found in:** `app/jobs/rotate_certificates.py:278-316`, `app/database/sp_signing_certificates.py:160-181`
-**Severity:** Low
-**OWASP Category:** A04:2021 - Insecure Design
-**Description:** The certificate cleanup job selects certificates whose `rotation_grace_period_ends_at < now()`, then issues an UPDATE to clear the previous certificate fields. The UPDATE does not re-verify that `rotation_grace_period_ends_at` still matches the value seen at selection time. If an admin manually rotates the same certificate between the SELECT and UPDATE, the cleanup will clear the newly-set previous certificate, bypassing its grace period.
-
-**Attack Scenario:** This is not directly exploitable by an external attacker. It requires a coincidence: the rotation job must be running cleanup at the exact moment an admin triggers a manual certificate rotation for the same SP. The result is that the previous certificate (which SPs may still be using during the grace window) is prematurely cleared, causing brief SSO validation failures for that SP.
-
-**Evidence:**
-```python
-# rotate_certificates.py:287 - No re-check of grace period timestamp
-result = database.sp_signing_certificates.clear_previous_signing_certificate(
-    tenant_id, sp_id
-)
-
-# sp_signing_certificates.py:166-180 - UPDATE has no WHERE guard on timestamp
-update sp_signing_certificates
-set previous_certificate_pem = null,
-    previous_private_key_pem_enc = null,
-    previous_expires_at = null,
-    rotation_grace_period_ends_at = null
-where sp_id = :sp_id  -- No: AND rotation_grace_period_ends_at < now()
-returning ...
-```
-**Impact:** Premature grace period termination causing brief SSO disruption for a single SP. No data leakage or privilege escalation.
-**Remediation:** Add a timestamp guard to the cleanup UPDATE:
-
-```sql
-update sp_signing_certificates
-set previous_certificate_pem = null,
-    previous_private_key_pem_enc = null,
-    previous_expires_at = null,
-    rotation_grace_period_ends_at = null
-where sp_id = :sp_id
-  and rotation_grace_period_ends_at is not null
-  and rotation_grace_period_ends_at < now()
-returning ...
-```
 
 ---

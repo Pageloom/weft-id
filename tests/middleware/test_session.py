@@ -210,3 +210,27 @@ def test_multiple_cookies_with_session():
     assert "session" in response.cookies
     assert "other_cookie" in response.cookies
     assert response.cookies["other_cookie"] == "value123"
+
+
+def test_session_cookie_secure_flag():
+    """Test that https_only=True sets the Secure flag on the session cookie."""
+    app = FastAPI()
+
+    app.add_middleware(
+        DynamicSessionMiddleware,
+        secret_key="test-secret-key-at-least-32-chars-long",
+        session_cookie="session",
+        https_only=True,
+    )
+
+    @app.get("/set-session")
+    def set_session(request: Request):
+        request.session["user_id"] = "secure-test"
+        return JSONResponse({"status": "ok"})
+
+    client = TestClient(app)
+    response = client.get("/set-session")
+    assert response.status_code == 200
+
+    set_cookie_header = response.headers.get("set-cookie", "")
+    assert "secure" in set_cookie_header.lower()

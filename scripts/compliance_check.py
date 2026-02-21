@@ -1126,6 +1126,43 @@ SQL_ENUM_CHECK = re.compile(
 )
 
 
+def _collect_migration_constraints(migrations_dir: Path) -> set[tuple[str, str]]:
+    """Collect (table, column) pairs with length/enum constraints added in migrations.
+
+    This allows the scanner to recognize that a column missing a CHECK in
+    schema.sql has been fixed by a subsequent migration via ALTER TABLE.
+    """
+    covered: set[tuple[str, str]] = set()
+
+    if not migrations_dir.exists():
+        return covered
+
+    # Match: ALTER TABLE [public.]table ADD CONSTRAINT name CHECK (...length(col)...)
+    length_pattern = re.compile(
+        r"ALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+        r"ADD\s+CONSTRAINT\s+\w+\s+CHECK\s*\([^;]*?"
+        r"(?:length|char_length)\((\w+)\)\s*<=",
+        re.IGNORECASE | re.DOTALL,
+    )
+    enum_pattern = re.compile(
+        r"ALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+        r"ADD\s+CONSTRAINT\s+\w+\s+CHECK\s*\([^;]*?"
+        r"\b(\w+)\s*=\s*ANY\s*\(",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        with open(sql_file) as f:
+            sql = f.read()
+
+        for m in length_pattern.finditer(sql):
+            covered.add((m.group(1), m.group(2)))
+        for m in enum_pattern.finditer(sql):
+            covered.add((m.group(1), m.group(2)))
+
+    return covered
+
+
 def check_sql_length_violations(report: ComplianceReport) -> None:
     """
     Check that TEXT/CITEXT columns in SQL schema have length CHECK constraints.
@@ -1133,8 +1170,15 @@ def check_sql_length_violations(report: ComplianceReport) -> None:
     Scans db-init/schema.sql and db-init/migrations/*.sql for:
     - CREATE TABLE with TEXT columns lacking length checks
     - ALTER TABLE ADD COLUMN with TEXT type lacking length checks
+
+    Constraints added via ALTER TABLE ADD CONSTRAINT in migrations are
+    recognized as covering columns defined in schema.sql.
     """
     project_root = get_project_root()
+    migrations_dir = project_root / "db-init" / "migrations"
+
+    # Collect constraints added by migrations (covers schema.sql gaps)
+    migration_constraints = _collect_migration_constraints(migrations_dir)
 
     # Scan baseline schema
     schema_file = project_root / "db-init" / "schema.sql"
@@ -1142,10 +1186,9 @@ def check_sql_length_violations(report: ComplianceReport) -> None:
         report.files_scanned += 1
         with open(schema_file) as f:
             sql = f.read()
-        _check_sql_create_tables(sql, schema_file, report)
+        _check_sql_create_tables(sql, schema_file, report, migration_constraints)
 
-    # Scan migrations
-    migrations_dir = project_root / "db-init" / "migrations"
+    # Scan migrations (each must be self-contained, no cross-file resolution)
     if migrations_dir.exists():
         for sql_file in sorted(migrations_dir.glob("*.sql")):
             report.files_scanned += 1
@@ -1156,7 +1199,10 @@ def check_sql_length_violations(report: ComplianceReport) -> None:
 
 
 def _check_sql_create_tables(
-    sql: str, file_path: Path, report: ComplianceReport
+    sql: str,
+    file_path: Path,
+    report: ComplianceReport,
+    migration_constraints: set[tuple[str, str]] | None = None,
 ) -> None:
     """Check CREATE TABLE blocks for TEXT columns without length constraints."""
     # Find CREATE TABLE blocks
@@ -1197,28 +1243,32 @@ def _check_sql_create_tables(
 
         # Report unchecked columns
         for col_name, line_num in text_columns:
-            if col_name not in checked_columns:
-                report.add(
-                    Violation(
-                        principle="SQL Column Length Validation",
-                        severity="medium",
-                        file_path=str(file_path.relative_to(get_project_root())),
-                        line_number=line_num,
-                        function_name=None,
-                        description=(
-                            f"Table {table_name}.{col_name} (TEXT) has no length "
-                            f"CHECK constraint"
-                        ),
-                        evidence=(
-                            f"Column '{col_name}' in table '{table_name}' is TEXT "
-                            f"without length() or enum CHECK"
-                        ),
-                        suggested_fix=(
-                            f"Add: CONSTRAINT chk_{table_name}_{col_name}_length "
-                            f"CHECK ((length({col_name}) <= N))"
-                        ),
-                    )
+            if col_name in checked_columns:
+                continue
+            # Check if a migration adds the constraint for this table.column
+            if migration_constraints and (table_name, col_name) in migration_constraints:
+                continue
+            report.add(
+                Violation(
+                    principle="SQL Column Length Validation",
+                    severity="medium",
+                    file_path=str(file_path.relative_to(get_project_root())),
+                    line_number=line_num,
+                    function_name=None,
+                    description=(
+                        f"Table {table_name}.{col_name} (TEXT) has no length "
+                        f"CHECK constraint"
+                    ),
+                    evidence=(
+                        f"Column '{col_name}' in table '{table_name}' is TEXT "
+                        f"without length() or enum CHECK"
+                    ),
+                    suggested_fix=(
+                        f"Add: CONSTRAINT chk_{table_name}_{col_name}_length "
+                        f"CHECK ((length({col_name}) <= N))"
+                    ),
                 )
+            )
 
 
 def _check_sql_alter_add_column(

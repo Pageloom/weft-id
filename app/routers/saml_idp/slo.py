@@ -84,10 +84,7 @@ def _handle_slo_request(
         logger.warning("Invalid LogoutRequest: %s", e)
         return RedirectResponse(url="/login", status_code=303)
 
-    # 2. Clear the user's session
-    request.session.clear()
-
-    # 3. Build LogoutResponse
+    # 2. Validate issuer is a registered SP and build LogoutResponse
     base_url = get_base_url(request)
 
     try:
@@ -99,6 +96,9 @@ def _handle_slo_request(
     except Exception as e:
         logger.warning("Failed to process SLO request: %s", e)
         return RedirectResponse(url="/login", status_code=303)
+
+    # 3. Clear session only after validating the request came from a registered SP
+    request.session.clear()
 
     # 4. Render auto-submit form to POST LogoutResponse back to SP
     csp_nonce = get_csp_nonce(request)

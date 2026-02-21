@@ -224,8 +224,8 @@ class TestSLOCSRFExemption:
 
 
 class TestSLOSessionClearing:
-    def test_session_is_cleared_on_slo(self, client, slo_host):
-        """SLO should clear the user's session."""
+    def test_session_is_cleared_on_valid_slo(self, client, slo_host):
+        """SLO from a registered SP should clear the user's session."""
         xml = _make_logout_request_xml()
         saml_request = _encode_post(xml)
 
@@ -253,3 +253,57 @@ class TestSLOSessionClearing:
         assert response.status_code == 200
         # Session should have been cleared
         assert "user_id" not in mock_session
+
+    def test_session_not_cleared_when_sp_validation_fails(self, client, slo_host):
+        """SLO from an unregistered SP should NOT clear the session."""
+        xml = _make_logout_request_xml(issuer="https://unregistered-sp.example.com")
+        saml_request = _encode_post(xml)
+
+        mock_session = {
+            "user_id": str(uuid4()),
+            "session_start": 1234567890,
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                SLO_SERVICE,
+                side_effect=Exception("SP not found"),
+            ),
+        ):
+            response = client.post(
+                "/saml/idp/slo",
+                data={"SAMLRequest": saml_request},
+                headers={"Host": slo_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        # Session must NOT have been cleared
+        assert "user_id" in mock_session
+        assert "session_start" in mock_session
+
+    def test_session_not_cleared_on_invalid_xml(self, client, slo_host):
+        """Malformed LogoutRequest should NOT clear the session."""
+        mock_session = {
+            "user_id": str(uuid4()),
+            "session_start": 1234567890,
+        }
+
+        with patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: mock_session),
+        ):
+            response = client.post(
+                "/saml/idp/slo",
+                data={"SAMLRequest": base64.b64encode(b"not xml").decode()},
+                headers={"Host": slo_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        # Session must NOT have been cleared
+        assert "user_id" in mock_session

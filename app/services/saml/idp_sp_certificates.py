@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 import database
 from schemas.saml import CertificateRotationResult, IdPSPCertificate
+from services.activity import track_activity
 from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
@@ -86,6 +87,7 @@ def get_idp_sp_certificate_for_display(
     Authorization: Requires super_admin role.
     """
     require_super_admin(requesting_user, log_failure=True, service_name="saml")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     cert = database.saml.get_idp_sp_certificate(tenant_id, idp_id)

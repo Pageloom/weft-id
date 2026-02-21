@@ -980,6 +980,7 @@ def preview_sp_metadata_refresh(
     from utils.saml_idp import fetch_sp_metadata
 
     require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     current = database.service_providers.get_service_provider(tenant_id, sp_id)
@@ -1079,6 +1080,7 @@ def preview_sp_metadata_reimport(
     Authorization: Requires super_admin role.
     """
     require_super_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     current = database.service_providers.get_service_provider(tenant_id, sp_id)

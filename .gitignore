@@ -11,7 +11,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.testmondata
+.testmondata*
 .claude/settings.local.json
 /storage/*
 

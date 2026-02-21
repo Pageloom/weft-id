@@ -57,7 +57,11 @@ app = FastAPI(
 )
 
 # Add session middleware with dynamic per-tenant session configuration
-app.add_middleware(DynamicSessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
+app.add_middleware(
+    DynamicSessionMiddleware,
+    secret_key=settings.SESSION_SECRET_KEY,
+    https_only=not settings.IS_DEV,
+)
 
 # Add CSRF protection middleware (must be after session middleware so it has access to session)
 # API routes, SAML ACS, and OAuth2 token endpoint are exempt

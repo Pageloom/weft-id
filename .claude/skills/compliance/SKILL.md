@@ -17,7 +17,7 @@ Verify the codebase adheres to architectural principles and design patterns.
 
 Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
 
-## The Six Principles
+## Principles
 
 ### 1. Activity Tracking & Event Logging (PRIMARY)
 
@@ -63,6 +63,14 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 - Optional fields use `Field(default=None, max_length=N)`
 - Database should have `CHECK (length(...) <= N)` or `VARCHAR(N)` as backstop
 
+### 7. RLS Policy Consistency
+
+**Rule:** Every table with `ENABLE ROW LEVEL SECURITY` must have a correct policy.
+
+- Policy must have both `USING` and `WITH CHECK` clauses (prevents write bypass)
+- `current_setting()` must use the `true` parameter (prevents ERROR when unset)
+- Exempt tables documented in `RLS_NO_WITH_CHECK_EXEMPT` in the scanner
+
 ## Workflow
 
 ### 1. Run Automated Script First
@@ -81,6 +89,7 @@ Compliance-only options:
 --check authorization   # Route auth
 --check input-length    # Pydantic str fields without max_length
 --check sql-length      # SQL TEXT columns without length CHECK constraints
+--check rls             # RLS policies: USING + WITH CHECK, current_setting(true)
 ```
 
 ### 2. Investigate Findings
@@ -114,6 +123,8 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | `str` field without `max_length` in input schema | Input Validation |
 | `Field(default=None)` without `max_length` | Input Validation |
 | TEXT/CITEXT column without `CHECK (length(...) <= N)` | SQL Length Validation |
+| RLS policy missing `WITH CHECK` clause | RLS Policy Consistency |
+| `current_setting()` without `true` parameter | RLS Policy Consistency |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 

@@ -18,6 +18,9 @@ Principles checked:
     6. input-length   - All str fields in Pydantic input schemas must have max_length
     7. sql-length     - All TEXT/CITEXT columns in SQL schema must have length CHECK
                         constraints
+    8. rls             - RLS policies must have USING + WITH CHECK, use
+                        current_setting(..., true), and exist for all
+                        RLS-enabled tables
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -1327,6 +1330,160 @@ def _check_sql_alter_add_column(
 
 
 # =============================================================================
+# Principle 8: RLS Policy Consistency
+# =============================================================================
+
+# Tables with RLS enabled but intentionally no WITH CHECK clause.
+# Each entry should have a comment explaining why.
+RLS_NO_WITH_CHECK_EXEMPT = {
+    "export_files",  # Worker inserts cross-tenant; USING has CASE for unscoped reads
+}
+
+
+def check_rls_policy_violations(report: ComplianceReport) -> None:
+    """
+    Check that RLS policies are consistent and correct.
+
+    For every table with ENABLE ROW LEVEL SECURITY, verifies:
+    1. At least one CREATE POLICY exists
+    2. The policy has both USING and WITH CHECK clauses (unless exempt)
+    3. current_setting() uses the `true` parameter (return NULL instead of error)
+    """
+    schema_file = get_project_root() / "db-init" / "schema.sql"
+    if not schema_file.exists():
+        return
+
+    report.files_scanned += 1
+
+    with open(schema_file) as f:
+        sql = f.read()
+
+    lines = sql.split("\n")
+
+    # 1. Find all tables with RLS enabled
+    rls_enabled_pattern = re.compile(
+        r"ALTER\s+TABLE\s+(?:public\.)?(\w+)\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY",
+        re.IGNORECASE,
+    )
+    rls_tables: dict[str, int] = {}  # table_name -> line_number
+    for match in rls_enabled_pattern.finditer(sql):
+        table_name = match.group(1)
+        line_num = sql[: match.start()].count("\n") + 1
+        rls_tables[table_name] = line_num
+
+    # 2. Find all CREATE POLICY statements and their properties
+    # Use a multiline regex to capture the full policy block up to the semicolon
+    policy_pattern = re.compile(
+        r"CREATE\s+POLICY\s+(\w+)\s+ON\s+(?:public\.)?(\w+)\s*(.*?);",
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    policies_by_table: dict[str, list[dict[str, Any]]] = {}
+
+    for match in policy_pattern.finditer(sql):
+        policy_name = match.group(1)
+        table_name = match.group(2)
+        policy_body = match.group(3)
+        line_num = sql[: match.start()].count("\n") + 1
+
+        has_using = bool(re.search(r"\bUSING\b", policy_body, re.IGNORECASE))
+        has_with_check = bool(re.search(r"\bWITH\s+CHECK\b", policy_body, re.IGNORECASE))
+        has_true_param = bool(
+            re.search(r"current_setting\s*\([^)]*,\s*true\s*\)", policy_body, re.IGNORECASE)
+        )
+        # Check for current_setting without the true parameter
+        has_current_setting = bool(
+            re.search(r"current_setting\s*\(", policy_body, re.IGNORECASE)
+        )
+
+        policies_by_table.setdefault(table_name, []).append(
+            {
+                "name": policy_name,
+                "line": line_num,
+                "has_using": has_using,
+                "has_with_check": has_with_check,
+                "has_true_param": has_true_param,
+                "has_current_setting": has_current_setting,
+            }
+        )
+
+    # 3. Check each RLS-enabled table
+    for table_name, enable_line in rls_tables.items():
+        table_policies = policies_by_table.get(table_name, [])
+
+        if not table_policies:
+            report.add(
+                Violation(
+                    principle="RLS Policy Consistency",
+                    severity="high",
+                    file_path="db-init/schema.sql",
+                    line_number=enable_line,
+                    function_name=None,
+                    description=(
+                        f"Table '{table_name}' has RLS enabled but no CREATE POLICY"
+                    ),
+                    evidence=f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY",
+                    suggested_fix=(
+                        f"Add a tenant isolation policy for '{table_name}'"
+                    ),
+                )
+            )
+            continue
+
+        for policy in table_policies:
+            # Check for missing WITH CHECK (unless exempt)
+            if (
+                policy["has_using"]
+                and not policy["has_with_check"]
+                and table_name not in RLS_NO_WITH_CHECK_EXEMPT
+            ):
+                report.add(
+                    Violation(
+                        principle="RLS Policy Consistency",
+                        severity="high",
+                        file_path="db-init/schema.sql",
+                        line_number=policy["line"],
+                        function_name=None,
+                        description=(
+                            f"Policy '{policy['name']}' on '{table_name}' "
+                            f"missing WITH CHECK clause"
+                        ),
+                        evidence=(
+                            f"Policy has USING but no WITH CHECK, "
+                            f"so INSERT/UPDATE bypass tenant scoping"
+                        ),
+                        suggested_fix=(
+                            f"Add WITH CHECK clause matching the USING clause"
+                        ),
+                    )
+                )
+
+            # Check for current_setting without true parameter
+            if policy["has_current_setting"] and not policy["has_true_param"]:
+                report.add(
+                    Violation(
+                        principle="RLS Policy Consistency",
+                        severity="high",
+                        file_path="db-init/schema.sql",
+                        line_number=policy["line"],
+                        function_name=None,
+                        description=(
+                            f"Policy '{policy['name']}' on '{table_name}' uses "
+                            f"current_setting() without true parameter"
+                        ),
+                        evidence=(
+                            "current_setting('app.tenant_id'::text) raises ERROR "
+                            "when unset; use current_setting('app.tenant_id'::text, true) "
+                            "to return NULL instead"
+                        ),
+                        suggested_fix=(
+                            "Change to current_setting('app.tenant_id'::text, true)"
+                        ),
+                    )
+                )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -1356,6 +1513,7 @@ def run_compliance_check(
         "authorization",
         "input-length",
         "sql-length",
+        "rls",
     ]
     if principles is None:
         principles = all_principles
@@ -1380,6 +1538,9 @@ def run_compliance_check(
 
     if "sql-length" in principles:
         check_sql_length_violations(report)
+
+    if "rls" in principles:
+        check_rls_policy_violations(report)
 
     return report
 
@@ -1441,6 +1602,7 @@ def main() -> int:
             "authorization",
             "input-length",
             "sql-length",
+            "rls",
             "all",
         ],
         default="all",

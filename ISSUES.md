@@ -10,11 +10,11 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| High | 1 | SSRF |
+| High | 2 | SSRF, RLS policy defect |
 | Medium | 1 | XML Injection |
-| Low | 1 | SLO validation |
+| Low | 2 | SLO validation, cert cleanup race |
 
-**Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 new issues)
+**Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
 **Last dependency audit:** 2026-02-06 (pip CVE-2026-1703 accepted as low priority dev tool risk)
 **Last refactor scan:** 2026-02-12 (standard full scan, 4 prior items resolved, 2 new)
@@ -171,6 +171,86 @@ def _handle_slo_request(...):
     # Only clear session after validating the request came from a registered SP
     request.session.clear()
     ...
+```
+
+---
+
+## [SECURITY] RLS Policy Defect on saml_idp_sp_certificates Table
+
+**Found in:** `db-init/schema.sql:1049-1050`
+**Severity:** High
+**OWASP Category:** A01:2021 - Broken Access Control
+**Description:** The `saml_idp_sp_certificates` table has a defective RLS policy with three problems compared to every other tenant-isolated table in the schema:
+
+1. **Missing `WITH CHECK` clause**: The policy only has `USING` (governs SELECT/UPDATE/DELETE visibility) but no `WITH CHECK` (governs INSERT/UPDATE write validation). This means INSERT and UPDATE operations bypass tenant scoping entirely for this table.
+
+2. **Missing `true` parameter in `current_setting()`**: All other tables use `current_setting('app.tenant_id'::text, true)` which returns NULL when the setting is absent. This table uses `current_setting('app.tenant_id'::text)` which raises an ERROR when `app.tenant_id` is not set, causing unexpected failures in code paths that use `UNSCOPED` queries.
+
+3. **Missing `NULLIF()` handling**: Other tables that were added around the same time (e.g., `saml_sp_certificates`, `service_providers`) wrap the setting in `NULLIF(..., ''::text)` to handle empty strings. This table does not.
+
+**Attack Scenario:** An application bug or code path that fails to set `app.tenant_id` before inserting into `saml_idp_sp_certificates` could write a certificate row associated with Tenant A while operating in a Tenant B context. Because there is no `WITH CHECK`, PostgreSQL will not reject the insert even if the `tenant_id` in the row does not match the session's `app.tenant_id`.
+
+**Evidence:**
+```sql
+-- saml_idp_sp_certificates (DEFECTIVE - line 1049)
+CREATE POLICY tenant_isolation ON public.saml_idp_sp_certificates
+    USING ((tenant_id = (current_setting('app.tenant_id'::text))::uuid));
+
+-- Every other table uses this pattern (e.g., saml_sp_certificates - line 1043)
+CREATE POLICY saml_sp_certificates_tenant_isolation ON public.saml_sp_certificates
+    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+```
+**Impact:** Tenant isolation bypass on writes to the per-IdP SP signing certificates table. Could allow cross-tenant certificate contamination.
+**Remediation:** Replace the policy to match the standard pattern:
+
+```sql
+DROP POLICY tenant_isolation ON public.saml_idp_sp_certificates;
+CREATE POLICY saml_idp_sp_certificates_tenant_isolation ON public.saml_idp_sp_certificates
+    USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+```
+
+---
+
+## [SECURITY] Certificate Cleanup Race Condition
+
+**Found in:** `app/jobs/rotate_certificates.py:278-316`, `app/database/sp_signing_certificates.py:160-181`
+**Severity:** Low
+**OWASP Category:** A04:2021 - Insecure Design
+**Description:** The certificate cleanup job selects certificates whose `rotation_grace_period_ends_at < now()`, then issues an UPDATE to clear the previous certificate fields. The UPDATE does not re-verify that `rotation_grace_period_ends_at` still matches the value seen at selection time. If an admin manually rotates the same certificate between the SELECT and UPDATE, the cleanup will clear the newly-set previous certificate, bypassing its grace period.
+
+**Attack Scenario:** This is not directly exploitable by an external attacker. It requires a coincidence: the rotation job must be running cleanup at the exact moment an admin triggers a manual certificate rotation for the same SP. The result is that the previous certificate (which SPs may still be using during the grace window) is prematurely cleared, causing brief SSO validation failures for that SP.
+
+**Evidence:**
+```python
+# rotate_certificates.py:287 - No re-check of grace period timestamp
+result = database.sp_signing_certificates.clear_previous_signing_certificate(
+    tenant_id, sp_id
+)
+
+# sp_signing_certificates.py:166-180 - UPDATE has no WHERE guard on timestamp
+update sp_signing_certificates
+set previous_certificate_pem = null,
+    previous_private_key_pem_enc = null,
+    previous_expires_at = null,
+    rotation_grace_period_ends_at = null
+where sp_id = :sp_id  -- No: AND rotation_grace_period_ends_at < now()
+returning ...
+```
+**Impact:** Premature grace period termination causing brief SSO disruption for a single SP. No data leakage or privilege escalation.
+**Remediation:** Add a timestamp guard to the cleanup UPDATE:
+
+```sql
+update sp_signing_certificates
+set previous_certificate_pem = null,
+    previous_private_key_pem_enc = null,
+    previous_expires_at = null,
+    rotation_grace_period_ends_at = null
+where sp_id = :sp_id
+  and rotation_grace_period_ends_at is not null
+  and rotation_grace_period_ends_at < now()
+returning ...
 ```
 
 ---

@@ -1412,9 +1412,8 @@ def main() -> int:
     else:
         print(format_report_text(report))
 
-    # Return exit code based on high-severity violations
-    high_severity = len([v for v in report.violations if v.severity == "high"])
-    return 1 if high_severity > 0 else 0
+    # Exit 1 if medium or high violations found
+    return 1 if len([v for v in report.violations if v.severity in ("high", "medium")]) else 0
 
 
 if __name__ == "__main__":

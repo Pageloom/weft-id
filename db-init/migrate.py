@@ -38,8 +38,7 @@ def connect() -> psycopg.Connection:
 
 def table_exists(conn: psycopg.Connection, table: str) -> bool:
     row = conn.execute(
-        "SELECT 1 FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_name = %s",
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = %s",
         (table,),
     ).fetchone()
     return row is not None

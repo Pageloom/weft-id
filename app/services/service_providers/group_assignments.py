@@ -33,6 +33,7 @@ def count_sp_group_assignments(
     Authorization: Requires admin role.
     """
     require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
     tenant_id = requesting_user["tenant_id"]
     return database.sp_group_assignments.count_assignments_for_sp(tenant_id, sp_id)

@@ -5,6 +5,18 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### Activity Logging: Missing track_activity() in 4 read functions
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+
+**Original Description:**
+Four read-only service functions with `RequestingUser` parameter did not call `track_activity()` at the start. These functions were: `preview_sp_metadata_refresh`, `preview_sp_metadata_reimport`, `count_sp_group_assignments`, `get_idp_sp_certificate_for_display`.
+
+**Resolution:** Added `track_activity(requesting_user["tenant_id"], requesting_user["id"])` after the authorization check in all four functions. Added import of `track_activity` to `app/services/saml/idp_sp_certificates.py`. User activity on SP metadata previews, group assignment counts, and IdP SP certificate views is now tracked for audit purposes.
+
+---
+
 ### E2E: Custom Attribute Mapping in SAML Assertions Not Tested
 
 **Status:** Resolved (2026-02-21)

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | - |
-| Medium | 5 | Activity tracking (4), SQL column length (1) |
+| Medium | 1 | SQL column length (1) |
 | Low | 0 | - |
 
 **Last compliance scan:** 2026-02-21 (rglob fix revealed 4 track_activity gaps, SQL length checker added)
@@ -20,17 +20,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
 **Last test code audit:** 2026-02-07 (parametrization applied to duplicated test patterns)
-
----
-
-## Activity Logging: Missing track_activity() in 4 read functions
-
-**Found in:** `app/services/service_providers/crud.py:972`, `app/services/service_providers/crud.py:1072`, `app/services/service_providers/group_assignments.py:27`, `app/services/saml/idp_sp_certificates.py:80`
-**Severity:** Medium
-**Principle Violated:** Activity Logging
-**Description:** Four read-only service functions with `RequestingUser` parameter do not call `track_activity()` at the start. These functions are: `preview_sp_metadata_refresh`, `preview_sp_metadata_reimport`, `count_sp_group_assignments`, `get_idp_sp_certificate_for_display`.
-**Impact:** User activity is not tracked for these operations, which means read activity on SP metadata previews, group assignment counts, and IdP SP certificate views is invisible to audit.
-**Suggested fix:** Add `track_activity(requesting_user["tenant_id"], requesting_user["id"])` after the authorization check in each function.
 
 ---
 

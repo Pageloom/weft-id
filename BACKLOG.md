@@ -6,35 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Opportunistic Certificate Cleanup on Metadata Serving
-
-**User Story:**
-As a system operator
-I want expired grace-period certificates to be cleaned up immediately when the SP metadata endpoint is called
-So that stale previous certificates are removed promptly without waiting for the daily background job
-
-**Context:**
-
-The daily background job (`rotate_certificates.py`) handles certificate cleanup after the grace period expires. However, the metadata endpoint (`/saml/idp/metadata/{sp_id}`) is a natural trigger point. If an SP is fetching metadata, and the grace period has already expired, we can clean up the previous certificate inline. This is a lightweight write (null out 4 columns) that makes the cleanup more responsive. Uses the existing `sp_signing_certificate_cleanup_completed` event type.
-
-**Acceptance Criteria:**
-
-- [ ] When the per-SP metadata endpoint is called, check if `rotation_grace_period_ends_at` has passed
-- [ ] If expired, call `clear_previous_signing_certificate()` inline before serving metadata
-- [ ] Log `sp_signing_certificate_cleanup_completed` event with `SYSTEM_ACTOR_ID`
-- [ ] Metadata response is not delayed significantly (cleanup is a simple UPDATE)
-- [ ] If cleanup fails, log a warning but still serve the metadata (do not break the endpoint)
-- [ ] Background job still runs as a safety net (no change to existing behavior)
-- [ ] Tests cover: cleanup triggered on metadata fetch, cleanup failure doesn't break metadata, no cleanup when grace period is still active
-
-**Key files:**
-- Modify: `app/services/service_providers/metadata.py` (add cleanup check before serving)
-
-**Effort:** S
-**Value:** Medium (More responsive cleanup, reduces stale data window)
-
----
-
 ## SP-Side Certificate Rotation & Lifecycle Management
 
 **User Story:**

@@ -171,6 +171,11 @@ def mfa_verify(
     # This clears all pre-auth data and creates a fresh authenticated session
     regenerate_session(request, pending_user_id, max_age, additional_data=pending_sso)
 
+    # Bind pending SSO context to the authenticated user so no other user
+    # can complete this flow (defense-in-depth alongside session regeneration)
+    if pending_sso:
+        request.session["pending_sso_user_id"] = pending_user_id
+
     # Update timezone and locale if provided
     current_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
 

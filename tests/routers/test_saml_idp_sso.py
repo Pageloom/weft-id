@@ -282,6 +282,7 @@ class TestConsentPage:
         """When session has user_id and pending SSO, consent page renders."""
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
             "pending_sso_sp_id": str(uuid4()),
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test Application",
@@ -318,6 +319,102 @@ class TestConsentPage:
 
 
 # ============================================================================
+# Consent - User Binding Validation
+# ============================================================================
+
+
+class TestConsentUserBinding:
+    """Test that SSO context is bound to the user who initiated it."""
+
+    def test_consent_get_rejects_mismatched_user(self, client, sso_user, sso_host):
+        """GET /consent returns error when session user doesn't match SSO binding."""
+        other_user_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": other_user_id,  # bound to a different user
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+        }
+
+        with patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: mock_session),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_consent_post_rejects_mismatched_user(self, client, sso_user, sso_host):
+        """POST /consent returns error when session user doesn't match SSO binding."""
+        other_user_id = str(uuid4())
+        mock_session = {
+            "user_id": sso_user["id"],
+            "pending_sso_user_id": other_user_id,  # bound to a different user
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+            "_csrf_token": "test-csrf-token",
+        }
+
+        with patch(
+            "starlette.requests.Request.session",
+            new_callable=lambda: property(lambda self: mock_session),
+        ):
+            response = client.post(
+                "/saml/idp/consent",
+                data={"action": "continue", "csrf_token": "test-csrf-token"},
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 400
+
+    def test_consent_allows_unbound_sso_context(self, client, sso_user, sso_host):
+        """GET /consent allows SSO context without user binding (backwards compat)."""
+        mock_session = {
+            "user_id": sso_user["id"],
+            # no pending_sso_user_id key at all
+            "pending_sso_sp_id": str(uuid4()),
+            "pending_sso_sp_entity_id": "https://sp.example.com",
+            "pending_sso_sp_name": "Test SP",
+            "pending_sso_authn_request_id": "_req123",
+            "pending_sso_relay_state": "",
+        }
+
+        with (
+            patch(
+                "starlette.requests.Request.session",
+                new_callable=lambda: property(lambda self: mock_session),
+            ),
+            patch(
+                "services.service_providers.check_user_sp_access",
+                return_value=True,
+            ),
+            patch(
+                "services.service_providers.get_user_consent_info",
+                return_value={
+                    "email": "alice@test.com",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                },
+            ),
+        ):
+            response = client.get(
+                "/saml/idp/consent",
+                headers={"Host": sso_host},
+            )
+
+        assert response.status_code == 200
+
+
+# ============================================================================
 # Consent POST (continue/cancel)
 # ============================================================================
 
@@ -327,6 +424,7 @@ class TestConsentRespond:
         sp_id = str(uuid4())
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
             "pending_sso_sp_id": sp_id,
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
@@ -356,6 +454,7 @@ class TestConsentRespond:
         sp_id = str(uuid4())
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
             "pending_sso_sp_id": sp_id,
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
@@ -385,6 +484,7 @@ class TestConsentRespond:
     def test_continue_renders_auto_submit_form(self, client, sso_user, sso_host):
         mock_session = {
             "user_id": sso_user["id"],
+            "pending_sso_user_id": sso_user["id"],
             "pending_sso_sp_id": str(uuid4()),
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test SP",
@@ -472,6 +572,7 @@ class TestConsentAccessCheck:
         """Build a session dict with user_id and pending SSO context."""
         return {
             "user_id": user_id,
+            "pending_sso_user_id": user_id,
             "pending_sso_sp_id": str(uuid4()),
             "pending_sso_sp_entity_id": "https://sp.example.com",
             "pending_sso_sp_name": "Test Application",
@@ -656,6 +757,7 @@ def _make_pending_sso_session(user_id, sp_id=None, sp_name="Test Application"):
     """Build a session dict with user_id and pending SSO context."""
     return {
         "user_id": user_id,
+        "pending_sso_user_id": user_id,
         "pending_sso_sp_id": sp_id or str(uuid4()),
         "pending_sso_sp_entity_id": "https://sp.example.com",
         "pending_sso_sp_name": sp_name,

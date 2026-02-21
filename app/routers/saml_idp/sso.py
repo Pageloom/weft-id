@@ -23,7 +23,7 @@ from utils.csp_nonce import get_csp_nonce
 from utils.saml_authn_request import parse_authn_request, validate_authn_request
 from utils.template_context import get_template_context
 
-from ._helpers import get_base_url
+from ._helpers import PENDING_SSO_KEYS, get_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -134,10 +134,13 @@ def _handle_sso_request(
     # 5. Check if user is already authenticated
     user_id = request.session.get("user_id")
     if user_id:
+        # Bind SSO context to this user so no other user can complete it
+        request.session["pending_sso_user_id"] = user_id
         # User is authenticated, go straight to consent
         return RedirectResponse(url="/saml/idp/consent", status_code=303)
     else:
-        # User needs to log in first
+        # User needs to log in first; pending_sso_user_id will be stamped
+        # after successful authentication in the MFA verification handler
         return RedirectResponse(url="/login", status_code=303)
 
 
@@ -160,6 +163,14 @@ def consent_page(
     # Require pending SSO context
     sp_entity_id = request.session.get("pending_sso_sp_entity_id")
     if not sp_entity_id:
+        return _render_sso_error(request, tenant_id, "no_pending_sso")
+
+    # Verify SSO context is bound to this user
+    bound_user_id = request.session.get("pending_sso_user_id")
+    if bound_user_id and bound_user_id != user_id:
+        logger.warning(
+            "SSO context bound to user %s but current user is %s", bound_user_id, user_id
+        )
         return _render_sso_error(request, tenant_id, "no_pending_sso")
 
     sp_id = request.session.get("pending_sso_sp_id", "")
@@ -192,15 +203,11 @@ def consent_switch_account(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
 ):
     """Clear auth session but preserve SSO context, then redirect to login."""
-    # Save pending SSO context
-    sso_keys = (
-        "pending_sso_sp_id",
-        "pending_sso_sp_entity_id",
-        "pending_sso_authn_request_id",
-        "pending_sso_relay_state",
-        "pending_sso_sp_name",
-    )
-    saved = {k: request.session.get(k) for k in sso_keys if request.session.get(k) is not None}
+    # Save pending SSO context (excludes pending_sso_user_id so it gets
+    # re-bound to whichever user authenticates next)
+    saved = {
+        k: request.session.get(k) for k in PENDING_SSO_KEYS if request.session.get(k) is not None
+    }
 
     # Log the sign-out event before clearing
     user_id = request.session.get("user_id")
@@ -241,19 +248,21 @@ def consent_respond(
     if not sp_entity_id:
         return _render_sso_error(request, tenant_id, "no_pending_sso")
 
+    # Verify SSO context is bound to this user
+    bound_user_id = request.session.get("pending_sso_user_id")
+    if bound_user_id and bound_user_id != user_id:
+        logger.warning(
+            "SSO context bound to user %s but current user is %s", bound_user_id, user_id
+        )
+        return _render_sso_error(request, tenant_id, "no_pending_sso")
+
     sp_id = request.session.get("pending_sso_sp_id", "")
     authn_request_id = request.session.get("pending_sso_authn_request_id")
     relay_state = request.session.get("pending_sso_relay_state", "")
     sp_name = request.session.get("pending_sso_sp_name", "")
 
     # Clear pending SSO context from session regardless of action
-    for key in (
-        "pending_sso_sp_id",
-        "pending_sso_sp_entity_id",
-        "pending_sso_authn_request_id",
-        "pending_sso_relay_state",
-        "pending_sso_sp_name",
-    ):
+    for key in (*PENDING_SSO_KEYS, "pending_sso_user_id"):
         request.session.pop(key, None)
 
     if action == "cancel":
@@ -357,6 +366,7 @@ def idp_initiated_launch(
     request.session["pending_sso_authn_request_id"] = None
     request.session["pending_sso_relay_state"] = ""
     request.session["pending_sso_sp_name"] = sp_row["name"]
+    request.session["pending_sso_user_id"] = user_id
 
     # Redirect to consent page (reuses existing consent flow)
     return RedirectResponse(url="/saml/idp/consent", status_code=303)

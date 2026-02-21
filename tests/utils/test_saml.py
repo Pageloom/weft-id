@@ -511,6 +511,94 @@ def test_generate_sp_metadata_xml_default_attributes(sample_certificate):
         assert uri in names
 
 
+def test_generate_sp_metadata_xml_escapes_xml_injection_in_mapping_name(
+    sample_certificate,
+):
+    """Attribute mapping keys with XML special chars are escaped."""
+    from defusedxml import ElementTree as DefusedET
+
+    cert_pem, _ = sample_certificate
+    malicious_mapping = {
+        'foo"/><Evil xmlns="http://evil': "email",
+    }
+
+    xml = generate_sp_metadata_xml(
+        entity_id="https://sp.example.com/saml/metadata",
+        acs_url="https://sp.example.com/saml/acs",
+        certificate_pem=cert_pem,
+        attribute_mapping=malicious_mapping,
+    )
+
+    # Must still be valid XML
+    root = DefusedET.fromstring(xml)
+
+    # Injected element must NOT exist
+    evil = root.findall(".//{http://evil}*")
+    assert len(evil) == 0, "XML injection succeeded: injected element found"
+
+    # Value should round-trip correctly
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+    sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+    acs_elem = sp_desc.find(f"{{{md_ns}}}AttributeConsumingService")
+    req_attrs = acs_elem.findall(f"{{{md_ns}}}RequestedAttribute")
+    assert len(req_attrs) == 1
+    assert req_attrs[0].attrib["Name"] == 'foo"/><Evil xmlns="http://evil'
+
+
+def test_generate_sp_metadata_xml_escapes_xml_injection_in_mapping_value(
+    sample_certificate,
+):
+    """Attribute mapping values with XML special chars are escaped."""
+    from defusedxml import ElementTree as DefusedET
+
+    cert_pem, _ = sample_certificate
+    malicious_mapping = {
+        "urn:oid:1.2.3": '<script>alert("xss")</script>',
+    }
+
+    xml = generate_sp_metadata_xml(
+        entity_id="https://sp.example.com/saml/metadata",
+        acs_url="https://sp.example.com/saml/acs",
+        certificate_pem=cert_pem,
+        attribute_mapping=malicious_mapping,
+    )
+
+    root = DefusedET.fromstring(xml)
+    assert "<script>" not in xml
+
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+    sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+    acs_elem = sp_desc.find(f"{{{md_ns}}}AttributeConsumingService")
+    req_attrs = acs_elem.findall(f"{{{md_ns}}}RequestedAttribute")
+    assert len(req_attrs) == 1
+    assert req_attrs[0].attrib["FriendlyName"] == '<script>alert("xss")</script>'
+
+
+def test_generate_sp_metadata_xml_escapes_entity_id_and_urls(sample_certificate):
+    """Entity ID and URLs with ampersands are properly escaped."""
+    from defusedxml import ElementTree as DefusedET
+
+    cert_pem, _ = sample_certificate
+
+    xml = generate_sp_metadata_xml(
+        entity_id='https://sp.example.com/saml?a=1&b=2"',
+        acs_url="https://sp.example.com/saml/acs?x=1&y=2",
+        certificate_pem=cert_pem,
+        slo_url="https://sp.example.com/saml/slo?p=1&q=2",
+    )
+
+    root = DefusedET.fromstring(xml)
+    assert root.attrib["entityID"] == 'https://sp.example.com/saml?a=1&b=2"'
+
+    md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+    sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+    acs_elem = sp_desc.find(f"{{{md_ns}}}AssertionConsumerService")
+    assert acs_elem.attrib["Location"] == "https://sp.example.com/saml/acs?x=1&y=2"
+
+    slo_elem = sp_desc.find(f"{{{md_ns}}}SingleLogoutService")
+    assert slo_elem.attrib["Location"] == "https://sp.example.com/saml/slo?p=1&q=2"
+
+
 # =============================================================================
 # SAML Settings Builder Tests
 # =============================================================================

@@ -1,8 +1,12 @@
 """SAML IdP utilities for SP metadata parsing and fetching."""
 
 from typing import Any
+from xml.sax.saxutils import escape as _xml_escape
 
 from defusedxml import ElementTree as DefusedET
+
+# Escape entities for XML attribute values (extends default &, <, > with quotes)
+_XML_ATTR_ENTITIES = {'"': "&quot;", "'": "&apos;"}
 
 # SAML metadata namespace
 _MD_NS = "urn:oasis:names:tc:SAML:2.0:metadata"
@@ -213,15 +217,19 @@ def generate_idp_metadata_xml(
     cert_lines = certificate_pem.strip().split("\n")
     cert_data = "".join(line for line in cert_lines if not line.startswith("-----"))
 
+    def esc(v: str) -> str:
+        return _xml_escape(v, _XML_ATTR_ENTITIES)
+
     slo_elements = ""
     if slo_url:
+        slo_url_esc = esc(slo_url)
         slo_elements = f"""
     <md:SingleLogoutService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-        Location="{slo_url}" />
+        Location="{slo_url_esc}" />
     <md:SingleLogoutService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-        Location="{slo_url}" />"""
+        Location="{slo_url_esc}" />"""
 
     # Build attribute declarations so SPs know what to expect
     attr_format = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
@@ -229,16 +237,19 @@ def generate_idp_metadata_xml(
     for friendly_name, uri in (attribute_mapping or SAML_ATTRIBUTE_URIS).items():
         attr_elements += f"""
     <saml:Attribute
-        Name="{uri}"
+        Name="{esc(uri)}"
         NameFormat="{attr_format}"
-        FriendlyName="{friendly_name}" />"""
+        FriendlyName="{esc(friendly_name)}" />"""
+
+    entity_id_esc = esc(entity_id)
+    sso_url_esc = esc(sso_url)
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor
     xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
     xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
     xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
-    entityID="{entity_id}">
+    entityID="{entity_id_esc}">
   <md:IDPSSODescriptor
       WantAuthnRequestsSigned="false"
       protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
@@ -253,10 +264,10 @@ def generate_idp_metadata_xml(
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
     <md:SingleSignOnService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
-        Location="{sso_url}" />
+        Location="{sso_url_esc}" />
     <md:SingleSignOnService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-        Location="{sso_url}" />{attr_elements}
+        Location="{sso_url_esc}" />{attr_elements}
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>"""
 

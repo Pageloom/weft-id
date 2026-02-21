@@ -1,9 +1,13 @@
 """Tests for SAML IdP SP metadata parsing and IdP metadata generation utilities."""
 
+from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError, URLError
+
 import pytest
 from defusedxml import ElementTree as DefusedET
 from utils.saml_idp import (
     auto_detect_attribute_mapping,
+    fetch_sp_metadata,
     generate_idp_metadata_xml,
     parse_sp_metadata_xml,
 )
@@ -775,3 +779,74 @@ class TestAutoDetectAttributeMapping:
         result = auto_detect_attribute_mapping(attrs)
 
         assert result == {"groups": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7"}
+
+
+# =============================================================================
+# fetch_sp_metadata tests
+# =============================================================================
+
+SAMPLE_SP_XML = '<?xml version="1.0"?><EntityDescriptor>sp-metadata</EntityDescriptor>'
+
+
+class TestFetchSPMetadata:
+    """Tests for fetch_sp_metadata (delegates to url_safety)."""
+
+    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.socket.getaddrinfo")
+    @patch("app.utils.url_safety.settings")
+    def test_successful_fetch(self, mock_settings, mock_getaddrinfo, mock_urlopen):
+        mock_settings.IS_DEV = False
+        mock_settings.BASE_DOMAIN = ""
+        mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
+
+        mock_response = MagicMock()
+        mock_response.headers = {}
+        mock_response.read.return_value = SAMPLE_SP_XML.encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        result = fetch_sp_metadata("https://sp.example.com/metadata")
+        assert "EntityDescriptor" in result
+
+    @patch("app.utils.url_safety.socket.getaddrinfo")
+    @patch("app.utils.url_safety.settings")
+    def test_ssrf_blocked(self, mock_settings, mock_getaddrinfo):
+        mock_settings.IS_DEV = False
+        mock_settings.BASE_DOMAIN = ""
+        mock_getaddrinfo.return_value = [(2, 1, 6, "", ("169.254.169.254", 0))]
+
+        with pytest.raises(ValueError, match="private or reserved"):
+            fetch_sp_metadata("https://evil.example.com/metadata")
+
+    @patch("app.utils.url_safety.settings")
+    def test_file_scheme_blocked(self, mock_settings):
+        mock_settings.IS_DEV = False
+        mock_settings.BASE_DOMAIN = ""
+
+        with pytest.raises(ValueError, match="Unsupported URL scheme"):
+            fetch_sp_metadata("file:///etc/passwd")
+
+    @pytest.mark.parametrize(
+        "exception,match",
+        [
+            (
+                HTTPError(
+                    url="https://sp.example.com", code=500, msg="Server Error", hdrs={}, fp=None
+                ),
+                "HTTP error",
+            ),
+            (URLError("Connection refused"), "fetch metadata"),
+            (TimeoutError(), "Timeout"),
+        ],
+        ids=["http_error", "network_error", "timeout"],
+    )
+    @patch("app.utils.url_safety.urllib.request.urlopen")
+    @patch("app.utils.url_safety.socket.getaddrinfo")
+    @patch("app.utils.url_safety.settings")
+    def test_fetch_errors(self, mock_settings, mock_getaddrinfo, mock_urlopen, exception, match):
+        mock_settings.IS_DEV = False
+        mock_settings.BASE_DOMAIN = ""
+        mock_getaddrinfo.return_value = [(2, 1, 6, "", ("93.184.216.34", 0))]
+        mock_urlopen.side_effect = exception
+
+        with pytest.raises(ValueError, match=match):
+            fetch_sp_metadata("https://sp.example.com/metadata")

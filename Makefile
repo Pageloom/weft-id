@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css sso-testbed
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css watch-tests sso-testbed
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -65,6 +65,9 @@ build-css: ## Build Tailwind CSS for production
 
 watch-css: ## Watch and rebuild CSS on changes (dev mode)
 	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --watch
+
+watch-tests: ## Watch and rerun tests on changes (dev mode)
+	poetry run python -m watchfiles './test --testmon' app tests
 
 sso-testbed: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py

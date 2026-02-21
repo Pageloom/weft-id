@@ -48,7 +48,11 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 ```bash
 ./test                                    # Run all tests (parallel)
 ./test --cov=app --cov-report=term-missing # With coverage
+./test --testmon                          # Run only tests affected by recent changes
+make watch-tests                          # Watch mode: auto-rerun affected tests on changes
 ```
+
+**Watch mode** provides immediate feedback during test writing. After building initial coverage database, only runs tests affected by changed code (5-50 tests instead of 500+). Ideal for iterative test development.
 
 **E2E tests (Playwright):**
 ```bash

@@ -294,12 +294,7 @@ def fetch_sp_metadata(url: str, timeout: int = 10) -> str:
         # is fetched directly with full TLS verification.
         parsed = urlparse(url)
         base = settings.BASE_DOMAIN
-        if (
-            settings.IS_DEV
-            and base
-            and parsed.hostname
-            and parsed.hostname.endswith(base)
-        ):
+        if settings.IS_DEV and base and parsed.hostname and parsed.hostname.endswith(base):
             original_host = parsed.hostname
             port = parsed.port or 443
             parsed = parsed._replace(netloc=f"reverse-proxy:{port}")

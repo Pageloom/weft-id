@@ -42,7 +42,9 @@ class TestConsentDenial:
         page.wait_for_url(f"{idp_base}/saml/idp/consent**", timeout=10000)
 
         # Click Cancel (the consent form's cancel button, not the confirm dialog's)
-        page.locator("form[action='/saml/idp/consent'] button[type='submit']", has_text="Cancel").click()
+        page.locator(
+            "form[action='/saml/idp/consent'] button[type='submit']", has_text="Cancel"
+        ).click()
 
         # Should redirect to IdP dashboard (not the SP)
         page.wait_for_url(f"{idp_base}/dashboard**", timeout=10000)

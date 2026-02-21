@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 6 | database integration test gaps (6) |
-| Low | 2 | SLO validation, cert cleanup race |
+| Low | 1 | cert cleanup race |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
@@ -146,63 +146,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 **What to test:** For nameid mappings: create a mapping, verify get returns it, call get_or_create again for same pair, verify same mapping returned (idempotent). For security counts: create users with domain emails, some with IdP, some without, verify counts are correct. For selection: create groups, add user to one, verify the other appears in the select list.
 **Test file:** Create `tests/database/test_sp_nameid_mappings.py` and add to existing `tests/database/test_groups.py` and `tests/database/test_security.py`
-
----
-
-## [SECURITY] SLO LogoutRequest Processed Without Validation
-
-**Found in:** `app/routers/saml_idp/slo.py:69-116` (`_handle_slo_request`)
-**Severity:** Low
-**OWASP Category:** A07:2021 - Identification and Authentication Failures
-**Description:** Two issues in the SLO flow combine to allow forced user logout:
-
-1. **Session cleared before issuer validation** (line 88): The user's session is cleared immediately after parsing the LogoutRequest XML, before checking whether the issuer is a registered SP. Any syntactically valid LogoutRequest (even from an unregistered source) will destroy the user's session.
-
-2. **No signature validation on LogoutRequests**: `parse_sp_logout_request()` parses the XML structure but does not validate the XML signature. Any party can forge a LogoutRequest.
-
-**Attack Scenario:** An attacker crafts a minimal valid LogoutRequest (just needs an `<ID>` attribute and wrapping `<LogoutRequest>` element) and redirects a victim's browser to `/saml/idp/slo?SAMLRequest=<base64_encoded_forged_request>`. The victim's session is destroyed, forcing a re-login.
-**Evidence:**
-```python
-# slo.py:77-88 - Session cleared unconditionally before issuer check
-def _handle_slo_request(...):
-    # 1. Parse the LogoutRequest
-    try:
-        parsed = parse_sp_logout_request(saml_request, binding)
-    except ValueError as e:
-        ...
-
-    # 2. Clear the user's session (before any SP validation!)
-    request.session.clear()
-
-    # 3. Build LogoutResponse (this is where issuer is first checked)
-    ...
-    logout_response_b64, slo_url = process_sp_logout_request(...)
-```
-**Impact:** Forced user logout (denial of service). No data leakage or privilege escalation.
-**Remediation:**
-1. Move `request.session.clear()` after `process_sp_logout_request()` succeeds (after the issuer is validated as a registered SP)
-2. Consider adding LogoutRequest signature validation using the SP's registered certificate
-
-Example fix:
-```python
-def _handle_slo_request(...):
-    try:
-        parsed = parse_sp_logout_request(saml_request, binding)
-    except ValueError as e:
-        return RedirectResponse(url="/login", status_code=303)
-
-    base_url = get_base_url(request)
-    try:
-        logout_response_b64, slo_url = process_sp_logout_request(
-            tenant_id=tenant_id, parsed_request=parsed, base_url=base_url,
-        )
-    except Exception as e:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Only clear session after validating the request came from a registered SP
-    request.session.clear()
-    ...
-```
 
 ---
 

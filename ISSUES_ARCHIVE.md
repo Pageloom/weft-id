@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] SLO LogoutRequest Processed Without Validation
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Low
+**OWASP Category:** A07:2021 - Identification and Authentication Failures
+
+**Original Description:**
+The SLO handler cleared the user's session immediately after parsing the LogoutRequest XML, before checking whether the issuer was a registered SP. Any syntactically valid LogoutRequest (even from an unregistered source) could destroy a user's session, enabling forced logout.
+
+**Resolution:**
+Moved `request.session.clear()` in `_handle_slo_request()` to after `process_sp_logout_request()` succeeds. The service function validates the issuer is a registered, enabled SP before the session is touched. Added tests confirming session is preserved when SP validation fails and when XML is malformed.
+
+---
+
 ### [SECURITY] XML Injection in IdP Metadata Generation via String Interpolation
 
 **Status:** Resolved (2026-02-21)

@@ -79,12 +79,9 @@ Compliance-only options:
 --check tenant          # Tenant isolation
 --check api-first       # API coverage
 --check authorization   # Route auth
+--check input-length    # Pydantic str fields without max_length
+--check sql-length      # SQL TEXT columns without length CHECK constraints
 ```
-
-**For Input Length Validation (manual, not yet in script):**
-- Scan all Pydantic input schemas (Create, Update, Import) in `app/schemas/`
-- Flag any `str` field missing `max_length`
-- Check `Field(default=None, max_length=N)` pattern for optional strings
 
 ### 2. Investigate Findings
 
@@ -116,6 +113,7 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | Service operation without API endpoint | API-First |
 | `str` field without `max_length` in input schema | Input Validation |
 | `Field(default=None)` without `max_length` | Input Validation |
+| TEXT/CITEXT column without `CHECK (length(...) <= N)` | SQL Length Validation |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 

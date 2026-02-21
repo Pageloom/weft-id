@@ -16,6 +16,8 @@ Principles checked:
     4. api-first      - Service operations should have corresponding API endpoints
     5. authorization  - Web routes have proper auth dependencies matching pages.py
     6. input-length   - All str fields in Pydantic input schemas must have max_length
+    7. sql-length     - All TEXT/CITEXT columns in SQL schema must have length CHECK
+                        constraints
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -240,9 +242,14 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
             if isinstance(child, ast.Call):
                 self._check_call(child)
 
+        # Check if docstring documents delegated logging (e.g. "Logs: event_name")
+        # This indicates the function delegates logging to a helper function
+        docstring = ast.get_docstring(node) or ""
+        has_delegated_logging = "Logs:" in docstring
+
         # Report violations
         if self.has_requesting_user:
-            if self.has_mutation and not self.has_log_event:
+            if self.has_mutation and not self.has_log_event and not has_delegated_logging:
                 # Write operation without log_event - HIGH severity
                 self.report.add(
                     Violation(
@@ -265,7 +272,12 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
                         ),
                     )
                 )
-            elif not self.has_mutation and not self.has_track_activity and not self.has_log_event:
+            elif (
+                not self.has_mutation
+                and not self.has_track_activity
+                and not self.has_log_event
+                and not has_delegated_logging
+            ):
                 # Read operation without track_activity - MEDIUM severity
                 # Skip if function name suggests it's a helper
                 if not node.name.startswith("_"):
@@ -357,7 +369,7 @@ def check_activity_logging_violations(report: ComplianceReport) -> None:
     # Skip these files (they're infrastructure, not business logic)
     skip_files = {"__init__.py", "activity.py", "event_log.py", "exceptions.py", "types.py"}
 
-    for py_file in services_path.glob("*.py"):
+    for py_file in services_path.rglob("*.py"):
         if py_file.name in skip_files:
             continue
 
@@ -487,9 +499,9 @@ def check_tenant_isolation_violations(report: ComplianceReport) -> None:
         return
 
     # Skip infrastructure files
-    skip_files = {"__init__.py", "connection.py", "utils.py"}
+    skip_files = {"__init__.py", "connection.py", "utils.py", "_core.py"}
 
-    for py_file in database_path.glob("*.py"):
+    for py_file in database_path.rglob("*.py"):
         if py_file.name in skip_files:
             continue
 
@@ -1089,6 +1101,182 @@ def _has_max_length(value: ast.expr) -> bool:
 
 
 # =============================================================================
+# Principle 7: SQL Column Length Validation
+# =============================================================================
+
+# Tables exempt from length checks (infrastructure/system tables)
+SQL_EXEMPT_TABLES = {"schema_migration_log"}
+
+# Regex to match TEXT/CITEXT column definitions (not arrays like text[])
+SQL_COL_PATTERN = re.compile(
+    r"^\s+(\w+)\s+(?:public\.)?(?:text|citext)(?!\[)\b",
+    re.IGNORECASE,
+)
+
+# Regex to match length/char_length CHECK constraints
+SQL_LENGTH_CHECK = re.compile(
+    r"(?:length|char_length)\((\w+)\)\s*<=",
+    re.IGNORECASE,
+)
+
+# Regex to match enum-like CHECK constraints (col = ANY (ARRAY[...]))
+SQL_ENUM_CHECK = re.compile(
+    r"\b(\w+)\s*=\s*ANY\s*\(",
+    re.IGNORECASE,
+)
+
+
+def check_sql_length_violations(report: ComplianceReport) -> None:
+    """
+    Check that TEXT/CITEXT columns in SQL schema have length CHECK constraints.
+
+    Scans db-init/schema.sql and db-init/migrations/*.sql for:
+    - CREATE TABLE with TEXT columns lacking length checks
+    - ALTER TABLE ADD COLUMN with TEXT type lacking length checks
+    """
+    project_root = get_project_root()
+
+    # Scan baseline schema
+    schema_file = project_root / "db-init" / "schema.sql"
+    if schema_file.exists():
+        report.files_scanned += 1
+        with open(schema_file) as f:
+            sql = f.read()
+        _check_sql_create_tables(sql, schema_file, report)
+
+    # Scan migrations
+    migrations_dir = project_root / "db-init" / "migrations"
+    if migrations_dir.exists():
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            report.files_scanned += 1
+            with open(sql_file) as f:
+                sql = f.read()
+            _check_sql_create_tables(sql, sql_file, report)
+            _check_sql_alter_add_column(sql, sql_file, report)
+
+
+def _check_sql_create_tables(
+    sql: str, file_path: Path, report: ComplianceReport
+) -> None:
+    """Check CREATE TABLE blocks for TEXT columns without length constraints."""
+    # Find CREATE TABLE blocks
+    table_pattern = re.compile(
+        r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?(\w+)\s*\((.*?)\);",
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    lines = sql.split("\n")
+
+    for match in table_pattern.finditer(sql):
+        table_name = match.group(1)
+        table_body = match.group(2)
+
+        if table_name in SQL_EXEMPT_TABLES:
+            continue
+
+        # Find all TEXT/CITEXT columns in this table
+        text_columns: list[tuple[str, int]] = []  # (col_name, line_in_file)
+        table_start_offset = sql[: match.start()].count("\n")
+
+        for i, line in enumerate(table_body.split("\n")):
+            col_match = SQL_COL_PATTERN.match(line)
+            if col_match:
+                col_name = col_match.group(1)
+                file_line = table_start_offset + i + 1
+                text_columns.append((col_name, file_line))
+
+        if not text_columns:
+            continue
+
+        # Find all columns with length or enum CHECK constraints in this table
+        checked_columns: set[str] = set()
+        for length_match in SQL_LENGTH_CHECK.finditer(table_body):
+            checked_columns.add(length_match.group(1))
+        for enum_match in SQL_ENUM_CHECK.finditer(table_body):
+            checked_columns.add(enum_match.group(1))
+
+        # Report unchecked columns
+        for col_name, line_num in text_columns:
+            if col_name not in checked_columns:
+                report.add(
+                    Violation(
+                        principle="SQL Column Length Validation",
+                        severity="medium",
+                        file_path=str(file_path.relative_to(get_project_root())),
+                        line_number=line_num,
+                        function_name=None,
+                        description=(
+                            f"Table {table_name}.{col_name} (TEXT) has no length "
+                            f"CHECK constraint"
+                        ),
+                        evidence=(
+                            f"Column '{col_name}' in table '{table_name}' is TEXT "
+                            f"without length() or enum CHECK"
+                        ),
+                        suggested_fix=(
+                            f"Add: CONSTRAINT chk_{table_name}_{col_name}_length "
+                            f"CHECK ((length({col_name}) <= N))"
+                        ),
+                    )
+                )
+
+
+def _check_sql_alter_add_column(
+    sql: str, file_path: Path, report: ComplianceReport
+) -> None:
+    """Check ALTER TABLE ADD COLUMN for TEXT columns without length constraints."""
+    # Match: ALTER TABLE [public.]tablename ADD COLUMN [IF NOT EXISTS] colname text ...
+    alter_pattern = re.compile(
+        r"ALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+        r"ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+"
+        r"(?:public\.)?(?:text|citext)(?!\[)\b",
+        re.IGNORECASE,
+    )
+
+    lines = sql.split("\n")
+
+    # Collect all length/enum checks in the entire migration file
+    file_checked: set[str] = set()
+    for length_match in SQL_LENGTH_CHECK.finditer(sql):
+        file_checked.add(length_match.group(1))
+    for enum_match in SQL_ENUM_CHECK.finditer(sql):
+        file_checked.add(enum_match.group(1))
+
+    for match in alter_pattern.finditer(sql):
+        table_name = match.group(1)
+        col_name = match.group(2)
+        line_num = sql[: match.start()].count("\n") + 1
+
+        if table_name in SQL_EXEMPT_TABLES:
+            continue
+
+        if col_name not in file_checked:
+            report.add(
+                Violation(
+                    principle="SQL Column Length Validation",
+                    severity="medium",
+                    file_path=str(file_path.relative_to(get_project_root())),
+                    line_number=line_num,
+                    function_name=None,
+                    description=(
+                        f"ALTER TABLE {table_name} adds TEXT column '{col_name}' "
+                        f"without length CHECK"
+                    ),
+                    evidence=(
+                        f"ADD COLUMN {col_name} TEXT without corresponding "
+                        f"length constraint in migration"
+                    ),
+                    suggested_fix=(
+                        f"Add CHECK constraint in same migration: "
+                        f"ALTER TABLE {table_name} ADD CONSTRAINT "
+                        f"chk_{table_name}_{col_name}_length "
+                        f"CHECK ((length({col_name}) <= N))"
+                    ),
+                )
+            )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -1117,6 +1305,7 @@ def run_compliance_check(
         "api-first",
         "authorization",
         "input-length",
+        "sql-length",
     ]
     if principles is None:
         principles = all_principles
@@ -1138,6 +1327,9 @@ def run_compliance_check(
 
     if "input-length" in principles:
         check_input_length_violations(report)
+
+    if "sql-length" in principles:
+        check_sql_length_violations(report)
 
     return report
 
@@ -1198,6 +1390,7 @@ def main() -> int:
             "api-first",
             "authorization",
             "input-length",
+            "sql-length",
             "all",
         ],
         default="all",

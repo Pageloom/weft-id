@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] XML Injection in IdP Metadata Generation via String Interpolation
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+**OWASP Category:** A03:2021 - Injection
+
+**Original Description:**
+IdP and SP metadata XML was generated using f-string interpolation without XML escaping. User-configurable `attribute_mapping` values (both keys and values) were interpolated directly into XML attribute positions. A value containing `"` or `<` could break out of the XML attribute and inject arbitrary XML content.
+
+**Resolution:**
+Added `xml.sax.saxutils.escape()` with quote entity escaping for all interpolated values in both `generate_idp_metadata_xml()` (`app/utils/saml_idp.py`) and `generate_sp_metadata_xml()` (`app/utils/saml.py`). This covers attribute mapping keys/values, entity IDs, SSO URLs, SLO URLs, and ACS URLs. Added 7 tests verifying that XML special characters in attribute mappings, entity IDs, and URLs are properly escaped and round-trip correctly through XML parsing.
+
+---
+
 ### [SECURITY] SSRF via Metadata URL Fetch
 
 **Status:** Resolved (2026-02-21)

@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 7 | XML Injection, database integration test gaps (6) |
+| Medium | 6 | database integration test gaps (6) |
 | Low | 2 | SLO validation, cert cleanup race |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
@@ -146,48 +146,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 **What to test:** For nameid mappings: create a mapping, verify get returns it, call get_or_create again for same pair, verify same mapping returned (idempotent). For security counts: create users with domain emails, some with IdP, some without, verify counts are correct. For selection: create groups, add user to one, verify the other appears in the select list.
 **Test file:** Create `tests/database/test_sp_nameid_mappings.py` and add to existing `tests/database/test_groups.py` and `tests/database/test_security.py`
-
----
-
-## [SECURITY] XML Injection in IdP Metadata Generation via String Interpolation
-
-**Found in:** `app/utils/saml_idp.py:191-261` (`generate_idp_metadata_xml`), also `app/utils/saml.py:325-427` (`generate_sp_metadata_xml`)
-**Severity:** Medium
-**OWASP Category:** A03:2021 - Injection
-**Description:** IdP metadata XML is generated using f-string interpolation without XML escaping. User-configurable `attribute_mapping` values (both keys and values) are interpolated directly into XML attribute positions. A value containing `"` or `<` can break out of the XML attribute and inject arbitrary XML content.
-**Attack Scenario:** A super_admin sets an attribute mapping value containing XML special characters (either directly via the admin UI, or indirectly by importing SP metadata with crafted `RequestedAttribute` elements that are auto-detected into the mapping). The per-SP IdP metadata endpoint (`/saml/idp/metadata/{sp_id}`) then serves the poisoned XML to downstream consumers.
-**Evidence:**
-```python
-# saml_idp.py:230-234 - No XML escaping on user-configurable values
-for friendly_name, uri in (attribute_mapping or SAML_ATTRIBUTE_URIS).items():
-    attr_elements += f"""
-    <saml:Attribute
-        Name="{uri}"
-        NameFormat="{attr_format}"
-        FriendlyName="{friendly_name}" />"""
-```
-
-A mapping like `{"email": 'foo"/><Evil xmlns="http://evil'}` would inject:
-```xml
-<saml:Attribute
-    Name="foo"/><Evil xmlns="http://evil"
-    NameFormat="..."
-    FriendlyName="email" />
-```
-**Impact:** Malformed or poisoned IdP metadata served to downstream SPs. Could cause SP configuration failures or exploit vulnerabilities in SP metadata parsers.
-**Remediation:** Use `xml.sax.saxutils.escape()` and `xml.sax.saxutils.quoteattr()` to escape all interpolated values, or switch to `lxml.etree` element construction (already used in `saml_assertion.py`) instead of f-string templates.
-
-Example fix:
-```python
-from xml.sax.saxutils import escape
-
-for friendly_name, uri in (attribute_mapping or SAML_ATTRIBUTE_URIS).items():
-    attr_elements += f"""
-    <saml:Attribute
-        Name="{escape(uri, {'"': '&quot;'})}"
-        NameFormat="{attr_format}"
-        FriendlyName="{escape(friendly_name, {'"': '&quot;'})}" />"""
-```
 
 ---
 

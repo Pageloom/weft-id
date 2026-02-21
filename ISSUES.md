@@ -11,7 +11,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 | Severity | Count | Categories |
 |----------|-------|------------|
 | High | 0 | |
-| Medium | 6 | database integration test gaps (6) |
+| Medium | 5 | database integration test gaps (5) |
 | Low | 0 | |
 
 **Last security scan:** 2026-02-21 (SAML IdP focused assessment, 3 issues; 30-day incremental assessment, 2 new issues)
@@ -21,24 +21,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
-
----
-
-## [TEST] Integration tests for database/groups/memberships.py (28% coverage)
-
-**Found in:** `app/database/groups/memberships.py`, `tests/database/test_groups.py`
-**Severity:** Medium
-**Description:** 5 of 12 functions have no integration tests. The untested functions build dynamic SQL with search tokenization, role/status filtering, and pagination. Their SQL is never executed against the real schema in tests.
-**Untested functions:**
-- `search_group_members()` - dynamic WHERE clauses, 6 sort fields, role/status filters, ILIKE search tokenization
-- `count_group_members_filtered()` - matching filter logic for pagination counts
-- `search_available_users()` - NOT EXISTS subquery excluding current members and service accounts
-- `count_available_users()` - matching count query
-- `bulk_remove_group_members()` - transactional multi-delete via `session()` context manager
-
-**Already tested:** `get_group_members`, `count_group_members`, `is_group_member`, `add_group_member`, `remove_group_member`, `bulk_add_group_members`, `get_user_groups`
-**What to test:** Create a group with several members (varying roles, statuses). Test each search/filter/sort combination against the real database. Verify `bulk_remove_group_members` atomicity (partial failure rolls back). Verify `search_available_users` correctly excludes existing members and OAuth2 service users.
-**Test file:** Add tests to existing `tests/database/test_groups.py`
 
 ---
 

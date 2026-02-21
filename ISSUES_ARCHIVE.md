@@ -5,6 +5,19 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [TEST] Integration tests for database/groups/memberships.py (28% coverage)
+
+**Status:** Resolved (2026-02-21)
+**Original Severity:** Medium
+
+**Original Description:**
+5 of 12 functions in `database/groups/memberships.py` had no integration tests. The untested functions build dynamic SQL with search tokenization, role/status filtering, and pagination. Their SQL was never executed against the real schema in tests.
+
+**Resolution:**
+Added 16 integration tests to `tests/database/test_groups.py` covering all 5 untested functions: `search_group_members` (5 tests for text search, role/status filters, sorting, pagination), `count_group_members_filtered` (3 tests for filters and count-search consistency), `search_available_users` (4 tests for member/service-account exclusion, filters, pagination), `count_available_users` (1 test for filter consistency), and `bulk_remove_group_members` (3 tests for removal, empty list, nonexistent users).
+
+---
+
 ### [SECURITY] Certificate Cleanup Race Condition
 
 **Status:** Resolved (2026-02-21)

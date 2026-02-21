@@ -1340,6 +1340,36 @@ RLS_NO_WITH_CHECK_EXEMPT = {
 }
 
 
+def _collect_migration_rls_fixes(migrations_dir: Path) -> set[str]:
+    """Collect table names whose RLS policies have been corrected by migrations.
+
+    A migration is considered a fix when it contains a CREATE POLICY with both
+    USING and WITH CHECK clauses and uses current_setting(..., true).
+    """
+    fixed: set[str] = set()
+
+    if not migrations_dir.exists():
+        return fixed
+
+    fix_pattern = re.compile(
+        r"CREATE\s+POLICY\s+\w+\s+ON\s+(?:public\.)?(\w+)\s+"
+        r"(?=.*\bUSING\b)"
+        r"(?=.*\bWITH\s+CHECK\b)"
+        r"(?=.*current_setting\s*\([^)]*,\s*true\s*\))"
+        r".*?;",
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        with open(sql_file) as f:
+            sql = f.read()
+
+        for m in fix_pattern.finditer(sql):
+            fixed.add(m.group(1))
+
+    return fixed
+
+
 def check_rls_policy_violations(report: ComplianceReport) -> None:
     """
     Check that RLS policies are consistent and correct.
@@ -1354,6 +1384,9 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
         return
 
     report.files_scanned += 1
+
+    migrations_dir = get_project_root() / "db-init" / "migrations"
+    migration_rls_fixes = _collect_migration_rls_fixes(migrations_dir)
 
     with open(schema_file) as f:
         sql = f.read()
@@ -1428,6 +1461,10 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
                     ),
                 )
             )
+            continue
+
+        # Skip tables whose RLS has been corrected by a migration
+        if table_name in migration_rls_fixes:
             continue
 
         for policy in table_policies:

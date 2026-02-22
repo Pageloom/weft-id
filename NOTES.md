@@ -11,22 +11,6 @@ Quick reminders to later build out into full backlog items.
 
 ## UX & Admin Experience
  
-- Rethink from the ground up how to view groups. We want a plain list, where each column tells us how many parents
-  and children the group has. How many members it has (including from child groups). We also want the "Actions" column,
-  removed. Furthermore, we want to be able to pivot to a network graph view, some groups can appear in it in multiple
-  places. Each group should have its own node, and the arrows should be be directed from child to parent(s). It should
-  be possible to zoom in and out of the graph. At 100% zoom, the graph should attempt to show all groups in the network,
-  however, this may not be possible due to the number of groups and the amount of information in each node. If so, since
-  we're working with vector graphics, we can just make things smaller, even if the visibility is reduced, one will
-  simply have to zoom. If you zoom in, things may very well fall outside the visible area - in which case the user
-  should be able to pan around to see the rest of the graph.
-- A "Group" is now a page with a very big control for name and description, followed by subsections to get into
-  member management, assigned apps, parent groups and child groups. This needs to be reworked into a
-  tabbed page, like the service provider detail page (or the IdP detail page). Furthermore, the parent 
-  and child relationships should be represented in its own tab - with the group in the middle, and arrows to each
-  parent and child group, they in turn have a hint of how many children (if they are a child), and parents (if)
-  they are a parent. Clicking on a child or parent should lead to the exact same page on that group, in essence
-  creating a navigable multi-trunked tree.
 - Automation and administration benevolence. What areas of the app can be automated
   for the admin personas, and what typical admin tasks are arduous and work-intensive
   that can be helped by automation or benevolent UIs for special cases?

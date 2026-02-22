@@ -4,6 +4,44 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Standardize List Row Navigation and Full-Width Layout
+
+**Status:** Complete
+
+**Summary:** All list views use the name/primary identifier column as an `<a href>` link for navigation, and all use `{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}` for full-width layout. Navigation: users_list, integrations_apps, integrations_b2b, admin_events, and saml_debug_list all use direct links. Width: groups_list, integrations_apps, integrations_b2b, saml_debug_list, admin_reactivation_requests, and admin_reactivation_history all use full-width layout.
+
+**Acceptance Criteria:**
+
+- [x] Users list: user name column is `<a href>` to user detail page
+- [x] OAuth2 Apps: app name column is `<a href>` to app detail page
+- [x] B2B Clients: client name column is `<a href>` to client detail page
+- [x] Event Log: event type is `<a href>` to event detail, no `clickable-row` JS pattern
+- [x] SAML Debug: error type is `<a href>` to debug detail
+- [x] Groups list: full-width layout
+- [x] OAuth2 Apps: full-width layout
+- [x] B2B Clients: full-width layout
+- [x] SAML Debug: full-width layout
+- [x] Reactivation Requests: full-width layout
+- [x] Reactivation History: full-width layout
+- [x] All existing tests pass
+- [x] No JavaScript required for basic list navigation
+
+---
+
+## Reorganize tests/ into packages mirroring app/ structure
+
+**Status:** Complete
+
+**Summary:** Test files are organized into packages mirroring the app/ structure: `tests/api/`, `tests/routers/`, `tests/services/`, `tests/database/`, `tests/utils/`, `tests/jobs/`, `tests/middleware/`, and `tests/helpers/`. Cross-cutting tests (`test_pages.py`, `test_auth_coverage.py`, etc.) remain at the root.
+
+**Acceptance Criteria:**
+
+- [x] `./test` passes with identical results
+- [x] All test files are in a package matching their app layer
+- [x] No flat test files remain at `tests/` root except cross-cutting concerns
+
+---
+
 ## Per-SP NameID Configuration
 
 **Status:** Complete

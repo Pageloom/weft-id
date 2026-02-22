@@ -115,12 +115,31 @@
                 </span>
                 {# Classes only referenced via JS — listed here so Tailwind includes them in the build #}
                 <span class="hidden bg-amber-500 border-amber-500 bg-red-500 border-red-500 bg-blue-600 border-blue-600 hover:bg-blue-700"></span>
-                <button id="btn-fullscreen" type="button"
-                        class="ml-auto px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
-                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
-                               hover:bg-gray-50 dark:hover:bg-gray-600">
-                    &#x26F6; Fullscreen
-                </button>
+                <div class="ml-auto flex items-center gap-2">
+                    <div class="flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
+                        <button id="btn-zoom-out" type="button" title="Zoom out"
+                                class="px-2.5 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-300 dark:border-gray-600">
+                            &minus;
+                        </button>
+                        <button id="btn-zoom-fit" type="button" title="Fit graph"
+                                class="px-2.5 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-50 dark:hover:bg-gray-600 border-r border-gray-300 dark:border-gray-600">
+                            &#x26F6;
+                        </button>
+                        <button id="btn-zoom-in" type="button" title="Zoom in"
+                                class="px-2.5 py-1.5 text-sm font-medium bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                                       hover:bg-gray-50 dark:hover:bg-gray-600">
+                            &plus;
+                        </button>
+                    </div>
+                    <button id="btn-fullscreen" type="button"
+                            class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                                   bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                                   hover:bg-gray-50 dark:hover:bg-gray-600">
+                        Fullscreen
+                    </button>
+                </div>
             </div>
             <div id="cy-container" class="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
                 <div id="cy" style="height: 600px; width: 100%; position: relative;"></div>
@@ -592,8 +611,8 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
         ],
         userZoomingEnabled: false,
         userPanningEnabled: true,
-        minZoom: 0.1,
-        maxZoom: 4
+        minZoom: 0.15,
+        maxZoom: 3.0
       });
 
       // Scroll to pan; pinch or Ctrl+scroll to zoom
@@ -611,6 +630,20 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
 
       // Expose cy for the fullscreen resize handler (registered before fetch)
       window._cy = cy;
+
+      // Zoom controls
+      function zoomToCenter(factor) {
+        var newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
+        cy.animate({
+          zoom: { level: newZoom, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } },
+          duration: 150
+        });
+      }
+      document.getElementById('btn-zoom-in').addEventListener('click', function() { zoomToCenter(1.25); });
+      document.getElementById('btn-zoom-out').addEventListener('click', function() { zoomToCenter(0.8); });
+      document.getElementById('btn-zoom-fit').addEventListener('click', function() {
+        cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 200 });
+      });
 
       cy.fit(undefined, 160);
       cy.nodes().each(function(n) {

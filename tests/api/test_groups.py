@@ -11,6 +11,9 @@ from main import app
 from schemas.groups import (
     GroupChildrenList,
     GroupDetail,
+    GroupGraphData,
+    GroupGraphEdge,
+    GroupGraphNode,
     GroupListResponse,
     GroupMemberDetail,
     GroupMemberDetailList,
@@ -18,7 +21,7 @@ from schemas.groups import (
     GroupRelationship,
     GroupSummary,
 )
-from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from starlette.testclient import TestClient
 
 # =============================================================================
@@ -480,7 +483,7 @@ def test_add_parent_success(make_user_dict, override_api_auth):
     override_api_auth(admin)
 
     with patch("routers.api.v1.groups.groups_service") as mock_svc:
-        mock_svc.add_parent.return_value = None
+        mock_svc.add_child.return_value = None
 
         client = TestClient(app)
         response = client.post(
@@ -490,6 +493,10 @@ def test_add_parent_success(make_user_dict, override_api_auth):
 
         assert response.status_code == 201
         assert response.json()["status"] == "ok"
+        # group_id in URL is the child; parent_group_id in body is the parent
+        called_args = mock_svc.add_child.call_args[0]
+        assert called_args[1] == parent_id
+        assert called_args[2] == child_id
 
 
 def test_add_parent_would_create_cycle(make_user_dict, override_api_auth):
@@ -1292,3 +1299,228 @@ def test_api_remove_user_from_group_not_found(make_user_dict, override_api_auth)
         response = client.delete(f"/api/v1/users/{user_id}/groups/{group_id}")
 
         assert response.status_code == 404
+
+
+# =============================================================================
+# Group Graph Tests
+# =============================================================================
+
+
+def test_get_group_graph_success(make_user_dict, override_api_auth):
+    """Admin can get the group graph data."""
+    admin = make_user_dict(role="admin")
+
+    node_id = str(uuid4())
+    mock_graph = GroupGraphData(
+        nodes=[
+            GroupGraphNode(
+                id=node_id,
+                name="Engineering",
+                group_type="weftid",
+                member_count=5,
+                effective_member_count=8,
+            )
+        ],
+        edges=[],
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group_graph_data.return_value = mock_graph
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "nodes" in data
+        assert "edges" in data
+        assert len(data["nodes"]) == 1
+        assert data["nodes"][0]["name"] == "Engineering"
+        assert data["nodes"][0]["member_count"] == 5
+        assert data["nodes"][0]["effective_member_count"] == 8
+        assert data["edges"] == []
+
+
+def test_get_group_graph_with_edges(make_user_dict, override_api_auth):
+    """Graph response includes edges for parent-child relationships."""
+    admin = make_user_dict(role="admin")
+
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+    mock_graph = GroupGraphData(
+        nodes=[
+            GroupGraphNode(
+                id=parent_id,
+                name="Parent",
+                group_type="weftid",
+                member_count=0,
+                effective_member_count=2,
+            ),
+            GroupGraphNode(
+                id=child_id,
+                name="Child",
+                group_type="weftid",
+                member_count=2,
+                effective_member_count=2,
+            ),
+        ],
+        edges=[GroupGraphEdge(source=child_id, target=parent_id)],
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group_graph_data.return_value = mock_graph
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]) == 2
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["source"] == child_id
+        assert data["edges"][0]["target"] == parent_id
+        assert data["nodes"][0]["effective_member_count"] == 2
+        assert data["nodes"][1]["effective_member_count"] == 2
+
+
+def test_get_group_graph_forbidden_for_non_admin(make_user_dict, override_api_auth):
+    """Non-admin cannot access the group graph endpoint."""
+    user = make_user_dict(role="member")
+
+    override_api_auth(user)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group_graph_data.side_effect = ForbiddenError(
+            message="Admin required", code="admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph")
+
+        assert response.status_code == 403
+
+
+def test_get_group_graph_empty(make_user_dict, override_api_auth):
+    """Graph endpoint returns empty nodes/edges when no groups exist."""
+    admin = make_user_dict(role="admin")
+
+    mock_graph = GroupGraphData(nodes=[], edges=[])
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group_graph_data.return_value = mock_graph
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["nodes"] == []
+        assert data["edges"] == []
+        # Schema should include effective_member_count field (empty list case)
+        assert isinstance(data["nodes"], list)
+
+
+# =============================================================================
+# Graph Layout Tests
+# =============================================================================
+
+
+def test_get_graph_layout_returns_saved_layout(make_user_dict, override_api_auth):
+    """Admin can retrieve a previously saved graph layout."""
+    from schemas.groups import GroupGraphLayout
+
+    admin = make_user_dict(role="admin")
+    node_ids = "aaa,bbb"
+    positions = {"aaa": {"x": 40, "y": 80}, "bbb": {"x": 120, "y": 160}}
+
+    mock_layout = GroupGraphLayout(node_ids=node_ids, positions=positions)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_graph_layout_for_user.return_value = mock_layout
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph/layout")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["node_ids"] == node_ids
+        assert data["positions"] == positions
+
+
+def test_get_graph_layout_returns_null_when_none(make_user_dict, override_api_auth):
+    """GET layout returns null body when no layout has been saved."""
+    admin = make_user_dict(role="admin")
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_graph_layout_for_user.return_value = None
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph/layout")
+
+        assert response.status_code == 200
+        assert response.json() is None
+
+
+def test_get_graph_layout_forbidden_for_non_admin(make_user_dict, override_api_auth):
+    """Non-admin cannot retrieve graph layout."""
+    user = make_user_dict(role="member")
+
+    override_api_auth(user)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_graph_layout_for_user.side_effect = ForbiddenError(
+            message="Admin required", code="admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph/layout")
+
+        assert response.status_code == 403
+
+
+def test_save_graph_layout_success(make_user_dict, override_api_auth):
+    """Admin can save a graph layout."""
+    admin = make_user_dict(role="admin")
+    payload = {
+        "node_ids": "aaa,bbb",
+        "positions": {"aaa": {"x": 40, "y": 80}, "bbb": {"x": 120, "y": 160}},
+    }
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.save_graph_layout.return_value = None
+
+        client = TestClient(app)
+        response = client.put("/api/v1/groups/graph/layout", json=payload)
+
+        assert response.status_code == 204
+        mock_svc.save_graph_layout.assert_called_once()
+
+
+def test_save_graph_layout_forbidden_for_non_admin(make_user_dict, override_api_auth):
+    """Non-admin cannot save graph layout."""
+    user = make_user_dict(role="member")
+    payload = {"node_ids": "aaa", "positions": {"aaa": {"x": 0, "y": 0}}}
+
+    override_api_auth(user)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.save_graph_layout.side_effect = ForbiddenError(
+            message="Admin required", code="admin_required"
+        )
+
+        client = TestClient(app)
+        response = client.put("/api/v1/groups/graph/layout", json=payload)
+
+        assert response.status_code == 403

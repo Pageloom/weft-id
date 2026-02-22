@@ -11,6 +11,7 @@ Quick reminders to later build out into full backlog items.
 
 ## UX & Admin Experience
  
+- Remove the "Add Group" navigation item. It is enough to have a "+ New Group" button on the Groups page.
 - Automation and administration benevolence. What areas of the app can be automated
   for the admin personas, and what typical admin tasks are arduous and work-intensive
   that can be helped by automation or benevolent UIs for special cases?

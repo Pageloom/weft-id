@@ -26,12 +26,13 @@ from database.groups.idp import (
     get_user_idp_group_ids,
     invalidate_groups_by_idp,
 )
+from database.groups.layouts import get_graph_layout, upsert_graph_layout
 from database.groups.lineage import (
     get_group_ancestors,
     get_group_descendants,
     is_ancestor_of,
 )
-from database.groups.listing import count_groups, list_groups
+from database.groups.listing import count_groups, list_all_groups_for_graph, list_groups
 from database.groups.memberships import (
     add_group_member,
     bulk_add_group_members,
@@ -70,6 +71,7 @@ __all__ = [
     "delete_group",
     # listing
     "count_groups",
+    "list_all_groups_for_graph",
     "list_groups",
     # memberships
     "get_group_members",
@@ -105,6 +107,9 @@ __all__ = [
     "get_groups_for_user_select",
     "get_groups_for_parent_select",
     "get_groups_for_child_select",
+    # layouts
+    "get_graph_layout",
+    "upsert_graph_layout",
     # idp
     "get_idp_base_group_id",
     "get_groups_by_idp",

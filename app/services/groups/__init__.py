@@ -38,6 +38,7 @@ from services.groups.crud import (
     create_group,
     delete_group,
     get_group,
+    get_group_graph_data,
     list_groups,
     update_group,
 )
@@ -65,6 +66,10 @@ from services.groups.idp import (
     remove_user_from_base_group,
     sync_user_idp_groups,
 )
+
+# Re-export from layout module
+from services.groups.layout import get_graph_layout as get_graph_layout_for_user
+from services.groups.layout import save_graph_layout
 
 # Re-export from membership module
 from services.groups.membership import (
@@ -100,6 +105,7 @@ __all__ = [
     "create_group",
     "delete_group",
     "get_group",
+    "get_group_graph_data",
     "list_groups",
     "update_group",
     # Membership
@@ -125,6 +131,9 @@ __all__ = [
     "list_available_parents",
     "list_available_users_for_group",
     "list_available_users_paginated",
+    # Layout
+    "get_graph_layout_for_user",
+    "save_graph_layout",
     # Utilities
     "get_user_group_ids",
     # IdP

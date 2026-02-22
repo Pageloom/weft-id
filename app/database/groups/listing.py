@@ -81,7 +81,17 @@ def list_groups(
         f"""
         select g.id, g.name, g.description, g.group_type, g.idp_id, g.is_valid, g.created_at,
                idp.name as idp_name,
-               (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count
+               (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count,
+               (select count(*) from group_relationships gr
+                where gr.child_group_id = g.id) as parent_count,
+               (select count(*) from group_relationships gr
+                where gr.parent_group_id = g.id) as child_count,
+               (select count(distinct gm.user_id)
+                from group_memberships gm
+                join group_lineage gl on gm.group_id = gl.descendant_id
+                where gl.ancestor_id = g.id) as effective_member_count,
+               (select count(*) from sp_group_assignments sga
+                where sga.group_id = g.id) as sp_count
         from groups g
         left join saml_identity_providers idp on g.idp_id = idp.id
         {where_clause}
@@ -90,3 +100,32 @@ def list_groups(
         """,
         params,
     )
+
+
+def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
+    """Fetch all groups and relationships for graph rendering.
+
+    Returns a dict with 'groups' (id, name, group_type, member_count,
+    effective_member_count) and 'relationships' (child_group_id, parent_group_id).
+    """
+    groups = fetchall(
+        tenant_id,
+        """
+        select g.id, g.name, g.group_type,
+               (select count(*) from group_memberships gm
+                where gm.group_id = g.id) as member_count,
+               (select count(distinct gm.user_id)
+                from group_memberships gm
+                join group_lineage gl on gm.group_id = gl.descendant_id
+                where gl.ancestor_id = g.id) as effective_member_count
+        from groups g
+        order by g.name
+        """,
+        {},
+    )
+    relationships = fetchall(
+        tenant_id,
+        "select child_group_id, parent_group_id from group_relationships",
+        {},
+    )
+    return {"groups": groups, "relationships": relationships}

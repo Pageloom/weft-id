@@ -8,6 +8,10 @@ Quick reminders to later build out into full backlog items.
 - Setting to add contact information attributes in metadata
 - Fields on SPs and IdPs to add contact information to the records themselves so that
   you know who to reach out to if you need action from your counterpart. Optional fields.
+- In the consent screen, during SAML authn, show also which groups will be divulged to the SP (if enabeld, and if any)
+- Add a setting (and default to it) to only communicate trunk groups in the admin security settings. I.e all of the 
+  groups that the user is a member of, but that do NOT have any parent groups. I.e the most broad outline of the user's
+  footprint in WeftId as a group member.
 
 ## UX & Admin Experience
  

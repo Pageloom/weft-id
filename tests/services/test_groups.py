@@ -31,6 +31,7 @@ def test_list_groups_as_admin_success(make_requesting_user):
             "group_type": "weftid",
             "is_valid": True,
             "member_count": 5,
+            "sp_count": 2,
             "created_at": datetime.now(UTC),
         },
         {
@@ -40,6 +41,7 @@ def test_list_groups_as_admin_success(make_requesting_user):
             "group_type": "weftid",
             "is_valid": True,
             "member_count": 3,
+            "sp_count": 0,
             "created_at": datetime.now(UTC),
         },
     ]
@@ -2978,3 +2980,234 @@ def test_move_users_between_idps():
         mock_db.groups.bulk_remove_user_from_groups.assert_called_once()
         # Should add to new base group (via ensure_users_in_base_group)
         mock_db.groups.bulk_add_user_to_groups.assert_called_once()
+
+
+# =============================================================================
+# Get Group Graph Data Tests
+# =============================================================================
+
+
+def test_get_group_graph_data_as_admin(make_requesting_user):
+    """Admin can fetch graph data with nodes and edges."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_id_1 = str(uuid4())
+    group_id_2 = str(uuid4())
+
+    mock_data = {
+        "groups": [
+            {
+                "id": group_id_1,
+                "name": "Engineering",
+                "group_type": "weftid",
+                "member_count": 5,
+                "effective_member_count": 8,
+            },
+            {
+                "id": group_id_2,
+                "name": "Frontend",
+                "group_type": "weftid",
+                "member_count": 3,
+                "effective_member_count": 3,
+            },
+        ],
+        "relationships": [
+            {"child_group_id": group_id_2, "parent_group_id": group_id_1},
+        ],
+    }
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
+    ):
+        mock_db.groups.list_all_groups_for_graph.return_value = mock_data
+
+        result = groups_service.get_group_graph_data(requesting_user)
+
+        assert len(result.nodes) == 2
+        assert len(result.edges) == 1
+        assert result.nodes[0].name == "Engineering"
+        assert result.nodes[0].member_count == 5
+        assert result.nodes[0].effective_member_count == 8
+        assert result.nodes[1].effective_member_count == 3
+        assert result.edges[0].source == str(group_id_2)
+        assert result.edges[0].target == str(group_id_1)
+        mock_db.groups.list_all_groups_for_graph.assert_called_once_with(tenant_id)
+
+
+def test_get_group_graph_data_empty(make_requesting_user):
+    """Graph data with no groups returns empty nodes and edges."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
+    ):
+        mock_db.groups.list_all_groups_for_graph.return_value = {
+            "groups": [],
+            "relationships": [],
+        }
+
+        result = groups_service.get_group_graph_data(requesting_user)
+
+        assert result.nodes == []
+        assert result.edges == []
+
+
+def test_get_group_graph_data_forbidden_for_member(make_requesting_user):
+    """Non-admin user cannot get graph data."""
+    from services import groups as groups_service
+    from services.exceptions import ForbiddenError
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        groups_service.get_group_graph_data(requesting_user)
+
+    assert exc_info.value.code == "admin_required"
+
+
+def test_get_group_graph_data_includes_idp_nodes(make_requesting_user):
+    """Graph data includes IdP group nodes."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    idp_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
+    ):
+        mock_db.groups.list_all_groups_for_graph.return_value = {
+            "groups": [
+                {
+                    "id": idp_group_id,
+                    "name": "Okta Users",
+                    "group_type": "idp",
+                    "member_count": 10,
+                    "effective_member_count": 10,
+                }
+            ],
+            "relationships": [],
+        }
+
+        result = groups_service.get_group_graph_data(requesting_user)
+
+        assert len(result.nodes) == 1
+        assert result.nodes[0].group_type == "idp"
+        assert result.nodes[0].name == "Okta Users"
+
+
+# =============================================================================
+# Graph Layout Service Tests
+# =============================================================================
+
+
+def test_get_graph_layout_returns_saved_layout(make_requesting_user):
+    """Admin can retrieve a saved layout."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="admin")
+
+    node_ids = "aaa,bbb"
+    positions = {"aaa": {"x": 40.0, "y": 80.0}, "bbb": {"x": 120.0, "y": 160.0}}
+
+    with (
+        patch("services.groups.layout.database") as mock_db,
+        patch("services.groups.layout.track_activity"),
+    ):
+        mock_db.groups.get_graph_layout.return_value = {
+            "node_ids": node_ids,
+            "positions": positions,
+        }
+
+        result = groups_service.get_graph_layout_for_user(requesting_user)
+
+        assert result is not None
+        assert result.node_ids == node_ids
+        assert result.positions == positions
+        mock_db.groups.get_graph_layout.assert_called_once_with(tenant_id, user_id)
+
+
+def test_get_graph_layout_returns_none_when_no_layout(make_requesting_user):
+    """Returns None when user has no saved layout."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.layout.database") as mock_db,
+        patch("services.groups.layout.track_activity"),
+    ):
+        mock_db.groups.get_graph_layout.return_value = None
+
+        result = groups_service.get_graph_layout_for_user(requesting_user)
+
+        assert result is None
+
+
+def test_get_graph_layout_forbidden_for_non_admin(make_requesting_user):
+    """Non-admin cannot retrieve graph layout."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        groups_service.get_graph_layout_for_user(requesting_user)
+
+    assert exc_info.value.code == "admin_required"
+
+
+def test_save_graph_layout_success(make_requesting_user):
+    """Admin can save a graph layout."""
+    from schemas.groups import GroupGraphLayout
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="admin")
+
+    layout = GroupGraphLayout(
+        node_ids="aaa,bbb",
+        positions={"aaa": {"x": 40.0, "y": 80.0}, "bbb": {"x": 120.0, "y": 160.0}},
+    )
+
+    with (
+        patch("services.groups.layout.database") as mock_db,
+        patch("services.groups.layout.track_activity"),
+    ):
+        mock_db.groups.upsert_graph_layout.return_value = None
+
+        groups_service.save_graph_layout(requesting_user, layout)
+
+        mock_db.groups.upsert_graph_layout.assert_called_once_with(
+            tenant_id,
+            user_id,
+            layout.node_ids,
+            layout.positions,
+        )
+
+
+def test_save_graph_layout_forbidden_for_non_admin(make_requesting_user):
+    """Non-admin cannot save graph layout."""
+    from schemas.groups import GroupGraphLayout
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="member")
+    layout = GroupGraphLayout(node_ids="aaa", positions={"aaa": {"x": 0.0, "y": 0.0}})
+
+    with pytest.raises(ForbiddenError) as exc_info:
+        groups_service.save_graph_layout(requesting_user, layout)
+
+    assert exc_info.value.code == "admin_required"

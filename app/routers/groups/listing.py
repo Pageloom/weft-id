@@ -46,9 +46,14 @@ def groups_list(
     search: Annotated[str | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=10, le=100)] = 25,
+    view: Annotated[str, Query()] = "graph",
 ):
     """Display list of groups."""
     requesting_user = build_requesting_user(user, tenant_id, request)
+
+    # Normalize view param
+    if view not in ("list", "graph"):
+        view = "list"
 
     try:
         result = groups_service.list_groups(
@@ -76,6 +81,7 @@ def groups_list(
                 "total_pages": max(1, (result.total + result.limit - 1) // result.limit),
             },
             search=search or "",
+            view=view,
             success=success,
             error=error,
         ),

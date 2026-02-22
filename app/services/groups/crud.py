@@ -19,6 +19,9 @@ import database
 from schemas.groups import (
     GroupCreate,
     GroupDetail,
+    GroupGraphData,
+    GroupGraphEdge,
+    GroupGraphNode,
     GroupListResponse,
     GroupUpdate,
 )
@@ -337,3 +340,41 @@ def delete_group(
         event_type="group_deleted",
         metadata={"name": existing["name"]},
     )
+
+
+def get_group_graph_data(requesting_user: RequestingUser) -> GroupGraphData:
+    """
+    Get all groups and relationships for graph rendering.
+
+    Authorization: Requires admin role.
+
+    Args:
+        requesting_user: The authenticated user
+
+    Returns:
+        GroupGraphData with nodes and edges for Cytoscape.js
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+    data = database.groups.list_all_groups_for_graph(tenant_id)
+
+    nodes = [
+        GroupGraphNode(
+            id=str(row["id"]),
+            name=row["name"],
+            group_type=row["group_type"],
+            member_count=row.get("member_count", 0),
+            effective_member_count=row.get("effective_member_count", 0),
+        )
+        for row in data["groups"]
+    ]
+    edges = [
+        GroupGraphEdge(
+            source=str(row["child_group_id"]),
+            target=str(row["parent_group_id"]),
+        )
+        for row in data["relationships"]
+    ]
+    return GroupGraphData(nodes=nodes, edges=edges)

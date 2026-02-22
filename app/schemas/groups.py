@@ -59,6 +59,7 @@ class GroupDetail(BaseModel):
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
     is_valid: bool = Field(True, description="Whether group is valid")
     member_count: int = Field(0, description="Number of direct members")
+    effective_member_count: int = Field(0, description="Total members including inherited")
     parent_count: int = Field(0, description="Number of parent groups")
     child_count: int = Field(0, description="Number of child groups")
     created_by: str | None = Field(None, description="User who created the group")

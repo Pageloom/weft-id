@@ -302,6 +302,11 @@ def delete_group(
             url="/admin/groups/list?error=group_not_found",
             status_code=303,
         )
+    except ValidationError as exc:
+        return RedirectResponse(
+            url=f"/admin/groups/{group_id}/danger?error={exc.code}",
+            status_code=303,
+        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

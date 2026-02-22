@@ -282,7 +282,7 @@
 
     cy.fit(undefined, 60);
 
-    // Fetch details for adjacent nodes and update labels with P/C hint
+    // Fetch details for adjacent nodes and update labels with member counts
     var adjacentIds = parents.map(function (p) { return p.id; })
                              .concat(children.map(function (c) { return c.id; }));
     if (adjacentIds.length > 0) {
@@ -295,7 +295,18 @@
                 if (!g) return;
                 var node = cy.getElementById(g.id);
                 if (!node.length) return;
-                node.data('label', g.name + '\n' + g.parent_count + 'P \u00b7 ' + g.child_count + 'C');
+                var direct = g.member_count || 0;
+                var indirect = (g.effective_member_count || 0) - direct;
+                var label = g.name;
+                if (direct > 0 || indirect > 0) {
+                    if (direct > 0) {
+                        label += '\n' + direct;
+                        if (indirect > 0) { label += ' (' + indirect + ')'; }
+                    } else {
+                        label += '\n(' + indirect + ')';
+                    }
+                }
+                node.data('label', label);
             });
         });
     }

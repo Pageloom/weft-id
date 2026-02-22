@@ -48,6 +48,7 @@ from services.groups.hierarchy import (
     add_child,
     list_children,
     list_parents,
+    remove_all_relationships,
     remove_child,
 )
 
@@ -124,6 +125,7 @@ __all__ = [
     "add_child",
     "list_children",
     "list_parents",
+    "remove_all_relationships",
     "remove_child",
     # Selection
     "list_available_children",

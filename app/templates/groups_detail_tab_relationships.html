@@ -8,7 +8,7 @@
     <div id="cy-neighborhood"
          class="w-full border border-gray-200 dark:border-gray-700 rounded-lg"
          style="height: 380px;"></div>
-    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Double-click a group to navigate to its relationships.</p>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Double-click a group to navigate to its relationships. Scroll to pan · pinch or Ctrl+scroll to zoom.</p>
 </div>
 
 {% if group.group_type == 'weftid' %}
@@ -273,7 +273,7 @@
                 }
             }
         ],
-        userZoomingEnabled: true,
+        userZoomingEnabled: false,
         userPanningEnabled: true,
         minZoom: 0.3,
         maxZoom: 3,
@@ -281,6 +281,19 @@
     });
 
     cy.fit(undefined, 60);
+
+    // Scroll to pan; pinch or Ctrl+scroll to zoom
+    container.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        if (e.ctrlKey) {
+            var factor = e.deltaY > 0 ? 0.9 : 1.1;
+            var rect = container.getBoundingClientRect();
+            var newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
+            cy.zoom({ level: newZoom, renderedPosition: { x: e.clientX - rect.left, y: e.clientY - rect.top } });
+        } else {
+            cy.panBy({ x: -e.deltaX, y: -e.deltaY });
+        }
+    }, { passive: false });
 
     // Snap back if the user pans all nodes off screen
     var snapTimer = null;

@@ -127,7 +127,7 @@
             </div>
         </div>
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Click a group to highlight its connections (<span class="text-orange-500 font-medium">orange</span> = parent edges, <span class="text-green-500 font-medium">green</span> = child edges). Double-click to open the group. Scroll to zoom, drag to pan.
+            Click a group to highlight its connections (<span class="text-orange-500 font-medium">orange</span> = parent edges, <span class="text-green-500 font-medium">green</span> = child edges). Double-click to open the group. Scroll to pan · pinch or Ctrl+scroll to zoom.
         </p>
 
         {% else %}
@@ -590,11 +590,24 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
             }
           }
         ],
-        userZoomingEnabled: true,
+        userZoomingEnabled: false,
         userPanningEnabled: true,
         minZoom: 0.1,
         maxZoom: 4
       });
+
+      // Scroll to pan; pinch or Ctrl+scroll to zoom
+      cyEl.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        if (e.ctrlKey) {
+          var factor = e.deltaY > 0 ? 0.9 : 1.1;
+          var rect = cyEl.getBoundingClientRect();
+          var newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
+          cy.zoom({ level: newZoom, renderedPosition: { x: e.clientX - rect.left, y: e.clientY - rect.top } });
+        } else {
+          cy.panBy({ x: -e.deltaX, y: -e.deltaY });
+        }
+      }, { passive: false });
 
       // Expose cy for the fullscreen resize handler (registered before fetch)
       window._cy = cy;

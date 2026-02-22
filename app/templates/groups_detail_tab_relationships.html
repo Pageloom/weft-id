@@ -10,7 +10,13 @@
         <div id="cy-neighborhood"
              class="w-full border border-gray-200 dark:border-gray-700 rounded-lg"
              style="height: 480px;"></div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Double-click a group to navigate to its relationships.</p>
+        <div class="flex items-center justify-between mt-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400">Double-click a group to navigate to its relationships.</p>
+            <a href="/admin/groups/list?view=graph&fullscreen=1&search={{ group.name | urlencode }}"
+               class="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                Show in full graph &rarr;
+            </a>
+        </div>
     </div>
 
     <!-- Right: relationship controls -->
@@ -160,8 +166,6 @@
     var raw = document.getElementById('neighborhood-data').textContent;
     var data = JSON.parse(raw);
     var isDark = document.documentElement.classList.contains('dark');
-    var labelColor = isDark ? '#d1d5db' : '#1f2937';
-    var textBg = isDark ? '#1f2937' : '#ffffff';
 
     var container = document.getElementById('cy-neighborhood');
 
@@ -244,9 +248,9 @@
         'text-valign': 'bottom',
         'text-halign': 'center',
         'text-margin-y': 6,
-        'color': labelColor,
-        'text-background-color': textBg,
-        'text-background-opacity': 0.85,
+        'color': '#1f2937',
+        'text-background-color': '#ffffff',
+        'text-background-opacity': 0.75,
         'text-background-padding': '3px',
         'text-background-shape': 'round-rectangle',
         'width': 64,

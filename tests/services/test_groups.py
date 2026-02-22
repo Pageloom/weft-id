@@ -290,6 +290,41 @@ def test_create_group_as_member_forbidden(make_requesting_user):
     assert exc_info.value.code == "admin_required"
 
 
+def test_create_group_db_creation_fails(make_requesting_user):
+    """DB returning None from create_group raises ValidationError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+    group_data = GroupCreate(name="Engineering")
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_weftid_group_by_name.return_value = None
+        mock_db.groups.create_group.return_value = None
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.create_group(requesting_user, group_data)
+
+        assert exc_info.value.code == "creation_failed"
+
+
+def test_create_group_fetch_after_create_fails(make_requesting_user):
+    """DB returning None from get_group_by_id after create raises ValidationError."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+    group_data = GroupCreate(name="Engineering")
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_weftid_group_by_name.return_value = None
+        mock_db.groups.create_group.return_value = {"id": str(uuid4())}
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.create_group(requesting_user, group_data)
+
+        assert exc_info.value.code == "fetch_failed"
+
+
 # =============================================================================
 # Update Group Tests
 # =============================================================================
@@ -385,6 +420,73 @@ def test_update_group_duplicate_name(make_requesting_user):
             groups_service.update_group(requesting_user, group_id, group_data)
 
         assert exc_info.value.code == "group_name_exists"
+
+
+def test_update_group_name_whitespace_only(make_requesting_user):
+    """Updating a group with a whitespace-only name raises ValidationError."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+    group_data = GroupUpdate(name="   ")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Original Name",
+        "description": None,
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_existing
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.update_group(requesting_user, group_id, group_data)
+
+        assert exc_info.value.code == "name_required"
+
+
+def test_update_group_fetch_after_update_fails(make_requesting_user):
+    """DB returning None from get_group_by_id after update raises NotFoundError."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+    group_data = GroupUpdate(description="New description")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Original Name",
+        "description": None,
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_group_by_id.side_effect = [mock_existing, None]
+        mock_db.groups.update_group.return_value = 1
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.update_group(requesting_user, group_id, group_data)
+
+        assert exc_info.value.code == "group_not_found"
 
 
 # =============================================================================
@@ -658,6 +760,44 @@ def test_list_children_success(make_requesting_user):
         assert result.items[0].name == "Child"
 
 
+def test_list_parents_group_not_found(make_requesting_user):
+    """list_parents raises NotFoundError when the group doesn't exist."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_parents(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_list_children_group_not_found(make_requesting_user):
+    """list_children raises NotFoundError when the group doesn't exist."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.track_activity"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.list_children(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
 def test_add_child_success(make_requesting_user):
     """Test adding a child group."""
     from services import groups as groups_service
@@ -744,6 +884,44 @@ def test_add_child_relationship_exists(make_requesting_user):
             groups_service.add_child(requesting_user, parent_id, child_id)
 
         assert exc_info.value.code == "relationship_exists"
+
+
+def test_add_child_parent_not_found(make_requesting_user):
+    """add_child raises NotFoundError when the parent group doesn't exist."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    with patch("services.groups.hierarchy.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.add_child(requesting_user, parent_id, child_id)
+
+        assert exc_info.value.code == "parent_not_found"
+
+
+def test_add_child_child_not_found(make_requesting_user):
+    """add_child raises NotFoundError when the child group doesn't exist."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_parent = {"id": parent_id, "name": "Parent", "group_type": "weftid", "idp_id": None}
+
+    with patch("services.groups.hierarchy.database") as mock_db:
+        mock_db.groups.get_group_by_id.side_effect = [mock_parent, None]
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.add_child(requesting_user, parent_id, child_id)
+
+        assert exc_info.value.code == "child_not_found"
 
 
 def test_remove_child_success(make_requesting_user):

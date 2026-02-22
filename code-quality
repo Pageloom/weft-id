@@ -38,3 +38,7 @@ poetry run python -m mypy app/
 echo ""
 echo "=== Compliance Check ==="
 python scripts/compliance_check.py
+
+echo ""
+echo "=== Dependency Security ==="
+python scripts/deps_check.py

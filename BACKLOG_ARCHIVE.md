@@ -4,6 +4,66 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Per-SP NameID Configuration
+
+**Status:** Complete
+
+**Summary:** Implemented persistent and transient NameID generation for SAML assertions. Added the `sp_nameid_mappings` table to store stable per-user-per-SP identifiers for persistent NameID format. Added `nameid_format` to `SPUpdate` schema, a UI dropdown on the SP detail page, event logging on format change (`sp_nameid_format_updated`), and comprehensive tests for both persistent and transient generation paths.
+
+**Acceptance Criteria:**
+
+- [x] DB migration: create `sp_nameid_mappings` table (user_id, sp_id, nameid_value, created_at)
+- [x] Persistent NameID: generate stable opaque identifier (UUID-based) per user-SP pair on first SSO, store in `sp_nameid_mappings`, reuse on subsequent SSO
+- [x] Transient NameID: generate new opaque identifier per session (UUID, not persisted)
+- [x] Assertion builder calls appropriate NameID generation function based on SP's `nameid_format` (emailAddress uses user email, persistent uses mapping table, transient generates new UUID)
+- [x] Add `nameid_format` to `SPUpdate` schema (allow updating format via API and UI)
+- [x] SP detail page: NameID format selection dropdown (emailAddress, persistent, transient, unspecified) with save functionality
+- [x] API endpoint: `PUT /api/v1/service-providers/{sp_id}` accepts `nameid_format` in request body
+- [x] Event log entry when NameID format is changed (`sp_nameid_format_updated`)
+- [x] Tests for persistent NameID generation and reuse
+- [x] Tests for transient NameID generation (new value per session)
+
+---
+
+## SP-Side Certificate Rotation & Lifecycle Management
+
+**Status:** Complete
+
+**Summary:** Implemented as part of the IdP-Side Rotation work. All acceptance criteria were already met when this item was reviewed. `generate_sp_metadata_xml()` accepts an optional `previous_certificate_pem` parameter and emits dual `<md:KeyDescriptor use="signing">` elements. The metadata service checks `rotation_grace_period_ends_at` and passes the previous cert during the grace period. `rotate_idp_sp_certificate()` rejects rotation when a grace period is active. The daily background job in `app/jobs/rotate_certificates.py` handles both SP signing certs and per-IdP SP certs, using the tenant-configured rotation window and lifetime. Event types `saml_idp_sp_certificate_auto_rotated` and `saml_idp_sp_certificate_cleanup_completed` are emitted. All tests were present and passing.
+
+**Acceptance Criteria:**
+
+**Dual-certificate metadata:**
+- [x] `generate_sp_metadata_xml()` in `app/utils/saml.py` accepts optional `previous_certificate_pem` parameter
+- [x] When provided, per-IdP metadata includes two `<md:KeyDescriptor use="signing">` elements (new cert first, previous second)
+- [x] Metadata service checks `rotation_grace_period_ends_at` on `saml_idp_sp_certificates`
+
+**Rotation guard:**
+- [x] `rotate_idp_sp_certificate()` rejects rotation when grace period is active
+- [x] Raises `ValidationError` with message "Certificate rotation already in progress"
+
+**Auto-rotation (extend background job from IdP-Side Rotation):**
+- [x] Same daily job also queries `saml_idp_sp_certificates` across tenants
+- [x] Same logic: rotate 90 days before expiry (90-day grace period), clean up when grace period ends
+- [x] Job summary includes both IdP-side and SP-side cert counts
+
+**Grace period behavior:**
+- [x] Manual rotation: 7-day grace period
+- [x] Auto-rotation: 90-day grace period
+- [x] When grace period ends: old cert removed from metadata AND database simultaneously
+
+**Event logging:**
+- [x] `saml_idp_sp_certificate_auto_rotated` event
+- [x] `saml_idp_sp_certificate_cleanup_completed` event
+
+**Tests:**
+- [x] Dual-cert SP metadata generation
+- [x] Rotation guard during active rotation
+- [x] Background job auto-rotates and cleans up SP-side certs
+- [x] Auto-rotation uses configurable lifetime setting
+
+---
+
 ## Opportunistic Certificate Cleanup on Metadata Serving
 
 **Status:** Declined (not worth the complexity; background job is sufficient)

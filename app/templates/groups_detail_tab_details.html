@@ -1,6 +1,7 @@
 {% extends "groups_detail_base.html" %}
 
 {% block tab_content %}
+<div class="max-w-2xl">
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
     {% if group.group_type == 'idp' %}
     <div class="space-y-4">
@@ -60,5 +61,6 @@
             Created {{ fmt_datetime(group.created_at) }} · Updated {{ fmt_datetime(group.updated_at) }}
         </p>
     </div>
+</div>
 </div>
 {% endblock %}

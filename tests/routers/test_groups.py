@@ -574,8 +574,8 @@ def test_group_tab_relationships_renders(test_admin_user, override_auth, mock_gr
     assert template_name == "groups_detail_tab_relationships.html"
 
 
-def test_group_tab_danger_renders(test_admin_user, override_auth, mock_group_detail_deps):
-    """Test group danger tab renders successfully."""
+def test_group_tab_delete_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group delete tab renders successfully."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -591,14 +591,14 @@ def test_group_tab_danger_renders(test_admin_user, override_auth, mock_group_det
     mock_group_detail_deps["list_available_parents"].return_value = []
     mock_group_detail_deps["list_available_children"].return_value = []
     mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
-    mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>danger</html>")
+    mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>delete</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/danger")
+    response = client.get(f"/admin/groups/{group_id}/delete")
 
     assert response.status_code == 200
     template_name = mock_group_detail_deps["template"].call_args[0][0]
-    assert template_name == "groups_detail_tab_danger.html"
+    assert template_name == "groups_detail_tab_delete.html"
 
 
 def test_group_tab_details_not_found(test_admin_user, override_auth, mocker):
@@ -842,8 +842,8 @@ def test_delete_group_not_found(test_admin_user, override_auth, mocker):
     assert "error=group_not_found" in response.headers["location"]
 
 
-def test_delete_group_validation_error_redirects_to_danger(test_admin_user, override_auth, mocker):
-    """Test that delete with has_relationships error redirects to danger tab."""
+def test_delete_group_validation_error_redirects_to_delete(test_admin_user, override_auth, mocker):
+    """Test that delete with has_relationships error redirects to delete tab."""
     from services.exceptions import ValidationError
 
     override_auth(test_admin_user, level="admin")
@@ -860,7 +860,7 @@ def test_delete_group_validation_error_redirects_to_danger(test_admin_user, over
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
     assert "error=has_relationships" in response.headers["location"]
 
 
@@ -902,7 +902,7 @@ def test_clear_relationships_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
     assert "success=relationships_cleared" in response.headers["location"]
 
 
@@ -924,7 +924,7 @@ def test_clear_relationships_not_found(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert f"/admin/groups/{group_id}/delete" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 

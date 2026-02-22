@@ -40,14 +40,14 @@ def clear_relationships(
         groups_service.remove_all_relationships(requesting_user, group_id)
     except NotFoundError as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}/danger?error={exc.code}",
+            url=f"/admin/groups/{group_id}/delete?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}/danger?success=relationships_cleared",
+        url=f"/admin/groups/{group_id}/delete?success=relationships_cleared",
         status_code=303,
     )
 

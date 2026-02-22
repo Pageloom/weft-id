@@ -127,11 +127,14 @@ def group_tab_membership(
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
 ):
-    """Display the Membership tab for a group."""
+    """Display the Members tab for a group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
         ctx = _load_group_common(requesting_user, group_id)
+        members_result = groups_service.get_effective_members(
+            requesting_user, group_id, page=1, page_size=500
+        )
     except NotFoundError:
         return render_error_page(
             request,
@@ -148,6 +151,8 @@ def group_tab_membership(
             tenant_id,
             **ctx,
             active_tab="membership",
+            effective_members=members_result.items,
+            effective_members_total=members_result.total,
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),
@@ -175,6 +180,26 @@ def group_tab_applications(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
+    # Build inherited SP list from direct parent groups
+    direct_sp_ids = {spa.sp_id for spa in ctx["assigned_sps"]}
+    inherited_sps: list[dict] = []
+    seen_inherited: set[str] = set()
+    for parent in ctx["parents"]:
+        try:
+            result = sp_service.list_group_sp_assignments(requesting_user, parent.group_id)
+            for spa in result.items:
+                if spa.sp_id not in direct_sp_ids and spa.sp_id not in seen_inherited:
+                    inherited_sps.append(
+                        {
+                            "sp": spa,
+                            "from_group_name": parent.name,
+                            "from_group_id": parent.group_id,
+                        }
+                    )
+                    seen_inherited.add(spa.sp_id)
+        except ServiceError:
+            pass
+
     return templates.TemplateResponse(
         "groups_detail_tab_applications.html",
         get_template_context(
@@ -182,6 +207,7 @@ def group_tab_applications(
             tenant_id,
             **ctx,
             active_tab="applications",
+            inherited_sps=inherited_sps,
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),
@@ -222,14 +248,14 @@ def group_tab_relationships(
     )
 
 
-@router.get("/{group_id}/danger", response_class=HTMLResponse)
-def group_tab_danger(
+@router.get("/{group_id}/delete", response_class=HTMLResponse)
+def group_tab_delete(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
 ):
-    """Display the Danger tab for a group."""
+    """Display the Delete tab for a group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
@@ -244,12 +270,12 @@ def group_tab_danger(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
-        "groups_detail_tab_danger.html",
+        "groups_detail_tab_delete.html",
         get_template_context(
             request,
             tenant_id,
             **ctx,
-            active_tab="danger",
+            active_tab="delete",
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),
@@ -304,7 +330,7 @@ def delete_group(
         )
     except ValidationError as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}/danger?error={exc.code}",
+            url=f"/admin/groups/{group_id}/delete?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:

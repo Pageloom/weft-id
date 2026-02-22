@@ -426,8 +426,8 @@ PAGES = [
                                 creates_nav_level=False,
                             ),
                             Page(
-                                path="/admin/groups/detail/danger",
-                                title="Danger",
+                                path="/admin/groups/detail/delete",
+                                title="Delete",
                                 permission=PagePermission.ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,

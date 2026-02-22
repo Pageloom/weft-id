@@ -398,6 +398,41 @@ PAGES = [
                         creates_nav_level=False,
                         children=[
                             Page(
+                                path="/admin/groups/detail/details",
+                                title="Details",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/groups/detail/membership",
+                                title="Membership",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/groups/detail/applications",
+                                title="Applications",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/groups/detail/relationships",
+                                title="Relationships",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
+                                path="/admin/groups/detail/danger",
+                                title="Danger",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                            Page(
                                 path="/admin/groups/members",
                                 title="Group Members",
                                 permission=PagePermission.ADMIN,

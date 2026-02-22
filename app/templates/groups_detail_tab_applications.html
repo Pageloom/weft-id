@@ -1,0 +1,35 @@
+{% extends "groups_detail_base.html" %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+        Assigned Applications ({{ assigned_sps|length }})
+    </h2>
+
+    {% if not assigned_sps %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No applications assigned to this group.</p>
+    {% else %}
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Users in this group have access to these applications via SSO.
+    </p>
+
+    <div class="space-y-2">
+        {% for spa in assigned_sps %}
+        <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+            <div>
+                <a href="/admin/settings/service-providers/{{ spa.sp_id }}" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                    {{ spa.sp_name }}
+                </a>
+                {% if spa.sp_description %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ spa.sp_description }}</p>
+                {% endif %}
+            </div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                {{ spa.sp_entity_id[:50] }}{% if spa.sp_entity_id|length > 50 %}...{% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

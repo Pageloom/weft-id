@@ -1,0 +1,35 @@
+{% extends "groups_detail_base.html" %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Membership
+        </h2>
+        <a href="/admin/groups/{{ group.id }}/members"
+           class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
+            Manage Members
+        </a>
+    </div>
+
+    {% if group.group_type == 'idp' %}
+    <p class="text-sm text-amber-600 dark:text-amber-400">
+        IdP groups are managed automatically. Members are synced from the identity provider.
+    </p>
+    {% else %}
+    <div class="space-y-2">
+        <p class="text-sm text-gray-700 dark:text-gray-300">
+            {{ group.member_count }} direct member{{ 's' if group.member_count != 1 else '' }}.
+        </p>
+        {% if effective_member_count is not none and effective_member_count > group.member_count %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+            {{ effective_member_count }} effective members (including inherited from child groups).
+        </p>
+        {% endif %}
+        {% if group.member_count == 0 %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">No members in this group yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -115,40 +115,6 @@ Quality:
 
 ---
 
-## Groups Overview: Redesigned List and Network Graph View
-
-**User Story:**
-As an admin
-I want a redesigned groups overview page that shows relationship context at a glance and lets me visualize the full group network
-So that I can quickly understand group structure without opening each group individually
-
-**Context:**
-
-The current groups list shows Name, Description, Type, Members, Created, and a redundant "Actions" column (the name is already a clickable link). It gives no insight into how groups relate to each other. A network graph view would expose the shape of the group hierarchy without requiring navigation.
-
-The graph view is an optional toggle alongside the list view. Cytoscape.js is a purpose-built network graph library and the recommended implementation choice, but the library selection is an implementation detail.
-
-**Acceptance Criteria:**
-
-List view:
-- [ ] Columns: Name, Type, Parents (count), Children (count), Members (direct + inherited total)
-- [ ] Remove the Description column and the Actions column
-- [ ] Existing search and pagination remain
-
-Graph view:
-- [ ] Toggle button to switch between list view and graph view (persisted in URL or session)
-- [ ] One node per group; directed edges from child to parent
-- [ ] Nodes labeled with group name and member count
-- [ ] Supports zoom in/out (vector-based rendering; at 100% attempts to fit all groups)
-- [ ] Supports pan when content exceeds the visible area
-- [ ] Clicking a node navigates to that group's detail page
-- [ ] Graph view is read-only (no editing from the graph)
-
-**Effort:** M
-**Value:** High (Makes group relationships immediately visible; reduces admin navigation)
-
----
-
 ## Group Detail: Tabbed Layout with Relationship Diagram
 
 **User Story:**

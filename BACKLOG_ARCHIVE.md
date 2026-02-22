@@ -4,6 +4,27 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups Overview: Redesigned List and Network Graph View
+
+**Status:** Complete
+
+**Summary:** Redesigned the groups overview page with a new list view (Name, Type, Parents, Children, Members columns; Description and Actions columns removed) and an interactive graph view powered by Cytoscape.js. Graph supports zoom, pan, node click to navigate, and DB-persisted per-user layouts with snap-to-grid. The implementation also added relationship editing directly from the graph canvas (add/remove parent relationships) and fullscreen mode, beyond the original spec.
+
+**Acceptance Criteria:**
+
+- [x] Columns: Name, Type, Parents (count), Children (count), Members (direct + inherited total)
+- [x] Remove the Description column and the Actions column
+- [x] Existing search and pagination remain
+- [x] Toggle button to switch between list view and graph view (persisted in localStorage)
+- [x] One node per group; directed edges from child to parent
+- [x] Nodes labeled with group name and member count
+- [x] Supports zoom in/out
+- [x] Supports pan when content exceeds the visible area
+- [x] Clicking a node navigates to that group's detail page
+- [x] Graph view is read-only (no editing from the graph) — exceeded: relationship editing added
+
+---
+
 ## Standardize List Row Navigation and Full-Width Layout
 
 **Status:** Complete

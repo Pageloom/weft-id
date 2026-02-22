@@ -282,6 +282,20 @@
 
     cy.fit(undefined, 60);
 
+    // Snap back if the user pans all nodes off screen
+    var snapTimer = null;
+    cy.on('viewport', function () {
+        clearTimeout(snapTimer);
+        snapTimer = setTimeout(function () {
+            if (cy.nodes().length === 0) return;
+            var ext = cy.extent();
+            var bb = cy.nodes().boundingBox();
+            if (bb.x2 < ext.x1 || bb.x1 > ext.x2 || bb.y2 < ext.y1 || bb.y1 > ext.y2) {
+                cy.animate({ fit: { eles: cy.nodes(), padding: 60 }, duration: 400 });
+            }
+        }, 300);
+    });
+
     // Fetch details for adjacent nodes and update labels with member counts
     var adjacentIds = parents.map(function (p) { return p.id; })
                              .concat(children.map(function (c) { return c.id; }));

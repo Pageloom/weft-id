@@ -5,6 +5,60 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [TEST] Integration tests for small database modules (40%/60%/67% coverage)
+
+**Status:** Resolved (2026-02-22)
+**Original Severity:** Medium
+
+**Original Description:**
+Three small modules each had 1-3 untested functions: `sp_nameid_mappings.py` (40%), `saml/security.py` (60%), `groups/selection.py` (67%).
+
+**Resolution:**
+- Created `tests/database/test_sp_nameid_mappings.py` with 3 tests for `get_or_create_nameid_mapping`: creation, idempotency (same mapping returned on second call), and distinct mappings per SP.
+- Added 7 tests to `tests/database/test_security.py` covering `count_users_without_idp_in_domain` (counts correctly, excludes IdP users, excludes unverified emails, zero for unknown domain) and `count_users_with_idp_in_domain` (counts assigned users, scoped to specific IdP, zero for unknown domain).
+- Added 3 tests to `tests/database/test_groups.py` covering `get_groups_for_user_select`: excludes groups user belongs to, returns all when no exclusion, ordered by name.
+
+---
+
+### [TEST] Integration tests for SAML certificate modules (57%/58% coverage)
+
+**Status:** Resolved (2026-02-22)
+**Original Severity:** Medium
+
+**Original Description:**
+`database/saml/idp_certificates.py` (57%) and `database/sp_signing_certificates.py` (58%) each had roughly half their functions untested. The rotation logic (moving current cert to `previous_*` columns with a grace period) was particularly important to validate against the real schema.
+
+**Resolution:**
+Created `tests/database/test_certificates.py` with 15 integration tests. IdP cert tests cover: `get_idp_certificate` (by ID and not-found), `get_idp_certificate_by_fingerprint` (match, wrong IdP, not-found), `delete_idp_certificate` (true/false return), and `update_idp_certificate_fingerprint`. SP signing cert tests cover: `create_signing_certificate` (fields and readback), `rotate_signing_certificate` (previous_* columns populated, not-found no-op), and `clear_previous_signing_certificate` (nulled after past grace period, no-op when grace still active).
+
+---
+
+### [TEST] Integration tests for database/users/saml_assignment.py (67% coverage)
+
+**Status:** Resolved (2026-02-22)
+**Original Severity:** Medium
+
+**Original Description:**
+7 of 8 functions in `database/users/saml_assignment.py` had no integration tests. Module handles user-to-IdP assignment, password wiping, email unverification, and bulk domain binding. The `get_user_auth_info()` query drives email-first login auth routing.
+
+**Resolution:**
+Added 19 integration tests to `tests/database/test_users.py` covering all 7 untested functions. Tests verify `get_user_auth_info` returns correct routing fields including the idp assignment, returns None for unverified/unknown emails; `wipe_user_password` nulls the hash; `unverify_user_emails` clears verified_at, increments nonce, and skips already-unverified rows; `get_users_by_email_domain` finds verified emails and excludes unverified; bulk operations (`bulk_assign_users_to_idp`, `bulk_inactivate_users`, `bulk_unverify_emails`) each short-circuit on empty lists and apply correctly to multiple users.
+
+---
+
+### [TEST] Integration tests for database/sp_group_assignments.py (32% coverage)
+
+**Status:** Resolved (2026-02-22)
+**Original Severity:** Medium
+
+**Original Description:**
+9 functions in `database/sp_group_assignments.py` had no integration tests. Module handles SP-to-group access control with hierarchical access checks via the `group_lineage` closure table. Critical authorization queries joining across 3-4 tables.
+
+**Resolution:**
+Created `tests/database/test_sp_group_assignments.py` with 23 integration tests covering all 9 functions. Tests verify direct and inherited access via group lineage, `ON CONFLICT DO NOTHING` bulk insert deduplication, disabled/untrusted SP exclusion from `get_accessible_sps_for_user`, and full CRUD lifecycle including edge cases.
+
+---
+
 ### [TEST] Integration tests for database/service_providers.py (41% coverage)
 
 **Status:** Resolved (2026-02-21)

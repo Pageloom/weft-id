@@ -898,3 +898,312 @@ def test_list_users_includes_group_count(test_tenant, test_user, test_admin_user
     # Admin should still have 0
     admin_u = next(u for u in users_after if u["id"] == test_admin_user["id"])
     assert admin_u["group_count"] == 0
+
+
+# =============================================================================
+# SAML Assignment Tests (database.users.saml_assignment)
+# =============================================================================
+
+
+def _create_saml_idp(tenant, user, name="Test IdP"):
+    """Create a SAML IdP record for testing."""
+    from uuid import uuid4
+
+    import database
+
+    unique_entity_id = f"https://idp-{uuid4().hex[:8]}.example.com"
+    return database.fetchone(
+        tenant["id"],
+        """
+        INSERT INTO saml_identity_providers (
+            tenant_id, name, provider_type, entity_id, sso_url,
+            certificate_pem, sp_entity_id, created_by
+        ) VALUES (
+            :tenant_id, :name, 'generic', :entity_id,
+            'https://idp.example.com/sso', 'cert-placeholder',
+            'https://sp.example.com', :created_by
+        ) RETURNING id, name
+        """,
+        {
+            "tenant_id": tenant["id"],
+            "name": name,
+            "entity_id": unique_entity_id,
+            "created_by": user["id"],
+        },
+    )
+
+
+# -- get_user_auth_info -------------------------------------------------------
+
+
+def test_get_user_auth_info_returns_auth_routing_fields(test_tenant, test_user):
+    """Test that get_user_auth_info returns correct routing info for a user with a password."""
+    import database
+
+    result = database.users.get_user_auth_info(test_tenant["id"], test_user["email"])
+
+    assert result is not None
+    assert result["has_password"] is True
+    assert result["saml_idp_id"] is None
+    assert result["is_inactivated"] is False
+    assert str(result["id"]) == str(test_user["id"])
+
+
+def test_get_user_auth_info_with_idp_assigned(test_tenant, test_user):
+    """Test that get_user_auth_info returns the assigned saml_idp_id."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user, name="Auth Info IdP")
+    database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+    result = database.users.get_user_auth_info(test_tenant["id"], test_user["email"])
+
+    assert result is not None
+    assert str(result["saml_idp_id"]) == str(idp["id"])
+    assert result["has_password"] is True
+
+
+def test_get_user_auth_info_returns_none_for_unverified_email(test_tenant, test_user):
+    """Test that get_user_auth_info returns None when the email is not verified."""
+    import database
+
+    # Unverify the user's email
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    result = database.users.get_user_auth_info(test_tenant["id"], test_user["email"])
+
+    assert result is None
+
+
+def test_get_user_auth_info_returns_none_for_unknown_email(test_tenant):
+    """Test that get_user_auth_info returns None for an unrecognised email."""
+    import database
+
+    result = database.users.get_user_auth_info(test_tenant["id"], "nobody@example.com")
+
+    assert result is None
+
+
+# -- wipe_user_password -------------------------------------------------------
+
+
+def test_wipe_user_password_nulls_hash(test_tenant, test_user):
+    """Test that wipe_user_password sets password_hash to null."""
+    import database
+
+    rows = database.users.wipe_user_password(test_tenant["id"], str(test_user["id"]))
+
+    assert rows == 1
+
+    result = database.users.get_user_auth_info(test_tenant["id"], test_user["email"])
+    assert result is not None
+    assert result["has_password"] is False
+
+
+def test_wipe_user_password_idempotent(test_tenant, test_user):
+    """Test that wiping an already-null password still returns 1 row affected."""
+    import database
+
+    database.users.wipe_user_password(test_tenant["id"], str(test_user["id"]))
+    # Second wipe - row still exists, so UPDATE touches it
+    rows = database.users.wipe_user_password(test_tenant["id"], str(test_user["id"]))
+
+    assert rows == 1
+
+
+# -- unverify_user_emails -----------------------------------------------------
+
+
+def test_unverify_user_emails_clears_verified_at(test_tenant, test_user):
+    """Test that unverify_user_emails nulls verified_at for the user's emails."""
+    import database
+
+    rows = database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    assert rows == 1
+
+    # get_user_auth_info requires verified_at is not null - should return None now
+    result = database.users.get_user_auth_info(test_tenant["id"], test_user["email"])
+    assert result is None
+
+
+def test_unverify_user_emails_increments_verify_nonce(test_tenant, test_user):
+    """Test that unverify_user_emails increments the verify_nonce."""
+    import database
+
+    before = database.fetchone(
+        test_tenant["id"],
+        "SELECT verify_nonce FROM user_emails WHERE user_id = :user_id",
+        {"user_id": str(test_user["id"])},
+    )
+    nonce_before = before["verify_nonce"]
+
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    after = database.fetchone(
+        test_tenant["id"],
+        "SELECT verify_nonce FROM user_emails WHERE user_id = :user_id",
+        {"user_id": str(test_user["id"])},
+    )
+    assert after["verify_nonce"] == nonce_before + 1
+
+
+def test_unverify_user_emails_skips_already_unverified(test_tenant, test_user):
+    """Test that already-unverified emails are not double-unverified (0 rows)."""
+    import database
+
+    # First call unverifies
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    # Second call should affect 0 rows (verified_at is already null)
+    rows = database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+    assert rows == 0
+
+
+# -- get_users_by_email_domain ------------------------------------------------
+
+
+def test_get_users_by_email_domain_returns_matching_users(test_tenant, test_user):
+    """Test that get_users_by_email_domain finds users with verified domain emails."""
+    import database
+
+    domain = test_user["email"].split("@")[1]
+    results = database.users.get_users_by_email_domain(test_tenant["id"], domain)
+
+    user_ids = [str(r["id"]) for r in results]
+    assert str(test_user["id"]) in user_ids
+
+    # Verify shape
+    row = next(r for r in results if str(r["id"]) == str(test_user["id"]))
+    assert "has_password" in row
+    assert "saml_idp_id" in row
+    assert row["has_password"] is True
+
+
+def test_get_users_by_email_domain_excludes_unverified(test_tenant, test_user):
+    """Test that users with unverified domain emails are excluded."""
+    import database
+
+    domain = test_user["email"].split("@")[1]
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    results = database.users.get_users_by_email_domain(test_tenant["id"], domain)
+
+    user_ids = [str(r["id"]) for r in results]
+    assert str(test_user["id"]) not in user_ids
+
+
+def test_get_users_by_email_domain_empty_for_unknown_domain(test_tenant):
+    """Test that an unknown domain returns an empty list."""
+    import database
+
+    results = database.users.get_users_by_email_domain(test_tenant["id"], "unknowndomain.invalid")
+
+    assert results == []
+
+
+# -- bulk_assign_users_to_idp -------------------------------------------------
+
+
+def test_bulk_assign_users_to_idp_updates_all(test_tenant, test_user, test_admin_user):
+    """Test that bulk_assign_users_to_idp sets saml_idp_id for all given users."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user, name="Bulk Assign IdP")
+    user_ids = [str(test_user["id"]), str(test_admin_user["id"])]
+
+    rows = database.users.bulk_assign_users_to_idp(test_tenant["id"], user_ids, str(idp["id"]))
+
+    assert rows == 2
+
+    user = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    admin = database.users.get_user_by_id(test_tenant["id"], test_admin_user["id"])
+    assert str(user["saml_idp_id"]) == str(idp["id"])
+    assert str(admin["saml_idp_id"]) == str(idp["id"])
+
+
+def test_bulk_assign_users_to_idp_empty_list(test_tenant, test_user):
+    """Test that an empty user_ids list returns 0 immediately without touching the DB."""
+    import database
+
+    rows = database.users.bulk_assign_users_to_idp(test_tenant["id"], [], "any-idp-id")
+
+    assert rows == 0
+
+
+# -- bulk_inactivate_users ----------------------------------------------------
+
+
+def test_bulk_inactivate_users_sets_flags_and_clears_idp(test_tenant, test_user, test_admin_user):
+    """Test that bulk_inactivate_users sets is_inactivated and clears saml_idp_id."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user, name="Bulk Inactivate IdP")
+    database.users.bulk_assign_users_to_idp(
+        test_tenant["id"],
+        [str(test_user["id"]), str(test_admin_user["id"])],
+        str(idp["id"]),
+    )
+
+    rows = database.users.bulk_inactivate_users(
+        test_tenant["id"], [str(test_user["id"]), str(test_admin_user["id"])]
+    )
+
+    assert rows == 2
+
+    user = database.users.get_user_by_id(test_tenant["id"], test_user["id"])
+    admin = database.users.get_user_by_id(test_tenant["id"], test_admin_user["id"])
+    assert user["is_inactivated"] is True
+    assert user["saml_idp_id"] is None
+    assert admin["is_inactivated"] is True
+    assert admin["saml_idp_id"] is None
+
+
+def test_bulk_inactivate_users_empty_list(test_tenant, test_user):
+    """Test that an empty user_ids list returns 0 immediately."""
+    import database
+
+    rows = database.users.bulk_inactivate_users(test_tenant["id"], [])
+
+    assert rows == 0
+
+
+# -- bulk_unverify_emails -----------------------------------------------------
+
+
+def test_bulk_unverify_emails_clears_verified_at(test_tenant, test_user, test_admin_user):
+    """Test that bulk_unverify_emails nulls verified_at for all given users."""
+    import database
+
+    user_ids = [str(test_user["id"]), str(test_admin_user["id"])]
+    rows = database.users.bulk_unverify_emails(test_tenant["id"], user_ids)
+
+    assert rows == 2
+
+    # Both users' emails should now be unverified
+    assert database.users.get_user_auth_info(test_tenant["id"], test_user["email"]) is None
+    assert database.users.get_user_auth_info(test_tenant["id"], test_admin_user["email"]) is None
+
+
+def test_bulk_unverify_emails_skips_already_unverified(test_tenant, test_user, test_admin_user):
+    """Test that already-unverified emails are excluded from the update count."""
+    import database
+
+    # Pre-unverify one user
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    # Only admin's email is still verified - should get 1 row
+    rows = database.users.bulk_unverify_emails(
+        test_tenant["id"], [str(test_user["id"]), str(test_admin_user["id"])]
+    )
+
+    assert rows == 1
+
+
+def test_bulk_unverify_emails_empty_list(test_tenant):
+    """Test that an empty user_ids list returns 0 immediately."""
+    import database
+
+    rows = database.users.bulk_unverify_emails(test_tenant["id"], [])
+
+    assert rows == 0

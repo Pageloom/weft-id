@@ -1791,3 +1791,83 @@ def test_bulk_remove_group_members_nonexistent_users(test_tenant):
         [str(uuid4()), str(uuid4())],
     )
     assert removed == 0
+
+
+# =============================================================================
+# get_groups_for_user_select (groups/selection.py)
+# =============================================================================
+
+
+def test_get_groups_for_user_select_excludes_member_groups(test_tenant, test_user):
+    """Test that groups the user belongs to are excluded from the select list."""
+    import database
+
+    group_a = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Select Group A",
+    )
+    group_b = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Select Group B",
+    )
+
+    # Add user to group_a only
+    database.groups.add_group_member(
+        test_tenant["id"],
+        str(test_tenant["id"]),
+        group_a["id"],
+        str(test_user["id"]),
+    )
+
+    results = database.groups.get_groups_for_user_select(
+        test_tenant["id"], exclude_user_id=str(test_user["id"])
+    )
+
+    result_ids = [str(r["id"]) for r in results]
+    assert str(group_a["id"]) not in result_ids  # user is a member - excluded
+    assert str(group_b["id"]) in result_ids  # user is not a member - included
+
+
+def test_get_groups_for_user_select_without_exclude_returns_all(test_tenant):
+    """Test that omitting exclude_user_id returns all valid groups."""
+    import database
+
+    group_a = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="All Groups A",
+    )
+    group_b = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="All Groups B",
+    )
+
+    results = database.groups.get_groups_for_user_select(test_tenant["id"])
+
+    result_ids = [str(r["id"]) for r in results]
+    assert str(group_a["id"]) in result_ids
+    assert str(group_b["id"]) in result_ids
+
+
+def test_get_groups_for_user_select_returns_ordered_by_name(test_tenant):
+    """Test that results are ordered by group name."""
+    import database
+
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Zeta Group",
+    )
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Alpha Group",
+    )
+
+    results = database.groups.get_groups_for_user_select(test_tenant["id"])
+
+    names = [r["name"] for r in results]
+    assert names == sorted(names)

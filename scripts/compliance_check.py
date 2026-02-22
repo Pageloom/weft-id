@@ -249,10 +249,13 @@ class ServiceFunctionVisitor(ast.NodeVisitor):
         # This indicates the function delegates logging to a helper function
         docstring = ast.get_docstring(node) or ""
         has_delegated_logging = "Logs:" in docstring
+        # Check if docstring explicitly opts out of audit logging (e.g. "No audit: reason")
+        # Use this for writes that are UI preference state, not business actions.
+        has_no_audit = "No audit:" in docstring
 
         # Report violations
         if self.has_requesting_user:
-            if self.has_mutation and not self.has_log_event and not has_delegated_logging:
+            if self.has_mutation and not self.has_log_event and not has_delegated_logging and not has_no_audit:
                 # Write operation without log_event - HIGH severity
                 self.report.add(
                     Violation(

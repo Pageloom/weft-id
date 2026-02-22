@@ -14,6 +14,8 @@ from schemas.groups import (
     GroupChildrenList,
     GroupCreate,
     GroupDetail,
+    GroupGraphData,
+    GroupGraphLayout,
     GroupListResponse,
     GroupMemberAdd,
     GroupMemberDetailList,
@@ -93,6 +95,70 @@ def create_group(
 
     try:
         return groups_service.create_group(requesting_user, group_data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/graph", response_model=GroupGraphData)
+def get_group_graph(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    Get all groups and relationships for graph rendering.
+
+    Requires admin role.
+
+    Returns:
+        Graph nodes and edges for Cytoscape.js
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        return groups_service.get_group_graph_data(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.get("/graph/layout", response_model=GroupGraphLayout | None)
+def get_graph_layout(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    Get saved graph layout for the current user.
+
+    Requires admin role.
+
+    Returns:
+        Saved node positions, or null if no layout has been saved
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        return groups_service.get_graph_layout_for_user(requesting_user)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.put("/graph/layout", status_code=204)
+def save_graph_layout(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    layout_data: GroupGraphLayout,
+):
+    """
+    Save graph layout for the current user.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        groups_service.save_graph_layout(requesting_user, layout_data)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 
@@ -428,7 +494,7 @@ def add_parent(
     requesting_user = build_requesting_user(admin, tenant_id, request)
 
     try:
-        groups_service.add_child(requesting_user, group_id, relationship_data.parent_group_id)
+        groups_service.add_child(requesting_user, relationship_data.parent_group_id, group_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

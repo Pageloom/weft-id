@@ -39,6 +39,10 @@ class GroupSummary(BaseModel):
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
     is_valid: bool = Field(True, description="Whether group is valid (IdP groups)")
     member_count: int = Field(0, description="Number of direct members")
+    parent_count: int = Field(0, description="Number of parent groups")
+    child_count: int = Field(0, description="Number of child groups")
+    effective_member_count: int = Field(0, description="Total members including inherited")
+    sp_count: int = Field(0, description="Number of app (service provider) associations")
     created_at: datetime = Field(..., description="Creation timestamp")
 
 
@@ -313,3 +317,39 @@ class AvailableGroupOption(BaseModel):
     id: str = Field(..., description="Group UUID")
     name: str = Field(..., description="Group name")
     group_type: str = Field(..., description="Group type (weftid or idp)")
+
+
+# ============================================================================
+# Group Graph Schemas
+# ============================================================================
+
+
+class GroupGraphNode(BaseModel):
+    """A node in the group network graph."""
+
+    id: str = Field(..., description="Group UUID")
+    name: str = Field(..., description="Group name")
+    group_type: str = Field(..., description="Group type (weftid or idp)")
+    member_count: int = Field(0, description="Number of direct members")
+    effective_member_count: int = Field(0, description="Total members including inherited")
+
+
+class GroupGraphEdge(BaseModel):
+    """A directed edge in the group network graph (child -> parent)."""
+
+    source: str = Field(..., description="Child group UUID")
+    target: str = Field(..., description="Parent group UUID")
+
+
+class GroupGraphData(BaseModel):
+    """Full graph data for Cytoscape.js rendering."""
+
+    nodes: list[GroupGraphNode] = Field(..., description="All groups as nodes")
+    edges: list[GroupGraphEdge] = Field(..., description="Parent-child edges")
+
+
+class GroupGraphLayout(BaseModel):
+    """Saved graph layout for a user."""
+
+    node_ids: str = Field("", max_length=65535, description="Sorted comma-separated node UUIDs")
+    positions: dict = Field(default_factory=dict, description="Node positions keyed by node ID")

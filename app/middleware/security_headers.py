@@ -48,7 +48,7 @@ def _build_csp_with_nonce(nonce: str, form_action_url: str | None = None) -> str
         "default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}'; "
         "img-src 'self' data:; "
-        f"style-src 'self' 'nonce-{nonce}'; "
+        "style-src 'self' 'unsafe-inline'; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         f"form-action {form_action}"

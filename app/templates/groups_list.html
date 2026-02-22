@@ -43,23 +43,95 @@
         </div>
         {% endif %}
 
-        <!-- Search -->
-        <div class="mb-6">
-            <form method="get" class="flex gap-3">
+        <!-- Search and View Toggle -->
+        <div class="mb-6 flex flex-wrap gap-3 items-center">
+            <form method="get" class="flex gap-3 flex-1 min-w-0">
+                <input type="hidden" name="view" value="{{ view }}">
                 <input type="text" name="search" placeholder="Search groups..." value="{{ search }}"
-                       class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                       class="flex-1 min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                 <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300">
                     Search
                 </button>
                 {% if search %}
-                <a href="/admin/groups/list" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
+                <a href="/admin/groups/list?view={{ view }}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
                     Clear
                 </a>
                 {% endif %}
             </form>
+
+            <!-- View toggle -->
+            <div class="flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden shrink-0">
+                <a id="btn-view-list" href="?view=list{% if search %}&search={{ search }}{% endif %}"
+                   class="px-3 py-2 text-sm font-medium {% if view == 'list' %}bg-blue-600 text-white{% else %}bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600{% endif %}">
+                    List
+                </a>
+                <a id="btn-view-graph" href="?view=graph{% if search %}&search={{ search }}{% endif %}"
+                   class="px-3 py-2 text-sm font-medium border-l border-gray-300 dark:border-gray-600 {% if view == 'graph' %}bg-blue-600 text-white{% else %}bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600{% endif %}">
+                    Graph
+                </a>
+            </div>
         </div>
 
-        <!-- Groups Table -->
+        {% if view == 'graph' %}
+        <!-- Graph View -->
+        <div id="graph-wrapper">
+            <div id="graph-toolbar" class="mb-3 flex items-center gap-3">
+                <button id="btn-add-rel" type="button"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                               hover:bg-gray-50 dark:hover:bg-gray-600">
+                    &#x22B8; Add Relationship
+                </button>
+                <button id="btn-cut-rel" type="button"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                               hover:bg-gray-50 dark:hover:bg-gray-600">
+                    &#x2702; Cut Relationship
+                </button>
+                <span id="rel-hint" class="hidden text-sm text-amber-600 dark:text-amber-400">
+                    Click a child node and drag to its parent
+                </span>
+                <span id="cut-hint" class="hidden text-sm text-red-600 dark:text-red-400">
+                    Click a relationship line to remove it
+                </span>
+                <button id="btn-layout-mode" type="button"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                               hover:bg-gray-50 dark:hover:bg-gray-600">
+                    &#x270E; Edit Layout
+                </button>
+                <button id="btn-save-layout" type="button"
+                        class="hidden px-3 py-1.5 text-sm font-medium rounded-md border border-blue-600
+                               bg-blue-600 text-white hover:bg-blue-700">
+                    Save Layout
+                </button>
+                <button id="btn-cancel-layout" type="button"
+                        class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400
+                               hover:text-gray-800 dark:hover:text-gray-200">
+                    Cancel
+                </button>
+                <span id="layout-hint" class="hidden text-sm text-blue-600 dark:text-blue-400">
+                    Drag to reposition. Nodes snap to grid.
+                </span>
+                {# Classes only referenced via JS — listed here so Tailwind includes them in the build #}
+                <span class="hidden bg-amber-500 border-amber-500 bg-red-500 border-red-500 bg-blue-600 border-blue-600 hover:bg-blue-700"></span>
+                <button id="btn-fullscreen" type="button"
+                        class="ml-auto px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                               hover:bg-gray-50 dark:hover:bg-gray-600">
+                    &#x26F6; Fullscreen
+                </button>
+            </div>
+            <div id="cy-container" class="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                <div id="cy" style="height: 600px; width: 100%; position: relative;"></div>
+            </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Click a group to highlight its connections (<span class="text-orange-500 font-medium">orange</span> = parent edges, <span class="text-green-500 font-medium">green</span> = child edges). Double-click to open the group. Scroll to zoom, drag to pan.
+        </p>
+
+        {% else %}
+        <!-- List View -->
         {% if groups|length == 0 %}
         <div class="text-center py-12 border border-gray-200 dark:border-gray-700 rounded-md">
             <p class="text-gray-500 dark:text-gray-400 text-lg">
@@ -84,19 +156,19 @@
                             Name
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Description
+                            Type
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Type
+                            Parents
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Children
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Members
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Created
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Actions
+                            Apps
                         </th>
                     </tr>
                 </thead>
@@ -104,24 +176,25 @@
                     {% for group in groups %}
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 {% if not group.is_valid %}opacity-60{% endif %}">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
-                                {{ group.name }}
-                            </a>
-                            {% if not group.is_valid %}
-                            <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-full">
-                                Invalid
+                            <span class="flex items-center gap-2">
+                                <img data-mandala="{{ group.id }}" width="32" height="32"
+                                     class="rounded-full shrink-0" alt="">
+                                <span>
+                                    <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
+                                        {{ group.name }}
+                                    </a>
+                                    {% if not group.is_valid %}
+                                    <span class="ml-1 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-full">
+                                        Invalid
+                                    </span>
+                                    {% endif %}
+                                    {% if group.group_type == 'idp' and group.idp_name %}
+                                    <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                        ({{ group.idp_name }})
+                                    </span>
+                                    {% endif %}
+                                </span>
                             </span>
-                            {% endif %}
-                            {% if group.group_type == 'idp' and group.idp_name %}
-                            <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                ({{ group.idp_name }})
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4">
-                            <p class="text-sm text-gray-600 dark:text-gray-400 truncate max-w-xs">
-                                {{ group.description or '—' }}
-                            </p>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="px-2 py-1 text-xs font-medium rounded-full
@@ -135,17 +208,25 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-sm text-gray-600 dark:text-gray-400">
-                                {{ group.member_count }}
+                                {{ group.parent_count }}
                             </span>
                         </td>
-                        {% set rel_created = fmt_relative(group.created_at) %}
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" title="{{ rel_created[1] }}">
-                            {{ rel_created[0] }}
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                                {{ group.child_count }}
+                            </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                            <a href="/admin/groups/{{ group.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                                View
-                            </a>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% set inherited = group.effective_member_count - group.member_count %}
+                            <span class="text-sm text-gray-600 dark:text-gray-400"
+                                  title="{{ group.member_count }} direct{% if inherited > 0 %}, {{ inherited }} inherited{% endif %}">
+                                {{ group.effective_member_count }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                                {{ group.sp_count }}
+                            </span>
                         </td>
                     </tr>
                     {% endfor %}
@@ -162,13 +243,13 @@
             </p>
             <div class="flex gap-2">
                 {% if pagination.page > 1 %}
-                <a href="?page={{ pagination.page - 1 }}{% if search %}&search={{ search }}{% endif %}"
+                <a href="?page={{ pagination.page - 1 }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                     Previous
                 </a>
                 {% endif %}
                 {% if pagination.page < pagination.total_pages %}
-                <a href="?page={{ pagination.page + 1 }}{% if search %}&search={{ search }}{% endif %}"
+                <a href="?page={{ pagination.page + 1 }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                     Next
                 </a>
@@ -177,6 +258,628 @@
         </div>
         {% endif %}
         {% endif %}
+        {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/group-mandala.js"></script>
+{% if view == 'list' %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (!params.has('view')) {
+    var saved = localStorage.getItem('weft-groups-view');
+    if (saved && saved !== 'list') {
+      params.set('view', saved);
+      window.location.replace('?' + params.toString());
+    }
+  }
+  var btnList = document.getElementById('btn-view-list');
+  var btnGraph = document.getElementById('btn-view-graph');
+  if (btnList) { btnList.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'list'); }); }
+  if (btnGraph) { btnGraph.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'graph'); }); }
+})();
+document.querySelectorAll('[data-mandala]').forEach(function(el) {
+  var v = generateGroupMandala(el.getAttribute('data-mandala'));
+  el.src = v.image;
+});
+</script>
+{% else %}
+<script src="/static/js/cytoscape.min.js" nonce="{{ csp_nonce }}"></script>
+<script nonce="{{ csp_nonce }}">
+(function() {
+  // localStorage redirect
+  var params = new URLSearchParams(window.location.search);
+  if (!params.has('view')) {
+    var saved = localStorage.getItem('weft-groups-view');
+    if (saved && saved !== 'graph') {
+      params.set('view', saved);
+      window.location.replace('?' + params.toString());
+    }
+  }
+  var btnViewList = document.getElementById('btn-view-list');
+  var btnViewGraph = document.getElementById('btn-view-graph');
+  if (btnViewList) { btnViewList.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'list'); }); }
+  if (btnViewGraph) { btnViewGraph.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'graph'); }); }
+
+  // Element refs grabbed early (available to fullscreen handler before fetch resolves)
+  var wrapper = document.getElementById('graph-wrapper');
+  var cyContainer = document.getElementById('cy-container');
+  var cyEl = document.getElementById('cy');
+
+  // Fullscreen state (CSS-based, not browser API)
+  var isFullscreen = false;
+  document.getElementById('btn-fullscreen').addEventListener('click', function() {
+    isFullscreen = !isFullscreen;
+    var btn = this;
+    var fsUrl = new URL(window.location.href);
+    if (isFullscreen) {
+      var isDark = document.documentElement.classList.contains('dark');
+      wrapper.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:9999',
+        'background:' + (isDark ? '#1f2937' : '#ffffff'),
+        'display:flex', 'flex-direction:column', 'padding:16px', 'gap:12px'
+      ].join(';');
+      cyContainer.style.flex = '1';
+      cyContainer.style.minHeight = '0';
+      cyEl.style.height = '100%';
+      btn.textContent = '\u2715 Exit Fullscreen';
+      fsUrl.searchParams.set('fullscreen', '1');
+    } else {
+      wrapper.style.cssText = '';
+      cyContainer.style.flex = '';
+      cyContainer.style.minHeight = '';
+      cyEl.style.height = '600px';
+      btn.textContent = '\u26F6 Fullscreen';
+      fsUrl.searchParams.delete('fullscreen');
+    }
+    history.replaceState(null, '', fsUrl.toString());
+    requestAnimationFrame(function() { if (window._cy) { window._cy.resize(); window._cy.fit(undefined, 160); } });
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && isFullscreen) { document.getElementById('btn-fullscreen').click(); }
+  });
+
+  // Relation line drawing state
+  var relMode = false;
+  var relDrawing = false;
+  var relSourceNode = null;
+  var relLine = null;
+
+  function initRelOverlay() {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
+
+    var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'rel-arrow');
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', '0 0, 8 3, 0 6');
+    poly.setAttribute('fill', '#f59e0b');
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    relLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    relLine.setAttribute('stroke', '#f59e0b');
+    relLine.setAttribute('stroke-width', '2');
+    relLine.setAttribute('stroke-dasharray', '8,4');
+    relLine.setAttribute('marker-end', 'url(#rel-arrow)');
+    relLine.style.visibility = 'hidden';
+    svg.appendChild(relLine);
+
+    cyEl.appendChild(svg);
+
+    cyEl.addEventListener('mousemove', function(e) {
+      if (!relDrawing) return;
+      var rect = cyEl.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      relLine.setAttribute('x2', x);
+      relLine.setAttribute('y2', y);
+      // Highlight whichever node is under the cursor as the potential target
+      if (window._cy) {
+        window._cy.nodes().removeClass('rel-target');
+        window._cy.nodes().each(function(n) {
+          if (relSourceNode && n.id() === relSourceNode.id()) return;
+          var bb = n.renderedBoundingBox();
+          if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
+            n.addClass('rel-target');
+          }
+        });
+      }
+    });
+  }
+
+  function cancelRelDraw() {
+    relDrawing = false;
+    relSourceNode = null;
+    if (relLine) relLine.style.visibility = 'hidden';
+    if (window._cy) window._cy.nodes().removeClass('rel-target');
+  }
+
+  document.addEventListener('mouseup', function() {
+    if (relDrawing) cancelRelDraw();
+  });
+
+  var GRID = 100;
+  var layoutMode = false;
+  var layoutPositionBackup = {};
+  var currentNodeIds = '';
+
+  function saveLayout(cy) {
+    var pos = {};
+    cy.nodes().each(function(n) { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
+    fetch('/api/v1/groups/graph/layout', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({node_ids: currentNodeIds, positions: pos}),
+    });
+  }
+
+  Promise.all([
+    fetch('/api/v1/groups/graph', {credentials: 'same-origin'})
+      .then(function(r) {
+        if (!r.ok) throw new Error('Failed to load graph data');
+        return r.json();
+      }),
+    fetch('/api/v1/groups/graph/layout', {credentials: 'same-origin'})
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .catch(function() { return null; }),
+  ])
+    .then(function(results) {
+      var data = results[0];
+      var layoutData = results[1];
+
+      var nodeMap = {};
+      data.nodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+      var elements = data.nodes.map(function(n) {
+        var vis = generateGroupMandala(n.id);
+        var label = n.name;
+        var indirect = n.effective_member_count - n.member_count;
+        if (n.member_count > 0 || indirect > 0) {
+          if (n.member_count > 0) {
+            label += '\n' + n.member_count;
+            if (indirect > 0) {
+              label += ' (' + indirect + ')';
+            }
+          } else {
+            label += '\n(' + indirect + ')';
+          }
+        }
+        return {data: {id: n.id, label: label, color: vis.color, mandala: vis.image}};
+      }).concat(data.edges.map(function(e) {
+        var contrib = nodeMap[e.source] ? nodeMap[e.source].effective_member_count : 0;
+        return {data: {source: e.source, target: e.target, label: contrib > 0 ? String(contrib) : ''}};
+      }));
+
+      currentNodeIds = data.nodes.map(function(n) { return n.id; }).sort().join(',');
+
+      var savedPositions = null;
+      if (layoutData && layoutData.node_ids === currentNodeIds) {
+        savedPositions = layoutData.positions;
+      }
+
+      var layoutConfig = savedPositions ? {
+        name: 'preset',
+        positions: function(node) { return savedPositions[node.id()]; },
+        padding: 50
+      } : {
+        name: 'cose',
+        animate: false,
+        padding: 50,
+        nodeRepulsion: function() { return 8000; },
+        idealEdgeLength: function() { return 150; },
+        edgeElasticity: function() { return 100; },
+        gravity: 25,
+        numIter: 1000
+      };
+
+      var cy = cytoscape({
+        container: cyEl,
+        elements: elements,
+        layout: layoutConfig,
+        style: [
+          {
+            selector: 'node',
+            style: {
+              'label': 'data(label)',
+              'text-wrap': 'wrap',
+              'text-max-width': '90px',
+              'font-size': '11px',
+              'text-valign': 'bottom',
+              'text-halign': 'center',
+              'text-margin-y': 6,
+              'color': '#1f2937',
+              'text-background-color': '#ffffff',
+              'text-background-opacity': 0.75,
+              'text-background-padding': '3px',
+              'text-background-shape': 'round-rectangle',
+              'width': 64,
+              'height': 64,
+              'shape': 'ellipse',
+              'background-color': 'data(color)',
+              'background-image': 'data(mandala)',
+              'background-fit': 'cover',
+              'background-position-x': '50%',
+              'background-position-y': '50%',
+              'background-clip': 'node',
+              'border-width': 2,
+              'border-color': 'transparent',
+              'border-opacity': 0
+            }
+          },
+          {
+            selector: 'node.selected',
+            style: {
+              'border-width': 3,
+              'border-color': 'data(color)',
+              'border-opacity': 1
+            }
+          },
+          {
+            selector: 'edge',
+            style: {
+              'width': 2,
+              'line-color': '#9ca3af',
+              'target-arrow-color': '#9ca3af',
+              'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'opacity': 1,
+              'label': 'data(label)',
+              'font-size': '10px',
+              'color': '#6b7280',
+              'text-background-color': '#ffffff',
+              'text-background-opacity': 0.75,
+              'text-background-padding': '2px',
+              'text-background-shape': 'round-rectangle',
+              'text-rotation': 'autorotate'
+            }
+          },
+          {
+            selector: 'edge.parent-edge',
+            style: {
+              'width': 3,
+              'line-color': '#f97316',
+              'target-arrow-color': '#f97316',
+              'opacity': 1
+            }
+          },
+          {
+            selector: 'edge.child-edge',
+            style: {
+              'width': 3,
+              'line-color': '#22c55e',
+              'target-arrow-color': '#22c55e',
+              'opacity': 1
+            }
+          },
+          {
+            selector: 'edge.dimmed',
+            style: {
+              'opacity': 0.12
+            }
+          },
+          {
+            selector: 'node.rel-target',
+            style: {
+              'border-width': 3,
+              'border-color': 'data(color)',
+              'border-opacity': 1,
+              'overlay-color': '#f59e0b',
+              'overlay-padding': 6,
+              'overlay-opacity': 0.25
+            }
+          },
+          {
+            selector: 'edge.cut-hover',
+            style: {
+              'width': 4,
+              'line-color': '#ef4444',
+              'target-arrow-color': '#ef4444',
+              'opacity': 1
+            }
+          }
+        ],
+        userZoomingEnabled: true,
+        userPanningEnabled: true,
+        minZoom: 0.1,
+        maxZoom: 4
+      });
+
+      // Expose cy for the fullscreen resize handler (registered before fetch)
+      window._cy = cy;
+
+      cy.fit(undefined, 160);
+      cy.nodes().each(function(n) {
+        var pos = n.position();
+        n.position({x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID});
+      });
+      cy.nodes().ungrabify();
+
+      // Restore fullscreen from URL param (bookmark / refresh support)
+      if (new URLSearchParams(window.location.search).get('fullscreen') === '1') {
+        document.getElementById('btn-fullscreen').click();
+      }
+
+      // Snap-to-grid on drag release (only active in layout mode)
+      cy.on('dragfree', 'node', function(evt) {
+        var node = evt.target;
+        var pos = node.position();
+        node.position({
+          x: Math.round(pos.x / GRID) * GRID,
+          y: Math.round(pos.y / GRID) * GRID,
+        });
+      });
+
+      // Snap back if the user pans all nodes off screen
+      var snapTimer = null;
+      cy.on('viewport', function() {
+        clearTimeout(snapTimer);
+        snapTimer = setTimeout(function() {
+          if (cy.nodes().length === 0) return;
+          var ext = cy.extent();
+          var bb = cy.nodes().boundingBox();
+          if (bb.x2 < ext.x1 || bb.x1 > ext.x2 || bb.y2 < ext.y1 || bb.y1 > ext.y2) {
+            cy.animate({fit: {eles: cy.nodes(), padding: 40}, duration: 400});
+          }
+        }, 300);
+      });
+
+      // Search highlight pulse
+      var searchParam = new URLSearchParams(window.location.search).get('search');
+      if (searchParam) {
+        var q = searchParam.toLowerCase();
+        var matched = cy.nodes().filter(function(n) {
+          return n.data('label').toLowerCase().indexOf(q) !== -1;
+        });
+        if (matched.length > 0) {
+          cy.fit(matched, 80);
+          var pulseOn = false;
+          var pulseCount = 0;
+          var pulseInterval = setInterval(function() {
+            pulseOn = !pulseOn;
+            matched.style({
+              'overlay-color': '#fbbf24',
+              'overlay-padding': 8,
+              'overlay-opacity': pulseOn ? 0.5 : 0
+            });
+            pulseCount++;
+            if (pulseCount >= 6) {
+              clearInterval(pulseInterval);
+              matched.style({'overlay-opacity': 0});
+            }
+          }, 500);
+        }
+      }
+
+      // Single tap: highlight parent/child edges for the clicked node.
+      cy.on('tap', 'node', function(evt) {
+        if (relMode) return;
+        var node = evt.target;
+        cy.edges().removeClass('parent-edge child-edge dimmed');
+        cy.nodes().removeClass('selected');
+        node.outgoers('edge').addClass('parent-edge');
+        node.incomers('edge').addClass('child-edge');
+        cy.edges().not('.parent-edge').not('.child-edge').addClass('dimmed');
+        node.addClass('selected');
+      });
+
+      // Tap on background: clear highlights.
+      cy.on('tap', function(evt) {
+        if (evt.target === cy) {
+          cy.edges().removeClass('parent-edge child-edge dimmed');
+          cy.nodes().removeClass('selected');
+        }
+      });
+
+      // Double-tap: navigate to group detail page.
+      cy.on('dbltap', 'node', function(evt) {
+        if (relMode) return;
+        window.location.href = '/admin/groups/' + evt.target.id();
+      });
+
+      // Set up SVG line overlay for relationship drawing
+      initRelOverlay();
+
+      // Mode helpers
+      var cutMode = false;
+
+      var BTN_ADD_ACTIVE = ['bg-amber-500', 'border-amber-500', 'text-white'];
+      var BTN_CUT_ACTIVE = ['bg-red-500', 'border-red-500', 'text-white'];
+      var BTN_INACTIVE = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300',
+                          'border-gray-300', 'dark:border-gray-600'];
+
+      function deactivateAddMode() {
+        relMode = false;
+        var btn = document.getElementById('btn-add-rel');
+        BTN_ADD_ACTIVE.forEach(function(c) { btn.classList.remove(c); });
+        BTN_INACTIVE.forEach(function(c) { btn.classList.add(c); });
+        document.getElementById('rel-hint').classList.add('hidden');
+        cy.nodes()[layoutMode ? 'grabify' : 'ungrabify']();
+        cy.userPanningEnabled(true);
+        cyEl.style.cursor = '';
+        cancelRelDraw();
+        document.getElementById('btn-layout-mode').classList.remove('hidden');
+      }
+
+      function deactivateCutMode() {
+        cutMode = false;
+        var btn = document.getElementById('btn-cut-rel');
+        BTN_CUT_ACTIVE.forEach(function(c) { btn.classList.remove(c); });
+        BTN_INACTIVE.forEach(function(c) { btn.classList.add(c); });
+        document.getElementById('cut-hint').classList.add('hidden');
+        cy.edges().removeClass('cut-hover');
+        cyEl.style.cursor = '';
+        document.getElementById('btn-layout-mode').classList.remove('hidden');
+      }
+
+      function enterLayoutMode() {
+        if (cutMode) { deactivateCutMode(); }
+        layoutMode = true;
+        cy.nodes().each(function(n) {
+          layoutPositionBackup[n.id()] = {x: n.position('x'), y: n.position('y')};
+        });
+        cy.nodes().grabify();
+        document.getElementById('btn-layout-mode').classList.add('hidden');
+        document.getElementById('btn-add-rel').classList.add('hidden');
+        document.getElementById('btn-cut-rel').classList.add('hidden');
+        document.getElementById('btn-save-layout').classList.remove('hidden');
+        document.getElementById('btn-cancel-layout').classList.remove('hidden');
+        document.getElementById('layout-hint').classList.remove('hidden');
+      }
+
+      function exitLayoutMode(save) {
+        if (save) {
+          saveLayout(cy);
+        } else {
+          cy.nodes().each(function(n) {
+            if (layoutPositionBackup[n.id()]) { n.position(layoutPositionBackup[n.id()]); }
+          });
+        }
+        layoutMode = false;
+        layoutPositionBackup = {};
+        cy.nodes().ungrabify();
+        document.getElementById('btn-layout-mode').classList.remove('hidden');
+        document.getElementById('btn-add-rel').classList.remove('hidden');
+        document.getElementById('btn-cut-rel').classList.remove('hidden');
+        document.getElementById('btn-save-layout').classList.add('hidden');
+        document.getElementById('btn-cancel-layout').classList.add('hidden');
+        document.getElementById('layout-hint').classList.add('hidden');
+      }
+
+      // Add Relationship mode toggle
+      document.getElementById('btn-add-rel').addEventListener('click', function() {
+        if (relMode) {
+          deactivateAddMode();
+        } else {
+          if (cutMode) deactivateCutMode();
+          relMode = true;
+          BTN_INACTIVE.forEach(function(c) { this.classList.remove(c); }, this);
+          BTN_ADD_ACTIVE.forEach(function(c) { this.classList.add(c); }, this);
+          document.getElementById('rel-hint').classList.remove('hidden');
+          document.getElementById('btn-layout-mode').classList.add('hidden');
+          cy.nodes().ungrabify();
+          cy.userPanningEnabled(false);
+          cyEl.style.cursor = 'crosshair';
+        }
+      });
+
+      // Cut Relationship mode toggle
+      document.getElementById('btn-cut-rel').addEventListener('click', function() {
+        if (cutMode) {
+          deactivateCutMode();
+        } else {
+          if (relMode) deactivateAddMode();
+          cutMode = true;
+          BTN_INACTIVE.forEach(function(c) { this.classList.remove(c); }, this);
+          BTN_CUT_ACTIVE.forEach(function(c) { this.classList.add(c); }, this);
+          document.getElementById('cut-hint').classList.remove('hidden');
+          document.getElementById('btn-layout-mode').classList.add('hidden');
+        }
+      });
+
+      window.addEventListener('beforeunload', function(e) {
+        if (layoutMode) { e.preventDefault(); }
+      });
+
+      // Layout mode buttons
+      document.getElementById('btn-layout-mode').addEventListener('click', function() {
+        enterLayoutMode();
+      });
+      document.getElementById('btn-save-layout').addEventListener('click', function() {
+        exitLayoutMode(true);
+      });
+      document.getElementById('btn-cancel-layout').addEventListener('click', function() {
+        exitLayoutMode(false);
+      });
+
+      // Edge hover highlight in cut mode
+      cy.on('mouseover', 'edge', function(evt) {
+        if (!cutMode) return;
+        evt.target.addClass('cut-hover');
+        cyEl.style.cursor = 'pointer';
+      });
+      cy.on('mouseout', 'edge', function(evt) {
+        if (!cutMode) return;
+        evt.target.removeClass('cut-hover');
+        cyEl.style.cursor = '';
+      });
+
+      // Cut: tap an edge to delete the relationship
+      cy.on('tap', 'edge', function(evt) {
+        if (!cutMode) return;
+        var edge = evt.target;
+        var childId = edge.data('source');
+        var parentId = edge.data('target');
+        fetch('/api/v1/groups/' + childId + '/parents/' + parentId, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        }).then(function(r) {
+          if (!r.ok) throw new Error('Failed');
+          edge.remove();
+        }).catch(function() {});
+      });
+
+      // Start drawing on node mousedown
+      cy.on('mousedown', 'node', function(evt) {
+        if (!relMode) return;
+        relDrawing = true;
+        relSourceNode = evt.target;
+        var pos = relSourceNode.renderedPosition();
+        relLine.setAttribute('x1', pos.x);
+        relLine.setAttribute('y1', pos.y);
+        relLine.setAttribute('x2', pos.x);
+        relLine.setAttribute('y2', pos.y);
+        relLine.style.visibility = 'visible';
+      });
+
+      // Complete relationship on mouseup — use native DOM event + bounding-box
+      // hit test because Cytoscape's synthetic mouseup on a node doesn't fire
+      // when the drag originated from a different node.
+      cyEl.addEventListener('mouseup', function(e) {
+        if (!relDrawing) return;
+        var source = relSourceNode;
+        var rect = cyEl.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var targetNode = null;
+        cy.nodes().each(function(n) {
+          if (source && n.id() === source.id()) return;
+          var bb = n.renderedBoundingBox();
+          if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
+            targetNode = n;
+          }
+        });
+        cancelRelDraw();
+        if (!source || !targetNode) return;
+        var childId = source.id();
+        var parentId = targetNode.id();
+        fetch('/api/v1/groups/' + childId + '/parents', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({parent_group_id: parentId})
+        }).then(function(r) {
+          if (!r.ok) throw new Error('Failed');
+          cy.add({data: {source: childId, target: parentId, label: ''}});
+        }).catch(function() {});
+      });
+    })
+    .catch(function() {
+      cyEl.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:14px;">Failed to load graph data.</div>';
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

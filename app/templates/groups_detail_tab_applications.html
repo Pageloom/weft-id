@@ -2,13 +2,31 @@
 
 {% block tab_content %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Applications
-        </h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Applications accessible to members of this group via SSO.
-        </p>
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Applications
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Applications accessible to members of this group via SSO.
+            </p>
+        </div>
+        {% if available_sps %}
+        <form method="post" action="/admin/groups/{{ group.id }}/applications/add" class="flex gap-2 shrink-0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="sp_id" required
+                    class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <option value="">Assign application...</option>
+                {% for sp in available_sps %}
+                <option value="{{ sp.id }}">{{ sp.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-md text-sm whitespace-nowrap">
+                Assign
+            </button>
+        </form>
+        {% endif %}
     </div>
 
     {% if not assigned_sps and not inherited_sps %}
@@ -36,11 +54,22 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ spa.sp_description }}</p>
                     {% endif %}
                 </div>
-                {% if spa.sp_entity_id %}
-                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono ml-4 shrink-0">
-                    {{ spa.sp_entity_id[:50] }}{% if spa.sp_entity_id|length > 50 %}…{% endif %}
-                </span>
-                {% endif %}
+                <div class="flex items-center gap-4 ml-4 shrink-0">
+                    {% if spa.sp_entity_id %}
+                    <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                        {{ spa.sp_entity_id[:50] }}{% if spa.sp_entity_id|length > 50 %}…{% endif %}
+                    </span>
+                    {% endif %}
+                    <form method="post" action="/admin/groups/{{ group.id }}/applications/{{ spa.sp_id }}/remove">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="confirm-btn text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                                data-confirm="Remove {{ spa.sp_name }} from this group?"
+                                data-destructive="false">
+                            Remove
+                        </button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         </div>

@@ -289,6 +289,36 @@ def list_available_groups_for_sp(
     ]
 
 
+def list_available_sps_for_group(
+    requesting_user: RequestingUser,
+    group_id: str,
+) -> list[dict]:
+    """List SPs not yet directly assigned to a group (for assign dropdown).
+
+    Authorization: Requires admin role.
+
+    Returns:
+        List of dicts with id, name for unassigned SPs.
+    """
+    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Get all SPs
+    all_sps = database.service_providers.list_service_providers(tenant_id)
+
+    # Get already-assigned SP IDs for this group
+    assigned = database.sp_group_assignments.list_assignments_for_group(tenant_id, group_id)
+    assigned_ids = {str(row["sp_id"]) for row in assigned}
+
+    return [
+        {"id": str(sp["id"]), "name": sp["name"]}
+        for sp in all_sps
+        if str(sp["id"]) not in assigned_ids
+    ]
+
+
 def check_user_sp_access(tenant_id: str, user_id: str, sp_id: str) -> bool:
     """Check if a user can access an SP via group assignments.
 

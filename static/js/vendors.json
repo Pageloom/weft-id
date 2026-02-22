@@ -1,0 +1,13 @@
+{
+  "vendors": [
+    {
+      "name": "cytoscape",
+      "osv_name": "cytoscape",
+      "version": "3.30.4",
+      "source": "https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js",
+      "file": "static/js/cytoscape.min.js",
+      "sri": "sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z",
+      "sha256": "1bb5340e549511e111b31e5684872c949ad33d40ea5dba0ad8e7d90c62c7b3b9"
+    }
+  ]
+}

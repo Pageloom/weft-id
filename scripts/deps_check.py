@@ -3,7 +3,8 @@
 Dependency security scanning script for vulnerability assessment.
 
 This script checks project dependencies against the OSV (Open Source Vulnerabilities)
-database to identify known security vulnerabilities.
+database to identify known security vulnerabilities. It scans both Python (PyPI) and
+vendored JavaScript (npm) dependencies.
 
 Usage:
     python scripts/deps_check.py [--json] [--include-dev] [--package PACKAGE]
@@ -19,6 +20,7 @@ Output:
 """
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -411,6 +413,19 @@ def find_pip_audit() -> list[str] | None:
     except FileNotFoundError:
         pass
 
+    # Try 4: poetry run python -m pip_audit (bypasses stale script shebangs)
+    try:
+        result = subprocess.run(
+            ["poetry", "run", "python", "-m", "pip_audit", "--version"],
+            capture_output=True,
+            text=True,
+            cwd=get_project_root(),
+        )
+        if result.returncode == 0:
+            return ["poetry", "run", "python", "-m", "pip_audit"]
+    except FileNotFoundError:
+        pass
+
     return None
 
 
@@ -631,6 +646,136 @@ def scan_with_osv_api(
             )
 
 
+# =============================================================================
+# JS Vendor Scanning
+# =============================================================================
+
+VENDORS_FILE = "static/js/vendors.json"
+
+
+def load_vendors() -> list[dict[str, Any]]:
+    """Load the JS vendor manifest from static/js/vendors.json."""
+    vendors_path = get_project_root() / VENDORS_FILE
+    if not vendors_path.exists():
+        return []
+    try:
+        with open(vendors_path) as f:
+            data = json.load(f)
+            return data.get("vendors", [])
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def verify_vendor_hash(vendor: dict[str, Any]) -> list[str]:
+    """
+    Verify the SHA-256 hash of a vendored JS file.
+
+    Returns a list of error strings (empty if the file is valid).
+    """
+    errors: list[str] = []
+    file_path = get_project_root() / vendor["file"]
+    expected_sha256 = vendor.get("sha256")
+
+    if not expected_sha256:
+        errors.append(f"{vendor['name']}: no sha256 in vendor manifest")
+        return errors
+
+    if not file_path.exists():
+        errors.append(f"{vendor['name']}: file not found at {vendor['file']}")
+        return errors
+
+    actual = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    if actual != expected_sha256:
+        errors.append(
+            f"{vendor['name']}: hash mismatch for {vendor['file']}\n"
+            f"  expected: {expected_sha256}\n"
+            f"  actual:   {actual}"
+        )
+
+    return errors
+
+
+def query_osv_npm(package: str, version: str) -> list[dict[str, Any]]:
+    """Query the OSV API for an npm package vulnerability."""
+    url = "https://api.osv.dev/v1/query"
+    payload = json.dumps(
+        {
+            "package": {
+                "name": package,
+                "ecosystem": "npm",
+            },
+            "version": version,
+        }
+    ).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data.get("vulns", [])
+    except (urllib.error.URLError, json.JSONDecodeError):
+        return []
+
+
+def scan_js_vendors(report: SecurityReport) -> None:
+    """Scan vendored JS libraries for known vulnerabilities and hash integrity."""
+    vendors = load_vendors()
+
+    for vendor in vendors:
+        name = vendor.get("name", "unknown")
+        osv_name = vendor.get("osv_name", name)
+        version = vendor.get("version", "")
+
+        # Verify file hash integrity
+        hash_errors = verify_vendor_hash(vendor)
+        report.scan_errors.extend(hash_errors)
+
+        if not version:
+            report.scan_errors.append(f"{name}: no version in vendor manifest")
+            continue
+
+        report.packages_scanned += 1
+        vulns = query_osv_npm(osv_name, version)
+
+        for v in vulns:
+            vuln_id = v.get("id", "UNKNOWN")
+
+            fixed_version = None
+            for affected in v.get("affected", []):
+                for r in affected.get("ranges", []):
+                    for event in r.get("events", []):
+                        if "fixed" in event:
+                            fixed_version = event["fixed"]
+                            break
+
+            severity = "unknown"
+            for sev in v.get("severity", []):
+                severity = map_severity(sev)
+                if severity != "unknown":
+                    break
+
+            aliases = v.get("aliases", [])
+            if severity == "unknown":
+                severity = fetch_severity_for_vuln(vuln_id, aliases)
+
+            report.add(
+                Vulnerability(
+                    package=f"{name} (JS)",
+                    installed_version=version,
+                    vulnerability_id=vuln_id,
+                    severity=severity,
+                    description=v.get("summary", v.get("details", ""))[:500],
+                    fixed_version=fixed_version,
+                    advisory_url=f"https://osv.dev/vulnerability/{vuln_id}",
+                    aliases=aliases,
+                )
+            )
+
+
 def run_security_scan(
     include_dev: bool = False,
     package: str | None = None,
@@ -669,6 +814,9 @@ def run_security_scan(
     if report.scan_errors and "not installed" in report.scan_errors[0]:
         report.scan_errors = []  # Clear the pip-audit error
         scan_with_osv_api(report, prod_deps, dev_deps, include_dev, locked_versions)
+
+    # Scan vendored JS libraries
+    scan_js_vendors(report)
 
     return report
 

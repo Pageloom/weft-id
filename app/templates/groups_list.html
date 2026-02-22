@@ -731,7 +731,7 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
       // Double-tap: navigate to group detail page.
       cy.on('dbltap', 'node', function(evt) {
         if (relMode) return;
-        window.location.href = '/admin/groups/' + evt.target.id();
+        window.location.href = '/admin/groups/' + evt.target.id() + '/relationships';
       });
 
       // Set up SVG line overlay for relationship drawing

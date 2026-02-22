@@ -1,0 +1,309 @@
+{% extends "groups_detail_base.html" %}
+
+{% block tab_content %}
+<script type="application/json" id="neighborhood-data" nonce="{{ csp_nonce }}">{{ neighborhood_data|tojson }}</script>
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Neighborhood</h2>
+    <div id="cy-neighborhood"
+         class="w-full border border-gray-200 dark:border-gray-700 rounded-lg"
+         style="height: 380px;"></div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Double-click a group to navigate to its relationships.</p>
+</div>
+
+{% if group.group_type == 'weftid' %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mb-6">
+    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+        Parent Groups ({{ parents|length }})
+    </h2>
+
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Parent groups include this group's members in their effective membership.
+    </p>
+
+    {% if available_parents %}
+    <form method="post" action="/admin/groups/{{ group.id }}/parents/add" class="mb-4 flex gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="parent_group_id" required
+                class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="">Select parent group...</option>
+            {% for g in available_parents %}
+            <option value="{{ g.id }}">{{ g.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm">
+            Add Parent
+        </button>
+    </form>
+    {% endif %}
+
+    {% if parents %}
+    <div class="space-y-2">
+        {% for parent in parents %}
+        <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+            <a href="/admin/groups/{{ parent.group_id }}/relationships" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                {{ parent.name }}
+            </a>
+            <form method="post" action="/admin/groups/{{ group.id }}/parents/{{ parent.group_id }}/remove">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
+                        data-confirm="Remove {{ parent.name }} as a parent of this group?"
+                        data-destructive="true">
+                    Remove
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No parent groups.</p>
+    {% endif %}
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+        Child Groups ({{ children|length }})
+    </h2>
+
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Child groups contribute their members to this group's effective membership.
+    </p>
+
+    {% if available_children %}
+    <form method="post" action="/admin/groups/{{ group.id }}/children/add" class="mb-4 flex gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="child_group_id" required
+                class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="">Select child group...</option>
+            {% for g in available_children %}
+            <option value="{{ g.id }}">{{ g.name }}{% if g.group_type == 'idp' %} (IdP){% endif %}</option>
+            {% endfor %}
+        </select>
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm">
+            Add Child
+        </button>
+    </form>
+    {% endif %}
+
+    {% if children %}
+    <div class="space-y-2">
+        {% for child in children %}
+        <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+            <div>
+                <a href="/admin/groups/{{ child.group_id }}/relationships" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                    {{ child.name }}
+                </a>
+                <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                    ({{ child.member_count }} members)
+                </span>
+            </div>
+            <form method="post" action="/admin/groups/{{ group.id }}/children/{{ child.group_id }}/remove">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400"
+                        data-confirm="Remove {{ child.name }} as a child of this group?"
+                        data-destructive="true">
+                    Remove
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No child groups.</p>
+    {% endif %}
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 mb-6">
+    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+        Parent Groups ({{ parents|length }})
+    </h2>
+    {% if parents %}
+    <div class="space-y-2">
+        {% for parent in parents %}
+        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+            <a href="/admin/groups/{{ parent.group_id }}/relationships" class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                {{ parent.name }}
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No parent groups.</p>
+    {% endif %}
+    <p class="text-sm text-amber-600 dark:text-amber-400 mt-4">
+        IdP groups cannot have child groups. Relationships are managed by the identity provider.
+    </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}" src="/static/js/cytoscape.min.js"></script>
+<script nonce="{{ csp_nonce }}" src="/static/js/group-mandala.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var raw = document.getElementById('neighborhood-data').textContent;
+    var data = JSON.parse(raw);
+    var isDark = document.documentElement.classList.contains('dark');
+    var labelColor = isDark ? '#d1d5db' : '#1f2937';
+    var textBg = isDark ? '#1f2937' : '#ffffff';
+
+    var container = document.getElementById('cy-neighborhood');
+    var W = container.offsetWidth || 600;
+    var centerX = W / 2;
+
+    var elements = [];
+
+    // Center node (current group)
+    var centerMandala = generateGroupMandala(data.group.id);
+    elements.push({
+        data: {
+            id: data.group.id,
+            label: data.group.name,
+            image: centerMandala.image,
+            color: centerMandala.color,
+            nodeType: 'center'
+        },
+        position: { x: centerX, y: 190 }
+    });
+
+    // Parent nodes (above center)
+    var parents = data.parents || [];
+    parents.forEach(function (p, i) {
+        var spacing = 140;
+        var totalWidth = (parents.length - 1) * spacing;
+        var x = centerX - totalWidth / 2 + i * spacing;
+        var mandala = generateGroupMandala(p.id);
+        elements.push({
+            data: {
+                id: p.id,
+                label: p.name,
+                image: mandala.image,
+                color: mandala.color,
+                nodeType: 'parent'
+            },
+            position: { x: x, y: 60 }
+        });
+        elements.push({
+            data: {
+                id: 'e-' + data.group.id + '-' + p.id,
+                source: data.group.id,
+                target: p.id
+            }
+        });
+    });
+
+    // Child nodes (below center)
+    var children = data.children || [];
+    children.forEach(function (c, i) {
+        var spacing = 140;
+        var totalWidth = (children.length - 1) * spacing;
+        var x = centerX - totalWidth / 2 + i * spacing;
+        var mandala = generateGroupMandala(c.id);
+        elements.push({
+            data: {
+                id: c.id,
+                label: c.name,
+                image: mandala.image,
+                color: mandala.color,
+                nodeType: 'child'
+            },
+            position: { x: x, y: 320 }
+        });
+        elements.push({
+            data: {
+                id: 'e-' + c.id + '-' + data.group.id,
+                source: c.id,
+                target: data.group.id
+            }
+        });
+    });
+
+    var sharedNodeStyle = {
+        'label': 'data(label)',
+        'text-wrap': 'wrap',
+        'text-max-width': '90px',
+        'font-size': '11px',
+        'text-valign': 'bottom',
+        'text-halign': 'center',
+        'text-margin-y': 6,
+        'color': labelColor,
+        'text-background-color': textBg,
+        'text-background-opacity': 0.85,
+        'text-background-padding': '3px',
+        'text-background-shape': 'round-rectangle',
+        'width': 64,
+        'height': 64,
+        'background-color': 'data(color)',
+        'background-image': 'data(image)',
+        'background-fit': 'cover',
+        'background-clip': 'node',
+        'border-width': 0,
+        'border-opacity': 0
+    };
+
+    var cy = cytoscape({
+        container: container,
+        elements: elements,
+        layout: { name: 'preset' },
+        style: [
+            {
+                selector: 'node',
+                style: sharedNodeStyle
+            },
+            {
+                selector: 'node[nodeType = "center"]',
+                style: {
+                    'border-width': 3,
+                    'border-color': isDark ? '#60a5fa' : '#2563eb',
+                    'border-opacity': 1
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 2,
+                    'line-color': '#9ca3af',
+                    'target-arrow-color': '#9ca3af',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'opacity': 1
+                }
+            }
+        ],
+        userZoomingEnabled: true,
+        userPanningEnabled: true,
+        minZoom: 0.3,
+        maxZoom: 3,
+        boxSelectionEnabled: false
+    });
+
+    cy.fit(undefined, 60);
+
+    // Fetch details for adjacent nodes and update labels with P/C hint
+    var adjacentIds = parents.map(function (p) { return p.id; })
+                             .concat(children.map(function (c) { return c.id; }));
+    if (adjacentIds.length > 0) {
+        Promise.all(adjacentIds.map(function (id) {
+            return fetch('/api/v1/groups/' + id)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .catch(function () { return null; });
+        })).then(function (results) {
+            results.forEach(function (g) {
+                if (!g) return;
+                var node = cy.getElementById(g.id);
+                if (!node.length) return;
+                node.data('label', g.name + '\n' + g.parent_count + 'P \u00b7 ' + g.child_count + 'C');
+            });
+        });
+    }
+
+    // Double-tap to navigate to that group's relationships tab
+    cy.on('dbltap', 'node', function (evt) {
+        window.location.href = '/admin/groups/' + evt.target.id() + '/relationships';
+    });
+})();
+</script>
+{% endblock %}

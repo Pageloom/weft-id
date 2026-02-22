@@ -1,0 +1,28 @@
+{% extends "groups_detail_base.html" %}
+
+{% block tab_content %}
+{% if group.group_type == 'weftid' or (group.group_type == 'idp' and not group.is_valid) %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
+    <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Deleting this group will remove all members and relationships. This cannot be undone.
+    </p>
+    <form method="post" action="/admin/groups/{{ group.id }}/delete" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                data-confirm="Delete group '{{ group.name }}'?&#10;&#10;Members will be removed. Child groups will be orphaned."
+                data-destructive="true">
+            Delete Group
+        </button>
+    </form>
+</div>
+{% else %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+    <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Delete Group</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+        IdP groups are managed by the identity provider and cannot be deleted from here.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

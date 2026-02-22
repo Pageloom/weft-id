@@ -446,8 +446,21 @@ def mock_group_detail_deps(mocker):
     return mocks
 
 
-def test_group_detail_renders(test_admin_user, override_auth, mock_group_detail_deps):
-    """Test group detail page renders successfully."""
+def test_group_detail_redirects_to_details_tab(test_admin_user, override_auth):
+    """Test GET /admin/groups/{id} redirects to the details tab."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/admin/groups/{group_id}/details"
+
+
+def test_group_tab_details_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group details tab renders successfully."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -466,16 +479,130 @@ def test_group_detail_renders(test_admin_user, override_auth, mock_group_detail_
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}")
+    response = client.get(f"/admin/groups/{group_id}/details")
 
     assert response.status_code == 200
     mock_group_detail_deps["template"].assert_called_once()
     template_name = mock_group_detail_deps["template"].call_args[0][0]
-    assert template_name == "groups_detail.html"
+    assert template_name == "groups_detail_tab_details.html"
 
 
-def test_group_detail_not_found(test_admin_user, override_auth, mocker):
-    """Test group detail page handles not found error."""
+def test_group_tab_membership_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group membership tab renders successfully."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(
+        content="<html>membership</html>"
+    )
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/membership")
+
+    assert response.status_code == 200
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail_tab_membership.html"
+
+
+def test_group_tab_applications_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group applications tab renders successfully."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(
+        content="<html>applications</html>"
+    )
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/applications")
+
+    assert response.status_code == 200
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail_tab_applications.html"
+
+
+def test_group_tab_relationships_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group relationships tab renders successfully."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(
+        content="<html>relationships</html>"
+    )
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/relationships")
+
+    assert response.status_code == 200
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail_tab_relationships.html"
+
+
+def test_group_tab_danger_renders(test_admin_user, override_auth, mock_group_detail_deps):
+    """Test group danger tab renders successfully."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>danger</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/danger")
+
+    assert response.status_code == 200
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail_tab_danger.html"
+
+
+def test_group_tab_details_not_found(test_admin_user, override_auth, mocker):
+    """Test group details tab handles not found error."""
     from services.exceptions import NotFoundError
 
     override_auth(test_admin_user, level="admin")
@@ -489,15 +616,15 @@ def test_group_detail_not_found(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}")
+    response = client.get(f"/admin/groups/{group_id}/details")
 
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_group_detail_service_error(test_admin_user, override_auth, mocker):
-    """Test group detail page handles generic service errors."""
+def test_group_tab_details_service_error(test_admin_user, override_auth, mocker):
+    """Test group details tab handles generic service errors."""
     from services.exceptions import ServiceError
 
     override_auth(test_admin_user, level="admin")
@@ -515,15 +642,17 @@ def test_group_detail_service_error(test_admin_user, override_auth, mocker):
     mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}")
+    response = client.get(f"/admin/groups/{group_id}/details")
 
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
 
 
-def test_group_detail_shows_success_message(test_admin_user, override_auth, mock_group_detail_deps):
-    """Test group detail page shows success query param."""
+def test_group_tab_details_shows_success_message(
+    test_admin_user, override_auth, mock_group_detail_deps
+):
+    """Test group details tab shows success query param."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -542,7 +671,7 @@ def test_group_detail_shows_success_message(test_admin_user, override_auth, mock
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}?success=updated")
+    response = client.get(f"/admin/groups/{group_id}/details?success=updated")
 
     assert response.status_code == 200
     ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]
@@ -571,8 +700,7 @@ def test_update_group_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
-    assert "success=updated" in response.headers["location"]
+    assert response.headers["location"] == f"/admin/groups/{group_id}/details?success=updated"
 
 
 def test_update_group_validation_error(test_admin_user, override_auth, mocker):
@@ -1120,8 +1248,8 @@ def test_add_child_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
-    assert "success=child_added" in response.headers["location"]
+    expected = f"/admin/groups/{group_id}/relationships?success=child_added"
+    assert response.headers["location"] == expected
     mock_add.assert_called_once()
 
 
@@ -1237,8 +1365,8 @@ def test_remove_child_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
-    assert "success=child_removed" in response.headers["location"]
+    expected = f"/admin/groups/{group_id}/relationships?success=child_removed"
+    assert response.headers["location"] == expected
 
 
 def test_remove_child_not_found(test_admin_user, override_auth, mocker):
@@ -1309,8 +1437,8 @@ def test_add_parent_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
-    assert "success=parent_added" in response.headers["location"]
+    expected = f"/admin/groups/{group_id}/relationships?success=parent_added"
+    assert response.headers["location"] == expected
     # Should call add_child with parent as parent and group as child
     mock_add.assert_called_once()
 
@@ -1427,8 +1555,8 @@ def test_remove_parent_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
-    assert "success=parent_removed" in response.headers["location"]
+    expected = f"/admin/groups/{group_id}/relationships?success=parent_removed"
+    assert response.headers["location"] == expected
 
 
 def test_remove_parent_not_found(test_admin_user, override_auth, mocker):
@@ -1484,7 +1612,7 @@ def test_remove_parent_service_error(test_admin_user, override_auth, mocker):
 def test_group_detail_with_effective_members(
     test_admin_user, override_auth, mock_group_detail_deps
 ):
-    """Test group detail page shows effective member count when group has children."""
+    """Test group details tab shows effective member count when group has children."""
     from schemas.groups import EffectiveMemberList
 
     override_auth(test_admin_user, level="admin")
@@ -1516,7 +1644,7 @@ def test_group_detail_with_effective_members(
     mock_group_detail_deps["get_effective_members"].return_value = mock_effective
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}")
+    response = client.get(f"/admin/groups/{group_id}/details")
 
     assert response.status_code == 200
     mock_group_detail_deps["get_effective_members"].assert_called_once()
@@ -1527,7 +1655,7 @@ def test_group_detail_with_effective_members(
 def test_group_detail_no_effective_members_without_children(
     test_admin_user, override_auth, mock_group_detail_deps
 ):
-    """Test group detail page does not fetch effective members when no children."""
+    """Test group details tab does not fetch effective members when no children."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -1547,7 +1675,7 @@ def test_group_detail_no_effective_members_without_children(
     mock_group_detail_deps["template"].return_value = HTMLResponse(content="<html>detail</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}")
+    response = client.get(f"/admin/groups/{group_id}/details")
 
     assert response.status_code == 200
     ctx_kwargs = mock_group_detail_deps["get_context"].call_args[1]

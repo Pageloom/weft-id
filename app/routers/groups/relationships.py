@@ -41,14 +41,14 @@ def add_child(
         groups_service.add_child(requesting_user, group_id, child_group_id)
     except (NotFoundError, ConflictError, ValidationError) as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}?error={exc.code}",
+            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}?success=child_added",
+        url=f"/admin/groups/{group_id}/relationships?success=child_added",
         status_code=303,
     )
 
@@ -68,14 +68,14 @@ def remove_child(
         groups_service.remove_child(requesting_user, group_id, child_group_id)
     except NotFoundError as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}?error={exc.code}",
+            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}?success=child_removed",
+        url=f"/admin/groups/{group_id}/relationships?success=child_removed",
         status_code=303,
     )
 
@@ -96,14 +96,14 @@ def add_parent(
         groups_service.add_child(requesting_user, parent_group_id, group_id)
     except (NotFoundError, ConflictError, ValidationError) as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}?error={exc.code}",
+            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}?success=parent_added",
+        url=f"/admin/groups/{group_id}/relationships?success=parent_added",
         status_code=303,
     )
 
@@ -124,13 +124,13 @@ def remove_parent(
         groups_service.remove_child(requesting_user, parent_group_id, group_id)
     except NotFoundError as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}?error={exc.code}",
+            url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}?success=parent_removed",
+        url=f"/admin/groups/{group_id}/relationships?success=parent_removed",
         status_code=303,
     )

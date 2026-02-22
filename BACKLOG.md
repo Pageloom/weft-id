@@ -115,3 +115,73 @@ Quality:
 
 ---
 
+## Groups Overview: Redesigned List and Network Graph View
+
+**User Story:**
+As an admin
+I want a redesigned groups overview page that shows relationship context at a glance and lets me visualize the full group network
+So that I can quickly understand group structure without opening each group individually
+
+**Context:**
+
+The current groups list shows Name, Description, Type, Members, Created, and a redundant "Actions" column (the name is already a clickable link). It gives no insight into how groups relate to each other. A network graph view would expose the shape of the group hierarchy without requiring navigation.
+
+The graph view is an optional toggle alongside the list view. Cytoscape.js is a purpose-built network graph library and the recommended implementation choice, but the library selection is an implementation detail.
+
+**Acceptance Criteria:**
+
+List view:
+- [ ] Columns: Name, Type, Parents (count), Children (count), Members (direct + inherited total)
+- [ ] Remove the Description column and the Actions column
+- [ ] Existing search and pagination remain
+
+Graph view:
+- [ ] Toggle button to switch between list view and graph view (persisted in URL or session)
+- [ ] One node per group; directed edges from child to parent
+- [ ] Nodes labeled with group name and member count
+- [ ] Supports zoom in/out (vector-based rendering; at 100% attempts to fit all groups)
+- [ ] Supports pan when content exceeds the visible area
+- [ ] Clicking a node navigates to that group's detail page
+- [ ] Graph view is read-only (no editing from the graph)
+
+**Effort:** M
+**Value:** High (Makes group relationships immediately visible; reduces admin navigation)
+
+---
+
+## Group Detail: Tabbed Layout with Relationship Diagram
+
+**User Story:**
+As an admin
+I want the group detail page reorganized into tabs with a visual relationship diagram
+So that I can navigate group content more efficiently and understand a group's position in the hierarchy at a glance
+
+**Context:**
+
+The current group detail page is a long scroll of stacked sections: name/description form, members, assigned apps, parent groups, child groups. The service provider and IdP detail pages use tabbed layouts that work well for organizing this kind of multi-faceted content. The same pattern should be applied here.
+
+The Relationships tab replaces the current flat parent/child lists with a local neighborhood diagram: the current group in the center, with arrows to each direct parent and child. Each adjacent node shows a hint of its own relationship count. Clicking a node navigates to that group's detail page.
+
+**Acceptance Criteria:**
+
+Tab structure:
+- [ ] Details tab: name, description, type badge, IdP source (if applicable), created/updated timestamps, delete action
+- [ ] Members tab: direct member count, effective (inherited) member count, link to member management page, IdP-managed notice where applicable
+- [ ] Applications tab: list of SPs this group grants access to (current Assigned Applications section)
+- [ ] Relationships tab: local neighborhood diagram (see below)
+- [ ] Active tab preserved in URL hash or query param for direct linking and browser back/forward
+
+Relationships tab:
+- [ ] Current group rendered as a center node
+- [ ] Direct parent groups rendered as connected nodes with directed arrows (child to parent)
+- [ ] Direct child groups rendered as connected nodes with directed arrows (child to parent)
+- [ ] Each adjacent node shows a hint: e.g. "2 parents" or "3 children"
+- [ ] Clicking an adjacent node navigates to that group's detail page (same tab)
+- [ ] Add/remove parent and add/remove child controls remain accessible within this tab
+- [ ] Read-only display for IdP groups (no add/remove controls)
+
+**Effort:** M
+**Value:** High (Reduces scroll fatigue; makes group relationships immediately navigable)
+
+---
+

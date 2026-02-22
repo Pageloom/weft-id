@@ -331,3 +331,158 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
 # This is by design - the function is meant for background workers that run
 # with elevated privileges (BYPASSRLS) in production.
 # =============================================================================
+
+
+# =============================================================================
+# SAML domain-scoped user counts (database.saml.security)
+# =============================================================================
+
+
+def _create_saml_idp(tenant, user, name="Count IdP"):
+    """Create a SAML IdP for domain count tests."""
+    from uuid import uuid4
+
+    import database
+
+    return database.fetchone(
+        tenant["id"],
+        """
+        INSERT INTO saml_identity_providers (
+            tenant_id, name, provider_type, entity_id, sso_url,
+            certificate_pem, sp_entity_id, created_by
+        ) VALUES (
+            :tenant_id, :name, 'generic', :entity_id,
+            'https://idp.example.com/sso', 'cert-placeholder',
+            'https://sp.example.com', :created_by
+        ) RETURNING id
+        """,
+        {
+            "tenant_id": tenant["id"],
+            "name": name,
+            "entity_id": f"https://idp-{uuid4().hex[:8]}.example.com",
+            "created_by": user["id"],
+        },
+    )
+
+
+def test_count_users_without_idp_in_domain_counts_password_users(test_tenant, test_user):
+    """Test counting users in a domain who have no IdP assigned."""
+    import database
+
+    domain = test_user["email"].split("@")[1]
+
+    count = database.saml.count_users_without_idp_in_domain(test_tenant["id"], domain)
+
+    # test_user has a verified email, no IdP → should be counted
+    assert count >= 1
+
+
+def test_count_users_without_idp_in_domain_excludes_idp_users(
+    test_tenant, test_user, test_admin_user
+):
+    """Test that users with an IdP assigned are not counted."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user)
+    domain = test_user["email"].split("@")[1]
+
+    # Assign test_user to IdP
+    database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+    count = database.saml.count_users_without_idp_in_domain(test_tenant["id"], domain)
+
+    # test_user now has an IdP - only admin should be counted
+    admin_domain = test_admin_user["email"].split("@")[1]
+    assert admin_domain == domain  # both use example.com
+
+    # Only admin is without IdP
+    assert count == 1
+
+
+def test_count_users_without_idp_in_domain_excludes_unverified_emails(test_tenant, test_user):
+    """Test that users with unverified emails are not counted."""
+    import database
+
+    # test_tenant only has test_user; unverifying makes count drop to 0
+    domain = test_user["email"].split("@")[1]
+    count_before = database.saml.count_users_without_idp_in_domain(test_tenant["id"], domain)
+    assert count_before >= 1
+
+    database.users.unverify_user_emails(test_tenant["id"], str(test_user["id"]))
+
+    count_after = database.saml.count_users_without_idp_in_domain(test_tenant["id"], domain)
+    assert count_after == count_before - 1
+
+
+def test_count_users_without_idp_in_domain_zero_for_unknown_domain(test_tenant):
+    """Test that an unknown domain returns 0."""
+    import database
+
+    count = database.saml.count_users_without_idp_in_domain(
+        test_tenant["id"], "unknowndomain.invalid"
+    )
+
+    assert count == 0
+
+
+def test_count_users_with_idp_in_domain_counts_assigned_users(test_tenant, test_user):
+    """Test counting users in a domain who are assigned to a specific IdP."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user)
+    domain = test_user["email"].split("@")[1]
+
+    # Before assignment: 0
+    count_before = database.saml.count_users_with_idp_in_domain(
+        test_tenant["id"], domain, str(idp["id"])
+    )
+    assert count_before == 0
+
+    # Assign user
+    database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+    count_after = database.saml.count_users_with_idp_in_domain(
+        test_tenant["id"], domain, str(idp["id"])
+    )
+    assert count_after == 1
+
+
+def test_count_users_with_idp_in_domain_scoped_to_specific_idp(
+    test_tenant, test_user, test_admin_user
+):
+    """Test that count is scoped to the given IdP, not all IdPs."""
+    import database
+
+    idp_a = _create_saml_idp(test_tenant, test_user, name="Scope IdP A")
+    idp_b = _create_saml_idp(test_tenant, test_user, name="Scope IdP B")
+    domain = test_user["email"].split("@")[1]
+
+    # Assign each user to a different IdP
+    database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp_a["id"]))
+    database.users.update_user_saml_idp(
+        test_tenant["id"], str(test_admin_user["id"]), str(idp_b["id"])
+    )
+
+    count_a = database.saml.count_users_with_idp_in_domain(
+        test_tenant["id"], domain, str(idp_a["id"])
+    )
+    count_b = database.saml.count_users_with_idp_in_domain(
+        test_tenant["id"], domain, str(idp_b["id"])
+    )
+
+    assert count_a == 1
+    assert count_b == 1
+
+
+def test_count_users_with_idp_in_domain_zero_for_unknown_domain(test_tenant, test_user):
+    """Test that an unknown domain returns 0 even when user has IdP."""
+    import database
+
+    idp = _create_saml_idp(test_tenant, test_user)
+    database.users.update_user_saml_idp(test_tenant["id"], str(test_user["id"]), str(idp["id"]))
+
+    count = database.saml.count_users_with_idp_in_domain(
+        test_tenant["id"], "unknowndomain.invalid", str(idp["id"])
+    )
+
+    assert count == 0

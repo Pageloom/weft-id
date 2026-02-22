@@ -3,7 +3,7 @@
 {% block title %}{{ group.name }} - Groups - {{ site_title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl">
+<div>
     <div class="mb-4">
         <a href="/admin/groups/list"
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to All Groups</a>
@@ -30,6 +30,8 @@
             Parent group added successfully.
             {% elif success == 'parent_removed' %}
             Parent group removed successfully.
+            {% elif success == 'relationships_cleared' %}
+            All relationships removed.
             {% else %}
             Operation completed successfully.
             {% endif %}
@@ -54,6 +56,8 @@
             User is already a member of this group.
             {% elif error == 'not_a_member' %}
             User is not a member of this group.
+            {% elif error == 'has_relationships' %}
+            Remove all relationships before deleting this group.
             {% else %}
             An error occurred: {{ error }}
             {% endif %}
@@ -94,21 +98,21 @@
 
     <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav class="flex space-x-6">
+            <a href="/admin/groups/{{ group.id }}/membership"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'membership' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Members ({{ group.effective_member_count }})</a>
+            <a href="/admin/groups/{{ group.id }}/relationships"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'relationships' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Relationships ({{ group.parent_count + group.child_count }})</a>
+            <a href="/admin/groups/{{ group.id }}/applications"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'applications' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Applications ({{ assigned_sps|length + (inherited_sps|default([])|length) }})</a>
             <a href="/admin/groups/{{ group.id }}/details"
                class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'details' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
                 Details</a>
-            <a href="/admin/groups/{{ group.id }}/membership"
-               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'membership' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
-                Membership ({{ group.member_count }})</a>
-            <a href="/admin/groups/{{ group.id }}/applications"
-               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'applications' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
-                Applications ({{ assigned_sps|length }})</a>
-            <a href="/admin/groups/{{ group.id }}/relationships"
-               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'relationships' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
-                Relationships</a>
-            <a href="/admin/groups/{{ group.id }}/danger"
-               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'danger' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
-                Danger</a>
+            <a href="/admin/groups/{{ group.id }}/delete"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'delete' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Delete</a>
         </nav>
     </div>
 

@@ -1,35 +1,95 @@
 {% extends "groups_detail_base.html" %}
 
 {% block tab_content %}
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-    <div class="flex items-center justify-between mb-4">
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+    <div class="px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Membership
+            Members
+            {% if effective_members_total > 0 %}
+            <span class="ml-1 text-sm font-normal text-gray-500 dark:text-gray-400">
+                ({{ group.member_count }} direct{% if effective_members_total > group.member_count %}, {{ effective_members_total - group.member_count }} inherited{% endif %})
+            </span>
+            {% endif %}
         </h2>
+        {% if group.group_type == 'weftid' %}
         <a href="/admin/groups/{{ group.id }}/members"
            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
             Manage Members
         </a>
+        {% endif %}
     </div>
 
     {% if group.group_type == 'idp' %}
-    <p class="text-sm text-amber-600 dark:text-amber-400">
-        IdP groups are managed automatically. Members are synced from the identity provider.
-    </p>
-    {% else %}
-    <div class="space-y-2">
-        <p class="text-sm text-gray-700 dark:text-gray-300">
-            {{ group.member_count }} direct member{{ 's' if group.member_count != 1 else '' }}.
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <p class="text-sm text-amber-600 dark:text-amber-400">
+            IdP groups are managed automatically. Members are synced from the identity provider.
         </p>
-        {% if effective_member_count is not none and effective_member_count > group.member_count %}
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-            {{ effective_member_count }} effective members (including inherited from child groups).
-        </p>
-        {% endif %}
-        {% if group.member_count == 0 %}
-        <p class="text-sm text-gray-500 dark:text-gray-400">No members in this group yet.</p>
+    </div>
+    {% endif %}
+
+    {% if not effective_members %}
+    <div class="px-6 py-12 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">No members yet.</p>
+        {% if group.group_type == 'weftid' %}
+        <a href="/admin/groups/{{ group.id }}/members"
+           class="mt-3 inline-block text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+            Add members &rarr;
+        </a>
         {% endif %}
     </div>
+    {% else %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Name
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Email
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Membership
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {% for m in effective_members %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-3 whitespace-nowrap">
+                        <a href="/admin/users/{{ m.user_id }}"
+                           class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            {{ m.first_name }} {{ m.last_name }}
+                        </a>
+                    </td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        {{ m.email or '—' }}
+                    </td>
+                    <td class="px-6 py-3 whitespace-nowrap">
+                        {% if m.is_direct %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                            Direct
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                            Inherited
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if effective_members_total > effective_members|length %}
+    <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+        Showing {{ effective_members|length }} of {{ effective_members_total }} members.
+        <a href="/admin/groups/{{ group.id }}/members"
+           class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+            View all &rarr;
+        </a>
+    </div>
+    {% endif %}
     {% endif %}
 </div>
 {% endblock %}

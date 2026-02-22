@@ -3,10 +3,10 @@
 {% block tab_content %}
 <script type="application/json" id="neighborhood-data" nonce="{{ csp_nonce }}">{{ neighborhood_data|tojson }}</script>
 
-<div class="flex gap-6 items-start">
+<div class="grid grid-cols-2 gap-6 items-start">
 
     <!-- Left: neighborhood graph -->
-    <div class="w-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 shrink-0">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 min-w-0">
         <div id="cy-neighborhood"
              class="w-full border border-gray-200 dark:border-gray-700 rounded-lg"
              style="height: 480px;"></div>
@@ -14,7 +14,7 @@
     </div>
 
     <!-- Right: relationship controls -->
-    <div class="w-1/2 space-y-6 min-w-0">
+    <div class="space-y-6 min-w-0">
 
 {% if group.group_type == 'weftid' %}
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
@@ -149,7 +149,7 @@
 
     </div><!-- end right column -->
 
-</div><!-- end flex row -->
+</div><!-- end grid -->
 {% endblock %}
 
 {% block tab_scripts %}
@@ -164,7 +164,9 @@
     var textBg = isDark ? '#1f2937' : '#ffffff';
 
     var container = document.getElementById('cy-neighborhood');
-    var W = container.offsetWidth || 400;
+
+    function init() {
+    var W = container.offsetWidth || 600;
     var centerX = W / 2;
 
     var elements = [];
@@ -326,6 +328,9 @@
     cy.on('dbltap', 'node', function (evt) {
         window.location.href = '/admin/groups/' + evt.target.id() + '/relationships';
     });
+    } // end init
+
+    requestAnimationFrame(init);
 })();
 </script>
 {% endblock %}

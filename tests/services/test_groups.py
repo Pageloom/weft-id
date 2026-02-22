@@ -522,6 +522,8 @@ def test_delete_group_success(make_requesting_user):
         patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_existing
+        mock_db.groups.get_group_parents.return_value = []
+        mock_db.groups.get_group_children.return_value = []
         mock_db.groups.delete_group.return_value = 1
 
         groups_service.delete_group(requesting_user, group_id)
@@ -543,6 +545,105 @@ def test_delete_group_not_found(make_requesting_user):
 
         with pytest.raises(NotFoundError) as exc_info:
             groups_service.delete_group(requesting_user, str(uuid4()))
+
+        assert exc_info.value.code == "group_not_found"
+
+
+def test_delete_group_blocked_by_relationships(make_requesting_user):
+    """Test that delete_group raises ValidationError when relationships exist."""
+    from services import groups as groups_service
+    from services.exceptions import ValidationError
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Has Children",
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+    mock_child = {"group_id": str(uuid4()), "name": "Child Group"}
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_existing
+        mock_db.groups.get_group_parents.return_value = []
+        mock_db.groups.get_group_children.return_value = [mock_child]
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.delete_group(requesting_user, group_id)
+
+        assert exc_info.value.code == "has_relationships"
+
+
+def test_remove_all_relationships_success(make_requesting_user):
+    """Test removing all relationships from a group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Center Group"}
+    mock_parent = {"group_id": str(uuid4()), "name": "Parent Group"}
+    mock_child = {"group_id": str(uuid4()), "name": "Child Group"}
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.get_group_parents.return_value = [mock_parent]
+        mock_db.groups.get_group_children.return_value = [mock_child]
+        mock_db.groups.remove_group_relationship.return_value = 1
+
+        count = groups_service.remove_all_relationships(requesting_user, group_id)
+
+        assert count == 2
+        assert mock_db.groups.remove_group_relationship.call_count == 2
+        assert mock_log.call_count == 2
+
+
+def test_remove_all_relationships_no_relationships(make_requesting_user):
+    """Test remove_all_relationships on a group with no relationships returns 0."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {"id": group_id, "name": "Isolated Group"}
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event"),
+    ):
+        mock_db.groups.get_group_by_id.return_value = mock_group
+        mock_db.groups.get_group_parents.return_value = []
+        mock_db.groups.get_group_children.return_value = []
+
+        count = groups_service.remove_all_relationships(requesting_user, group_id)
+
+        assert count == 0
+        mock_db.groups.remove_group_relationship.assert_not_called()
+
+
+def test_remove_all_relationships_group_not_found(make_requesting_user):
+    """Test remove_all_relationships raises NotFoundError for missing group."""
+    from services import groups as groups_service
+
+    requesting_user = make_requesting_user(role="admin")
+
+    with patch("services.groups.hierarchy.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(NotFoundError) as exc_info:
+            groups_service.remove_all_relationships(requesting_user, str(uuid4()))
 
         assert exc_info.value.code == "group_not_found"
 
@@ -1525,6 +1626,8 @@ def test_delete_invalid_idp_group_allowed(make_requesting_user):
         patch("services.groups.crud.log_event") as mock_log,
     ):
         mock_db.groups.get_group_by_id.return_value = mock_invalid_idp_group
+        mock_db.groups.get_group_parents.return_value = []
+        mock_db.groups.get_group_children.return_value = []
         mock_db.groups.delete_group.return_value = 1
 
         # Should not raise

@@ -22,6 +22,10 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
                g.created_at, g.updated_at,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,
+               (select count(distinct gm.user_id)
+                from group_memberships gm
+                join group_lineage gl on gm.group_id = gl.descendant_id
+                where gl.ancestor_id = g.id) as effective_member_count,
                (select count(*) from group_relationships gr
                 where gr.child_group_id = g.id) as parent_count,
                (select count(*) from group_relationships gr

@@ -842,6 +842,28 @@ def test_delete_group_not_found(test_admin_user, override_auth, mocker):
     assert "error=group_not_found" in response.headers["location"]
 
 
+def test_delete_group_validation_error_redirects_to_danger(test_admin_user, override_auth, mocker):
+    """Test that delete with has_relationships error redirects to danger tab."""
+    from services.exceptions import ValidationError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_delete = mocker.patch(f"{DETAIL_MODULE}.groups_service.delete_group")
+    mock_delete.side_effect = ValidationError("Has relationships", code="has_relationships")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/delete",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert "error=has_relationships" in response.headers["location"]
+
+
 def test_delete_group_service_error(test_admin_user, override_auth, mocker):
     """Test deleting a group with service error renders error page."""
     from services.exceptions import ServiceError
@@ -862,6 +884,48 @@ def test_delete_group_service_error(test_admin_user, override_auth, mocker):
     # Should render error page
     assert response.status_code == 200
     mock_error.assert_called_once()
+
+
+def test_clear_relationships_success(test_admin_user, override_auth, mocker):
+    """Test clearing all relationships redirects to danger tab with success."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_clear = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_all_relationships")
+    mock_clear.return_value = 2
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/relationships/clear",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert "success=relationships_cleared" in response.headers["location"]
+
+
+def test_clear_relationships_not_found(test_admin_user, override_auth, mocker):
+    """Test clearing relationships for a missing group redirects with error."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_clear = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_all_relationships")
+    mock_clear.side_effect = NotFoundError("Group not found", code="group_not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/relationships/clear",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/danger" in response.headers["location"]
+    assert "error=group_not_found" in response.headers["location"]
 
 
 # =============================================================================

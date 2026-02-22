@@ -2,21 +2,80 @@
 
 {% block tab_content %}
 {% if group.group_type == 'weftid' or (group.group_type == 'idp' and not group.is_valid) %}
+
+{% set has_relationships = (parents|length > 0) or (children|length > 0) %}
+
+{% if success == 'relationships_cleared' %}
+<div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+    <p class="text-sm text-green-800 dark:text-green-300">All relationships removed. You can now delete the group.</p>
+</div>
+{% endif %}
+
+{% if error == 'has_relationships' %}
+<div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+    <p class="text-sm text-red-800 dark:text-red-300">Remove all relationships before deleting this group.</p>
+</div>
+{% elif error %}
+<div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+    <p class="text-sm text-red-800 dark:text-red-300">An error occurred: {{ error }}</p>
+</div>
+{% endif %}
+
+{% if has_relationships %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-amber-200 dark:border-amber-700 mb-4">
+    <h2 class="text-base font-semibold text-amber-700 dark:text-amber-400 mb-2">Relationships must be removed first</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+        This group has {{ parents|length }} parent{{ 's' if parents|length != 1 else '' }}
+        and {{ children|length }} child group{{ 's' if children|length != 1 else '' }}.
+        All relationships must be removed before the group can be deleted.
+    </p>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        The <a href="/admin/groups/list?view=graph&search={{ group.name|urlencode }}&fullscreen=1"
+               class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">groups graph</a>
+        gives an overview of all connections and lets you cut relationships interactively.
+    </p>
+    <form method="post" action="/admin/groups/{{ group.id }}/relationships/clear" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+                class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+                data-confirm="Remove all {{ (parents|length) + (children|length) }} relationship{{ 's' if (parents|length + children|length) != 1 else '' }} from '{{ group.name }}'?"
+                data-destructive="true">
+            Remove All Relationships
+        </button>
+    </form>
+</div>
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 opacity-50">
+    <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Remove all relationships above before deleting.
+    </p>
+    <button type="button" disabled
+            class="px-4 py-2 text-sm font-medium text-white bg-red-400 rounded cursor-not-allowed">
+        Delete Group
+    </button>
+</div>
+
+{% else %}
+
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Deleting this group will remove all members and relationships. This cannot be undone.
+        Deleting this group will remove all members. This cannot be undone.
     </p>
     <form method="post" action="/admin/groups/{{ group.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                data-confirm="Delete group '{{ group.name }}'?&#10;&#10;Members will be removed. Child groups will be orphaned."
+                data-confirm="Delete group '{{ group.name }}'?&#10;&#10;Members will be removed. This cannot be undone."
                 data-destructive="true">
             Delete Group
         </button>
     </form>
 </div>
+
+{% endif %}
+
 {% else %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
     <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Delete Group</h2>

@@ -43,6 +43,7 @@ def _row_to_detail(row: dict) -> GroupDetail:
         idp_name=row.get("idp_name"),
         is_valid=row.get("is_valid", True),
         member_count=row.get("member_count", 0),
+        effective_member_count=row.get("effective_member_count", 0),
         parent_count=row.get("parent_count", 0),
         child_count=row.get("child_count", 0),
         created_by=str(row["created_by"]) if row.get("created_by") else None,

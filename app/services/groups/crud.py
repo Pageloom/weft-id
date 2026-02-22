@@ -328,7 +328,16 @@ def delete_group(
             code="idp_group_active",
         )
 
-    # Delete (cascades to memberships, relationships, lineage)
+    # Require all relationships to be removed first
+    parents = database.groups.get_group_parents(tenant_id, group_id)
+    children = database.groups.get_group_children(tenant_id, group_id)
+    if parents or children:
+        raise ValidationError(
+            message="Remove all parent and child relationships before deleting this group",
+            code="has_relationships",
+        )
+
+    # Delete (cascades to memberships, lineage)
     database.groups.delete_group(tenant_id, group_id)
 
     # Log event

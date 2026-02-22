@@ -164,6 +164,78 @@ def add_child(
     )
 
 
+def remove_all_relationships(
+    requesting_user: RequestingUser,
+    group_id: str,
+) -> int:
+    """
+    Remove all parent and child relationships for a group.
+
+    Authorization: Requires admin role.
+
+    Returns:
+        Number of relationships removed.
+
+    Raises:
+        NotFoundError: If the group doesn't exist
+    """
+    require_admin(requesting_user)
+
+    tenant_id = requesting_user["tenant_id"]
+
+    group = database.groups.get_group_by_id(tenant_id, group_id)
+    if not group:
+        raise NotFoundError(
+            message="Group not found",
+            code="group_not_found",
+        )
+
+    parents = database.groups.get_group_parents(tenant_id, group_id)
+    children = database.groups.get_group_children(tenant_id, group_id)
+
+    count = 0
+
+    for parent in parents:
+        parent_id = str(parent["group_id"])
+        rows_affected = database.groups.remove_group_relationship(tenant_id, parent_id, group_id)
+        if rows_affected > 0:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="group_relationship",
+                artifact_id=parent_id,
+                event_type="group_relationship_deleted",
+                metadata={
+                    "parent_group_id": parent_id,
+                    "parent_group_name": parent["name"],
+                    "child_group_id": group_id,
+                    "child_group_name": group["name"],
+                },
+            )
+            count += 1
+
+    for child in children:
+        child_id = str(child["group_id"])
+        rows_affected = database.groups.remove_group_relationship(tenant_id, group_id, child_id)
+        if rows_affected > 0:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="group_relationship",
+                artifact_id=group_id,
+                event_type="group_relationship_deleted",
+                metadata={
+                    "parent_group_id": group_id,
+                    "parent_group_name": group["name"],
+                    "child_group_id": child_id,
+                    "child_group_name": child["name"],
+                },
+            )
+            count += 1
+
+    return count
+
+
 def remove_child(
     requesting_user: RequestingUser,
     parent_group_id: str,

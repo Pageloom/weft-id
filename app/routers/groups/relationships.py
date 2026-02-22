@@ -26,6 +26,32 @@ router = APIRouter(
 )
 
 
+@router.post("/{group_id}/relationships/clear")
+def clear_relationships(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    group_id: str,
+):
+    """Remove all parent and child relationships for a group."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        groups_service.remove_all_relationships(requesting_user, group_id)
+    except NotFoundError as exc:
+        return RedirectResponse(
+            url=f"/admin/groups/{group_id}/danger?error={exc.code}",
+            status_code=303,
+        )
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url=f"/admin/groups/{group_id}/danger?success=relationships_cleared",
+        status_code=303,
+    )
+
+
 @router.post("/{group_id}/children/add")
 def add_child(
     request: Request,

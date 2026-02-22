@@ -302,75 +302,6 @@ PAGES = [
                     ),
                 ],
             ),
-            # Todo section: Reactivation Requests
-            Page(
-                path="/admin/todo",
-                title="Todo",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-                children=[
-                    Page(
-                        path="/admin/todo/reactivation",
-                        title="Reactivation",
-                        permission=PagePermission.ADMIN,
-                        show_in_nav=True,
-                        children=[
-                            Page(
-                                path="/admin/todo/reactivation/history",
-                                title="Reactivation History",
-                                permission=PagePermission.ADMIN,
-                                show_in_nav=False,
-                                creates_nav_level=False,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            # Audit section: Event Log
-            Page(
-                path="/admin/audit",
-                title="Audit",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-                children=[
-                    Page(
-                        path="/admin/audit/events",
-                        title="Event Log",
-                        permission=PagePermission.ADMIN,
-                        show_in_nav=True,
-                        children=[
-                            Page(
-                                path="/admin/audit/events/detail",
-                                title="Event Details",
-                                permission=PagePermission.ADMIN,
-                                show_in_nav=False,
-                                creates_nav_level=False,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            # Integrations section: Apps, B2B
-            Page(
-                path="/admin/integrations",
-                title="Integrations",
-                permission=PagePermission.ADMIN,
-                show_in_nav=True,
-                children=[
-                    Page(
-                        path="/admin/integrations/apps",
-                        title="Apps",
-                        permission=PagePermission.ADMIN,
-                        show_in_nav=True,
-                    ),
-                    Page(
-                        path="/admin/integrations/b2b",
-                        title="B2B",
-                        permission=PagePermission.ADMIN,
-                        show_in_nav=True,
-                    ),
-                ],
-            ),
             # Groups section: Group management
             Page(
                 path="/admin/groups",
@@ -447,6 +378,75 @@ PAGES = [
                                 creates_nav_level=False,
                             ),
                         ],
+                    ),
+                ],
+            ),
+            # Todo section: Reactivation Requests
+            Page(
+                path="/admin/todo",
+                title="Todo",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/todo/reactivation",
+                        title="Reactivation",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/todo/reactivation/history",
+                                title="Reactivation History",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            # Audit section: Event Log
+            Page(
+                path="/admin/audit",
+                title="Audit",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/audit/events",
+                        title="Event Log",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/audit/events/detail",
+                                title="Event Details",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=False,
+                                creates_nav_level=False,
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            # Integrations section: Apps, B2B
+            Page(
+                path="/admin/integrations",
+                title="Integrations",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+                children=[
+                    Page(
+                        path="/admin/integrations/apps",
+                        title="Apps",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
+                        path="/admin/integrations/b2b",
+                        title="B2B",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
                     ),
                 ],
             ),

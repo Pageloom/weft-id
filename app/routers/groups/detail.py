@@ -200,6 +200,12 @@ def group_tab_applications(
         except ServiceError:
             pass
 
+    available_sps: list[dict] = []
+    try:
+        available_sps = sp_service.list_available_sps_for_group(requesting_user, group_id)
+    except ServiceError:
+        pass
+
     return templates.TemplateResponse(
         "groups_detail_tab_applications.html",
         get_template_context(
@@ -208,6 +214,7 @@ def group_tab_applications(
             **ctx,
             active_tab="applications",
             inherited_sps=inherited_sps,
+            available_sps=available_sps,
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),

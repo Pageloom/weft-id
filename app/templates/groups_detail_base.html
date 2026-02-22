@@ -32,6 +32,10 @@
             Parent group removed successfully.
             {% elif success == 'relationships_cleared' %}
             All relationships removed.
+            {% elif success == 'sp_assigned' %}
+            Application assigned to group.
+            {% elif success == 'sp_removed' %}
+            Application removed from group.
             {% else %}
             Operation completed successfully.
             {% endif %}
@@ -58,6 +62,10 @@
             User is not a member of this group.
             {% elif error == 'has_relationships' %}
             Remove all relationships before deleting this group.
+            {% elif error == 'sp_group_already_assigned' %}
+            This application is already assigned to the group.
+            {% elif error == 'sp_not_found' %}
+            Application not found.
             {% else %}
             An error occurred: {{ error }}
             {% endif %}

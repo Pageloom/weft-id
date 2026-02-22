@@ -287,7 +287,7 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
 });
 </script>
 {% else %}
-<script src="/static/js/cytoscape.min.js" nonce="{{ csp_nonce }}"></script>
+<script src="/static/js/cytoscape.min.js" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function() {
   // localStorage redirect

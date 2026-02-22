@@ -151,3 +151,47 @@ Relationships tab:
 
 ---
 
+## Create `/accessibility` Skill
+
+**User Story:**
+As a developer,
+I want an `/accessibility` skill that audits the frontend for WCAG 2.1 AA compliance,
+So that accessibility issues are identified and tracked systematically like security and compliance violations.
+
+**Acceptance Criteria:**
+
+- [ ] New skill file at `.claude/skills/accessibility/` following the pattern of existing skills
+- [ ] Skill audits Jinja2 templates for WCAG 2.1 AA violations (missing alt text, insufficient contrast cues, missing form labels, ARIA misuse, keyboard navigation gaps, missing lang attributes, missing focus indicators)
+- [ ] Skill logs findings to `ISSUES.md` in the same format as `/security` and `/compliance`
+- [ ] Skill references a checklist in `.claude/references/wcag-patterns.md`
+- [ ] Skill can be invoked with `/accessibility` from Claude Code
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## Dyslexic-Friendly Font User Preference
+
+**User Story:**
+As a user with dyslexia,
+I want to enable a dyslexic-friendly font in my account settings,
+So that the interface is more readable for me without affecting other users.
+
+**Acceptance Criteria:**
+
+- [ ] A font preference field is added to the user profile (boolean, default false)
+- [ ] Database migration adds the column to the `users` table
+- [ ] User can toggle the preference in their profile/settings page
+- [ ] When enabled, the selected dyslexic-friendly font (e.g. OpenDyslexic or Atkinson Hyperlegible) is applied via a CSS class on the `<html>` or `<body>` element
+- [ ] Font is served from static assets (not an external CDN) for privacy and reliability
+- [ ] Preference persists across sessions (stored server-side)
+- [ ] **No audit log** for this write (follows the `save_graph_layout()` pattern: it is UI preference state, not a business action). The service function docstring must note this explicitly.
+- [ ] `track_activity()` is called (instead of `log_event()`) so the user's `last_activity_at` is still updated
+- [ ] API endpoint exposes the preference for programmatic access
+
+**Effort:** M
+**Value:** Medium
+
+---
+

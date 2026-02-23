@@ -3,7 +3,7 @@ WAIT_TIMEOUT ?= 60
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css watch-tests sso-testbed
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css watch-tests sso-testbed seed-dev
 
 help:
 	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -71,5 +71,8 @@ watch-tests: ## Watch and rerun tests on changes (dev mode)
 
 sso-testbed: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py
+
+seed-dev: ## Seed dev environment with Meridian Health sample data
+	$(COMPOSE) exec app python ./dev/seed_dev.py
 
 

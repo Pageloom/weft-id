@@ -4,6 +4,47 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Tooling: Dev Environment Seed Script
+
+**Status:** Complete
+
+**Summary:** Implemented an idempotent seed script (`app/dev/seed_dev.py`) that provisions the
+Meridian Health dev tenant with 350 users, 32 groups in a DAG hierarchy, 5 service providers,
+and 3 identity providers. Run via `make seed-dev`. The script is gated behind `IS_DEV=true` and
+prints step-by-step progress. All users share the fixed password `DevSeed123!`. The `make seed-dev`
+Makefile target and a "Dev Seed Data" README section were added alongside the script.
+
+**Path deviation:** The script lives at `app/dev/seed_dev.py` rather than `scripts/seed_dev.py`
+as originally specified. This co-locates it with other dev utilities and gives it direct access
+to the app's service layer.
+
+**Known gap:** The criterion "SP and IdP tenants each have 2-3 admin users with domain-appropriate
+email addresses" (creating separate WeftId tenant accounts per SP/IdP vendor) was not implemented.
+Cross-tenant SSO testing is handled by the separate `sso_testbed.py` script.
+
+**Acceptance Criteria:**
+
+- [x] Script is idempotent
+- [x] `make seed-dev` target added to Makefile
+- [x] IS_DEV guard: exits with error if not dev environment
+- [x] Clear progress output
+- [x] Meridian Health tenant created with correct subdomain
+- [x] ~350 users with realistic names and `@meridian-health.dev` emails (9 admins + 340 bulk)
+- [x] super_admin user (`admin@meridian-health.dev`) and 8 department admin users
+- [x] Known fixed password `DevSeed123!` for all users
+- [x] 5 SPs registered (Compass, NorthStar, Apex, MediFlow, AuditBridge) with entity IDs and ACS URLs
+- [x] Group-based SP access control configured
+- [x] 3 IdPs registered (Cloudbridge, Vertex, HealthConnect) with entity IDs and SSO URLs
+- [x] Domain binding on Cloudbridge IdP
+- [x] 32 groups created (exceeds ~25 spec) in DAG hierarchy
+- [x] Cross-cutting groups with multiple parents (HIPAA Covered Entities, Leadership, Remote Workers)
+- [x] Group lineage closure table maintained via `database.groups.add_group_relationship`
+- [x] Users distributed across leaf groups
+- [x] README updated with "Dev Seed Data" section
+- [ ] SP and IdP tenants have admin users (not implemented — see known gap above)
+
+---
+
 ## Groups Overview: Redesigned List and Network Graph View
 
 **Status:** Complete

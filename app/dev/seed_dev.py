@@ -38,28 +38,137 @@ ATTRIBUTE_MAPPING = {
 }
 
 FIRST_NAMES = [
-    "James", "Mary", "John", "Patricia", "Robert", "Jennifer", "Michael",
-    "Linda", "William", "Barbara", "David", "Elizabeth", "Richard", "Susan",
-    "Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen", "Christopher",
-    "Nancy", "Daniel", "Lisa", "Matthew", "Betty", "Anthony", "Margaret",
-    "Mark", "Sandra", "Donald", "Ashley", "Steven", "Kimberly", "Paul",
-    "Emily", "Andrew", "Donna", "Joshua", "Michelle", "Kenneth", "Dorothy",
-    "Kevin", "Carol", "Brian", "Amanda", "George", "Melissa", "Edward",
-    "Deborah", "Ronald", "Stephanie", "Timothy", "Rebecca", "Jason", "Sharon",
-    "Jeffrey", "Laura", "Ryan", "Cynthia", "Jacob", "Kathleen", "Gary", "Amy",
+    "James",
+    "Mary",
+    "John",
+    "Patricia",
+    "Robert",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "William",
+    "Barbara",
+    "David",
+    "Elizabeth",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Christopher",
+    "Nancy",
+    "Daniel",
+    "Lisa",
+    "Matthew",
+    "Betty",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Donald",
+    "Ashley",
+    "Steven",
+    "Kimberly",
+    "Paul",
+    "Emily",
+    "Andrew",
+    "Donna",
+    "Joshua",
+    "Michelle",
+    "Kenneth",
+    "Dorothy",
+    "Kevin",
+    "Carol",
+    "Brian",
+    "Amanda",
+    "George",
+    "Melissa",
+    "Edward",
+    "Deborah",
+    "Ronald",
+    "Stephanie",
+    "Timothy",
+    "Rebecca",
+    "Jason",
+    "Sharon",
+    "Jeffrey",
+    "Laura",
+    "Ryan",
+    "Cynthia",
+    "Jacob",
+    "Kathleen",
+    "Gary",
+    "Amy",
 ]
 
 LAST_NAMES = [
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-    "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez",
-    "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-    "Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark",
-    "Ramirez", "Lewis", "Robinson", "Walker", "Young", "Allen", "King",
-    "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores", "Green",
-    "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
-    "Carter", "Roberts", "Gomez", "Phillips", "Evans", "Turner", "Diaz",
-    "Parker", "Cruz", "Edwards", "Collins", "Reyes", "Stewart", "Morris",
-    "Morales", "Murphy",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
+    "Walker",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Torres",
+    "Nguyen",
+    "Hill",
+    "Flores",
+    "Green",
+    "Adams",
+    "Nelson",
+    "Baker",
+    "Hall",
+    "Rivera",
+    "Campbell",
+    "Mitchell",
+    "Carter",
+    "Roberts",
+    "Gomez",
+    "Phillips",
+    "Evans",
+    "Turner",
+    "Diaz",
+    "Parker",
+    "Cruz",
+    "Edwards",
+    "Collins",
+    "Reyes",
+    "Stewart",
+    "Morris",
+    "Morales",
+    "Murphy",
 ]
 
 # Named admin users: (first, last, email, role, dept_key)
@@ -128,7 +237,10 @@ GROUP_DEFS = [
     ("Patient Experience", "Patient satisfaction, care coordination, and advocacy"),
     ("Medical Records", "Health information management and records compliance"),
     # Cross-cutting
-    ("HIPAA Covered Entities", "Staff with access to protected health information across departments"),
+    (
+        "HIPAA Covered Entities",
+        "Staff with access to protected health information across departments",
+    ),
     ("Leadership", "Cross-functional leadership and management team"),
     ("Remote Workers", "Employees working remotely or in hybrid arrangements"),
 ]
@@ -181,8 +293,17 @@ HIERARCHY = [
 
 # Leaf sub-groups per department (for bulk user distribution)
 DEPT_TO_LEAF_GROUPS: dict[str, list[str]] = {
-    "Clinical Operations": ["Emergency Department", "Inpatient Care", "Outpatient Services", "Intensive Care Unit"],
-    "Research & Innovation": ["Clinical Trials", "Biostatistics & Analytics", "Medical Informatics"],
+    "Clinical Operations": [
+        "Emergency Department",
+        "Inpatient Care",
+        "Outpatient Services",
+        "Intensive Care Unit",
+    ],
+    "Research & Innovation": [
+        "Clinical Trials",
+        "Biostatistics & Analytics",
+        "Medical Informatics",
+    ],
     "Information Technology": ["Infrastructure & Cloud", "Application Support", "Cybersecurity"],
     "Compliance & Risk": ["HIPAA & Privacy", "Risk Management"],
     "Finance & Accounting": ["General Accounting", "Budget & Planning"],
@@ -357,7 +478,8 @@ def step_3_bulk_users(
                         user = database.fetchone(
                             tenant_id,
                             """
-                            insert into users (tenant_id, first_name, last_name, role, password_hash)
+                            insert into users
+                                (tenant_id, first_name, last_name, role, password_hash)
                             values (:tenant_id, :first_name, :last_name, 'member', :password_hash)
                             returning id
                             """,
@@ -374,7 +496,8 @@ def step_3_bulk_users(
                         database.execute(
                             tenant_id,
                             """
-                            insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
+                            insert into user_emails
+                                (tenant_id, user_id, email, is_primary, verified_at)
                             values (:tenant_id, :user_id, :email, true, now())
                             """,
                             {"tenant_id": tenant_id, "user_id": uid, "email": email},
@@ -467,9 +590,7 @@ def step_6_group_memberships(
     # Dept admins → their dept groups
     for dept_key, uid in admin_ids.items():
         if dept_key in groups:
-            database.groups.bulk_add_group_members(
-                tenant_id, tenant_id, groups[dept_key], [uid]
-            )
+            database.groups.bulk_add_group_members(tenant_id, tenant_id, groups[dept_key], [uid])
 
     # Relevant admins → cross-cutting groups
     for dept_key, group_name in [
@@ -489,9 +610,7 @@ def step_6_group_memberships(
             continue
         leaf_names = DEPT_TO_LEAF_GROUPS.get(dept_key, [])
         if not leaf_names:
-            database.groups.bulk_add_group_members(
-                tenant_id, tenant_id, groups[dept_key], user_ids
-            )
+            database.groups.bulk_add_group_members(tenant_id, tenant_id, groups[dept_key], user_ids)
             continue
 
         # Collect per-leaf buckets then batch-insert
@@ -562,9 +681,7 @@ def step_7_service_providers(
             log.info("Created SP: %s (id=%s)", sp_name, sp_id)
 
         # Per-SP signing certificate
-        existing_cert = database.sp_signing_certificates.get_signing_certificate(
-            tenant_id, sp_id
-        )
+        existing_cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
         if not existing_cert:
             cert_pem, key_pem = utils.saml.generate_sp_certificate(tenant_id)
             encrypted_key = utils.saml.encrypt_private_key(key_pem)
@@ -628,9 +745,7 @@ def step_9_identity_providers(
         sso_url = f"https://{slug}.example.com/saml/sso"
         sp_entity_id = f"{BASE_URL}/saml/metadata/placeholder-{slug}"
 
-        existing = database.saml.providers.get_identity_provider_by_entity_id(
-            tenant_id, entity_id
-        )
+        existing = database.saml.providers.get_identity_provider_by_entity_id(tenant_id, entity_id)
         if existing:
             idp_id = str(existing["id"])
             log.info("IdP exists: %s", idp_name)
@@ -711,9 +826,7 @@ def step_9_identity_providers(
 def _print_summary(log: logging.Logger, tenant_id: str) -> None:
     user_count = database.fetchone(tenant_id, "select count(*) as n from users", {})
     group_count = database.fetchone(tenant_id, "select count(*) as n from groups", {})
-    sp_count = database.fetchone(
-        tenant_id, "select count(*) as n from service_providers", {}
-    )
+    sp_count = database.fetchone(tenant_id, "select count(*) as n from service_providers", {})
     idp_count = database.fetchone(
         tenant_id, "select count(*) as n from saml_identity_providers", {}
     )

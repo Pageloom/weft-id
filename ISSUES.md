@@ -16,7 +16,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 **Last security scan:** 2026-02-22 (7-day incremental, groups graph view, 1 new issue)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
-**Last dependency audit:** 2026-02-23 (werkzeug CVE-2026-27199 resolved via upgrade to 3.1.6; pip CVE-2026-1703 accepted as low priority dev tool risk)
+**Last dependency audit:** 2026-02-23 (all clear; werkzeug upgraded to 3.1.6, pip upgraded to 26.0.1)
 **Last refactor scan:** 2026-02-12 (standard full scan, 4 prior items resolved, 2 new)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)

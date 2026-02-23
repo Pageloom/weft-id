@@ -550,9 +550,17 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
           {
             selector: 'node.selected',
             style: {
-              'border-width': 4,
+              'shape': 'roundrectangle',
+              'width': 110,
+              'height': 110,
+              'background-fit': 'none',
+              'background-width': '64px',
+              'background-height': '64px',
+              'background-opacity': 0.22,
+              'border-width': 2,
               'border-color': '#ffffff',
-              'border-opacity': 1
+              'border-opacity': 0.65,
+              'text-opacity': 0
             }
           },
           {
@@ -736,10 +744,8 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
         cy.edges().not('.parent-edge').not('.child-edge').addClass('dimmed');
         node.addClass('selected');
         applyOffViewportEdgeLabels();
-        nodeButton.href = '/admin/groups/' + node.id() + '/relationships';
-        nodeButton.style.display = 'block';
-        selectionEl.style.display = 'block';
-        positionNodeButton(node);
+        hoverTooltip.style.display = 'none';
+        showTooltipForNode(node, '/admin/groups/' + node.id() + '/relationships');
       }
 
       // Pan just enough to bring a node into view, keeping it ~15% in from each
@@ -773,8 +779,7 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
           selectedNode = null;
           cy.edges().removeClass('parent-edge child-edge dimmed');
           cy.nodes().removeClass('selected');
-          nodeButton.style.display = 'none';
-          selectionEl.style.display = 'none';
+          tooltip.style.display = 'none';
         }
       });
 
@@ -804,10 +809,10 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
       // Set up SVG line overlay for relationship drawing
       initRelOverlay();
 
-      // Hover tooltip — DOM element so it stays legible at any zoom level
+      // Pinned tooltip — shown while a node is selected (includes Details button)
       var tooltip = document.createElement('div');
       tooltip.style.cssText = [
-        'position:absolute', 'pointer-events:none', 'z-index:20',
+        'position:absolute', 'z-index:20',
         'background:rgba(17,24,39,0.92)', 'color:#f9fafb',
         'padding:5px 10px', 'border-radius:6px',
         'font-size:13px', 'font-weight:500', 'white-space:nowrap',
@@ -815,8 +820,18 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
       ].join(';');
       cyEl.appendChild(tooltip);
 
-      cy.on('mouseover', 'node', function(evt) {
-        var node = evt.target;
+      // Hover tooltip — shown on mouseover of any non-selected node
+      var hoverTooltip = document.createElement('div');
+      hoverTooltip.style.cssText = [
+        'position:absolute', 'pointer-events:none', 'z-index:21',
+        'background:rgba(17,24,39,0.92)', 'color:#f9fafb',
+        'padding:5px 10px', 'border-radius:6px',
+        'font-size:13px', 'font-weight:500', 'white-space:nowrap',
+        'display:none', 'box-shadow:0 2px 8px rgba(0,0,0,0.35)'
+      ].join(';');
+      cyEl.appendChild(hoverTooltip);
+
+      function buildTooltipContent(node, detailsHref) {
         tooltip.innerHTML = '';
         var nameEl = document.createElement('div');
         nameEl.textContent = node.data('label');
@@ -833,52 +848,66 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
           memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
           tooltip.appendChild(memEl);
         }
-        tooltip.style.display = 'block';
-        var bb = evt.target.renderedBoundingBox();
-        tooltip.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - tooltip.offsetWidth / 2) + 'px';
-        tooltip.style.top  = (bb.y1 - tooltip.offsetHeight - 6) + 'px';
-      });
-      cy.on('mouseout', 'node', function() { tooltip.style.display = 'none'; });
-      cy.on('pan zoom', function()        { tooltip.style.display = 'none'; });
-
-      // Selection highlight — transparent DOM div (just a glowing border) layered in front
-      // of the canvas. Because it has no fill, the mandala and label on the canvas show
-      // through it, so it visually appears to frame them from behind.
-      var selectionEl = document.createElement('div');
-      selectionEl.style.cssText = [
-        'position:absolute', 'z-index:5', 'display:none', 'pointer-events:none',
-        'border-radius:12px', 'box-sizing:border-box', 'background:transparent'
-      ].join(';');
-      cyEl.appendChild(selectionEl);
-
-      // Node detail button — appears below the label of the selected node
-      var nodeButton = document.createElement('a');
-      nodeButton.textContent = 'Open';
-      nodeButton.style.cssText = [
-        'position:absolute', 'z-index:25', 'display:none',
-        'background:rgba(59,130,246,0.92)', 'color:#fff',
-        'padding:2px 9px', 'border-radius:4px',
-        'font-size:11px', 'font-weight:600', 'white-space:nowrap',
-        'box-shadow:0 1px 4px rgba(0,0,0,0.3)',
-        'text-decoration:none', 'cursor:pointer',
-        'transform:translate(-50%,0)'
-      ].join(';');
-      cyEl.appendChild(nodeButton);
-
-      function positionNodeButton(node) {
-        var bb = node.renderedBoundingBox({ includeLabels: true, includeOverlays: false });
-        var cx = (bb.x1 + bb.x2) / 2;
-        nodeButton.style.left = cx + 'px';
-        nodeButton.style.top  = (bb.y2 + 6) + 'px';
-
-        var pad = 8;
-        selectionEl.style.left   = (bb.x1 - pad) + 'px';
-        selectionEl.style.top    = (bb.y1 - pad) + 'px';
-        selectionEl.style.width  = (bb.x2 - bb.x1 + pad * 2) + 'px';
-        selectionEl.style.height = (bb.y2 - bb.y1 + pad * 2) + 'px';
-        var color = node.data('color') || '#60a5fa';
-        selectionEl.style.boxShadow = '0 0 0 3px ' + color + ', 0 0 20px ' + color + '88';
+        if (detailsHref) {
+          var linkEl = document.createElement('a');
+          linkEl.textContent = 'Details';
+          linkEl.href = detailsHref;
+          linkEl.style.cssText = [
+            'display:block', 'margin-top:6px', 'text-align:center',
+            'background:rgba(59,130,246,0.85)', 'color:#fff',
+            'padding:2px 0', 'border-radius:4px',
+            'font-size:11px', 'font-weight:600',
+            'text-decoration:none', 'pointer-events:auto'
+          ].join(';');
+          tooltip.appendChild(linkEl);
+        }
       }
+
+      function repositionTooltip(node) {
+        // Anchor above the original circle centre regardless of current node shape/size
+        var pos = node.renderedPosition();
+        tooltip.style.left = (pos.x - tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top  = (pos.y - 32 - tooltip.offsetHeight - 6) + 'px';
+      }
+
+      function showTooltipForNode(node, detailsHref) {
+        buildTooltipContent(node, detailsHref);
+        tooltip.style.display = 'block';
+        repositionTooltip(node);
+      }
+
+      // Hover: show a separate hover tooltip for any non-selected node.
+      // The pinned tooltip (for the selected node) is unaffected.
+      cy.on('mouseover', 'node', function(evt) {
+        if (selectedNode && evt.target.id() === selectedNode.id()) return;
+        var node = evt.target;
+        hoverTooltip.innerHTML = '';
+        var nameEl = document.createElement('div');
+        nameEl.textContent = node.data('label');
+        hoverTooltip.appendChild(nameEl);
+        var direct    = node.data('memberCount') || 0;
+        var effective = node.data('effectiveMemberCount') || 0;
+        var inherited = effective - direct;
+        var frags = [];
+        if (direct)    frags.push(direct + ' direct');
+        if (inherited > 0) frags.push('+' + inherited + ' inherited');
+        if (frags.length) {
+          var memEl = document.createElement('div');
+          memEl.textContent = frags.join(' \u00b7 ');
+          memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
+          hoverTooltip.appendChild(memEl);
+        }
+        hoverTooltip.style.display = 'block';
+        var pos = node.renderedPosition();
+        hoverTooltip.style.left = (pos.x - hoverTooltip.offsetWidth / 2) + 'px';
+        hoverTooltip.style.top  = (pos.y - 32 - hoverTooltip.offsetHeight - 6) + 'px';
+      });
+      cy.on('mouseout', 'node', function() { hoverTooltip.style.display = 'none'; });
+      cy.on('pan zoom', function() {
+        hoverTooltip.style.display = 'none';
+        if (!selectedNode) tooltip.style.display = 'none';
+      });
+
 
       // Off-viewport edge labels — DOM overlays for highlighted edges whose far
       // endpoint is outside the container. Positioned at the edge's exit point
@@ -946,12 +975,12 @@ document.querySelectorAll('[data-mandala]').forEach(function(el) {
         });
       }
 
-      // Rebuild labels and reposition node button whenever the viewport changes (pan / zoom)
+      // Rebuild labels and reposition tooltip/button whenever the viewport changes (pan / zoom)
       cy.on('viewport', function() {
         if (!selectedNode) return;
         clearTimeout(labelTimer);
         labelTimer = setTimeout(applyOffViewportEdgeLabels, 30);
-        positionNodeButton(selectedNode);
+        repositionTooltip(selectedNode);
       });
 
       // Mode helpers

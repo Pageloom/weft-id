@@ -104,3 +104,31 @@ make watch-css       # Auto-rebuild CSS when templates change (recommended)
 
 **Tip**: When actively working on templates/UI, run `make watch-css` in a separate terminal. It will automatically
 rebuild the CSS whenever you modify any template file.
+
+### Dev Seed Data
+
+To populate a fresh database with realistic Meridian Health sample data, run:
+
+```bash
+make seed-dev
+```
+
+This creates a `meridian-health` tenant with:
+
+- **350 users** across 8 departments (9 named admins + ~340 bulk members)
+- **32 groups** in a hierarchical DAG (departments, sub-teams, cross-cutting groups)
+- **5 service providers** (patient portal, HR, analytics, EHR, compliance)
+- **3 identity providers** (one with a domain binding)
+
+**Login URL:** `https://meridian-health.weftid.localhost/login`
+
+| Account | Role |
+|---------|------|
+| `admin@meridian-health.dev` | super_admin |
+| `admin.clinical@meridian-health.dev` | admin |
+| `admin.hr@meridian-health.dev` | admin |
+| *(and 6 other dept admins)* | admin |
+
+**Password for all accounts:** `DevSeed123!`
+
+The script is idempotent: re-running it safely skips any resources that already exist.

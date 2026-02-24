@@ -1300,9 +1300,7 @@ class TestCountSPGroupAssignments:
 
         with (
             patch("services.service_providers.group_assignments.database") as mock_db,
-            patch(
-                "services.service_providers.group_assignments.track_activity"
-            ) as mock_track,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.sp_group_assignments.count_assignments_for_sp.return_value = 0
 
@@ -1408,9 +1406,7 @@ class TestListAvailableSPsForGroup:
 
         with (
             patch("services.service_providers.group_assignments.database") as mock_db,
-            patch(
-                "services.service_providers.group_assignments.track_activity"
-            ) as mock_track,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
         ):
             mock_db.service_providers.list_service_providers.return_value = []
             mock_db.sp_group_assignments.list_assignments_for_group.return_value = []

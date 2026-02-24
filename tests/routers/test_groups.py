@@ -76,6 +76,7 @@ CREATION_MODULE = "routers.groups.creation"
 DETAIL_MODULE = "routers.groups.detail"
 MEMBERS_MODULE = "routers.groups.members"
 RELATIONSHIPS_MODULE = "routers.groups.relationships"
+APPLICATIONS_MODULE = "routers.groups.applications"
 
 
 # =============================================================================
@@ -2294,3 +2295,356 @@ def test_add_members_page_success_count(test_admin_user, override_auth, mocker):
     ctx_kwargs = mock_ctx.call_args[1]
     assert ctx_kwargs["success"] == "members_added"
     assert ctx_kwargs["success_count"] == "5"
+
+
+# =============================================================================
+# Group Applications Router Tests (routers/groups/applications.py)
+# =============================================================================
+
+
+def test_assign_sp_success(test_admin_user, override_auth, mocker):
+    """Test assigning an SP to a group redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_assign = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.assign_sp_to_group")
+    mock_assign.return_value = MagicMock()
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/add",
+        data={"sp_id": sp_id},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert "success=sp_assigned" in response.headers["location"]
+
+
+def test_assign_sp_not_found_error(test_admin_user, override_auth, mocker):
+    """Test assigning an SP that doesn't exist redirects with error."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_assign = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.assign_sp_to_group")
+    mock_assign.side_effect = NotFoundError("SP not found", code="sp_not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/add",
+        data={"sp_id": sp_id},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert "error=sp_not_found" in response.headers["location"]
+
+
+def test_assign_sp_conflict_error(test_admin_user, override_auth, mocker):
+    """Test assigning an already-assigned SP redirects with conflict error."""
+    from services.exceptions import ConflictError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_assign = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.assign_sp_to_group")
+    mock_assign.side_effect = ConflictError(
+        "Already assigned", code="sp_group_already_assigned"
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/add",
+        data={"sp_id": sp_id},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert "error=sp_group_already_assigned" in response.headers["location"]
+
+
+def test_assign_sp_service_error(test_admin_user, override_auth, mocker):
+    """Test assigning an SP with a generic service error renders error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_assign = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.assign_sp_to_group")
+    mock_error = mocker.patch(f"{APPLICATIONS_MODULE}.render_error_page")
+    mock_assign.side_effect = ServiceError("Unexpected error")
+    mock_error.return_value = HTMLResponse(content="<html>error</html>")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/add",
+        data={"sp_id": sp_id},
+    )
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+def test_remove_sp_success(test_admin_user, override_auth, mocker):
+    """Test removing an SP assignment from a group redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_remove = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.remove_sp_group_assignment")
+    mock_remove.return_value = None
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert "success=sp_removed" in response.headers["location"]
+
+
+def test_remove_sp_not_found_error(test_admin_user, override_auth, mocker):
+    """Test removing an SP assignment that doesn't exist redirects with error."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_remove = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.remove_sp_group_assignment")
+    mock_remove.side_effect = NotFoundError(
+        "Assignment not found", code="sp_group_assignment_not_found"
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/applications" in response.headers["location"]
+    assert "error=sp_group_assignment_not_found" in response.headers["location"]
+
+
+def test_remove_sp_service_error(test_admin_user, override_auth, mocker):
+    """Test removing an SP assignment with a generic service error renders error page."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_remove = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.remove_sp_group_assignment")
+    mock_error = mocker.patch(f"{APPLICATIONS_MODULE}.render_error_page")
+    mock_remove.side_effect = ServiceError("Unexpected error")
+    mock_error.return_value = HTMLResponse(content="<html>error</html>")
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/applications/{sp_id}/remove",
+    )
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+# =============================================================================
+# Group Detail Tab Error Paths
+# =============================================================================
+
+
+def test_group_tab_membership_not_found(test_admin_user, override_auth, mocker):
+    """Test membership tab returns error page when group not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
+    mock_get.side_effect = NotFoundError("Group not found", code="group_not_found")
+    mock_error.return_value = HTMLResponse(content="<html>not found</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/membership")
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+def test_group_tab_applications_not_found(test_admin_user, override_auth, mocker):
+    """Test applications tab returns error page when group not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
+    mock_get.side_effect = NotFoundError("Group not found", code="group_not_found")
+    mock_error.return_value = HTMLResponse(content="<html>not found</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/applications")
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+def test_group_tab_relationships_not_found(test_admin_user, override_auth, mocker):
+    """Test relationships tab returns error page when group not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
+    mock_get.side_effect = NotFoundError("Group not found", code="group_not_found")
+    mock_error.return_value = HTMLResponse(content="<html>not found</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/relationships")
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+def test_group_tab_delete_not_found(test_admin_user, override_auth, mocker):
+    """Test delete tab returns error page when group not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+
+    mock_get = mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group")
+    mock_error = mocker.patch(f"{DETAIL_MODULE}.render_error_page")
+    mock_get.side_effect = NotFoundError("Group not found", code="group_not_found")
+    mock_error.return_value = HTMLResponse(content="<html>not found</html>")
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/delete")
+
+    assert response.status_code == 200
+    mock_error.assert_called_once()
+
+
+def test_group_tab_applications_sp_service_swallowed(
+    test_admin_user, override_auth, mock_group_detail_deps
+):
+    """Test applications tab renders even when sp_service raises ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = _make_relationship_list(
+        list_type="parents"
+    )
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["sp_service"].list_group_sp_assignments.side_effect = ServiceError(
+        "DB error"
+    )
+    mock_group_detail_deps["sp_service"].list_available_sps_for_group.side_effect = ServiceError(
+        "DB error"
+    )
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(
+        content="<html>applications</html>"
+    )
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/applications")
+
+    assert response.status_code == 200
+    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    assert template_name == "groups_detail_tab_applications.html"
+
+
+def test_group_tab_applications_shows_inherited_sps(
+    test_admin_user, override_auth, mock_group_detail_deps
+):
+    """Test applications tab builds inherited SP list from parent groups."""
+    from datetime import UTC, datetime
+    from schemas.service_providers import GroupSPAssignment, GroupSPAssignmentList
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    parent_id = str(uuid4())
+    sp_id = str(uuid4())
+    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
+
+    parent_item = MagicMock()
+    parent_item.group_id = parent_id
+    parent_item.name = "Parent Group"
+
+    parent_list = _make_relationship_list(list_type="parents")
+    parent_list.items = [parent_item]
+
+    inherited_sp = GroupSPAssignment(
+        id=str(uuid4()),
+        sp_id=sp_id,
+        group_id=parent_id,
+        sp_name="Test App",
+        sp_entity_id="https://app.example.com",
+        assigned_by=str(uuid4()),
+        assigned_at=datetime.now(UTC),
+    )
+
+    mock_group_detail_deps["get_group"].return_value = mock_group
+    mock_group_detail_deps["list_parents"].return_value = parent_list
+    mock_group_detail_deps["list_children"].return_value = _make_relationship_list(
+        list_type="children"
+    )
+    mock_group_detail_deps["list_available_parents"].return_value = []
+    mock_group_detail_deps["list_available_children"].return_value = []
+    # No direct SPs assigned, parent has one SP
+    mock_group_detail_deps["sp_service"].list_group_sp_assignments.side_effect = [
+        GroupSPAssignmentList(items=[], total=0),  # direct assignments for this group (empty)
+        GroupSPAssignmentList(items=[inherited_sp], total=1),  # parent's assignments
+    ]
+    mock_group_detail_deps["sp_service"].list_available_sps_for_group.return_value = []
+    mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
+    mock_group_detail_deps["template"].return_value = HTMLResponse(
+        content="<html>applications</html>"
+    )
+
+    client = TestClient(app)
+    response = client.get(f"/admin/groups/{group_id}/applications")
+
+    assert response.status_code == 200
+    ctx_call_kwargs = mock_group_detail_deps["get_context"].call_args[1]
+    inherited = ctx_call_kwargs["inherited_sps"]
+    assert len(inherited) == 1
+    assert inherited[0]["from_group_name"] == "Parent Group"

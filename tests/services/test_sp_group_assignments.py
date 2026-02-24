@@ -1249,3 +1249,172 @@ class TestGetUserAccessibleAppsExtended:
 
             names = [item.name for item in result.items]
             assert names == ["Alpha", "Beta", "Gamma"]
+
+
+# =============================================================================
+# count_sp_group_assignments
+# =============================================================================
+
+
+class TestCountSPGroupAssignments:
+    """Tests for count_sp_group_assignments."""
+
+    def test_returns_count(self, make_requesting_user):
+        """Returns the count of group assignments for an SP."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.sp_group_assignments.count_assignments_for_sp.return_value = 3
+
+            result = sp_service.count_sp_group_assignments(requesting_user, sp_id)
+
+            assert result == 3
+            mock_db.sp_group_assignments.count_assignments_for_sp.assert_called_once_with(
+                tenant_id, sp_id
+            )
+
+    def test_forbidden_for_user(self, make_requesting_user):
+        """Regular user cannot count assignments."""
+        from services import service_providers as sp_service
+        from services.exceptions import ForbiddenError
+
+        requesting_user = make_requesting_user(role="user")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.count_sp_group_assignments(requesting_user, str(uuid4()))
+
+    def test_tracks_activity(self, make_requesting_user):
+        """Admin activity is tracked for this read operation."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch(
+                "services.service_providers.group_assignments.track_activity"
+            ) as mock_track,
+        ):
+            mock_db.sp_group_assignments.count_assignments_for_sp.return_value = 0
+
+            sp_service.count_sp_group_assignments(requesting_user, sp_id)
+
+            mock_track.assert_called_once_with(tenant_id, requesting_user["id"])
+
+
+# =============================================================================
+# list_available_sps_for_group
+# =============================================================================
+
+
+class TestListAvailableSPsForGroup:
+    """Tests for list_available_sps_for_group."""
+
+    def test_filters_out_assigned_sps(self, make_requesting_user):
+        """Returns only SPs not yet assigned to the group."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        group_id = str(uuid4())
+        sp_a_id = str(uuid4())
+        sp_b_id = str(uuid4())
+        sp_c_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        all_sps = [
+            {"id": sp_a_id, "name": "App A"},
+            {"id": sp_b_id, "name": "App B"},
+            {"id": sp_c_id, "name": "App C"},
+        ]
+        # App B is already assigned
+        assigned_rows = [
+            {
+                "sp_id": sp_b_id,
+                "group_id": group_id,
+                "sp_name": "App B",
+                "sp_entity_id": "https://b.example.com",
+                "assigned_by": str(uuid4()),
+                "assigned_at": None,
+            }
+        ]
+
+        with patch("services.service_providers.group_assignments.database") as mock_db:
+            mock_db.service_providers.list_service_providers.return_value = all_sps
+            mock_db.sp_group_assignments.list_assignments_for_group.return_value = assigned_rows
+
+            result = sp_service.list_available_sps_for_group(requesting_user, group_id)
+
+            assert len(result) == 2
+            result_ids = {sp["id"] for sp in result}
+            assert sp_a_id in result_ids
+            assert sp_c_id in result_ids
+            assert sp_b_id not in result_ids
+
+    def test_returns_empty_when_all_assigned(self, make_requesting_user):
+        """Returns empty list when all SPs are already assigned."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        group_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        all_sps = [{"id": sp_id, "name": "Only App"}]
+        assigned_rows = [
+            {
+                "sp_id": sp_id,
+                "group_id": group_id,
+                "sp_name": "Only App",
+                "sp_entity_id": "https://app.example.com",
+                "assigned_by": str(uuid4()),
+                "assigned_at": None,
+            }
+        ]
+
+        with patch("services.service_providers.group_assignments.database") as mock_db:
+            mock_db.service_providers.list_service_providers.return_value = all_sps
+            mock_db.sp_group_assignments.list_assignments_for_group.return_value = assigned_rows
+
+            result = sp_service.list_available_sps_for_group(requesting_user, group_id)
+
+            assert result == []
+
+    def test_forbidden_for_user(self, make_requesting_user):
+        """Regular user cannot list available SPs."""
+        from services import service_providers as sp_service
+        from services.exceptions import ForbiddenError
+
+        requesting_user = make_requesting_user(role="user")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.list_available_sps_for_group(requesting_user, str(uuid4()))
+
+    def test_tracks_activity(self, make_requesting_user):
+        """Admin activity is tracked for this read operation."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        group_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch(
+                "services.service_providers.group_assignments.track_activity"
+            ) as mock_track,
+        ):
+            mock_db.service_providers.list_service_providers.return_value = []
+            mock_db.sp_group_assignments.list_assignments_for_group.return_value = []
+
+            sp_service.list_available_sps_for_group(requesting_user, group_id)
+
+            mock_track.assert_called_once_with(tenant_id, requesting_user["id"])

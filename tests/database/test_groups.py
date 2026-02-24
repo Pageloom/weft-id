@@ -1871,3 +1871,69 @@ def test_get_groups_for_user_select_returns_ordered_by_name(test_tenant):
 
     names = [r["name"] for r in results]
     assert names == sorted(names)
+
+
+# =============================================================================
+# Graph Layout Tests
+# =============================================================================
+
+
+def test_get_graph_layout_returns_none_when_not_set(test_tenant, test_admin_user):
+    """Returns None when no layout has been saved for the user."""
+    import database
+
+    result = database.groups.get_graph_layout(
+        test_tenant["id"], str(test_admin_user["id"])
+    )
+
+    assert result is None
+
+
+def test_upsert_graph_layout_creates_new(test_tenant, test_admin_user):
+    """Saves a new layout and retrieves it correctly."""
+    import database
+
+    user_id = str(test_admin_user["id"])
+    tenant_id = test_tenant["id"]
+    node_ids = "aaa,bbb,ccc"
+    positions = {"aaa": {"x": 10, "y": 20}, "bbb": {"x": 30, "y": 40}}
+
+    database.groups.upsert_graph_layout(tenant_id, user_id, node_ids, positions)
+
+    result = database.groups.get_graph_layout(tenant_id, user_id)
+
+    assert result is not None
+    assert result["node_ids"] == node_ids
+    assert result["positions"] == positions
+
+
+def test_upsert_graph_layout_updates_existing(test_tenant, test_admin_user):
+    """Upserting an existing layout replaces it with new values."""
+    import database
+
+    user_id = str(test_admin_user["id"])
+    tenant_id = test_tenant["id"]
+
+    database.groups.upsert_graph_layout(tenant_id, user_id, "old_ids", {"x": 1})
+    database.groups.upsert_graph_layout(tenant_id, user_id, "new_ids", {"x": 99})
+
+    result = database.groups.get_graph_layout(tenant_id, user_id)
+
+    assert result["node_ids"] == "new_ids"
+    assert result["positions"] == {"x": 99}
+
+
+def test_upsert_graph_layout_empty_positions(test_tenant, test_admin_user):
+    """Saves a layout with empty positions dict."""
+    import database
+
+    user_id = str(test_admin_user["id"])
+    tenant_id = test_tenant["id"]
+
+    database.groups.upsert_graph_layout(tenant_id, user_id, "", {})
+
+    result = database.groups.get_graph_layout(tenant_id, user_id)
+
+    assert result is not None
+    assert result["node_ids"] == ""
+    assert result["positions"] == {}

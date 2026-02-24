@@ -64,6 +64,9 @@ Request → Router → Service → Database → PostgreSQL
 | `app/routers/saml_idp/` | SAML IdP admin, SSO, metadata (package) |
 | `app/database/service_providers.py` | SP database queries |
 | `app/database/sp_signing_certificates.py` | Per-SP signing certificate queries |
+| `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
+| `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
+| `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
 ## Directory Structure
@@ -234,6 +237,18 @@ with session(tenant_id=tenant_id) as cur:
 - `weftid`: Manually managed groups (admin can add/remove members)
 - `idp`: Identity Provider groups (synced from external IdP, read-only in WeftId)
 
+## Frontend: JavaScript Utilities and Graph Views
+
+### WeftUtils
+
+Common UI patterns are consolidated in `static/js/utils.js` as the `WeftUtils` object. Before writing new JavaScript, check what's already there: confirmation modals, show/hide modals, clipboard copy, sticky action bars, locale/timezone detection. Inline event handlers (`onclick`, `onsubmit`) are blocked by CSP — use `WeftUtils` or `<script nonce="{{ csp_nonce }}">` blocks instead.
+
+### Cytoscape.js (Group Graphs)
+
+Group list and detail pages use Cytoscape.js (`static/js/cytoscape.min.js`) for interactive graph views. Key rule: **always initialize Cytoscape on a visible container.** If the graph is inside a hidden tab, defer initialization to `requestAnimationFrame` after the tab becomes visible. Initializing on a hidden container results in a zero-size layout with no error.
+
+Graph layouts are persisted to the database via `PUT /api/v1/groups/graph/layout`.
+
 ## Background Jobs
 
 Background jobs run in a separate worker container.
@@ -396,7 +411,7 @@ All checks must pass before committing.
 - **Cover happy paths and key edge cases** - don't just test the golden path
 - **All existing tests must pass** - never break existing functionality
 - Tests live in `tests/` mirroring the app structure
-- **E2E tests** live in `tests/e2e/` and run separately via `./test-e2e`. They cover cross-tenant SAML SSO flows and login using Playwright. They are excluded from `./test`.
+- **E2E tests** live in `tests/e2e/` and run separately via `./test-e2e`. They cover SAML SSO flows (SP- and IdP-initiated), SLO, MFA (email and TOTP), group-based SP access, and login using Playwright. They are excluded from `./test`.
 - **Test environment**: Tests set `IS_DEV=true` (in `tests/conftest.py`) to bypass production validation
 
 ## Agent Workflow

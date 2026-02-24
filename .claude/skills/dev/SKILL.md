@@ -93,7 +93,7 @@ This runs only tests affected by your changes, providing fast feedback (seconds 
 Both must pass.
 
 # Note: E2E tests (./test-e2e) are separate and not required before every commit.
-# Run them when changes affect login flows, SAML SSO, or cross-tenant behavior.
+# Run them when changes affect: login flows, SAML SSO, SLO, MFA, cross-tenant behavior, or group-based SP access.
 
 ## Testing Requirements
 
@@ -104,10 +104,10 @@ Both must pass.
 
 ## Off-List Requests
 
-If asked to implement something not in ISSUES.md or BACKLOG.md:
+Distinguish between:
 
-1. Politely decline: "I'm focused on tracked items."
-2. Suggest: "Use `/pm` to add this as a backlog item first."
+- **Operational tasks** (fix a CVE, run checks, fix lint, upgrade a dependency): Just do it. These don't need to be tracked items.
+- **Untracked feature requests** (new functionality not in ISSUES.md or BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
 
 ## Completion
 

@@ -1882,9 +1882,7 @@ def test_get_graph_layout_returns_none_when_not_set(test_tenant, test_admin_user
     """Returns None when no layout has been saved for the user."""
     import database
 
-    result = database.groups.get_graph_layout(
-        test_tenant["id"], str(test_admin_user["id"])
-    )
+    result = database.groups.get_graph_layout(test_tenant["id"], str(test_admin_user["id"]))
 
     assert result is None
 

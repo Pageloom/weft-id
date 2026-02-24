@@ -2358,9 +2358,7 @@ def test_assign_sp_conflict_error(test_admin_user, override_auth, mocker):
     sp_id = str(uuid4())
 
     mock_assign = mocker.patch(f"{APPLICATIONS_MODULE}.sp_service.assign_sp_to_group")
-    mock_assign.side_effect = ConflictError(
-        "Already assigned", code="sp_group_already_assigned"
-    )
+    mock_assign.side_effect = ConflictError("Already assigned", code="sp_group_already_assigned")
 
     client = TestClient(app)
     response = client.post(
@@ -2596,6 +2594,7 @@ def test_group_tab_applications_shows_inherited_sps(
 ):
     """Test applications tab builds inherited SP list from parent groups."""
     from datetime import UTC, datetime
+
     from schemas.service_providers import GroupSPAssignment, GroupSPAssignmentList
 
     override_auth(test_admin_user, level="admin")

@@ -36,78 +36,6 @@ Groups have a `type` field: `weftid` (manually managed) or `idp` (synced from an
 
 ---
 
-## Tooling: Dead Links Compliance Check
-
-**User Story:**
-As a developer
-I want the `./code-quality` script to flag template links that don't match any registered route
-So that typos and stale paths in templates are caught during CI rather than at runtime
-
-**Acceptance Criteria:**
-- [ ] New `--check template-links` principle added to `scripts/compliance_check.py`
-- [ ] Scans all `app/templates/**/*.html` files for `href` and `action` attribute values
-- [ ] Skips external URLs, relative-only links (`?...`, `#`), and static/branding paths
-- [ ] Normalizes Jinja2 dynamic segments (`{{ ... }}`) to wildcards before matching
-- [ ] Collects all registered route paths from Python router files in `app/routers/`
-- [ ] Strips query strings from template paths before matching
-- [ ] Reports unmatched paths as violations with file and line number
-- [ ] Integrated into the default `--check all` run (picked up by `./code-quality`)
-- [ ] Zero false positives on the existing template set at time of implementation
-
-**Effort:** S
-**Value:** Medium
-
----
-
-## Admin: User-App Access Query
-
-**User Story:**
-As an admin
-I want to check whether a specific user has access to a specific application, and see all
-apps available to a user
-So that I can troubleshoot access issues and audit permissions
-
-**Context:**
-
-`check_user_sp_access()` already exists in the database layer. This item adds a UI and
-API surface for it. The dependency on SAML IdP Phase 2 is resolved.
-
-**Acceptance Criteria:**
-
-- [ ] Admin page or widget: select a user, see all their accessible SPs
-- [ ] Shows which groups grant each SP access (traceability)
-- [ ] Search/filter by user
-- [ ] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
-- [ ] New criterion: As super admin only: ability to impersonate a user ONLY for 
-      debugging purposes - i.e not actually signing in to the SP.
-
-**Effort:** M
-**Value:** Medium (Admin troubleshooting, low implementation cost)
-
----
-
-## Auto-assign Users to Groups Based on Privileged Email Domains
-
-**User Story:**
-As a super admin
-I want to configure privileged domains to automatically assign users with matching email
-addresses to specified groups
-So that I do not have to manually manage group memberships for users from known domains
-
-**Acceptance Criteria:**
-
-- [ ] Link one or more WeftId groups to a privileged domain
-- [ ] When a user is created or verified with an email matching the domain, auto-add to linked groups
-- [ ] Existing users can be bulk-processed when a domain-group link is added
-- [ ] Domain-group links shown on privileged domain detail page
-- [ ] Auto-assigned memberships are regular memberships (can be manually removed)
-- [ ] Event log entries for auto-assignments
-
-**Effort:** S-M
-**Value:** Medium (Reduces admin toil for common onboarding pattern)
-
----
-
 ## Groups: IdP Umbrella Group Descriptive Copy
 
 **User Story:**
@@ -161,6 +89,9 @@ As an admin
 I want groups reported by the IdP during authentication to automatically appear as DAG
 children of the IdP's umbrella group, with that relationship protected from manual removal
 So that the group hierarchy accurately reflects the IdP's structure and cannot be accidentally broken
+
+**Depends on:** IdP Umbrella Group Descriptive Copy (the Relationships tab notices established
+by that item are extended here).
 
 **Context:**
 
@@ -227,6 +158,76 @@ Tests:
 
 ---
 
+## Tooling: Dead Links Compliance Check
+
+**User Story:**
+As a developer
+I want the `./code-quality` script to flag template links that don't match any registered route
+So that typos and stale paths in templates are caught during CI rather than at runtime
+
+**Acceptance Criteria:**
+- [ ] New `--check template-links` principle added to `scripts/compliance_check.py`
+- [ ] Scans all `app/templates/**/*.html` files for `href` and `action` attribute values
+- [ ] Skips external URLs, relative-only links (`?...`, `#`), and static/branding paths
+- [ ] Normalizes Jinja2 dynamic segments (`{{ ... }}`) to wildcards before matching
+- [ ] Collects all registered route paths from Python router files in `app/routers/`
+- [ ] Strips query strings from template paths before matching
+- [ ] Reports unmatched paths as violations with file and line number
+- [ ] Integrated into the default `--check all` run (picked up by `./code-quality`)
+- [ ] Zero false positives on the existing template set at time of implementation
+
+**Effort:** S
+**Value:** Medium
+
+---
+
+## Admin: User-App Access Query
+
+**User Story:**
+As an admin
+I want to check whether a specific user has access to a specific application, and see all
+apps available to a user
+So that I can troubleshoot access issues and audit permissions
+
+**Context:**
+
+`check_user_sp_access()` already exists in the database layer. This item adds a UI and
+API surface for it. The dependency on SAML IdP Phase 2 is resolved.
+
+**Acceptance Criteria:**
+
+- [ ] Admin page or widget: select a user, see all their accessible SPs
+- [ ] Shows which groups grant each SP access (traceability)
+- [ ] Search/filter by user
+- [ ] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
+
+**Effort:** M
+**Value:** Medium (Admin troubleshooting, low implementation cost)
+
+---
+
+## Auto-assign Users to Groups Based on Privileged Email Domains
+
+**User Story:**
+As a super admin
+I want to configure privileged domains to automatically assign users with matching email
+addresses to specified groups
+So that I do not have to manually manage group memberships for users from known domains
+
+**Acceptance Criteria:**
+
+- [ ] Link one or more WeftId groups to a privileged domain
+- [ ] When a user is created or verified with an email matching the domain, auto-add to linked groups
+- [ ] Existing users can be bulk-processed when a domain-group link is added
+- [ ] Domain-group links shown on privileged domain detail page
+- [ ] Auto-assigned memberships are regular memberships (can be manually removed)
+- [ ] Event log entries for auto-assignments
+
+**Effort:** S-M
+**Value:** Medium (Reduces admin toil for common onboarding pattern)
+
+---
+
 ## Reusable SVG Icon System
 
 **User Story:**
@@ -284,42 +285,6 @@ Quality:
 
 **Effort:** S-M
 **Value:** Medium (DRY, consistency, maintainability)
-
----
-
-## Group Detail: Tabbed Layout with Relationship Diagram
-
-**User Story:**
-As an admin
-I want the group detail page reorganized into tabs with a visual relationship diagram
-So that I can navigate group content more efficiently and understand a group's position in the hierarchy at a glance
-
-**Context:**
-
-The current group detail page is a long scroll of stacked sections: name/description form, members, assigned apps, parent groups, child groups. The service provider and IdP detail pages use tabbed layouts that work well for organizing this kind of multi-faceted content. The same pattern should be applied here.
-
-The Relationships tab replaces the current flat parent/child lists with a local neighborhood diagram: the current group in the center, with arrows to each direct parent and child. Each adjacent node shows a hint of its own relationship count. Clicking a node navigates to that group's detail page.
-
-**Acceptance Criteria:**
-
-Tab structure:
-- [ ] Details tab: name, description, type badge, IdP source (if applicable), created/updated timestamps, delete action
-- [ ] Members tab: direct member count, effective (inherited) member count, link to member management page, IdP-managed notice where applicable
-- [ ] Applications tab: list of SPs this group grants access to (current Assigned Applications section)
-- [ ] Relationships tab: local neighborhood diagram (see below)
-- [ ] Active tab preserved in URL hash or query param for direct linking and browser back/forward
-
-Relationships tab:
-- [ ] Current group rendered as a center node
-- [ ] Direct parent groups rendered as connected nodes with directed arrows (child to parent)
-- [ ] Direct child groups rendered as connected nodes with directed arrows (child to parent)
-- [ ] Each adjacent node shows a hint: e.g. "2 parents" or "3 children"
-- [ ] Clicking an adjacent node navigates to that group's detail page (same tab)
-- [ ] Add/remove parent and add/remove child controls remain accessible within this tab
-- [ ] Read-only display for IdP groups (no add/remove controls)
-
-**Effort:** M
-**Value:** High (Reduces scroll fatigue; makes group relationships immediately navigable)
 
 ---
 
@@ -478,3 +443,31 @@ Edge label de-overlap:
 
 ---
 
+## Admin: Super Admin Debug Impersonation
+
+**User Story:**
+As a super admin
+I want to view what a specific user's application access looks like from their perspective
+So that I can debug access and attribute issues without creating a real session as that user
+
+**Context:**
+
+This is a debug-only, read-only capability. The super admin sees the user's effective access
+and the identity attributes that would be asserted for them, without performing a real
+authentication to any SP. This is the "what would happen if they logged in?" companion to
+the User-App Access Query item, which answers "does this user have access?".
+
+**Acceptance Criteria:**
+
+- [ ] Super admin only (not admin role)
+- [ ] Accessible from the user detail page and/or the User-App Access view
+- [ ] Shows the user's effective group memberships and the SPs accessible via those groups
+- [ ] For a selected user + SP combination, shows a preview of the identity attributes
+      (name, email, groups, any custom attribute mappings) that would be asserted
+- [ ] Clearly labeled as a debug preview. No actual SP session or authentication occurs.
+- [ ] Event logged in audit trail (`super_admin_debug_impersonation`) with actor, target user, and SP
+
+**Effort:** M
+**Value:** Low
+
+---

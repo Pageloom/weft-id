@@ -79,13 +79,13 @@ Like pytest, pip-audit must be run as a Python module. The script entry point is
 
 ---
 
-## Dependency Security Scanning Limitations
+## Dependency Security Scanning: Primary vs Fallback Path
 
-**Issue:** `scripts/deps_check.py` may miss vulnerabilities that `pip-audit` catches directly.
+**Primary path (pip-audit):** `scripts/deps_check.py` runs pip-audit against the full venv, catching both direct and transitive dependencies. This is the normal case.
 
-**Why:** The script only scans direct dependencies from pyproject.toml, not transitive dependencies. Vulnerabilities in transitive deps (like ecdsa via sendgrid) are missed.
+**Fallback path (OSV API):** If pip-audit fails, the script falls back to scanning only direct dependencies from pyproject.toml and will miss transitive vulnerabilities.
 
-**Workaround:** Run `poetry run python -m pip_audit --progress-spinner off` directly to catch all vulnerabilities including transitive dependencies.
+**Diagnostic:** The "Packages scanned" count in the report reflects direct deps only regardless of which path ran. If it seems low, run `poetry run python -m pip_audit --progress-spinner off` to verify pip-audit is working.
 
 ---
 
@@ -193,6 +193,40 @@ The migration runner (`db-init/migrate.py`) handles transaction management, erro
 Do not import from private (`_`-prefixed) modules. Instead, import from the parent package that re-exports those symbols. For example, `database.__init__` re-exports `UNSCOPED`, `fetchall`, `fetchone`, `execute`, and `session` from `database._core`.
 
 **Exception:** Modules *inside* the `database/` package itself must import from `_core` directly (e.g., `from ._core import ...` or `from database._core import ...`) because the package `__init__` has not finished loading when submodules are first imported.
+
+---
+
+## Tailwind CSS: New Classes Don't Appear Without Rebuild
+
+**Wrong:** Adding a new Tailwind utility class to a template and expecting it to work immediately.
+**Right:** Run `make build-css` after adding any Tailwind class that wasn't already in the codebase.
+
+Tailwind generates CSS only for classes it finds during a build scan. If you add `text-rose-600` to a template but it wasn't previously used anywhere, the class won't exist in `static/css/output.css` until you rebuild. The browser renders nothing with no error.
+
+**Use `make watch-css`** during active template development to auto-rebuild on every save.
+
+---
+
+## Cytoscape Graph: Must Initialize on a Visible Container
+
+**Wrong:** Calling `cytoscape({container: el, ...})` when `el` is inside a hidden tab or has `display: none`.
+**Right:** Defer initialization until the container is visible. Use `requestAnimationFrame` or listen for the tab activation event.
+
+Cytoscape measures the container dimensions at init time. A hidden container reports 0×0, which produces a broken (zero-size) layout. The established pattern in this codebase is to defer graph init to `rAF` when rendering tabs.
+
+---
+
+## Check WeftUtils Before Writing Inline JavaScript
+
+The project has a shared utility object at `static/js/utils.js` (`WeftUtils`). Before writing custom JavaScript for common UI patterns, check if it's already there:
+
+- `WeftUtils.confirm(msg, callback)` - confirmation modal
+- `WeftUtils.showModal(id)` / `WeftUtils.hideModal(id)` - modal open/close
+- `WeftUtils.copyToClipboard(text, el)` - clipboard copy with feedback
+- `WeftUtils.stickyActionBar(id)` - bulk action bar that sticks to bottom when scrolled out of view
+- `WeftUtils.detectTimezone()` / `WeftUtils.detectLocale()` - locale detection
+
+Duplicating these inline is also risky because inline event handlers are blocked by CSP.
 
 ---
 

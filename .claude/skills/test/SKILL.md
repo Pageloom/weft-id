@@ -11,7 +11,7 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 
 - **Reads:** BACKLOG_ARCHIVE.md, ISSUES_ARCHIVE.md, codebase, `.claude/test_agent_log.md`
 - **Writes:** Tests, ISSUES.md, test agent log
-- **Can commit:** Yes (test code only)
+- **Can commit:** Yes, but ask user before committing
 
 ## Before You Start
 
@@ -124,7 +124,7 @@ Before finishing, append to `.claude/test_agent_log.md`:
 - Starting commit hash
 - Summary of what you did
 
-Do NOT commit directly. Let user commit all changes together.
+Ask the user before committing. They may want to review or bundle commits.
 
 ## Start Here
 

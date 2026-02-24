@@ -445,3 +445,36 @@ Event logging:
 
 ---
 
+## Group Graph: Toolbar, New Group Modal, and Label Overlap
+
+**User Story:**
+As an admin using the group graph view
+I want a cleaner toolbar, the ability to create groups directly from the graph, and non-overlapping edge labels
+So that the graph feels polished, I can build the group hierarchy without leaving the canvas, and off-screen labels are readable
+
+**Acceptance Criteria:**
+
+Toolbar (icon-only buttons):
+- [ ] "Add relationship", "Cut relationship", and "Edit layout" toolbar buttons show only an icon (no text label)
+- [ ] Each button has a `title` tooltip that describes its function (visible on hover)
+- [ ] Visual appearance and active/inactive states are preserved
+
+New Group tool:
+- [ ] A "New group" button is added to the graph toolbar (icon + tooltip, consistent with other toolbar items)
+- [ ] Clicking it opens a modal with a "Name" field (required) and a "Description" field (optional), plus Cancel and Create buttons
+- [ ] Submitting the modal creates the group via the existing group creation service and adds it to the graph
+- [ ] The new node appears in the graph in a selected/highlighted state so the admin can immediately connect it
+- [ ] Cancel closes the modal without creating anything
+- [ ] Validation: name is required; shows inline error if empty on submit
+- [ ] Creation failure (e.g. duplicate name) shows an error in the modal without closing it
+
+Edge label de-overlap:
+- [ ] When multiple off-screen edge labels (showing a connected group's name) would be rendered at overlapping or near-overlapping positions at the viewport boundary, they are spread out so no two labels overlap
+- [ ] De-overlap logic is applied only to the off-screen labels (labels for visible nodes are unaffected)
+- [ ] Labels remain close to the edge line's viewport intersection point where possible
+
+**Effort:** M
+**Value:** Medium
+
+---
+

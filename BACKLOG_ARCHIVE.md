@@ -4,6 +4,30 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Group Detail: Tabbed Layout with Relationship Diagram
+
+**Status:** Complete
+
+**Summary:** Implemented as a 5-tab layout (Details, Members, Applications, Relationships, Delete) with a shared base template (`groups_detail_base.html`) and per-tab templates. The Relationships tab uses Cytoscape.js for an interactive neighborhood graph. Tabs are implemented as separate routes under `/admin/groups/{group_id}/<tab>` with `_load_group_common()` for shared data. Active tab state is tracked via route-set template variables. Inherited application and membership counts are surfaced in the Members and Applications tabs.
+
+**Acceptance Criteria:**
+
+Tab structure:
+- [x] Details tab: name, description, type badge, IdP source (if applicable), delete action
+- [x] Members tab: direct member count, effective (inherited) member count, member management
+- [x] Applications tab: list of SPs this group grants access to
+- [x] Relationships tab: local neighborhood diagram
+- [x] Active tab reflected in URL for direct linking
+
+Relationships tab:
+- [x] Current group rendered as a center node
+- [x] Direct parent and child groups rendered as connected nodes with directed arrows
+- [x] Clicking an adjacent node navigates to that group's detail page
+- [x] Add/remove parent and add/remove child controls accessible within this tab
+- [x] Read-only display for IdP groups (no add/remove controls)
+
+---
+
 ## Tooling: Dev Environment Seed Script
 
 **Status:** Complete

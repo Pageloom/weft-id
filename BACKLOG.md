@@ -471,3 +471,53 @@ the User-App Access Query item, which answers "does this user have access?".
 **Value:** Low
 
 ---
+
+## SAML: Group Assertion Transparency (Trunk-Only Mode + Consent Screen Visibility)
+
+**User Story:**
+As a super admin
+I want to control whether full group memberships or only trunk groups are communicated in
+SAML assertions, and as a user I want to see which groups will be shared during authentication
+So that admins can minimize group exposure to service providers, and users understand what
+identity information is being disclosed before they consent
+
+**Context:**
+
+Currently, SAML assertions include all of the user's group memberships. Two related gaps:
+
+1. **Trunk-only mode:** A "trunk group" is any group the user belongs to that has no parent
+   groups in the DAG. It represents the broadest, most concise outline of the user's group
+   footprint without enumerating every nested membership. Communicating only trunk groups
+   reduces how much internal group structure is leaked to service providers.
+
+2. **Consent screen visibility:** The consent screen during SAML authentication does not show
+   which groups will be shared with the SP. If group attributes are being asserted, the user
+   should see exactly which groups are being disclosed before completing sign-in.
+
+These are linked: if trunk-only mode is active, the consent screen should reflect the filtered
+group set (not the full membership list).
+
+**Acceptance Criteria:**
+
+Trunk-only admin setting:
+- [ ] New tenant-level setting in admin security settings: "Group assertion scope" with two
+      options: "All groups" (share all group memberships) and "Trunk groups only" (share only
+      groups with no parent groups in the DAG). Default: "Trunk groups only"
+- [ ] "Trunk groups only" filters the group list included in any SAML assertion to those
+      where the user has no parent group in the `group_lineage` table
+- [ ] Setting is persisted with a migration; readable via the settings service
+- [ ] Event logged (`group_assertion_scope_updated`) when the setting changes
+- [ ] API endpoint exposes and allows updating the setting
+
+Consent screen group disclosure:
+- [ ] If the SP's attribute mapping includes a groups attribute, the consent screen displays
+      the list of groups that will be shared in the assertion
+- [ ] If trunk-only mode is active, the displayed groups reflect the filtered set
+- [ ] If the SP does not request a groups attribute, this section is hidden
+- [ ] Groups are listed by name; if the list is long (>10), show a count with a collapsible
+      "show all" expansion
+
+**Effort:** M
+**Value:** Medium
+
+---

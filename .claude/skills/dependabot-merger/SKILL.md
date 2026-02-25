@@ -56,16 +56,20 @@ For each PR:
    git checkout deps/batch-YYYY-MM-DD
    git cherry-pick <sha> [<sha> ...]
    ```
-3. If `poetry.lock` conflicts on cherry-pick:
-   - Accept the `pyproject.toml` change from the incoming commit
-   - Abort the cherry-pick, regenerate, and recommit:
-     ```bash
-     git cherry-pick --abort
-     # Manually apply the pyproject.toml version bump from the PR
-     poetry lock && poetry install
-     git add pyproject.toml poetry.lock
-     git commit -m "<original dependabot commit message>"
-     ```
+3. **`poetry.lock` will conflict on every cherry-pick after the first** — each dependabot
+   commit fully regenerates `poetry.lock` from `main`, so it always conflicts once the
+   consolidation branch has any prior bump. Treat the manual-regenerate path as the norm:
+   ```bash
+   git cherry-pick --abort
+   # Get the pyproject.toml version change from the PR:
+   gh pr diff <number> | grep "^[+-]" | grep "<package>"
+   # Apply the version bump manually to pyproject.toml, then:
+   poetry lock && poetry install
+   git add pyproject.toml poetry.lock
+   git commit -m "<original dependabot commit message>"
+   ```
+   Note: `gh pr diff <number> -- <file>` does NOT work (accepts at most 1 arg). Use the
+   pipe-and-grep form above to extract pyproject.toml changes from the diff.
 4. Verify the package updated correctly:
    ```bash
    poetry show <package>

@@ -12,7 +12,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 1 | CSRF |
-| Low | 1 | Unbounded Input |
+| Low | 2 | Unbounded Input, UI |
 
 **Last security scan:** 2026-02-26 (targeted: CSRF on session-cookie API calls, 1 new issue)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
@@ -131,5 +131,44 @@ positions jsonb NOT NULL DEFAULT '{}'
 **Impact:** Admin-only resource exhaustion. Memory pressure on API server and database on reads. Low exploitability (requires admin session).
 
 **Remediation:** Add a Pydantic model validator that limits the positions dict to a maximum number of keys (e.g., 10,000) and validates that each value is `{"x": float, "y": float}`. Optionally add a DB CHECK on `length(positions::text) <= 524288` (512 KB) consistent with the `node_ids` CHECK pattern.
+
+---
+
+## [UI] Groups graph tooltip unclickable at high zoom levels
+
+**Found in:** `app/templates/groups_list.html` (approx. line 886-891, `repositionTooltip`)
+**Severity:** Low
+
+**Description:** When the user zooms into the groups graph, the "Details" button inside the node tooltip becomes unclickable. The tooltip is positioned using a hardcoded vertical offset of `32px` above the node's rendered centre point. At high zoom levels the node renders much taller than 32px on screen, so the tooltip overlaps the Cytoscape canvas node element. The canvas intercepts pointer events before they reach the tooltip's link/button, making it unresponsive.
+
+**Evidence:**
+
+```javascript
+// app/templates/groups_list.html ~line 886-891
+function repositionTooltip(node) {
+  var pos = node.renderedPosition();
+  tooltip.style.left = (pos.x - tooltip.offsetWidth / 2) + 'px';
+  tooltip.style.top  = (pos.y - 32 - tooltip.offsetHeight - 6) + 'px';
+  //                             ^^
+  //  Hardcoded 32px does not scale with zoom. At 3× zoom a typical node
+  //  is ~120px tall on screen, so the tooltip is drawn inside the node.
+}
+```
+
+**Impact:** At moderate-to-high zoom levels the Details button is unreachable without first zooming back out. Worsens UX for dense graphs where users naturally zoom in to distinguish nodes.
+
+**Root Cause:** `repositionTooltip` uses `node.renderedPosition()` (the screen-space centre) but applies a fixed pixel offset that does not account for the node's actual rendered height at the current zoom level.
+
+**Suggested fix:** Replace the hardcoded offset with the node's rendered bounding box so the tooltip is always anchored just above the node's visible top edge:
+
+```javascript
+function repositionTooltip(node) {
+  var bb = node.renderedBoundingBox({ includeLabels: false });
+  tooltip.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - tooltip.offsetWidth / 2) + 'px';
+  tooltip.style.top  = (bb.y1 - tooltip.offsetHeight - 6) + 'px';
+}
+```
+
+`renderedBoundingBox()` returns screen-pixel coordinates that already incorporate the current zoom level, so the tooltip will sit just above the node regardless of zoom.
 
 ---

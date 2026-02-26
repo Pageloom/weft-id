@@ -433,7 +433,7 @@ def update_branding_settings(
 
     # Check if group_avatar_style is changing so we can log it separately
     previous_row = database.branding.get_branding(requesting_user["tenant_id"])
-    previous_style = previous_row["group_avatar_style"] if previous_row else "mandala"
+    previous_style = previous_row["group_avatar_style"] if previous_row else "acronym"
     new_style = settings.group_avatar_style.value
 
     database.branding.update_branding_settings(
@@ -537,7 +537,7 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
     use_favicon = row["use_logo_as_favicon"] if row else False
     site_title = row["site_title"] if row else None
     show_title = row["show_title_in_nav"] if row else True
-    group_avatar_style = row["group_avatar_style"] if row else "mandala"
+    group_avatar_style = row["group_avatar_style"] if row else "acronym"
 
     # Switch to custom mode
     database.branding.update_branding_settings(
@@ -682,7 +682,7 @@ def get_branding_for_template(tenant_id: str) -> dict:
             "has_logo_dark": False,
             "site_title": DEFAULT_SITE_TITLE,
             "show_title_in_nav": True,
-            "group_avatar_style": "mandala",
+            "group_avatar_style": "acronym",
         }
 
     return {

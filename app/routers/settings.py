@@ -17,7 +17,6 @@ from pydantic import ValidationError as PydanticValidationError
 from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode, LogoSlot
 from schemas.settings import PrivilegedDomainCreate, TenantSecuritySettingsUpdate
 from services import branding as branding_service
-from services import groups as groups_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services.exceptions import ServiceError, ValidationError
@@ -382,11 +381,6 @@ def admin_branding_groups(
 
     try:
         branding_settings = branding_service.get_branding_settings(requesting_user)
-        groups_list = groups_service.list_groups(
-            requesting_user,
-            page=1,
-            page_size=200,
-        )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -399,7 +393,6 @@ def admin_branding_groups(
             request,
             tenant_id,
             branding_settings=branding_settings,
-            groups=groups_list.items,
             success=success,
             error=error,
         ),

@@ -39,7 +39,7 @@ class BrandingSettings(BaseModel):
     logo_light_mime: str | None = Field(None, description="MIME type of light logo")
     logo_dark_mime: str | None = Field(None, description="MIME type of dark logo")
     group_avatar_style: GroupAvatarStyle = Field(
-        GroupAvatarStyle.MANDALA, description="Default avatar style for group icons"
+        GroupAvatarStyle.ACRONYM, description="Default avatar style for group icons"
     )
     updated_at: datetime | None = Field(None, description="Last update timestamp")
 
@@ -54,7 +54,7 @@ class BrandingSettingsUpdate(BaseModel):
     )
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
     group_avatar_style: GroupAvatarStyle = Field(
-        GroupAvatarStyle.MANDALA, description="Default avatar style for group icons"
+        GroupAvatarStyle.ACRONYM, description="Default avatar style for group icons"
     )
 
 

@@ -138,7 +138,7 @@ def update_branding_settings(
     use_logo_as_favicon: bool,
     site_title: str | None = None,
     show_title_in_nav: bool = True,
-    group_avatar_style: str = "mandala",
+    group_avatar_style: str = "acronym",
 ) -> int:
     """
     Update branding display settings. Creates the branding row if needed.

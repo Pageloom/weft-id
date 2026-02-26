@@ -732,6 +732,12 @@ class TestGroupAvatarStyle:
 
         from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
 
+        # Set mandala first so there is a real style change to log
+        branding_service.update_branding_settings(
+            ru,
+            BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA),
+        )
+
         update = BrandingSettingsUpdate(
             logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
         )

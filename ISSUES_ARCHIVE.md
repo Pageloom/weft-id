@@ -5,6 +5,20 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [UI] Groups graph tooltip unclickable at high zoom levels
+
+**Status:** Resolved (2026-02-26)
+**Original Severity:** Low
+
+**Original Description:**
+The "Details" button in the node tooltip became unclickable at high zoom levels. `repositionTooltip` used a hardcoded `32px` vertical offset above the node's rendered centre point. At zoom > 1×, the node renders taller than 32px on screen, so the tooltip overlapped the Cytoscape canvas node element, causing it to intercept pointer events before they reached the Details button. The hover tooltip had the same bug.
+
+**Resolution:**
+- Replaced `node.renderedPosition()` + hardcoded `32px` offset with `node.renderedBoundingBox({ includeLabels: false })` in both `repositionTooltip` (pinned tooltip) and the hover tooltip positioning block in `app/templates/groups_list.html`.
+- `renderedBoundingBox()` returns screen-pixel coordinates that already incorporate the current zoom level. The tooltip is now anchored to `bb.y1` (the node's visible top edge) and horizontally centred on the node's midpoint, so it sits just above the node regardless of zoom.
+
+---
+
 ### [TEST] Integration tests for small database modules (40%/60%/67% coverage)
 
 **Status:** Resolved (2026-02-22)

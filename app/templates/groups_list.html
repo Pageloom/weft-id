@@ -859,12 +859,12 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         var direct    = node.data('memberCount') || 0;
         var effective = node.data('effectiveMemberCount') || 0;
         var inherited = effective - direct;
-        var frags = [];
-        if (direct)    frags.push(direct + ' direct');
-        if (inherited > 0) frags.push('+' + inherited + ' inherited');
-        if (frags.length) {
+        if (direct || inherited > 0) {
           var memEl = document.createElement('div');
-          memEl.textContent = frags.join(' \u00b7 ');
+          var label = inherited > 0
+            ? direct + ' + ' + inherited + ' members'
+            : direct + (direct === 1 ? ' member' : ' members');
+          memEl.textContent = label;
           memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
           tooltip.appendChild(memEl);
         }
@@ -884,10 +884,13 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       }
 
       function repositionTooltip(node) {
-        // Anchor above the original circle centre regardless of current node shape/size
-        var pos = node.renderedPosition();
-        tooltip.style.left = (pos.x - tooltip.offsetWidth / 2) + 'px';
-        tooltip.style.top  = (pos.y - 32 - tooltip.offsetHeight - 6) + 'px';
+        // Use the rendered bounding box so the tooltip sits just above the node
+        // at any zoom level. renderedBoundingBox() returns screen-pixel coords
+        // that already incorporate the current zoom, avoiding the hardcoded
+        // offset that caused the tooltip to overlap the node when zoomed in.
+        var bb = node.renderedBoundingBox({ includeLabels: false });
+        tooltip.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top  = (bb.y1 - tooltip.offsetHeight - 6) + 'px';
       }
 
       function showTooltipForNode(node, detailsHref) {
@@ -908,19 +911,19 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         var direct    = node.data('memberCount') || 0;
         var effective = node.data('effectiveMemberCount') || 0;
         var inherited = effective - direct;
-        var frags = [];
-        if (direct)    frags.push(direct + ' direct');
-        if (inherited > 0) frags.push('+' + inherited + ' inherited');
-        if (frags.length) {
+        if (direct || inherited > 0) {
           var memEl = document.createElement('div');
-          memEl.textContent = frags.join(' \u00b7 ');
+          var label = inherited > 0
+            ? direct + ' + ' + inherited + ' members'
+            : direct + (direct === 1 ? ' member' : ' members');
+          memEl.textContent = label;
           memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
           hoverTooltip.appendChild(memEl);
         }
         hoverTooltip.style.display = 'block';
-        var pos = node.renderedPosition();
-        hoverTooltip.style.left = (pos.x - hoverTooltip.offsetWidth / 2) + 'px';
-        hoverTooltip.style.top  = (pos.y - 32 - hoverTooltip.offsetHeight - 6) + 'px';
+        var hbb = node.renderedBoundingBox({ includeLabels: false });
+        hoverTooltip.style.left = (hbb.x1 + (hbb.x2 - hbb.x1) / 2 - hoverTooltip.offsetWidth / 2) + 'px';
+        hoverTooltip.style.top  = (hbb.y1 - hoverTooltip.offsetHeight - 6) + 'px';
       });
       cy.on('mouseout', 'node', function() { hoverTooltip.style.display = 'none'; });
       cy.on('pan zoom', function() {

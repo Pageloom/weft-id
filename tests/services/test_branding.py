@@ -735,7 +735,9 @@ class TestGroupAvatarStyle:
         # Set mandala first so there is a real style change to log
         branding_service.update_branding_settings(
             ru,
-            BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA),
+            BrandingSettingsUpdate(
+                logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
+            ),
         )
 
         update = BrandingSettingsUpdate(

@@ -29,9 +29,11 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
                (select count(*) from group_relationships gr
                 where gr.child_group_id = g.id) as parent_count,
                (select count(*) from group_relationships gr
-                where gr.parent_group_id = g.id) as child_count
+                where gr.parent_group_id = g.id) as child_count,
+               (gl.group_id is not null) as has_logo
         from groups g
         left join saml_identity_providers idp on g.idp_id = idp.id
+        left join group_logos gl on gl.group_id = g.id
         where g.id = :group_id
         """,
         {"group_id": group_id},

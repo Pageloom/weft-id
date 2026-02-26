@@ -58,10 +58,18 @@ def _load_group_common(requesting_user, group_id):
             "name": group.name,
             "parent_count": group.parent_count,
             "child_count": group.child_count,
+            "has_logo": group.has_logo,
         },
-        "parents": [{"id": p.group_id, "name": p.name} for p in parents.items],
+        "parents": [
+            {"id": p.group_id, "name": p.name, "has_logo": p.has_logo} for p in parents.items
+        ],
         "children": [
-            {"id": c.group_id, "name": c.name, "member_count": c.member_count}
+            {
+                "id": c.group_id,
+                "name": c.name,
+                "member_count": c.member_count,
+                "has_logo": c.has_logo,
+            }
             for c in children.items
         ],
     }

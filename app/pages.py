@@ -299,6 +299,20 @@ PAGES = [
                         title="Branding",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/settings/branding/global",
+                                title="Global",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=True,
+                            ),
+                            Page(
+                                path="/admin/settings/branding/groups",
+                                title="Groups",
+                                permission=PagePermission.ADMIN,
+                                show_in_nav=True,
+                            ),
+                        ],
                     ),
                 ],
             ),

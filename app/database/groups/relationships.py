@@ -208,9 +208,11 @@ def get_group_parents(tenant_id: TenantArg, group_id: str) -> list[dict]:
         """
         select gr.id, g.id as group_id, g.name, g.group_type,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count,
-               gr.created_at
+               gr.created_at,
+               (logo.group_id is not null) as has_logo
         from group_relationships gr
         join groups g on gr.parent_group_id = g.id
+        left join group_logos logo on logo.group_id = g.id
         where gr.child_group_id = :group_id
         order by g.name
         """,
@@ -225,9 +227,11 @@ def get_group_children(tenant_id: TenantArg, group_id: str) -> list[dict]:
         """
         select gr.id, g.id as group_id, g.name, g.group_type,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count,
-               gr.created_at
+               gr.created_at,
+               (logo.group_id is not null) as has_logo
         from group_relationships gr
         join groups g on gr.child_group_id = g.id
+        left join group_logos logo on logo.group_id = g.id
         where gr.parent_group_id = :group_id
         order by g.name
         """,

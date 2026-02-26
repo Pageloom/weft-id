@@ -1,0 +1,156 @@
+{% extends "settings_branding_base.html" %}
+
+{% set active_tab = 'groups' %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Group Branding</h1>
+
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        Configure how group avatars are displayed. Upload a custom logo for individual groups to override the default style.
+    </p>
+
+    {# ---- Avatar Style ---- #}
+    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+        <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Default Avatar Style</h2>
+
+        <form method="post" action="/admin/settings/branding/groups/settings">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-6 space-y-3">
+                <label class="flex items-center">
+                    <input type="radio" name="group_avatar_style" value="mandala"
+                           {% if branding_settings.group_avatar_style == 'mandala' %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mandala</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">Unique geometric pattern derived from the group ID</span>
+                    </span>
+                </label>
+
+                <label class="flex items-center">
+                    <input type="radio" name="group_avatar_style" value="acronym"
+                           {% if branding_settings.group_avatar_style == 'acronym' %}checked{% endif %}
+                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Acronym</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">Colored circle with initials from the group name</span>
+                    </span>
+                </label>
+            </div>
+
+            <button type="submit"
+                    class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                Save Style
+            </button>
+        </form>
+    </div>
+
+    {# ---- Group Logo Table ---- #}
+    {% if groups %}
+    <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+        <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Group Logos</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Upload a custom logo for a group to override the default avatar style for that group.
+        </p>
+
+        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Group
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Avatar
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Upload Logo
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for group in groups %}
+                    <tr>
+                        <td class="px-6 py-3">
+                            <a href="/admin/groups/{{ group.id }}/details"
+                               class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                                {{ group.name }}
+                            </a>
+                        </td>
+                        <td class="px-6 py-3">
+                            {% if group.has_logo %}
+                            <img src="/branding/group-logo/{{ group.id }}"
+                                 width="32" height="32"
+                                 class="rounded-full shrink-0 border border-gray-200 dark:border-gray-700"
+                                 alt="{{ group.name }}">
+                            {% elif branding_settings.group_avatar_style == 'acronym' %}
+                            <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
+                                 width="32" height="32"
+                                 class="rounded-full shrink-0" alt="">
+                            {% else %}
+                            <img data-mandala="{{ group.id }}"
+                                 width="32" height="32"
+                                 class="rounded-full shrink-0" alt="">
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3">
+                            <form method="post"
+                                  action="/admin/settings/branding/groups/upload/{{ group.id }}"
+                                  enctype="multipart/form-data"
+                                  class="flex items-center gap-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="file" name="file" accept="image/png,image/svg+xml,.png,.svg"
+                                       class="text-xs text-gray-500 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-600">
+                                <button type="submit"
+                                        class="bg-gray-800 dark:bg-gray-600 text-white hover:bg-gray-700 dark:hover:bg-gray-500 font-medium py-1 px-3 rounded-md transition duration-150 text-xs">
+                                    Upload
+                                </button>
+                            </form>
+                        </td>
+                        <td class="px-6 py-3">
+                            {% if group.has_logo %}
+                            <form method="post"
+                                  action="/admin/settings/branding/groups/delete/{{ group.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                                    Remove logo
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="text-xs text-gray-400 dark:text-gray-500">No custom logo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+        <p class="text-sm text-gray-500 dark:text-gray-400">No groups found. Create groups first to manage their logos.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}" src="/static/js/group-mandala.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    document.querySelectorAll('img[data-mandala]').forEach(function (img) {
+        var result = generateGroupMandala(img.dataset.mandala);
+        img.src = result.image;
+    });
+    document.querySelectorAll('img[data-acronym]').forEach(function (img) {
+        var result = generateGroupAcronym(img.dataset.acronym, img.dataset.name);
+        img.src = result.image;
+    });
+})();
+</script>
+{% endblock %}

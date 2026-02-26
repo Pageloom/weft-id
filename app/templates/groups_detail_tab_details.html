@@ -56,6 +56,52 @@
     </form>
     {% endif %}
 
+    <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Group Logo</h3>
+        <div class="flex items-center gap-4 mb-3">
+            {% if group.has_logo %}
+            <img src="/branding/group-logo/{{ group.id }}"
+                 width="48" height="48"
+                 class="rounded-full border border-gray-200 dark:border-gray-700" alt="Group logo">
+            {% elif branding.group_avatar_style == 'acronym' %}
+            <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
+                 width="48" height="48" class="rounded-full" alt="">
+            {% else %}
+            <img data-mandala="{{ group.id }}"
+                 width="48" height="48" class="rounded-full" alt="">
+            {% endif %}
+            <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {% if group.has_logo %}Custom logo uploaded.{% else %}Using default avatar style.{% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <form method="post"
+                  action="/admin/settings/branding/groups/upload/{{ group.id }}"
+                  enctype="multipart/form-data"
+                  class="flex items-center gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="file" name="file" accept="image/png,image/svg+xml,.png,.svg"
+                       class="text-xs text-gray-500 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-600">
+                <button type="submit"
+                        class="bg-gray-800 dark:bg-gray-600 text-white hover:bg-gray-700 dark:hover:bg-gray-500 font-medium py-1 px-3 rounded-md transition duration-150 text-xs">
+                    Upload Logo
+                </button>
+            </form>
+            {% if group.has_logo %}
+            <form method="post"
+                  action="/admin/settings/branding/groups/delete/{{ group.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                    Remove Logo
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <p class="text-sm text-gray-500 dark:text-gray-400">
             Created {{ fmt_datetime(group.created_at) }} · Updated {{ fmt_datetime(group.updated_at) }}
@@ -63,4 +109,20 @@
     </div>
 </div>
 </div>
+
+{% block tab_scripts %}
+<script nonce="{{ csp_nonce }}" src="/static/js/group-mandala.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    document.querySelectorAll('img[data-mandala]').forEach(function (img) {
+        var result = generateGroupMandala(img.dataset.mandala);
+        img.src = result.image;
+    });
+    document.querySelectorAll('img[data-acronym]').forEach(function (img) {
+        var result = generateGroupAcronym(img.dataset.acronym, img.dataset.name);
+        img.src = result.image;
+    });
+})();
+</script>
+{% endblock %}
 {% endblock %}

@@ -175,14 +175,26 @@
 
     var elements = [];
 
+    var groupAvatarStyle = "{{ branding.group_avatar_style }}";
+
+    function resolveGroupVis(id, name, hasLogo) {
+        if (hasLogo) {
+            return {color: '#9ca3af', image: '/branding/group-logo/' + id};
+        } else if (groupAvatarStyle === 'acronym') {
+            return generateGroupAcronym(id, name);
+        } else {
+            return generateGroupMandala(id);
+        }
+    }
+
     // Center node (current group)
-    var centerMandala = generateGroupMandala(data.group.id);
+    var centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo);
     elements.push({
         data: {
             id: data.group.id,
             label: data.group.name,
-            image: centerMandala.image,
-            color: centerMandala.color,
+            image: centerVis.image,
+            color: centerVis.color,
             nodeType: 'center'
         },
         position: { x: centerX, y: 240 }
@@ -194,13 +206,13 @@
         var spacing = 130;
         var totalWidth = (parents.length - 1) * spacing;
         var x = centerX - totalWidth / 2 + i * spacing;
-        var mandala = generateGroupMandala(p.id);
+        var vis = resolveGroupVis(p.id, p.name, p.has_logo);
         elements.push({
             data: {
                 id: p.id,
                 label: p.name,
-                image: mandala.image,
-                color: mandala.color,
+                image: vis.image,
+                color: vis.color,
                 nodeType: 'parent'
             },
             position: { x: x, y: 90 }
@@ -220,13 +232,13 @@
         var spacing = 130;
         var totalWidth = (children.length - 1) * spacing;
         var x = centerX - totalWidth / 2 + i * spacing;
-        var mandala = generateGroupMandala(c.id);
+        var vis = resolveGroupVis(c.id, c.name, c.has_logo);
         elements.push({
             data: {
                 id: c.id,
                 label: c.name,
-                image: mandala.image,
-                color: mandala.color,
+                image: vis.image,
+                color: vis.color,
                 nodeType: 'child'
             },
             position: { x: x, y: 390 }

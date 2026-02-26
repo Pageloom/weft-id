@@ -4,6 +4,49 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Branding: Group Avatar Customization (Acronyms, Per-Group Logos, Tabbed Branding Page)
+
+**Status:** Complete
+
+**Summary:** Added a tenant-level group avatar style setting (mandala/acronym) stored in `tenant_branding.group_avatar_style`, per-group custom logo upload via a new `group_logos` table, and a restructured branding settings page with Global and Groups tabs. Avatar resolution order: custom group logo > tenant style setting. All group avatar surfaces updated (group list, group detail neighborhood diagram, full graph). New API endpoints: `POST/DELETE /api/v1/groups/{group_id}/logo`, `GET /branding/group-logo/{group_id}`. Migration 0004 adds the enum, column, and table with RLS. Event types `group_logo_uploaded`, `group_logo_removed`, `group_avatar_style_updated` logged on mutations.
+
+**Acceptance Criteria:**
+
+Branding page restructure:
+- [x] `GET /admin/settings/branding` redirects to `/admin/settings/branding/global`
+- [x] New base template `settings_branding_base.html` with tab nav (Global, Groups)
+- [x] "Global" tab (`/admin/settings/branding/global`) contains exactly the current branding page content, unchanged
+- [x] "Groups" tab (`/admin/settings/branding/groups`) is a new page (see below)
+- [x] All existing branding routes and functionality continue to work
+
+Groups tab - avatar style setting:
+- [x] A tenant-level setting "Group avatar style" with two options: "Mandala" (default) and "Acronym"
+- [x] The setting is persisted in `tenant_branding` (new `group_avatar_style` column, with migration)
+- [x] When "Acronym" is selected, all group avatars across the UI render the acronym instead of the mandala (group list, group detail, neighborhood diagram, full graph, etc.)
+- [x] Acronym derivation: first letters of each word in the group name, up to 3 characters, uppercased
+- [x] Acronym style: letters on a colored background (color from group UUID, same palette as mandala), circular container
+
+Per-group logo upload:
+- [x] The Groups branding tab includes a list of groups (name + current avatar thumbnail) with an "Upload logo" action per group
+- [x] Uploaded group logos follow the same validation as tenant logos: PNG or SVG, square, min 48x48px, max 256KB, SVG safety checks
+- [x] An uploaded group logo overrides both mandala and acronym for that specific group
+- [x] The "Upload logo" flow is also accessible from the group detail page (Details tab)
+- [x] A "Remove logo" action reverts the group to the mandala or acronym fallback
+- [x] Group logos stored in a new `group_logos` table, with migration
+- [x] Group logos served from `GET /branding/group-logo/{group_id}` with ETag caching and 1-hour Cache-Control
+- [x] API endpoints: `POST /api/v1/groups/{group_id}/logo`, `DELETE /api/v1/groups/{group_id}/logo`, `GET /api/v1/groups/{group_id}` includes `has_logo: bool`
+
+Avatar resolution order (highest priority first):
+1. Custom uploaded logo for the group
+2. Tenant avatar style setting (mandala or acronym)
+
+Event logging:
+- [x] `group_logo_uploaded` event logged on upload
+- [x] `group_logo_removed` event logged on removal
+- [x] `group_avatar_style_updated` event logged when the tenant-level style setting changes
+
+---
+
 ## Group Detail: Tabbed Layout with Relationship Diagram
 
 **Status:** Complete

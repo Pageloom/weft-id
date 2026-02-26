@@ -94,6 +94,7 @@ def test_upload_logo_as_admin(client, override_api_auth):
                 "has_logo_dark": False,
                 "logo_light_mime": "image/png",
                 "logo_dark_mime": None,
+                "group_avatar_style": "mandala",
                 "updated_at": "2026-01-01T00:00:00+00:00",
             },
         ),
@@ -145,6 +146,7 @@ def test_delete_logo_as_admin(client, override_api_auth):
                 "has_logo_dark": False,
                 "logo_light_mime": None,
                 "logo_dark_mime": None,
+                "group_avatar_style": "mandala",
                 "updated_at": "2026-01-01T00:00:00+00:00",
             },
         ),
@@ -189,6 +191,7 @@ def test_update_branding_settings(client, override_api_auth):
                 "has_logo_dark": False,
                 "logo_light_mime": "image/png",
                 "logo_dark_mime": None,
+                "group_avatar_style": "mandala",
                 "updated_at": "2026-01-01T00:00:00+00:00",
             },
         ),
@@ -224,6 +227,7 @@ def test_update_branding_settings_with_site_title(client, override_api_auth):
                 "has_logo_dark": False,
                 "logo_light_mime": None,
                 "logo_dark_mime": None,
+                "group_avatar_style": "mandala",
                 "updated_at": "2026-01-01T00:00:00+00:00",
             },
         ),
@@ -313,6 +317,7 @@ def test_save_mandala_as_admin(client, override_api_auth):
                 "has_logo_dark": True,
                 "logo_light_mime": "image/svg+xml",
                 "logo_dark_mime": "image/svg+xml",
+                "group_avatar_style": "mandala",
                 "updated_at": "2026-01-01T00:00:00+00:00",
             },
         ),
@@ -355,3 +360,94 @@ def test_save_mandala_empty_seed_rejected(client, override_api_auth):
         json={"seed": ""},
     )
     assert resp.status_code == 422
+
+
+# =============================================================================
+# GET /branding/group-logo/{group_id}
+# =============================================================================
+
+
+def test_serve_group_logo_returns_200(client, override_api_auth):
+    """Uploaded group logo is served with correct content type and ETag."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    png = _make_png(64, 64)
+    group_id = "00000000-0000-0000-0000-000000000042"
+
+    with patch(
+        "services.branding.database.branding.get_group_logo",
+        return_value={
+            "logo_data": png,
+            "logo_mime": "image/png",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ):
+        resp = client.get(f"/branding/group-logo/{group_id}")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert "ETag" in resp.headers
+    assert resp.content == png
+
+
+def test_serve_group_logo_not_found(client):
+    """Returns 404 when no logo exists for the group."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    group_id = "00000000-0000-0000-0000-000000000042"
+
+    with patch(
+        "services.branding.database.branding.get_group_logo",
+        return_value=None,
+    ):
+        resp = client.get(f"/branding/group-logo/{group_id}")
+
+    assert resp.status_code == 404
+
+
+def test_serve_group_logo_etag_304(client):
+    """Returns 304 when ETag matches."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    group_id = "00000000-0000-0000-0000-000000000042"
+    updated_at = "2026-01-01T00:00:00+00:00"
+    png = _make_png(64, 64)
+
+    logo_data = {
+        "logo_data": png,
+        "logo_mime": "image/png",
+        "updated_at": updated_at,
+    }
+
+    # Get ETag from first request, then use it
+    with patch(
+        "services.branding.database.branding.get_group_logo",
+        return_value=logo_data,
+    ):
+        first_resp = client.get(f"/branding/group-logo/{group_id}")
+
+    assert first_resp.status_code == 200
+    etag = first_resp.headers["ETag"]
+
+    with patch(
+        "services.branding.database.branding.get_group_logo",
+        return_value=logo_data,
+    ):
+        resp = client.get(
+            f"/branding/group-logo/{group_id}",
+            headers={"if-none-match": etag},
+        )
+
+    assert resp.status_code == 304

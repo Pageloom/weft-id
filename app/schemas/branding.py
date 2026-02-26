@@ -13,6 +13,13 @@ class LogoMode(StrEnum):
     CUSTOM = "custom"
 
 
+class GroupAvatarStyle(StrEnum):
+    """Avatar style for group icons."""
+
+    MANDALA = "mandala"
+    ACRONYM = "acronym"
+
+
 class LogoSlot(StrEnum):
     """Logo variant slot."""
 
@@ -31,6 +38,9 @@ class BrandingSettings(BaseModel):
     has_logo_dark: bool = Field(False, description="Whether a dark logo is uploaded")
     logo_light_mime: str | None = Field(None, description="MIME type of light logo")
     logo_dark_mime: str | None = Field(None, description="MIME type of dark logo")
+    group_avatar_style: GroupAvatarStyle = Field(
+        GroupAvatarStyle.MANDALA, description="Default avatar style for group icons"
+    )
     updated_at: datetime | None = Field(None, description="Last update timestamp")
 
 
@@ -43,6 +53,9 @@ class BrandingSettingsUpdate(BaseModel):
         None, max_length=30, description="Custom site title (max 30 chars)"
     )
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
+    group_avatar_style: GroupAvatarStyle = Field(
+        GroupAvatarStyle.MANDALA, description="Default avatar style for group icons"
+    )
 
 
 class MandalaRandomizeResponse(BaseModel):

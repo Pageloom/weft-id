@@ -3,6 +3,8 @@
 These tests use FastAPI dependency overrides and mocks to isolate the API layer.
 """
 
+import io
+import struct
 from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
@@ -1524,3 +1526,184 @@ def test_save_graph_layout_forbidden_for_non_admin(make_user_dict, override_api_
         response = client.put("/api/v1/groups/graph/layout", json=payload)
 
         assert response.status_code == 403
+
+
+# =============================================================================
+# Group Logo API Tests
+# =============================================================================
+
+
+def _make_png(width: int = 64, height: int = 64) -> bytes:
+    """Create a minimal valid PNG."""
+    magic = b"\x89PNG\r\n\x1a\n"
+    ihdr_data = struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
+    ihdr_length = struct.pack(">I", 13)
+    ihdr_type = b"IHDR"
+    ihdr_crc = b"\x00\x00\x00\x00"
+    iend = b"\x00\x00\x00\x00IEND\xae\x42\x60\x82"
+    return magic + ihdr_length + ihdr_type + ihdr_data + ihdr_crc + iend
+
+
+def test_upload_group_logo_as_admin(make_user_dict, override_api_auth):
+    """Admin can upload a logo for a group."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+    png = _make_png(64, 64)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.branding_service") as mock_svc:
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/logo",
+            files={"file": ("logo.png", io.BytesIO(png), "image/png")},
+        )
+
+    assert response.status_code == 201
+    mock_svc.upload_group_logo.assert_called_once()
+
+
+def test_upload_group_logo_validation_error(make_user_dict, override_api_auth):
+    """Invalid image format returns 400."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.branding_service") as mock_svc:
+        mock_svc.upload_group_logo.side_effect = ValidationError(
+            message="Unsupported format", code="unsupported_format", field="file"
+        )
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/groups/{group_id}/logo",
+            files={"file": ("bad.gif", io.BytesIO(b"not-an-image"), "image/gif")},
+        )
+
+    assert response.status_code == 400
+
+
+def test_upload_group_logo_unauthenticated():
+    """Unauthenticated request to upload group logo is rejected."""
+    from dependencies import get_tenant_id_from_request
+
+    group_id = str(uuid4())
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "fake-tenant"
+
+    png = _make_png(64, 64)
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/groups/{group_id}/logo",
+        files={"file": ("logo.png", io.BytesIO(png), "image/png")},
+    )
+
+    assert response.status_code in (401, 403)
+
+
+def test_delete_group_logo_as_admin(make_user_dict, override_api_auth):
+    """Admin can delete a group logo."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.branding_service") as mock_svc:
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/logo")
+
+    assert response.status_code == 204
+    mock_svc.delete_group_logo.assert_called_once()
+
+
+def test_delete_group_logo_not_found(make_user_dict, override_api_auth):
+    """Returns 404 when group has no logo."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.branding_service") as mock_svc:
+        mock_svc.delete_group_logo.side_effect = NotFoundError(
+            message="No logo found", code="group_logo_not_found"
+        )
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/logo")
+
+    assert response.status_code == 404
+
+
+def test_delete_group_logo_unauthenticated():
+    """Unauthenticated delete request is rejected."""
+    from dependencies import get_tenant_id_from_request
+
+    group_id = str(uuid4())
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: "fake-tenant"
+
+    client = TestClient(app)
+    response = client.delete(f"/api/v1/groups/{group_id}/logo")
+
+    assert response.status_code in (401, 403)
+
+
+def test_group_list_response_has_logo_field(make_user_dict, override_api_auth):
+    """Group list items include the has_logo field."""
+    admin = make_user_dict(role="admin")
+
+    group_id = str(uuid4())
+    mock_response = GroupListResponse(
+        items=[
+            GroupSummary(
+                id=group_id,
+                name="Test Group",
+                group_type="weftid",
+                is_valid=True,
+                member_count=0,
+                created_at=datetime.now(UTC),
+                has_logo=True,
+            )
+        ],
+        total=1,
+        page=1,
+        limit=25,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_groups.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["has_logo"] is True
+
+
+def test_group_detail_response_has_logo_field(make_user_dict, override_api_auth):
+    """Group detail response includes the has_logo field."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=group_id,
+        name="Test Group",
+        group_type="weftid",
+        is_valid=True,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        has_logo=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group.return_value = mock_group
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}")
+
+    assert response.status_code == 200
+    assert response.json()["has_logo"] is True

@@ -617,3 +617,190 @@ class TestServingHelpers:
 
         result = branding_service.get_branding_for_template(str(test_tenant["id"]))
         assert result["site_title"] == "WeftId"
+
+
+# =============================================================================
+# Group Logo Tests
+# =============================================================================
+
+
+def _create_test_group(test_tenant, test_admin_user) -> str:
+    """Helper to create a test group; returns group UUID as string."""
+    import database.groups
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Test Logo Group",
+        created_by=str(test_admin_user["id"]),
+    )
+    return str(result["id"])
+
+
+class TestGroupLogoUpload:
+    def test_upload_group_logo_success(self, test_tenant, test_admin_user):
+        """Admin can upload a PNG logo for a group."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        branding_service.upload_group_logo(ru, group_id=group_id, data=_make_png(64, 64))
+
+        result = branding_service.get_group_logo_for_serving(str(test_tenant["id"]), group_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/png"
+        _verify_event_logged(str(test_tenant["id"]), "group_logo_uploaded")
+
+    def test_upload_group_logo_svg(self, test_tenant, test_admin_user):
+        """Admin can upload an SVG logo for a group."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        branding_service.upload_group_logo(
+            ru, group_id=group_id, data=_make_svg(100, 100), filename="logo.svg"
+        )
+
+        result = branding_service.get_group_logo_for_serving(str(test_tenant["id"]), group_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/svg+xml"
+
+    def test_upload_group_logo_replaces_existing(self, test_tenant, test_admin_user):
+        """Uploading a second logo replaces the first."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        branding_service.upload_group_logo(ru, group_id=group_id, data=_make_png(48, 48))
+        branding_service.upload_group_logo(ru, group_id=group_id, data=_make_svg(100, 100))
+
+        result = branding_service.get_group_logo_for_serving(str(test_tenant["id"]), group_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/svg+xml"
+
+    def test_upload_group_logo_forbidden_for_member(self, test_tenant, test_user):
+        """Non-admin cannot upload a group logo."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+        from services.exceptions import ForbiddenError
+
+        with pytest.raises(ForbiddenError):
+            branding_service.upload_group_logo(ru, group_id="some-id", data=_make_png(64, 64))
+
+    def test_upload_group_logo_invalid_format(self, test_tenant, test_admin_user):
+        """Invalid image format is rejected."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service.upload_group_logo(ru, group_id=group_id, data=b"not-an-image")
+        assert exc_info.value.code == "unsupported_format"
+
+
+class TestGroupLogoDelete:
+    def test_delete_group_logo_success(self, test_tenant, test_admin_user):
+        """Admin can delete a group logo."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        branding_service.upload_group_logo(ru, group_id=group_id, data=_make_png(64, 64))
+        branding_service.delete_group_logo(ru, group_id=group_id)
+
+        result = branding_service.get_group_logo_for_serving(str(test_tenant["id"]), group_id)
+        assert result is None
+        _verify_event_logged(str(test_tenant["id"]), "group_logo_removed")
+
+    def test_delete_group_logo_not_found(self, test_tenant, test_admin_user):
+        """Deleting a non-existent logo raises NotFoundError."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        group_id = _create_test_group(test_tenant, test_admin_user)
+
+        with pytest.raises(NotFoundError):
+            branding_service.delete_group_logo(ru, group_id=group_id)
+
+    def test_delete_group_logo_forbidden_for_member(self, test_tenant, test_user):
+        """Non-admin cannot delete a group logo."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+        from services.exceptions import ForbiddenError
+
+        with pytest.raises(ForbiddenError):
+            branding_service.delete_group_logo(ru, group_id="some-id")
+
+
+class TestGroupAvatarStyle:
+    def test_update_group_avatar_style_to_acronym(self, test_tenant, test_admin_user):
+        """Admin can change group avatar style to acronym."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
+
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
+        )
+        result = branding_service.update_branding_settings(ru, update)
+
+        assert result.group_avatar_style == GroupAvatarStyle.ACRONYM
+        _verify_event_logged(str(test_tenant["id"]), "group_avatar_style_updated")
+
+    def test_update_group_avatar_style_to_mandala(self, test_tenant, test_admin_user):
+        """Admin can change group avatar style back to mandala."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
+
+        # Set to acronym first
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
+        )
+        branding_service.update_branding_settings(ru, update)
+
+        # Switch back to mandala
+        update2 = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
+        )
+        result = branding_service.update_branding_settings(ru, update2)
+
+        assert result.group_avatar_style == GroupAvatarStyle.MANDALA
+
+    def test_no_extra_event_when_style_unchanged(self, test_tenant, test_admin_user):
+        """Does not log group_avatar_style_updated when style doesn't change."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
+
+        # Set initial state
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
+        )
+        branding_service.update_branding_settings(ru, update)
+
+        # Count existing style events
+        events_before = [
+            e
+            for e in database.event_log.list_events(str(test_tenant["id"]), limit=20)
+            if e["event_type"] == "group_avatar_style_updated"
+        ]
+
+        # Same style update
+        branding_service.update_branding_settings(ru, update)
+
+        events_after = [
+            e
+            for e in database.event_log.list_events(str(test_tenant["id"]), limit=20)
+            if e["event_type"] == "group_avatar_style_updated"
+        ]
+        assert len(events_after) == len(events_before)
+
+    def test_get_branding_for_template_includes_group_avatar_style(
+        self, test_tenant, test_admin_user
+    ):
+        """Template context includes group_avatar_style."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
+
+        update = BrandingSettingsUpdate(
+            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
+        )
+        branding_service.update_branding_settings(ru, update)
+
+        result = branding_service.get_branding_for_template(str(test_tenant["id"]))
+        assert result["group_avatar_style"] == "acronym"

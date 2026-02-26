@@ -137,6 +137,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "branding_logo_uploaded": "Custom logo uploaded for tenant branding",
     "branding_logo_deleted": "Custom logo removed from tenant branding",
     "branding_settings_updated": "Tenant branding display settings updated",
+    "group_logo_uploaded": "Custom logo uploaded for group",
+    "group_logo_removed": "Custom logo removed from group",
+    "group_avatar_style_updated": "Tenant group avatar style setting updated",
     # IdP Group Integration
     "idp_group_created": "Group auto-created for identity provider",
     "idp_group_discovered": "New group discovered from identity provider",

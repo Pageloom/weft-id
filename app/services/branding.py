@@ -6,7 +6,13 @@ import uuid
 
 import database
 from defusedxml import ElementTree as DefusedET
-from schemas.branding import BrandingSettings, BrandingSettingsUpdate, LogoMode, LogoSlot
+from schemas.branding import (
+    BrandingSettings,
+    BrandingSettingsUpdate,
+    GroupAvatarStyle,
+    LogoMode,
+    LogoSlot,
+)
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
@@ -299,6 +305,7 @@ def get_branding_settings(requesting_user: RequestingUser) -> BrandingSettings:
         has_logo_dark=row["has_logo_dark"],
         logo_light_mime=row["logo_light_mime"],
         logo_dark_mime=row["logo_dark_mime"],
+        group_avatar_style=GroupAvatarStyle(row["group_avatar_style"]),
         updated_at=row["updated_at"],
     )
 
@@ -424,6 +431,11 @@ def update_branding_settings(
             field="site_title",
         )
 
+    # Check if group_avatar_style is changing so we can log it separately
+    previous_row = database.branding.get_branding(requesting_user["tenant_id"])
+    previous_style = previous_row["group_avatar_style"] if previous_row else "mandala"
+    new_style = settings.group_avatar_style.value
+
     database.branding.update_branding_settings(
         tenant_id=requesting_user["tenant_id"],
         tenant_id_value=requesting_user["tenant_id"],
@@ -431,6 +443,7 @@ def update_branding_settings(
         use_logo_as_favicon=settings.use_logo_as_favicon,
         site_title=site_title,
         show_title_in_nav=settings.show_title_in_nav,
+        group_avatar_style=new_style,
     )
 
     log_event(
@@ -444,8 +457,19 @@ def update_branding_settings(
             "use_logo_as_favicon": settings.use_logo_as_favicon,
             "site_title": site_title,
             "show_title_in_nav": settings.show_title_in_nav,
+            "group_avatar_style": new_style,
         },
     )
+
+    if new_style != previous_style:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            event_type="group_avatar_style_updated",
+            artifact_type="tenant_branding",
+            artifact_id=requesting_user["tenant_id"],
+            metadata={"from": previous_style, "to": new_style},
+        )
 
     return get_branding_settings(requesting_user)
 
@@ -513,6 +537,7 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
     use_favicon = row["use_logo_as_favicon"] if row else False
     site_title = row["site_title"] if row else None
     show_title = row["show_title_in_nav"] if row else True
+    group_avatar_style = row["group_avatar_style"] if row else "mandala"
 
     # Switch to custom mode
     database.branding.update_branding_settings(
@@ -522,6 +547,7 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
         use_logo_as_favicon=use_favicon,
         site_title=site_title,
         show_title_in_nav=show_title,
+        group_avatar_style=group_avatar_style,
     )
 
     log_event(
@@ -534,6 +560,92 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
     )
 
     return get_branding_settings(requesting_user)
+
+
+# =============================================================================
+# Group Logo Operations
+# =============================================================================
+
+
+def upload_group_logo(
+    requesting_user: RequestingUser,
+    group_id: str,
+    data: bytes,
+    filename: str | None = None,
+) -> None:
+    """Upload a custom logo for a specific group.
+
+    Authorization: Requires admin role.
+
+    Args:
+        requesting_user: The authenticated admin user.
+        group_id: The group UUID to attach the logo to.
+        data: Raw image bytes.
+        filename: Optional original filename for format detection.
+    """
+    require_admin(requesting_user)
+    mime_type = _validate_logo(data, filename)
+
+    database.branding.upsert_group_logo(
+        tenant_id=requesting_user["tenant_id"],
+        group_id=group_id,
+        logo_data=data,
+        mime_type=mime_type,
+    )
+
+    log_event(
+        tenant_id=requesting_user["tenant_id"],
+        actor_user_id=requesting_user["id"],
+        event_type="group_logo_uploaded",
+        artifact_type="group",
+        artifact_id=group_id,
+        metadata={"mime_type": mime_type, "size": len(data)},
+    )
+
+
+def delete_group_logo(
+    requesting_user: RequestingUser,
+    group_id: str,
+) -> None:
+    """Remove a custom logo from a group.
+
+    Authorization: Requires admin role.
+
+    Raises:
+        NotFoundError: If no logo exists for the group.
+    """
+    require_admin(requesting_user)
+
+    rows = database.branding.delete_group_logo(
+        tenant_id=requesting_user["tenant_id"],
+        group_id=group_id,
+    )
+
+    if rows == 0:
+        raise NotFoundError(
+            message="No logo found for this group",
+            code="group_logo_not_found",
+        )
+
+    log_event(
+        tenant_id=requesting_user["tenant_id"],
+        actor_user_id=requesting_user["id"],
+        event_type="group_logo_removed",
+        artifact_type="group",
+        artifact_id=group_id,
+        metadata={},
+    )
+
+
+def get_group_logo_for_serving(tenant_id: str, group_id: str) -> dict | None:
+    """Get group logo binary data for the public serving endpoint.
+
+    No authentication required.
+
+    Returns:
+        Dict with logo_data, logo_mime, updated_at. None if not found.
+    """
+    return database.branding.get_group_logo(tenant_id, group_id)
 
 
 # =============================================================================
@@ -570,6 +682,7 @@ def get_branding_for_template(tenant_id: str) -> dict:
             "has_logo_dark": False,
             "site_title": DEFAULT_SITE_TITLE,
             "show_title_in_nav": True,
+            "group_avatar_style": "mandala",
         }
 
     return {
@@ -579,4 +692,5 @@ def get_branding_for_template(tenant_id: str) -> dict:
         "has_logo_dark": row["has_logo_dark"],
         "site_title": row["site_title"] or DEFAULT_SITE_TITLE,
         "show_title_in_nav": row["show_title_in_nav"],
+        "group_avatar_style": row["group_avatar_style"],
     }

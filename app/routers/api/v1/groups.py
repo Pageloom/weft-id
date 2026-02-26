@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from schemas.groups import (
     AvailableUserList,
     BulkMemberAdd,
@@ -25,6 +25,7 @@ from schemas.groups import (
     GroupUpdate,
 )
 from schemas.service_providers import GroupSPAssignmentList
+from services import branding as branding_service
 from services import groups as groups_service
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
@@ -646,5 +647,58 @@ def list_group_service_providers(
 
     try:
         return sp_service.list_group_sp_assignments(requesting_user, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Group Logo
+# =============================================================================
+
+
+@router.post("/{group_id}/logo", status_code=201)
+async def upload_group_logo(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+    file: UploadFile,
+):
+    """Upload a custom logo for a group.
+
+    Requires admin role.
+    Accepts PNG (square, min 48x48) or SVG (square viewBox) up to 256KB.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        data = await file.read()
+        branding_service.upload_group_logo(
+            requesting_user,
+            group_id=group_id,
+            data=data,
+            filename=file.filename,
+        )
+        return None
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete("/{group_id}/logo", status_code=204)
+def delete_group_logo(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    group_id: str,
+):
+    """Remove a custom logo from a group.
+
+    Requires admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, request)
+
+    try:
+        branding_service.delete_group_logo(requesting_user, group_id=group_id)
+        return None
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

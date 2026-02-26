@@ -9,7 +9,8 @@ def get_branding(tenant_id: TenantArg) -> dict | None:
 
     Returns:
         Dict with logo_mode, use_logo_as_favicon, has_logo_light, has_logo_dark,
-        logo_light_mime, logo_dark_mime, updated_at. None if no branding row exists.
+        logo_light_mime, logo_dark_mime, group_avatar_style, updated_at.
+        None if no branding row exists.
     """
     return fetchone(
         tenant_id,
@@ -23,6 +24,7 @@ def get_branding(tenant_id: TenantArg) -> dict | None:
             (logo_dark IS NOT NULL) AS has_logo_dark,
             logo_light_mime,
             logo_dark_mime,
+            group_avatar_style,
             updated_at
         FROM tenant_branding
         WHERE tenant_id = :tenant_id
@@ -136,6 +138,7 @@ def update_branding_settings(
     use_logo_as_favicon: bool,
     site_title: str | None = None,
     show_title_in_nav: bool = True,
+    group_avatar_style: str = "mandala",
 ) -> int:
     """
     Update branding display settings. Creates the branding row if needed.
@@ -147,6 +150,7 @@ def update_branding_settings(
         use_logo_as_favicon: Whether to use logo as favicon
         site_title: Custom site title (None = use default)
         show_title_in_nav: Whether to show title in nav bar
+        group_avatar_style: 'mandala' or 'acronym'
 
     Returns:
         Number of rows affected
@@ -156,17 +160,18 @@ def update_branding_settings(
         """
         INSERT INTO tenant_branding (
             tenant_id, logo_mode, use_logo_as_favicon,
-            site_title, show_title_in_nav, updated_at
+            site_title, show_title_in_nav, group_avatar_style, updated_at
         )
         VALUES (
             :tenant_id, :logo_mode, :use_logo_as_favicon,
-            :site_title, :show_title_in_nav, now()
+            :site_title, :show_title_in_nav, :group_avatar_style, now()
         )
         ON CONFLICT (tenant_id) DO UPDATE
             SET logo_mode = :logo_mode,
                 use_logo_as_favicon = :use_logo_as_favicon,
                 site_title = :site_title,
                 show_title_in_nav = :show_title_in_nav,
+                group_avatar_style = :group_avatar_style,
                 updated_at = now()
         """,
         {
@@ -175,5 +180,63 @@ def update_branding_settings(
             "use_logo_as_favicon": use_logo_as_favicon,
             "site_title": site_title,
             "show_title_in_nav": show_title_in_nav,
+            "group_avatar_style": group_avatar_style,
         },
+    )
+
+
+def get_group_logo(tenant_id: TenantArg, group_id: str) -> dict | None:
+    """Get group logo binary data and metadata.
+
+    Returns:
+        Dict with logo_data (bytes), logo_mime (str), updated_at.
+        None if no logo exists for this group.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        SELECT logo_data, logo_mime, updated_at
+        FROM group_logos
+        WHERE group_id = :group_id
+        """,
+        {"group_id": group_id},
+    )
+
+
+def upsert_group_logo(
+    tenant_id: TenantArg,
+    group_id: str,
+    logo_data: bytes,
+    mime_type: str,
+) -> None:
+    """Upload or replace a custom logo for a group."""
+    execute(
+        tenant_id,
+        """
+        INSERT INTO group_logos (group_id, tenant_id, logo_data, logo_mime, updated_at)
+        VALUES (:group_id, :tenant_id, :logo_data, :logo_mime, now())
+        ON CONFLICT (group_id) DO UPDATE
+            SET logo_data = :logo_data,
+                logo_mime = :logo_mime,
+                updated_at = now()
+        """,
+        {
+            "group_id": group_id,
+            "tenant_id": str(tenant_id),
+            "logo_data": logo_data,
+            "logo_mime": mime_type,
+        },
+    )
+
+
+def delete_group_logo(tenant_id: TenantArg, group_id: str) -> int:
+    """Remove a custom logo for a group.
+
+    Returns:
+        Number of rows deleted (0 if no logo existed).
+    """
+    return execute(
+        tenant_id,
+        "DELETE FROM group_logos WHERE group_id = :group_id",
+        {"group_id": group_id},
     )

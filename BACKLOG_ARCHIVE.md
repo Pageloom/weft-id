@@ -3118,3 +3118,35 @@ So that I can establish trust with each IdP independently, rotate certificates p
 **Value:** High (Makes metadata a living, accurate document. Enables both sides to validate configuration alignment.)
 
 ---
+
+## Frontend JS: Modern ECMAScript + Template Data Isolation
+
+**Status:** Complete
+
+**User Story:**
+As a developer working on JavaScript in this project
+I want all JavaScript to follow a consistent modern ECMAScript standard and to receive template data cleanly from the DOM rather than via Jinja interpolation inside script bodies
+So that scripts are readable, consistently styled, and free from rendering-layer concerns
+
+**Acceptance Criteria:**
+
+ECMAScript modernization:
+- [x] A JS coding standard is documented in `.claude/references/js-patterns.md` (target: ES2020; rules: `const`/`let`, arrow functions, template literals, no `var`)
+- [x] `static/js/utils.js` is rewritten to the ES2020 standard (no `var`, arrow functions where appropriate, consistent style)
+- [x] All inline `<script nonce="...">` blocks in templates are updated to follow the same standard
+
+Template data isolation:
+- [x] Server-side values needed by a page script are passed in a `<script type="application/json" id="page-data">` block rendered by Jinja; the inline script reads from it via `JSON.parse`
+- [x] Inline script bodies contain no `{{ }}` template syntax (the nonce attribute and the `page-data` block are the only Jinja contact points)
+- [x] `users_list.html` is updated as the reference implementation; all other templates with inline scripts follow the same pattern
+
+Quality:
+- [x] No regressions in existing page behaviour
+- [x] `./code-quality` passes
+
+**Resolution:** Rewrote `static/js/utils.js` and all 34 template inline scripts to ES2020. Extracted server-side Jinja2 values into `<script type="application/json" id="page-data">` blocks for 10 templates (users_list, groups_members, groups_members_add, account_background_jobs, groups_list, mfa_backup_codes, base, groups_detail_tab_relationships, saml_idp_tab_details, saml_idp_tab_attributes). Updated the CSP nonce backstop test to correctly exclude non-executable application/json script blocks. All 3491 tests pass.
+
+**Effort:** S
+**Value:** Medium
+
+---

@@ -394,42 +394,6 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Frontend JS: Modern ECMAScript + Template Data Isolation
-
-**User Story:**
-As a developer working on JavaScript in this project
-I want all JavaScript to follow a consistent modern ECMAScript standard and to receive template data cleanly from the DOM rather than via Jinja interpolation inside script bodies
-So that scripts are readable, consistently styled, and free from rendering-layer concerns
-
-**Context:**
-
-Two related issues exist in the current JavaScript:
-
-1. **Jinja interpolation inside script blocks.** Template variables (tenant IDs, sort fields, search terms, filter state flags) are injected directly into `<script>` bodies via `{{ }}`. This mixes the rendering layer with script logic, makes scripts hard to read, and is inconsistent. The fix is a single `<script type="application/json" id="page-data">` block per template that holds all server-side values as JSON. The inline script reads from that block; the script body itself contains no `{{ }}` syntax.
-
-2. **Inconsistent ECMAScript.** `static/js/utils.js` uses `var` throughout and old `function() {}` syntax. Inline template scripts mix styles. The project should target ES2020 consistently: `const`/`let`, arrow functions, template literals, destructuring, optional chaining (`?.`), nullish coalescing (`??`).
-
-**Acceptance Criteria:**
-
-ECMAScript modernization:
-- [ ] A JS coding standard is documented in `.claude/references/js-patterns.md` (target: ES2020; rules: `const`/`let`, arrow functions, template literals, no `var`)
-- [ ] `static/js/utils.js` is rewritten to the ES2020 standard (no `var`, arrow functions where appropriate, consistent style)
-- [ ] All inline `<script nonce="...">` blocks in templates are updated to follow the same standard
-
-Template data isolation:
-- [ ] Server-side values needed by a page script are passed in a `<script type="application/json" id="page-data">` block rendered by Jinja; the inline script reads from it via `JSON.parse`
-- [ ] Inline script bodies contain no `{{ }}` template syntax (the nonce attribute and the `page-data` block are the only Jinja contact points)
-- [ ] `users_list.html` is updated as the reference implementation; all other templates with inline scripts follow the same pattern
-
-Quality:
-- [ ] No regressions in existing page behaviour
-- [ ] `./code-quality` passes
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## WeftUtils: Universal List Manager
 
 **User Story:**

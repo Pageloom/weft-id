@@ -26,21 +26,14 @@ from services.service_providers._converters import (
 
 # Re-export from crud module
 from services.service_providers.crud import (
-    apply_sp_metadata_refresh,
-    apply_sp_metadata_reimport,
     create_service_provider,
     delete_service_provider,
     disable_service_provider,
     enable_service_provider,
-    establish_trust_from_metadata_url,
-    establish_trust_from_metadata_xml,
-    establish_trust_manually,
     get_service_provider,
     import_sp_from_metadata_url,
     import_sp_from_metadata_xml,
     list_service_providers,
-    preview_sp_metadata_refresh,
-    preview_sp_metadata_reimport,
     update_service_provider,
 )
 
@@ -64,6 +57,14 @@ from services.service_providers.metadata import (
     get_tenant_idp_metadata_xml,
 )
 
+# Re-export from metadata_sync module
+from services.service_providers.metadata_sync import (
+    apply_sp_metadata_refresh,
+    apply_sp_metadata_reimport,
+    preview_sp_metadata_refresh,
+    preview_sp_metadata_reimport,
+)
+
 # Re-export from signing_certs module
 from services.service_providers.signing_certs import (
     get_sp_metadata_url_info,
@@ -83,6 +84,13 @@ from services.service_providers.sso import (
     get_service_provider_by_id,
     get_sp_by_entity_id,
     get_user_consent_info,
+)
+
+# Re-export from trust module
+from services.service_providers.trust import (
+    establish_trust_from_metadata_url,
+    establish_trust_from_metadata_xml,
+    establish_trust_manually,
 )
 
 __all__ = [

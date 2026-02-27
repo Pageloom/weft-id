@@ -1771,7 +1771,7 @@ class TestPreviewSPMetadataRefresh:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -1792,7 +1792,7 @@ class TestPreviewSPMetadataRefresh:
         requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, metadata_url=None)
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = row
 
             with pytest.raises(ValidationError, match="no metadata URL"):
@@ -1804,7 +1804,7 @@ class TestPreviewSPMetadataRefresh:
 
         requesting_user = make_requesting_user(role="super_admin")
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -1831,7 +1831,7 @@ class TestPreviewSPMetadataRefresh:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -1860,7 +1860,7 @@ class TestPreviewSPMetadataRefresh:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -1915,8 +1915,8 @@ class TestApplySPMetadataRefresh:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
-            patch("services.service_providers.crud.log_event") as mock_log,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("services.service_providers.metadata_sync.log_event") as mock_log,
             patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
@@ -1937,7 +1937,7 @@ class TestApplySPMetadataRefresh:
 
         requesting_user = make_requesting_user(role="super_admin")
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):
@@ -1977,7 +1977,7 @@ class TestPreviewSPMetadataReimport:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider.return_value = row
@@ -1997,7 +1997,7 @@ class TestPreviewSPMetadataReimport:
         row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch(
                 "utils.saml_idp.parse_sp_metadata_xml",
                 side_effect=ValueError("Invalid XML"),
@@ -2028,7 +2028,7 @@ class TestPreviewSPMetadataReimport:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider.return_value = row
@@ -2075,8 +2075,8 @@ class TestApplySPMetadataReimport:
         }
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
-            patch("services.service_providers.crud.log_event") as mock_log,
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("services.service_providers.metadata_sync.log_event") as mock_log,
             patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
         ):
             mock_db.service_providers.get_service_provider.return_value = row
@@ -2218,8 +2218,8 @@ class TestEstablishTrustManually:
         )
 
         with (
-            patch("services.service_providers.crud.database") as mock_db,
-            patch("services.service_providers.crud.log_event") as mock_log,
+            patch("services.service_providers.trust.database") as mock_db,
+            patch("services.service_providers.trust.log_event") as mock_log,
         ):
             mock_db.service_providers.get_service_provider.return_value = pending_row
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
@@ -2253,7 +2253,7 @@ class TestEstablishTrustManually:
             acs_url=None,
         )
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.trust.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = pending_row
             mock_db.service_providers.get_service_provider_by_entity_id.return_value = {
                 "id": str(uuid4())
@@ -2281,7 +2281,7 @@ class TestEstablishTrustManually:
             trust_established=True,
         )
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.trust.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = established_row
 
             with pytest.raises(ValidationError, match="already been established"):
@@ -2298,7 +2298,7 @@ class TestEstablishTrustManually:
 
         requesting_user = make_requesting_user(role="super_admin")
 
-        with patch("services.service_providers.crud.database") as mock_db:
+        with patch("services.service_providers.trust.database") as mock_db:
             mock_db.service_providers.get_service_provider.return_value = None
 
             with pytest.raises(NotFoundError, match="Service provider not found"):

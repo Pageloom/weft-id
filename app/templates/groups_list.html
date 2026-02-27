@@ -47,13 +47,14 @@
         <div class="mb-6 flex flex-wrap gap-3 items-center">
             <form method="get" class="flex gap-3 flex-1 min-w-0">
                 <input type="hidden" name="view" value="{{ view }}">
+                <input type="hidden" name="size" value="{{ pagination.page_size }}">
                 <input type="text" name="search" placeholder="Search groups..." value="{{ search }}"
                        class="flex-1 min-w-0 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                 <button type="submit" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300">
                     Search
                 </button>
                 {% if search %}
-                <a href="/admin/groups/list?view={{ view }}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
+                <a href="/admin/groups/list?view={{ view }}&size={{ pagination.page_size }}" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm">
                     Clear
                 </a>
                 {% endif %}
@@ -61,11 +62,11 @@
 
             <!-- View toggle -->
             <div class="flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden shrink-0">
-                <a id="btn-view-list" href="?view=list{% if search %}&search={{ search }}{% endif %}"
+                <a id="btn-view-list" href="?view=list&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-2 text-sm font-medium {% if view == 'list' %}bg-blue-600 text-white{% else %}bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600{% endif %}">
                     List
                 </a>
-                <a id="btn-view-graph" href="?view=graph{% if search %}&search={{ search }}{% endif %}"
+                <a id="btn-view-graph" href="?view=graph&size={{ pagination.page_size }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-2 text-sm font-medium border-l border-gray-300 dark:border-gray-600 {% if view == 'graph' %}bg-blue-600 text-white{% else %}bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600{% endif %}">
                     Graph
                 </a>
@@ -268,28 +269,44 @@
         </div>
 
         <!-- Pagination -->
-        {% if pagination.total_pages > 1 %}
-        <div class="mt-6 flex justify-between items-center">
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-                Showing page {{ pagination.page }} of {{ pagination.total_pages }}
-                ({{ pagination.total }} total groups)
-            </p>
+        <div class="mt-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    Showing page {{ pagination.page }} of {{ pagination.total_pages }}
+                    ({{ pagination.total }} total group{{ 's' if pagination.total != 1 else '' }})
+                </p>
+                <div class="flex items-center gap-2">
+                    <label for="page-size-groups" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
+                    <select
+                        id="page-size-groups"
+                        data-view="{{ view }}"
+                        data-search="{% if search %}{{ search | urlencode }}{% endif %}"
+                        class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    >
+                        <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
+                        <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+                    </select>
+                </div>
+            </div>
+            {% if pagination.total_pages > 1 %}
             <div class="flex gap-2">
                 {% if pagination.page > 1 %}
-                <a href="?page={{ pagination.page - 1 }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
+                <a href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                     Previous
                 </a>
                 {% endif %}
                 {% if pagination.page < pagination.total_pages %}
-                <a href="?page={{ pagination.page + 1 }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
+                <a href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
                    class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
                     Next
                 </a>
                 {% endif %}
             </div>
+            {% endif %}
         </div>
-        {% endif %}
         {% endif %}
         {% endif %}
     </div>
@@ -322,6 +339,15 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
   var v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
   el.src = v.image;
 });
+(function() {
+  var sel = document.getElementById('page-size-groups');
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    var url = '?page=1&size=' + this.value + '&view=' + this.dataset.view;
+    if (this.dataset.search) url += '&search=' + this.dataset.search;
+    window.location.href = url;
+  });
+})();
 </script>
 {% else %}
 <script src="/static/js/cytoscape.min.js" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>

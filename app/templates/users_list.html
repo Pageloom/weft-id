@@ -305,15 +305,20 @@
             });
 
             // Restore page size and filters from localStorage in a single redirect
+            const urlParams = new URLSearchParams(window.location.search);
             let effectivePageSize = '{{ pagination.page_size }}';
-            try {
-                const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
-                if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
-                    effectivePageSize = savedSize;
-                }
-            } catch(e) {}
+            if (urlParams.has('size')) {
+                effectivePageSize = urlParams.get('size');
+            } else {
+                try {
+                    const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
+                    if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
+                        effectivePageSize = savedSize;
+                    }
+                } catch(e) {}
+            }
 
-            const needsSizeRestore = !new URLSearchParams(window.location.search).has('size')
+            const needsSizeRestore = !urlParams.has('size')
                 && effectivePageSize !== '25';
 
             const urlHasFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
@@ -331,7 +336,7 @@
             );
 
             if (needsSizeRestore || needsFilterRestore) {
-                let url = '/users/list?page=1&size=' + effectivePageSize
+                let url = window.location.pathname + '?page=1&size=' + effectivePageSize
                     + '&sort={{ sort_field }}&order={{ sort_order }}';
                 {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
                 if (needsFilterRestore) {

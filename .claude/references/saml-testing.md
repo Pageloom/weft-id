@@ -6,7 +6,7 @@ This document covers SAML-specific testing considerations for the `/test` agent.
 
 **80%+ coverage for all SAML modules is acceptable.** Do not flag SAML coverage gaps below this threshold as issues.
 
-The SAML modules (`app/services/saml/`, `database/saml.py`, `routers/saml/`) have intentional gaps that require true E2E tests to cover.
+The SAML modules (`app/services/saml/`, `database/saml/`, `routers/saml/`) have intentional gaps that require true E2E tests to cover.
 
 ## Why SAML is Different
 
@@ -34,7 +34,7 @@ These cannot be unit/integration tested effectively:
 
 1. **Real SAML ACS flow** (`routers/saml/authentication.py`) - Error handling in the Assertion Consumer Service requires real signed SAML assertions from an IdP
 
-2. **IdP-initiated Single Logout** (`services/saml/logout.py`) - Requires a signed LogoutRequest from the IdP
+2. **IdP-initiated Single Logout** (`services/saml/logout.py`) - Integration tests cover the happy path; full round-trip validation (signed requests from a real IdP) requires E2E
 
 3. **Real metadata refresh** (`services/saml/metadata.py`) - The full update path after fetching from a real metadata URL
 
@@ -44,7 +44,7 @@ These cannot be unit/integration tested effectively:
 
 ## E2E Test Suite
 
-Automated E2E tests now exist in `tests/e2e/` using Playwright. Run with `./test-e2e`.
+Automated E2E tests live in `tests/e2e/` using Playwright. Run with `./test-e2e`.
 
 The test bed (`app/dev/sso_testbed.py`) provisions two cross-tenant setups:
 - **IdP tenant** (`e2e-idp`) with a super admin user
@@ -56,6 +56,7 @@ Tests cover:
 - Pre-existing user matching (no duplicate JIT creation)
 - Admin XML metadata import (both IdP and SP sides)
 - Basic multi-step email+password login flow
+- Single Logout (SLO) flows (`tests/e2e/test_slo_flows.py`)
 
 For manual testing, SAMLtest.id and sptest.iamshowcase.com remain available options.
 
@@ -83,12 +84,16 @@ Weft ID also acts as a SAML Identity Provider, issuing assertions to registered 
 
 | File | Coverage |
 |------|----------|
-| `tests/test_routers_saml_idp.py` | Admin UI for SP management |
-| `tests/test_routers_saml_idp_sso.py` | SSO flow, consent, assertion delivery |
-| `tests/test_services_service_providers.py` | SP service CRUD and certificate management |
-| `tests/test_services_service_providers_sso.py` | SSO assertion building and signing |
-| `tests/test_api_service_providers.py` | API endpoints for SP management |
-| `tests/test_utils_saml_idp.py` | IdP utility functions, XML parsing edge cases |
+| `tests/routers/test_saml_idp.py` | Admin UI for SP management |
+| `tests/routers/test_saml_idp_sso.py` | SSO flow, consent, assertion delivery |
+| `tests/routers/test_saml_idp_slo.py` | SLO flow, logout routing |
+| `tests/routers/test_saml_idp_attributes.py` | SAML attribute mapping |
+| `tests/services/test_service_providers.py` | SP service CRUD and certificate management |
+| `tests/services/test_service_providers_sso.py` | SSO assertion building and signing |
+| `tests/services/test_service_providers_slo.py` | SLO service logic |
+| `tests/services/test_service_providers_nameid.py` | NameID format handling |
+| `tests/api/test_service_providers.py` | API endpoints for SP management |
+| `tests/utils/test_saml_idp.py` | IdP utility functions, XML parsing edge cases |
 
 ### Manual SP Testing
 

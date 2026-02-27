@@ -125,88 +125,85 @@
 {% endblock %}
 
 {% block tab_scripts %}
+<script type="application/json" id="page-data">
+{ "providerType": {{ idp.provider_type | tojson }} }
+</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
-    var providerType = '{{ idp.provider_type }}';
-    var providerNames = {
+    const { providerType } = JSON.parse(document.getElementById('page-data').textContent);
+    const providerNames = {
         'okta': 'Okta',
         'azure_ad': 'Azure AD',
         'google': 'Google Workspace',
         'generic': 'Generic SAML'
     };
 
-    function updateSetupGuide() {
-        fetch('/api/v1/saml/provider-presets/' + providerType)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var container = document.getElementById('setup-guide-container');
+    const updateSetupGuide = () => {
+        fetch(`/api/v1/saml/provider-presets/${providerType}`)
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('setup-guide-container');
                 if (data.setup_guide_url) {
                     container.classList.remove('hidden');
                     document.getElementById('setup-guide-link').href = data.setup_guide_url;
                     document.getElementById('provider-name-display').textContent = providerNames[providerType] || providerType;
                 }
             })
-            .catch(function() {});
-    }
+            .catch(() => {});
+    };
 
-    function loadProviderPresets() {
-        var btn = document.getElementById('load-presets-btn');
+    const loadProviderPresets = () => {
+        const btn = document.getElementById('load-presets-btn');
         if (!btn) return;
-        var originalText = btn.textContent;
+        const originalText = btn.textContent;
         btn.style.pointerEvents = 'none';
         btn.textContent = 'Loading...';
 
-        fetch('/api/v1/saml/provider-presets/' + providerType)
-            .then(function(r) {
+        fetch(`/api/v1/saml/provider-presets/${providerType}`)
+            .then(r => {
                 if (!r.ok) throw new Error('Failed');
                 return r.json();
             })
-            .then(function(data) {
+            .then(data => {
                 document.getElementById('attr_email').value = data.attribute_mapping.email || '';
                 document.getElementById('attr_first_name').value = data.attribute_mapping.first_name || '';
                 document.getElementById('attr_last_name').value = data.attribute_mapping.last_name || '';
                 document.getElementById('attr_groups').value = data.attribute_mapping.groups || '';
                 btn.textContent = 'Presets loaded!';
                 btn.classList.add('text-green-600');
-                setTimeout(function() {
+                setTimeout(() => {
                     btn.textContent = originalText;
                     btn.classList.remove('text-green-600');
                     btn.style.pointerEvents = '';
                 }, 2000);
             })
-            .catch(function() {
+            .catch(() => {
                 btn.textContent = 'Failed to load';
                 btn.classList.add('text-red-600');
-                setTimeout(function() {
+                setTimeout(() => {
                     btn.textContent = originalText;
                     btn.classList.remove('text-red-600');
                     btn.style.pointerEvents = '';
                 }, 2000);
             });
-    }
+    };
 
-    function resetToDefaults() {
-        document.querySelectorAll('.attr-map-input').forEach(function(input) {
+    const resetToDefaults = () => {
+        document.querySelectorAll('.attr-map-input').forEach((input) => {
             input.value = input.dataset.default;
         });
-    }
+    };
 
     updateSetupGuide();
 
-    var presetsBtn = document.getElementById('load-presets-btn');
+    const presetsBtn = document.getElementById('load-presets-btn');
     if (presetsBtn) {
-        presetsBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            loadProviderPresets();
-        });
+        presetsBtn.addEventListener('click', (e) => { e.preventDefault(); loadProviderPresets(); });
     }
 
-    var resetLink = document.getElementById('reset-attr-defaults');
+    const resetLink = document.getElementById('reset-attr-defaults');
     if (resetLink) {
-        resetLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            resetToDefaults();
-        });
+        resetLink.addEventListener('click', (e) => { e.preventDefault(); resetToDefaults(); });
     }
 })();
 </script>

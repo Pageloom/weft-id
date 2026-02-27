@@ -245,6 +245,8 @@ Common UI patterns are consolidated in `static/js/utils.js` as the `WeftUtils` o
 
 - `WeftUtils.apiFetch(url, options)` — drop-in `fetch()` wrapper for state-changing API calls. Automatically injects the `X-CSRF-Token` header (from the `<meta name="csrf-token">` tag) on POST/PUT/PATCH/DELETE requests and sets `credentials: 'same-origin'`. Always use this instead of bare `fetch()` for state-changing requests.
 
+All JavaScript in this project targets **ES2020** (`const`/`let`, arrow functions, template literals, optional chaining — no `var`). See `.claude/references/js-patterns.md`. Server-side template values must be placed in a `<script type="application/json" id="page-data">` block and read via `JSON.parse(...)` — never embed `{{ }}` expressions directly in `<script>` bodies.
+
 ### Cytoscape.js (Group Graphs)
 
 Group list and detail pages use Cytoscape.js (`static/js/cytoscape.min.js`) for interactive graph views. Key rule: **always initialize Cytoscape on a visible container.** If the graph is inside a hidden tab, defer initialization to `requestAnimationFrame` after the tab becomes visible. Initializing on a hidden container results in a zero-size layout with no error.

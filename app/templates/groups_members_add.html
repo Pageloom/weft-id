@@ -287,19 +287,29 @@
     </div>
 </div>
 
+<script type="application/json" id="page-data">
+{
+  "baseUrl": {{ ('/admin/groups/' ~ group.id ~ '/members/add') | tojson }},
+  "filtersActive": {{ 'true' if (roles or statuses) else 'false' }},
+  "search": {{ search | tojson if search else 'null' }},
+  "sortField": {{ sort_field | tojson }},
+  "sortOrder": {{ sort_order | tojson }},
+  "pageSize": {{ pagination.page_size }}
+}
+</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
-    var BASE_URL = '/admin/groups/{{ group.id }}/members/add';
+    const { baseUrl, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
+        document.getElementById('page-data').textContent
+    );
 
     // Toggle filter panel
-    var toggleBtn = document.getElementById('toggle-filters-btn');
-    var filterPanel = document.getElementById('filter-panel');
-    var chevron = document.getElementById('filter-chevron');
+    const toggleBtn = document.getElementById('toggle-filters-btn');
+    const filterPanel = document.getElementById('filter-panel');
+    const chevron = document.getElementById('filter-chevron');
 
-    var hasActiveFilters = {{ 'true' if (roles or statuses) else 'false' }};
-
-    toggleBtn.addEventListener('click', function() {
-        var isHidden = filterPanel.classList.contains('hidden');
+    toggleBtn.addEventListener('click', () => {
+        const isHidden = filterPanel.classList.contains('hidden');
         if (isHidden) {
             filterPanel.classList.remove('hidden');
             chevron.style.transform = 'rotate(180deg)';
@@ -309,87 +319,83 @@
         }
     });
 
-    if (hasActiveFilters) {
+    if (filtersActive) {
         filterPanel.classList.remove('hidden');
         chevron.style.transform = 'rotate(180deg)';
     }
 
     // Apply filters
-    document.getElementById('apply-filters-btn').addEventListener('click', function() {
-        var roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
-        var statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
+    document.getElementById('apply-filters-btn').addEventListener('click', () => {
+        const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
+        const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
 
-        var selectedRoles = roleCheckboxes
-            .filter(function(id) { return document.getElementById(id).checked; })
-            .map(function(id) { return document.getElementById(id).value; });
+        const selectedRoles = roleCheckboxes
+            .filter(id => document.getElementById(id).checked)
+            .map(id => document.getElementById(id).value);
 
-        var selectedStatuses = statusCheckboxes
-            .filter(function(id) { return document.getElementById(id).checked; })
-            .map(function(id) { return document.getElementById(id).value; });
+        const selectedStatuses = statusCheckboxes
+            .filter(id => document.getElementById(id).checked)
+            .map(id => document.getElementById(id).value);
 
-        var url = BASE_URL + '?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
-        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
-        if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
-        if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
+        let url = `${baseUrl}?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (selectedRoles.length > 0) url += `&role=${selectedRoles.join(',')}`;
+        if (selectedStatuses.length > 0) url += `&status=${selectedStatuses.join(',')}`;
         window.location.href = url;
     });
 
     // Page size selector
-    document.querySelectorAll('#page-size').forEach(function(select) {
+    document.querySelectorAll('#page-size').forEach((select) => {
         select.addEventListener('change', function() {
-            var url = this.dataset.baseUrl + '?page=1&size=' + this.value;
-            url += '&sort=' + this.dataset.sort + '&order=' + this.dataset.order;
-            if (this.dataset.search) url += '&search=' + this.dataset.search;
+            let url = `${this.dataset.baseUrl}?page=1&size=${this.value}&sort=${this.dataset.sort}&order=${this.dataset.order}`;
+            if (this.dataset.search) url += `&search=${this.dataset.search}`;
             url += this.dataset.filters;
             window.location.href = url;
         });
     });
 
     // Select-all checkbox and bulk action bar
-    var selectAll = document.getElementById('select-all');
-    var bulkBar = document.getElementById('bulk-action-bar');
-    var selectedCount = document.getElementById('selected-count');
+    const selectAll = document.getElementById('select-all');
+    const bulkBar = document.getElementById('bulk-action-bar');
+    const selectedCount = document.getElementById('selected-count');
 
-    function updateBulkBar() {
-        var checked = document.querySelectorAll('.user-checkbox:checked');
+    const updateBulkBar = () => {
+        const checked = document.querySelectorAll('.user-checkbox:checked');
         if (checked.length > 0) {
             bulkBar.classList.remove('hidden');
             selectedCount.textContent = checked.length;
         } else {
             bulkBar.classList.add('hidden');
         }
-    }
+    };
 
     selectAll.addEventListener('change', function() {
-        document.querySelectorAll('.user-checkbox').forEach(function(cb) {
+        document.querySelectorAll('.user-checkbox').forEach((cb) => {
             cb.checked = selectAll.checked;
         });
         updateBulkBar();
     });
 
-    document.querySelectorAll('.user-checkbox').forEach(function(cb) {
+    document.querySelectorAll('.user-checkbox').forEach((cb) => {
         cb.addEventListener('change', updateBulkBar);
     });
 
     // Confirmation dialogs
-    document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+    document.querySelectorAll('.confirm-btn').forEach((btn) => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            var form = this.closest('form');
-            var message = this.dataset.confirm;
-            var isDestructive = this.dataset.destructive === 'true';
-            WeftUtils.confirm(message, function() {
-                form.submit();
-            }, { destructive: isDestructive });
+            const form = this.closest('form');
+            const message = this.dataset.confirm;
+            const isDestructive = this.dataset.destructive === 'true';
+            WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
         });
     });
 
     // Click-to-toggle: clicking a row toggles its checkbox
-    document.querySelectorAll('tbody tr').forEach(function(row) {
-        row.addEventListener('click', function(e) {
-            var tag = e.target.closest('a, input, button');
-            if (tag) return;
-            var cb = row.querySelector('.user-checkbox');
+    document.querySelectorAll('tbody tr').forEach((row) => {
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('a, input, button')) return;
+            const cb = row.querySelector('.user-checkbox');
             if (cb) {
                 cb.checked = !cb.checked;
                 updateBulkBar();

@@ -121,11 +121,11 @@
 
 {% block tab_scripts %}
 <script nonce="{{ csp_nonce }}">
-    var resetLink = document.getElementById('reset-attr-defaults');
+    const resetLink = document.getElementById('reset-attr-defaults');
     if (resetLink) {
-        resetLink.addEventListener('click', function (e) {
+        resetLink.addEventListener('click', (e) => {
             e.preventDefault();
-            document.querySelectorAll('.attr-map-input').forEach(function (input) {
+            document.querySelectorAll('.attr-map-input').forEach((input) => {
                 input.value = input.dataset.default;
             });
         });

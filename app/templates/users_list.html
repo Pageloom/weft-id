@@ -401,19 +401,31 @@
     </div>
 </div>
 
+<script type="application/json" id="page-data">
+{
+  "tenantId": {{ user.tenant_id | string | tojson }},
+  "filtersActive": {{ 'true' if (roles or statuses or auth_methods) else 'false' }},
+  "search": {{ search | tojson if search else 'null' }},
+  "sortField": {{ sort_field | tojson }},
+  "sortOrder": {{ sort_order | tojson }},
+  "pageSize": {{ pagination.page_size }}
+}
+</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
-    const TENANT_ID = {{ user.tenant_id | string | tojson }};
-    const STORAGE_KEY = 'weftid_filters_' + TENANT_ID;
-    const COLLAPSE_KEY = 'weftid_filters_collapsed_' + TENANT_ID;
-    const PAGE_SIZE_KEY = 'weftid_page_size_' + TENANT_ID;
+    const { tenantId, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
+        document.getElementById('page-data').textContent
+    );
+    const STORAGE_KEY = `weftid_filters_${tenantId}`;
+    const COLLAPSE_KEY = `weftid_filters_collapsed_${tenantId}`;
+    const PAGE_SIZE_KEY = `weftid_page_size_${tenantId}`;
 
     // Toggle filter panel
     const toggleBtn = document.getElementById('toggle-filters-btn');
     const filterPanel = document.getElementById('filter-panel');
     const chevron = document.getElementById('filter-chevron');
 
-    function setFilterPanelState(collapsed) {
+    const setFilterPanelState = (collapsed) => {
         if (collapsed) {
             filterPanel.classList.add('hidden');
             chevron.style.transform = '';
@@ -422,25 +434,23 @@
             chevron.style.transform = 'rotate(180deg)';
         }
         try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
-    }
+    };
 
     // Restore collapse state (default: collapsed unless filters are active)
-    const hasActiveFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
     let savedCollapsed;
     try { savedCollapsed = localStorage.getItem(COLLAPSE_KEY); } catch(e) {}
     if (savedCollapsed !== null) {
         setFilterPanelState(savedCollapsed === '1');
     } else {
-        setFilterPanelState(!hasActiveFilters);
+        setFilterPanelState(!filtersActive);
     }
 
-    toggleBtn.addEventListener('click', function() {
-        const isHidden = filterPanel.classList.contains('hidden');
-        setFilterPanelState(!isHidden);
+    toggleBtn.addEventListener('click', () => {
+        setFilterPanelState(!filterPanel.classList.contains('hidden'));
     });
 
     // Apply filters
-    function applyFilters() {
+    const applyFilters = () => {
         const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
         const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
 
@@ -456,11 +466,11 @@
             document.querySelectorAll('.filter-auth-method:checked')
         ).map(el => el.value);
 
-        let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
-        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
-        if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
-        if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
-        if (selectedAuthMethods.length > 0) url += '&auth_method=' + selectedAuthMethods.join(',');
+        let url = `/users/list?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (selectedRoles.length > 0) url += `&role=${selectedRoles.join(',')}`;
+        if (selectedStatuses.length > 0) url += `&status=${selectedStatuses.join(',')}`;
+        if (selectedAuthMethods.length > 0) url += `&auth_method=${selectedAuthMethods.join(',')}`;
 
         // Save to localStorage
         try {
@@ -472,71 +482,63 @@
         } catch(e) {}
 
         window.location.href = url;
-    }
+    };
 
     document.getElementById('apply-filters-btn')?.addEventListener('click', applyFilters);
 
     // Clear filters action: also clear localStorage
-    document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach(function(el) {
-        el.addEventListener('click', function() {
+    document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach((el) => {
+        el.addEventListener('click', () => {
             try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
         });
     });
 
     // Restore page size and filters from localStorage in a single redirect
     const urlParams = new URLSearchParams(window.location.search);
-    let effectivePageSize = '{{ pagination.page_size }}';
+    let effectivePageSize = String(pageSize);
     if (urlParams.has('size')) {
         effectivePageSize = urlParams.get('size');
     } else {
         try {
             const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
-            if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
+            if (savedSize && ['10', '25', '50', '100'].includes(savedSize)) {
                 effectivePageSize = savedSize;
             }
         } catch(e) {}
     }
 
-    const needsSizeRestore = !urlParams.has('size')
-        && effectivePageSize !== '25';
+    const needsSizeRestore = !urlParams.has('size') && effectivePageSize !== '25';
 
-    const urlHasFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
     let savedFilters = null;
-    if (!urlHasFilters) {
+    if (!filtersActive) {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (raw) savedFilters = JSON.parse(raw);
         } catch(e) {}
     }
     const needsFilterRestore = savedFilters && (
-        (savedFilters.roles && savedFilters.roles.length > 0)
-        || (savedFilters.statuses && savedFilters.statuses.length > 0)
-        || (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
+        (savedFilters.roles?.length > 0)
+        || (savedFilters.statuses?.length > 0)
+        || (savedFilters.auth_methods?.length > 0)
     );
 
     if (needsSizeRestore || needsFilterRestore) {
-        let url = window.location.pathname + '?page=1&size=' + effectivePageSize
-            + '&sort={{ sort_field }}&order={{ sort_order }}';
-        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+        let url = `${window.location.pathname}?page=1&size=${effectivePageSize}&sort=${sortField}&order=${sortOrder}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
         if (needsFilterRestore) {
-            if (savedFilters.roles && savedFilters.roles.length > 0)
-                url += '&role=' + savedFilters.roles.join(',');
-            if (savedFilters.statuses && savedFilters.statuses.length > 0)
-                url += '&status=' + savedFilters.statuses.join(',');
-            if (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
-                url += '&auth_method=' + savedFilters.auth_methods.join(',');
+            if (savedFilters.roles?.length > 0) url += `&role=${savedFilters.roles.join(',')}`;
+            if (savedFilters.statuses?.length > 0) url += `&status=${savedFilters.statuses.join(',')}`;
+            if (savedFilters.auth_methods?.length > 0) url += `&auth_method=${savedFilters.auth_methods.join(',')}`;
         }
         window.location.href = url;
     }
 
     // Page size selector
-    document.querySelectorAll('#page-size').forEach(function(select) {
+    document.querySelectorAll('#page-size').forEach((select) => {
         select.addEventListener('change', function() {
             try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
-            let url = '?page=1&size=' + this.value;
-            url += '&sort=' + this.dataset.sort;
-            url += '&order=' + this.dataset.order;
-            if (this.dataset.search) url += '&search=' + this.dataset.search;
+            let url = `?page=1&size=${this.value}&sort=${this.dataset.sort}&order=${this.dataset.order}`;
+            if (this.dataset.search) url += `&search=${this.dataset.search}`;
             url += this.dataset.filters;
             window.location.href = url;
         });

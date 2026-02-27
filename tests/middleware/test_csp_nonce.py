@@ -128,7 +128,8 @@ class TestTemplateScriptNonceBackstop:
     # Pattern to match inline <script> tags without nonce attribute
     # (External scripts with src= are allowed without nonce since CSP allows 'self')
     INLINE_SCRIPT_WITHOUT_NONCE = re.compile(
-        r"<script(?![^>]*\bnonce=)(?![^>]*\bsrc=)[^>]*>", re.IGNORECASE
+        r"<script(?![^>]*\bnonce=)(?![^>]*\bsrc=)(?![^>]*\btype=[\"']application/json[\"'])[^>]*>",
+        re.IGNORECASE,
     )
 
     # Pattern to match <script> tags with nonce attribute

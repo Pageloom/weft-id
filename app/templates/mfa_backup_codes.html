@@ -56,13 +56,13 @@
     </div>
 </div>
 
+<script type="application/json" id="page-data">
+{ "backupCodes": {{ backup_codes | tojson }} }
+</script>
 <script nonce="{{ csp_nonce }}">
+const { backupCodes } = JSON.parse(document.getElementById('page-data').textContent);
 document.getElementById('copy-codes-btn')?.addEventListener('click', function() {
-    var codes = [
-        {% for code in backup_codes %}'{{ code }}',{% endfor %}
-    ];
-    var text = codes.join('\n');
-    WeftUtils.copyToClipboard(text, this);
+    WeftUtils.copyToClipboard(backupCodes.join('\n'), this);
 });
 </script>
 {% endblock %}

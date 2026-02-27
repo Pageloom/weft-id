@@ -230,37 +230,35 @@
 {% block tab_scripts %}
 <script nonce="{{ csp_nonce }}">
 (function() {
-    var currentSeed = null;
-    var randomizeBtn = document.getElementById('mandala-randomize-btn');
-    var saveBtn = document.getElementById('mandala-save-btn');
-    var previewLight = document.getElementById('mandala-preview-light');
-    var previewDark = document.getElementById('mandala-preview-dark');
+    let currentSeed = null;
+    const randomizeBtn = document.getElementById('mandala-randomize-btn');
+    const saveBtn = document.getElementById('mandala-save-btn');
+    const previewLight = document.getElementById('mandala-preview-light');
+    const previewDark = document.getElementById('mandala-preview-dark');
 
-    randomizeBtn.addEventListener('click', function() {
+    randomizeBtn.addEventListener('click', () => {
         randomizeBtn.disabled = true;
         randomizeBtn.textContent = 'Generating...';
 
-        WeftUtils.apiFetch('/api/v1/branding/mandala/randomize', {
-            method: 'POST'
-        })
-        .then(function(resp) { return resp.json(); })
-        .then(function(data) {
+        WeftUtils.apiFetch('/api/v1/branding/mandala/randomize', { method: 'POST' })
+        .then(resp => resp.json())
+        .then(data => {
             currentSeed = data.seed;
             previewLight.innerHTML = data.light_svg;
             previewDark.innerHTML = data.dark_svg;
             saveBtn.disabled = false;
         })
-        .catch(function() {
+        .catch(() => {
             previewLight.innerHTML = '<span class="text-xs text-red-500">Error</span>';
             previewDark.innerHTML = '<span class="text-xs text-red-500">Error</span>';
         })
-        .finally(function() {
+        .finally(() => {
             randomizeBtn.disabled = false;
             randomizeBtn.textContent = 'Randomize';
         });
     });
 
-    saveBtn.addEventListener('click', function() {
+    saveBtn.addEventListener('click', () => {
         if (!currentSeed) return;
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving...';
@@ -270,7 +268,7 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({seed: currentSeed})
         })
-        .then(function(resp) {
+        .then(resp => {
             if (resp.ok) {
                 window.location.href = '/admin/settings/branding/global?success=mandala_saved';
             } else {
@@ -278,7 +276,7 @@
                 saveBtn.textContent = 'Save as Logo';
             }
         })
-        .catch(function() {
+        .catch(() => {
             saveBtn.disabled = false;
             saveBtn.textContent = 'Save as Logo';
         });

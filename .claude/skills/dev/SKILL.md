@@ -41,6 +41,8 @@ Request → Router → Service → Database → PostgreSQL
 - New pages must be registered in `app/pages.py`
 - All `str` fields in Pydantic input schemas must have `max_length` (names 255, descriptions 2000, URLs 2048, enums 50)
 - State-changing `fetch()` calls to `/api/` endpoints must use `WeftUtils.apiFetch()`, not bare `fetch()`. The server enforces a CSRF token on the session-cookie auth path — bare `fetch()` will fail with 403.
+- All JavaScript follows the ES2020 standard: `const`/`let` (no `var`), arrow functions, template literals, optional chaining. See `.claude/references/js-patterns.md`.
+- Template server-side values go in `<script type="application/json" id="page-data">` blocks. Inline script bodies must contain no Jinja2 `{{ }}` expressions (only the `nonce` attribute and `{% %}` block tags are allowed).
 
 ## List View Conventions
 

@@ -19,13 +19,11 @@ Code structure directly impacts Claude's effectiveness. Prioritize issues that h
 
 **God Module:**
 ```
-app/services/saml.py (2600+ lines)
-  - SAML request building
-  - SAML response parsing
-  - User provisioning
-  - Group syncing
-  - Session management
-# Should be split into focused modules
+app/services/something.py (500+ lines)
+  - Multiple unrelated concerns
+  - e.g. CRUD, lifecycle, notifications, session management
+# Split into focused submodules: crud.py, lifecycle.py, etc.
+# Add __init__.py re-exporting public functions for backwards compatibility
 ```
 
 **Scattered Concept:**

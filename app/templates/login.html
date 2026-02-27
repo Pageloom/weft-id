@@ -121,10 +121,10 @@
 
 {% block extra_scripts %}
 <script nonce="{{ csp_nonce }}">
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     // Only set timezone/locale if we're on the password form
-    var tzInput = document.getElementById('timezone');
-    var localeInput = document.getElementById('locale');
+    const tzInput = document.getElementById('timezone');
+    const localeInput = document.getElementById('locale');
     if (tzInput && localeInput) {
         tzInput.value = WeftUtils.detectTimezone();
         localeInput.value = WeftUtils.detectLocale();

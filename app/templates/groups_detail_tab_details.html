@@ -114,13 +114,11 @@
 <script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
-    document.querySelectorAll('img[data-mandala]').forEach(function (img) {
-        var result = generateGroupMandala(img.dataset.mandala);
-        img.src = result.image;
+    document.querySelectorAll('img[data-mandala]').forEach((img) => {
+        img.src = generateGroupMandala(img.dataset.mandala).image;
     });
-    document.querySelectorAll('img[data-acronym]').forEach(function (img) {
-        var result = generateGroupAcronym(img.dataset.acronym, img.dataset.name);
-        img.src = result.image;
+    document.querySelectorAll('img[data-acronym]').forEach((img) => {
+        img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
     });
 })();
 </script>

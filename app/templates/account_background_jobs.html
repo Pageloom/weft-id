@@ -150,25 +150,27 @@
     </div>
 </div>
 
+<script type="application/json" id="page-data">
+{ "hasActiveJobs": {{ 'true' if has_active_jobs else 'false' }} }
+</script>
 <script nonce="{{ csp_nonce }}">
+    const { hasActiveJobs } = JSON.parse(document.getElementById('page-data').textContent);
+
     // Select all checkbox functionality
     const selectAllCheckbox = document.getElementById('select-all');
     const jobCheckboxes = document.querySelectorAll('.job-checkbox');
 
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function() {
-            jobCheckboxes.forEach(checkbox => {
+            jobCheckboxes.forEach((checkbox) => {
                 checkbox.checked = this.checked;
             });
         });
     }
 
     // Polling logic - only poll if there are active jobs
-    const hasActiveJobs = {{ 'true' if has_active_jobs else 'false' }};
     if (hasActiveJobs) {
-        setInterval(() => {
-            window.location.reload();
-        }, 10000);  // 10 seconds
+        setInterval(() => { window.location.reload(); }, 10000);  // 10 seconds
     }
 </script>
 {% endblock %}

@@ -150,9 +150,9 @@
 
 <script nonce="{{ csp_nonce }}">
 // Page size selector
-document.querySelectorAll('#page-size').forEach(function(select) {
+document.querySelectorAll('#page-size').forEach((select) => {
     select.addEventListener('change', function() {
-        window.location.href = '?page=1&size=' + this.value;
+        window.location.href = `?page=1&size=${this.value}`;
     });
 });
 

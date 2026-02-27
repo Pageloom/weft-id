@@ -15,17 +15,15 @@ const WeftUtils = {
      * @param {HTMLElement} [feedbackEl] - Element to show feedback on (changes text to "Copied!")
      * @returns {Promise<boolean>} - True if successful
      */
-    copyToClipboard: function(text, feedbackEl) {
-        return navigator.clipboard.writeText(text).then(function() {
+    copyToClipboard(text, feedbackEl) {
+        return navigator.clipboard.writeText(text).then(() => {
             if (feedbackEl) {
-                var original = feedbackEl.textContent;
+                const original = feedbackEl.textContent;
                 feedbackEl.textContent = 'Copied!';
-                setTimeout(function() {
-                    feedbackEl.textContent = original;
-                }, 2000);
+                setTimeout(() => { feedbackEl.textContent = original; }, 2000);
             }
             return true;
-        }).catch(function() {
+        }).catch(() => {
             // Show error in modal instead of alert
             WeftUtils.confirm('Failed to copy. Please copy manually.', null, { okOnly: true });
             return false;
@@ -37,16 +35,14 @@ const WeftUtils = {
      *
      * @param {string} id - Modal element ID
      */
-    showModal: function(id) {
-        var modal = document.getElementById(id);
+    showModal(id) {
+        const modal = document.getElementById(id);
         if (modal) {
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             // Focus first focusable element
-            var focusable = modal.querySelector('input, button, select, textarea, [tabindex]:not([tabindex="-1"])');
-            if (focusable) {
-                focusable.focus();
-            }
+            const focusable = modal.querySelector('input, button, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusable) focusable.focus();
         }
     },
 
@@ -55,8 +51,8 @@ const WeftUtils = {
      *
      * @param {string} id - Modal element ID
      */
-    hideModal: function(id) {
-        var modal = document.getElementById(id);
+    hideModal(id) {
+        const modal = document.getElementById(id);
         if (modal) {
             modal.classList.add('hidden');
             modal.classList.remove('flex');
@@ -72,12 +68,11 @@ const WeftUtils = {
      * @param {boolean} [options.destructive=false] - Use red button for dangerous actions
      * @param {boolean} [options.okOnly=false] - Only show OK button (for alerts)
      */
-    confirm: function(message, onConfirm, options) {
-        options = options || {};
-        var modal = document.getElementById('weft-confirm-modal');
-        var messageEl = document.getElementById('weft-confirm-message');
-        var cancelBtn = document.getElementById('weft-confirm-cancel');
-        var okBtn = document.getElementById('weft-confirm-ok');
+    confirm(message, onConfirm, options = {}) {
+        const modal = document.getElementById('weft-confirm-modal');
+        const messageEl = document.getElementById('weft-confirm-message');
+        const cancelBtn = document.getElementById('weft-confirm-cancel');
+        const okBtn = document.getElementById('weft-confirm-ok');
 
         if (!modal || !messageEl || !okBtn) {
             // Fallback to native if modal not present
@@ -85,9 +80,7 @@ const WeftUtils = {
                 alert(message);
                 return;
             }
-            if (confirm(message) && onConfirm) {
-                onConfirm();
-            }
+            if (confirm(message) && onConfirm) onConfirm();
             return;
         }
 
@@ -120,7 +113,7 @@ const WeftUtils = {
      *
      * @returns {string} - IANA timezone identifier (e.g., "America/New_York")
      */
-    detectTimezone: function() {
+    detectTimezone() {
         return Intl.DateTimeFormat().resolvedOptions().timeZone;
     },
 
@@ -129,8 +122,8 @@ const WeftUtils = {
      *
      * @returns {string} - Locale with underscores (e.g., "en_US")
      */
-    detectLocale: function() {
-        var locale = new Intl.DateTimeFormat().resolvedOptions().locale;
+    detectLocale() {
+        const locale = new Intl.DateTimeFormat().resolvedOptions().locale;
         return locale.replace('-', '_');
     },
 
@@ -144,42 +137,42 @@ const WeftUtils = {
      *
      * @param {string|HTMLElement} elementOrId - Element or element ID
      */
-    stickyActionBar: function(elementOrId) {
-        var el = typeof elementOrId === 'string'
+    stickyActionBar(elementOrId) {
+        const el = typeof elementOrId === 'string'
             ? document.getElementById(elementOrId)
             : elementOrId;
         if (!el) return;
 
         // Sentinel element placed right after the bar to detect stuck state
-        var sentinel = document.createElement('div');
+        const sentinel = document.createElement('div');
         sentinel.style.height = '1px';
         sentinel.style.visibility = 'hidden';
         sentinel.style.pointerEvents = 'none';
         sentinel.style.display = 'none';
         el.parentNode.insertBefore(sentinel, el.nextSibling);
 
-        function applySticky() {
-            requestAnimationFrame(function() {
+        const applySticky = () => {
+            requestAnimationFrame(() => {
                 if (el.classList.contains('hidden')) return;
                 el.style.position = 'sticky';
                 el.style.bottom = '0';
                 el.style.zIndex = '40';
                 sentinel.style.display = '';
             });
-        }
+        };
 
-        function removeSticky() {
+        const removeSticky = () => {
             el.style.position = '';
             el.style.bottom = '';
             el.style.zIndex = '';
             el.style.boxShadow = '';
             sentinel.style.display = 'none';
-        }
+        };
 
         // IntersectionObserver detects when sentinel scrolls out of view,
         // meaning the bar is stuck at the viewport bottom
-        var io = new IntersectionObserver(function(entries) {
-            entries.forEach(function(entry) {
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
                 if (el.classList.contains('hidden')) return;
                 if (entry.isIntersecting) {
                     // Sentinel visible: bar is in natural position
@@ -193,7 +186,7 @@ const WeftUtils = {
         io.observe(sentinel);
 
         // Observe class changes to detect show/hide
-        var observer = new MutationObserver(function() {
+        const observer = new MutationObserver(() => {
             if (el.classList.contains('hidden')) {
                 removeSticky();
             } else {
@@ -219,12 +212,11 @@ const WeftUtils = {
      * @param {Object} [options] - fetch() options (same as native fetch)
      * @returns {Promise<Response>}
      */
-    apiFetch: function(url, options) {
-        options = options || {};
-        var method = (options.method || 'GET').toUpperCase();
-        var safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-        if (safeMethods.indexOf(method) === -1) {
-            var meta = document.querySelector('meta[name="csrf-token"]');
+    apiFetch(url, options = {}) {
+        const method = (options.method || 'GET').toUpperCase();
+        const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+        if (!safeMethods.includes(method)) {
+            const meta = document.querySelector('meta[name="csrf-token"]');
             if (meta) {
                 options.headers = options.headers || {};
                 options.headers['X-CSRF-Token'] = meta.getAttribute('content');
@@ -241,46 +233,35 @@ const WeftUtils = {
      * Initialize confirm modal event handlers.
      * Called automatically when DOM is ready.
      */
-    _initConfirmModal: function() {
-        var modal = document.getElementById('weft-confirm-modal');
-        var cancelBtn = document.getElementById('weft-confirm-cancel');
-        var okBtn = document.getElementById('weft-confirm-ok');
+    _initConfirmModal() {
+        const modal = document.getElementById('weft-confirm-modal');
+        const cancelBtn = document.getElementById('weft-confirm-cancel');
+        const okBtn = document.getElementById('weft-confirm-ok');
 
         if (!modal) return;
 
-        function closeModal() {
+        const closeModal = () => {
             WeftUtils.hideModal('weft-confirm-modal');
             WeftUtils._confirmCallback = null;
-        }
+        };
 
-        function handleConfirm() {
-            var callback = WeftUtils._confirmCallback;
+        const handleConfirm = () => {
+            const callback = WeftUtils._confirmCallback;
             closeModal();
-            if (callback) {
-                callback();
-            }
-        }
+            if (callback) callback();
+        };
 
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', closeModal);
-        }
-
-        if (okBtn) {
-            okBtn.addEventListener('click', handleConfirm);
-        }
+        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+        if (okBtn) okBtn.addEventListener('click', handleConfirm);
 
         // Close on ESC
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-                closeModal();
-            }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
         });
 
         // Close on backdrop click
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                closeModal();
-            }
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
         });
     }
 };

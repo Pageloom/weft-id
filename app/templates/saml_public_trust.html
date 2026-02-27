@@ -118,26 +118,24 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    document.querySelectorAll('.copy-btn[data-copy-target]').forEach(function(btn) {
+    document.querySelectorAll('.copy-btn[data-copy-target]').forEach((btn) => {
         btn.addEventListener('click', function() {
-            var targetId = this.getAttribute('data-copy-target');
-            var el = document.getElementById(targetId);
+            const el = document.getElementById(this.getAttribute('data-copy-target'));
             if (!el) return;
-            var text = el.textContent.trim();
-            navigator.clipboard.writeText(text).then(function() {
+            navigator.clipboard.writeText(el.textContent.trim()).then(() => {
                 btn.textContent = 'Copied!';
-                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+                setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
             });
         });
     });
-    var copyXmlBtn = document.getElementById('copy-metadata-xml');
+    const copyXmlBtn = document.getElementById('copy-metadata-xml');
     if (copyXmlBtn) {
-        copyXmlBtn.addEventListener('click', function() {
-            var el = document.getElementById('metadata-xml-content');
+        copyXmlBtn.addEventListener('click', () => {
+            const el = document.getElementById('metadata-xml-content');
             if (!el) return;
-            navigator.clipboard.writeText(el.textContent).then(function() {
+            navigator.clipboard.writeText(el.textContent).then(() => {
                 copyXmlBtn.textContent = 'Copied!';
-                setTimeout(function() { copyXmlBtn.textContent = 'Copy'; }, 2000);
+                setTimeout(() => { copyXmlBtn.textContent = 'Copy'; }, 2000);
             });
         });
     }

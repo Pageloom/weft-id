@@ -323,35 +323,27 @@
 <script nonce="{{ csp_nonce }}">
 {% if not sp.trust_established %}
 // Trust establishment tab switching
-document.querySelectorAll('.trust-tab-btn').forEach(function(btn) {
+document.querySelectorAll('.trust-tab-btn').forEach((btn) => {
     btn.addEventListener('click', function() {
-        var tabId = this.dataset.tab;
-        document.querySelectorAll('.trust-tab-content').forEach(function(content) {
+        const tabId = this.dataset.tab;
+        document.querySelectorAll('.trust-tab-content').forEach((content) => {
             content.classList.add('hidden');
         });
-        document.querySelectorAll('.trust-tab-btn').forEach(function(b) {
+        document.querySelectorAll('.trust-tab-btn').forEach((b) => {
             b.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
             b.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         });
-        document.getElementById('tab-' + tabId).classList.remove('hidden');
+        document.getElementById(`tab-${tabId}`).classList.remove('hidden');
         this.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         this.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
     });
 });
 {% else %}
 (function() {
-    document.getElementById('edit-name-btn').addEventListener('click', function() {
-        WeftUtils.showModal('edit-name-modal');
-    });
-    document.getElementById('cancel-name-btn').addEventListener('click', function() {
-        WeftUtils.hideModal('edit-name-modal');
-    });
-    document.getElementById('edit-desc-btn').addEventListener('click', function() {
-        WeftUtils.showModal('edit-desc-modal');
-    });
-    document.getElementById('cancel-desc-btn').addEventListener('click', function() {
-        WeftUtils.hideModal('edit-desc-modal');
-    });
+    document.getElementById('edit-name-btn').addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
+    document.getElementById('cancel-name-btn').addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('edit-desc-btn').addEventListener('click', () => { WeftUtils.showModal('edit-desc-modal'); });
+    document.getElementById('cancel-desc-btn').addEventListener('click', () => { WeftUtils.hideModal('edit-desc-modal'); });
 })();
 {% endif %}
 </script>

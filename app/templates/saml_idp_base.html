@@ -79,25 +79,23 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
     btn.addEventListener('click', function(e) {
         e.preventDefault();
-        var form = this.closest('form');
-        var message = this.dataset.confirm;
-        var isDestructive = this.dataset.destructive === 'true';
-        WeftUtils.confirm(message, function() {
-            form.submit();
-        }, { destructive: isDestructive });
+        const form = this.closest('form');
+        const message = this.dataset.confirm;
+        const isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
     });
 });
 
-var copyBtn = document.getElementById('copy-sp-metadata-url');
+const copyBtn = document.getElementById('copy-sp-metadata-url');
 if (copyBtn) {
-    copyBtn.addEventListener('click', function() {
-        var url = document.getElementById('sp-metadata-url').textContent.trim();
-        navigator.clipboard.writeText(url).then(function() {
+    copyBtn.addEventListener('click', () => {
+        const url = document.getElementById('sp-metadata-url').textContent.trim();
+        navigator.clipboard.writeText(url).then(() => {
             copyBtn.textContent = 'Copied!';
-            setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+            setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
         });
     });
 }

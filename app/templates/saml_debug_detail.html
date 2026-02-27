@@ -119,7 +119,7 @@
 
 <script nonce="{{ csp_nonce }}">
 document.getElementById('copy-xml-btn')?.addEventListener('click', function() {
-    var xml = document.getElementById('saml-xml').textContent;
+    const xml = document.getElementById('saml-xml').textContent;
     WeftUtils.copyToClipboard(xml, this);
 });
 </script>

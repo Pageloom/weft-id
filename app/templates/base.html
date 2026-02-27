@@ -7,8 +7,8 @@
     <!-- Theme detection - MUST be before stylesheet to prevent flash of unstyled content -->
     <script nonce="{{ csp_nonce }}">
     (function() {
-        var stored = localStorage.getItem('theme') || 'system';
-        var dark = stored === 'dark' ||
+        const stored = localStorage.getItem('theme') || 'system';
+        const dark = stored === 'dark' ||
             (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) {
             document.documentElement.classList.add('dark');
@@ -168,6 +168,9 @@
     </div>
 
     {% if user %}
+    <script type="application/json" id="base-page-data">
+    { "userTheme": {{ (user.theme or 'system') | tojson }} }
+    </script>
     <script nonce="{{ csp_nonce }}">
         // User dropdown menu toggle
         const menuButton = document.getElementById('user-menu-button');
@@ -180,7 +183,7 @@
             });
 
             // Close menu when clicking outside
-            document.addEventListener('click', (e) => {
+            document.addEventListener('click', () => {
                 if (!menu.classList.contains('hidden')) {
                     menu.classList.add('hidden');
                 }
@@ -194,13 +197,13 @@
 
         // Sync theme from server (handles cross-device sync)
         (function() {
-            var serverTheme = '{{ user.theme or "system" }}';
-            var localTheme = localStorage.getItem('theme');
+            const serverTheme = JSON.parse(document.getElementById('base-page-data').textContent).userTheme;
+            const localTheme = localStorage.getItem('theme');
             if (serverTheme !== localTheme) {
                 localStorage.setItem('theme', serverTheme);
                 // Re-apply theme if needed
-                var html = document.documentElement;
-                var dark = serverTheme === 'dark' ||
+                const html = document.documentElement;
+                const dark = serverTheme === 'dark' ||
                     (serverTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
                 if (dark && !html.classList.contains('dark')) {
                     html.classList.add('dark');
@@ -218,7 +221,7 @@
             if (!localStorage.getItem('cookie_notice_dismissed')) {
                 document.getElementById('cookie-notice').classList.remove('hidden');
             }
-            document.getElementById('cookie-accept')?.addEventListener('click', function() {
+            document.getElementById('cookie-accept')?.addEventListener('click', () => {
                 localStorage.setItem('cookie_notice_dismissed', '1');
                 document.getElementById('cookie-notice').classList.add('hidden');
             });

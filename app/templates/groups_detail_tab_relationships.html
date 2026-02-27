@@ -161,35 +161,34 @@
 {% block tab_scripts %}
 <script nonce="{{ csp_nonce }}" src="{{ static_url('js/cytoscape.min.js') }}"></script>
 <script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
+<script type="application/json" id="page-data">
+{ "groupAvatarStyle": {{ branding.group_avatar_style | tojson }} }
+</script>
 <script nonce="{{ csp_nonce }}">
 (function () {
-    var raw = document.getElementById('neighborhood-data').textContent;
-    var data = JSON.parse(raw);
-    var isDark = document.documentElement.classList.contains('dark');
-
-    var container = document.getElementById('cy-neighborhood');
+    const data = JSON.parse(document.getElementById('neighborhood-data').textContent);
+    const { groupAvatarStyle } = JSON.parse(document.getElementById('page-data').textContent);
+    const isDark = document.documentElement.classList.contains('dark');
+    const container = document.getElementById('cy-neighborhood');
 
     function init() {
-    var W = container.offsetWidth || 600;
-    var centerX = W / 2;
+    const W = container.offsetWidth || 600;
+    const centerX = W / 2;
+    const elements = [];
 
-    var elements = [];
-
-    var groupAvatarStyle = "{{ branding.group_avatar_style }}";
-
-    function resolveGroupVis(id, name, hasLogo, logoVersion) {
+    const resolveGroupVis = (id, name, hasLogo, logoVersion) => {
         if (hasLogo) {
-            var suffix = logoVersion ? '?v=' + logoVersion : '';
-            return {color: '#9ca3af', image: '/branding/group-logo/' + id + suffix};
+            const suffix = logoVersion ? `?v=${logoVersion}` : '';
+            return {color: '#9ca3af', image: `/branding/group-logo/${id}${suffix}`};
         } else if (groupAvatarStyle === 'acronym') {
             return generateGroupAcronym(id, name);
         } else {
             return generateGroupMandala(id);
         }
-    }
+    };
 
     // Center node (current group)
-    var centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo, data.group.logo_version);
+    const centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo, data.group.logo_version);
     elements.push({
         data: {
             id: data.group.id,
@@ -202,12 +201,12 @@
     });
 
     // Parent nodes (above center)
-    var parents = data.parents || [];
-    parents.forEach(function (p, i) {
-        var spacing = 130;
-        var totalWidth = (parents.length - 1) * spacing;
-        var x = centerX - totalWidth / 2 + i * spacing;
-        var vis = resolveGroupVis(p.id, p.name, p.has_logo, p.logo_version);
+    const parents = data.parents || [];
+    parents.forEach((p, i) => {
+        const spacing = 130;
+        const totalWidth = (parents.length - 1) * spacing;
+        const x = centerX - totalWidth / 2 + i * spacing;
+        const vis = resolveGroupVis(p.id, p.name, p.has_logo, p.logo_version);
         elements.push({
             data: {
                 id: p.id,
@@ -220,7 +219,7 @@
         });
         elements.push({
             data: {
-                id: 'e-' + data.group.id + '-' + p.id,
+                id: `e-${data.group.id}-${p.id}`,
                 source: data.group.id,
                 target: p.id
             }
@@ -228,12 +227,12 @@
     });
 
     // Child nodes (below center)
-    var children = data.children || [];
-    children.forEach(function (c, i) {
-        var spacing = 130;
-        var totalWidth = (children.length - 1) * spacing;
-        var x = centerX - totalWidth / 2 + i * spacing;
-        var vis = resolveGroupVis(c.id, c.name, c.has_logo, c.logo_version);
+    const children = data.children || [];
+    children.forEach((c, i) => {
+        const spacing = 130;
+        const totalWidth = (children.length - 1) * spacing;
+        const x = centerX - totalWidth / 2 + i * spacing;
+        const vis = resolveGroupVis(c.id, c.name, c.has_logo, c.logo_version);
         elements.push({
             data: {
                 id: c.id,
@@ -246,14 +245,14 @@
         });
         elements.push({
             data: {
-                id: 'e-' + c.id + '-' + data.group.id,
+                id: `e-${c.id}-${data.group.id}`,
                 source: c.id,
                 target: data.group.id
             }
         });
     });
 
-    var sharedNodeStyle = {
+    const sharedNodeStyle = {
         'label': 'data(label)',
         'text-wrap': 'wrap',
         'text-max-width': '90px',
@@ -276,7 +275,7 @@
         'border-opacity': 0
     };
 
-    var cy = cytoscape({
+    const cy = cytoscape({
         container: container,
         elements: elements,
         layout: { name: 'preset' },
@@ -313,27 +312,26 @@
     cy.fit(undefined, 50);
 
     // Fetch details for adjacent nodes and update labels with member counts
-    var adjacentIds = parents.map(function (p) { return p.id; })
-                             .concat(children.map(function (c) { return c.id; }));
+    const adjacentIds = parents.map(p => p.id).concat(children.map(c => c.id));
     if (adjacentIds.length > 0) {
-        Promise.all(adjacentIds.map(function (id) {
-            return fetch('/api/v1/groups/' + id)
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .catch(function () { return null; });
-        })).then(function (results) {
-            results.forEach(function (g) {
+        Promise.all(adjacentIds.map(id =>
+            fetch(`/api/v1/groups/${id}`)
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+        )).then((results) => {
+            results.forEach((g) => {
                 if (!g) return;
-                var node = cy.getElementById(g.id);
+                const node = cy.getElementById(g.id);
                 if (!node.length) return;
-                var direct = g.member_count || 0;
-                var indirect = (g.effective_member_count || 0) - direct;
-                var label = g.name;
+                const direct = g.member_count || 0;
+                const indirect = (g.effective_member_count || 0) - direct;
+                let label = g.name;
                 if (direct > 0 || indirect > 0) {
                     if (direct > 0) {
-                        label += '\n' + direct;
-                        if (indirect > 0) { label += ' (' + indirect + ')'; }
+                        label += `\n${direct}`;
+                        if (indirect > 0) { label += ` (${indirect})`; }
                     } else {
-                        label += '\n(' + indirect + ')';
+                        label += `\n(${indirect})`;
                     }
                 }
                 node.data('label', label);
@@ -342,8 +340,8 @@
     }
 
     // Double-tap to navigate to that group's relationships tab
-    cy.on('dbltap', 'node', function (evt) {
-        window.location.href = '/admin/groups/' + evt.target.id() + '/relationships';
+    cy.on('dbltap', 'node', (evt) => {
+        window.location.href = `/admin/groups/${evt.target.id()}/relationships`;
     });
     } // end init
 

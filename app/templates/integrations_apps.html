@@ -193,29 +193,25 @@
 {% endif %}
 
 <script nonce="{{ csp_nonce }}">
-function dismissCredentials() {
+const dismissCredentials = () => {
     document.getElementById('credentials-modal').style.display = 'none';
-}
+};
 
 // Button click handlers
-document.getElementById('show-create-btn').addEventListener('click', function() {
-    WeftUtils.showModal('create-modal');
-});
-document.getElementById('hide-create-btn').addEventListener('click', function() {
-    WeftUtils.hideModal('create-modal');
-});
+document.getElementById('show-create-btn').addEventListener('click', () => { WeftUtils.showModal('create-modal'); });
+document.getElementById('hide-create-btn').addEventListener('click', () => { WeftUtils.hideModal('create-modal'); });
 document.getElementById('dismiss-credentials-btn')?.addEventListener('click', dismissCredentials);
 
 // Copy buttons
-document.querySelectorAll('.copy-btn').forEach(function(btn) {
+document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.addEventListener('click', function() {
-        var text = document.getElementById(this.dataset.target).textContent;
+        const text = document.getElementById(this.dataset.target).textContent;
         WeftUtils.copyToClipboard(text, this);
     });
 });
 
 // Create modal: close on ESC and backdrop click
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         WeftUtils.hideModal('create-modal');
         // Note: credentials modal intentionally ignores ESC
@@ -223,9 +219,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.getElementById('create-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        WeftUtils.hideModal('create-modal');
-    }
+    if (e.target === this) WeftUtils.hideModal('create-modal');
 });
 </script>
 {% endblock %}

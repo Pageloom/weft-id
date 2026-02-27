@@ -396,47 +396,49 @@
 {% endblock %}
 
 {% block tab_scripts %}
+{% if idp.trust_established %}
+<script type="application/json" id="page-data">
+{ "idpId": {{ idp.id | tojson }} }
+</script>
+{% endif %}
 <script nonce="{{ csp_nonce }}">
 (function() {
     {% if not idp.trust_established %}
     {# Trust establishment tab switching #}
-    function switchTrustTab(tab) {
-        document.querySelectorAll('.trust-tab-content').forEach(function(el) { el.classList.add('hidden'); });
-        document.querySelectorAll('.trust-tab-button').forEach(function(el) {
+    const switchTrustTab = (tab) => {
+        document.querySelectorAll('.trust-tab-content').forEach((el) => { el.classList.add('hidden'); });
+        document.querySelectorAll('.trust-tab-button').forEach((el) => {
             el.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
             el.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         });
-        document.getElementById('trust-content-' + tab).classList.remove('hidden');
-        var activeTab = document.getElementById('tab-' + tab);
+        document.getElementById(`trust-content-${tab}`).classList.remove('hidden');
+        const activeTab = document.getElementById(`tab-${tab}`);
         activeTab.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
         activeTab.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
-    }
-    document.querySelectorAll('.trust-tab-button').forEach(function(btn) {
+    };
+    document.querySelectorAll('.trust-tab-button').forEach((btn) => {
         btn.addEventListener('click', function() { switchTrustTab(this.dataset.tab); });
     });
-    document.getElementById('copy-metadata-url')?.addEventListener('click', function() {
-        var el = document.getElementById('sp-metadata-url');
-        navigator.clipboard.writeText(el.textContent.trim()).then(function() {
+    document.getElementById('copy-metadata-url')?.addEventListener('click', () => {
+        const el = document.getElementById('sp-metadata-url');
+        navigator.clipboard.writeText(el.textContent.trim()).then(() => {
             document.getElementById('copy-metadata-url').textContent = 'Copied!';
-            setTimeout(function() { document.getElementById('copy-metadata-url').textContent = 'Copy'; }, 2000);
+            setTimeout(() => { document.getElementById('copy-metadata-url').textContent = 'Copy'; }, 2000);
         });
     });
     {% else %}
     {# Established state scripts #}
-    document.getElementById('edit-name-btn')?.addEventListener('click', function() {
-        WeftUtils.showModal('edit-name-modal');
+    const { idpId } = JSON.parse(document.getElementById('page-data').textContent);
+    document.getElementById('edit-name-btn')?.addEventListener('click', () => { WeftUtils.showModal('edit-name-modal'); });
+    document.getElementById('cancel-name-btn')?.addEventListener('click', () => { WeftUtils.hideModal('edit-name-modal'); });
+    document.getElementById('test-connection-btn')?.addEventListener('click', () => {
+        window.open(`/admin/settings/identity-providers/${idpId}/test`, 'saml_test', 'width=600,height=700');
     });
-    document.getElementById('cancel-name-btn')?.addEventListener('click', function() {
-        WeftUtils.hideModal('edit-name-modal');
-    });
-    document.getElementById('test-connection-btn')?.addEventListener('click', function() {
-        window.open('/admin/settings/identity-providers/{{ idp.id }}/test', 'saml_test', 'width=600,height=700');
-    });
-    document.getElementById('copy-trust-url')?.addEventListener('click', function() {
-        var el = document.getElementById('trust-page-url');
-        navigator.clipboard.writeText(el.textContent.trim()).then(function() {
+    document.getElementById('copy-trust-url')?.addEventListener('click', () => {
+        const el = document.getElementById('trust-page-url');
+        navigator.clipboard.writeText(el.textContent.trim()).then(() => {
             document.getElementById('copy-trust-url').textContent = 'Copied!';
-            setTimeout(function() { document.getElementById('copy-trust-url').textContent = 'Copy URL'; }, 2000);
+            setTimeout(() => { document.getElementById('copy-trust-url').textContent = 'Copy URL'; }, 2000);
         });
     });
     {% endif %}

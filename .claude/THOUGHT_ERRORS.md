@@ -228,6 +228,14 @@ The project has a shared utility object at `static/js/utils.js` (`WeftUtils`). B
 
 Duplicating these inline is also risky because inline event handlers are blocked by CSP.
 
+**Write new JS in ES2020**: use `const`/`let` (no `var`), arrow functions, template literals.
+See `.claude/references/js-patterns.md` for the full standard.
+
+**Extract server data from script bodies**: all Jinja2 `{{ }}` expressions must go in a
+`<script type="application/json" id="page-data">` block. Inline scripts read from it via
+`JSON.parse(document.getElementById('page-data').textContent)`. Never put `{{ var }}` directly
+inside a `<script nonce="...">` body.
+
 ---
 
 ## Cross-Tenant Queries: Use UNSCOPED, Not Raw Pool

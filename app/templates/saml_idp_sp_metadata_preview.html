@@ -80,15 +80,13 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-document.querySelectorAll('.confirm-btn').forEach(function(btn) {
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
     btn.addEventListener('click', function(e) {
         e.preventDefault();
-        var form = this.closest('form');
-        var message = this.dataset.confirm;
-        var isDestructive = this.dataset.destructive === 'true';
-        WeftUtils.confirm(message, function() {
-            form.submit();
-        }, { destructive: isDestructive });
+        const form = this.closest('form');
+        const message = this.dataset.confirm;
+        const isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
     });
 });
 </script>

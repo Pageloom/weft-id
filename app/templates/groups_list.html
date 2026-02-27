@@ -318,68 +318,71 @@
 {% if view == 'list' %}
 <script nonce="{{ csp_nonce }}">
 (function() {
-  var params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
   if (!params.has('view')) {
-    var saved = localStorage.getItem('weft-groups-view');
+    const saved = localStorage.getItem('weft-groups-view');
     if (saved && saved !== 'list') {
       params.set('view', saved);
       window.location.replace('?' + params.toString());
     }
   }
-  var btnList = document.getElementById('btn-view-list');
-  var btnGraph = document.getElementById('btn-view-graph');
-  if (btnList) { btnList.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'list'); }); }
-  if (btnGraph) { btnGraph.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'graph'); }); }
+  const btnList = document.getElementById('btn-view-list');
+  const btnGraph = document.getElementById('btn-view-graph');
+  if (btnList) { btnList.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'list'); }); }
+  if (btnGraph) { btnGraph.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'graph'); }); }
 })();
-document.querySelectorAll('[data-mandala]').forEach(function(el) {
-  var v = generateGroupMandala(el.getAttribute('data-mandala'));
+document.querySelectorAll('[data-mandala]').forEach((el) => {
+  const v = generateGroupMandala(el.getAttribute('data-mandala'));
   el.src = v.image;
 });
-document.querySelectorAll('[data-acronym]').forEach(function(el) {
-  var v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
+document.querySelectorAll('[data-acronym]').forEach((el) => {
+  const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
   el.src = v.image;
 });
 (function() {
-  var sel = document.getElementById('page-size-groups');
+  const sel = document.getElementById('page-size-groups');
   if (!sel) return;
   sel.addEventListener('change', function() {
-    var url = '?page=1&size=' + this.value + '&view=' + this.dataset.view;
-    if (this.dataset.search) url += '&search=' + this.dataset.search;
+    let url = `?page=1&size=${this.value}&view=${this.dataset.view}`;
+    if (this.dataset.search) url += `&search=${this.dataset.search}`;
     window.location.href = url;
   });
 })();
 </script>
 {% else %}
 <script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
+<script type="application/json" id="page-data-graph">
+{ "groupAvatarStyle": {{ branding.group_avatar_style | tojson }} }
+</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
   // localStorage redirect
-  var params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
   if (!params.has('view')) {
-    var saved = localStorage.getItem('weft-groups-view');
+    const saved = localStorage.getItem('weft-groups-view');
     if (saved && saved !== 'graph') {
       params.set('view', saved);
       window.location.replace('?' + params.toString());
     }
   }
-  var btnViewList = document.getElementById('btn-view-list');
-  var btnViewGraph = document.getElementById('btn-view-graph');
-  if (btnViewList) { btnViewList.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'list'); }); }
-  if (btnViewGraph) { btnViewGraph.addEventListener('click', function() { localStorage.setItem('weft-groups-view', 'graph'); }); }
+  const btnViewList = document.getElementById('btn-view-list');
+  const btnViewGraph = document.getElementById('btn-view-graph');
+  if (btnViewList) { btnViewList.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'list'); }); }
+  if (btnViewGraph) { btnViewGraph.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'graph'); }); }
 
   // Element refs grabbed early (available to fullscreen handler before fetch resolves)
-  var wrapper = document.getElementById('graph-wrapper');
-  var cyContainer = document.getElementById('cy-container');
-  var cyEl = document.getElementById('cy');
+  const wrapper = document.getElementById('graph-wrapper');
+  const cyContainer = document.getElementById('cy-container');
+  const cyEl = document.getElementById('cy');
 
   // Fullscreen state (CSS-based, not browser API)
-  var isFullscreen = false;
+  let isFullscreen = false;
   document.getElementById('btn-fullscreen').addEventListener('click', function() {
     isFullscreen = !isFullscreen;
-    var btn = this;
-    var fsUrl = new URL(window.location.href);
+    const btn = this;
+    const fsUrl = new URL(window.location.href);
     if (isFullscreen) {
-      var isDark = document.documentElement.classList.contains('dark');
+      const isDark = document.documentElement.classList.contains('dark');
       wrapper.style.cssText = [
         'position:fixed', 'inset:0', 'z-index:9999',
         'background:' + (isDark ? '#1f2937' : '#ffffff'),
@@ -399,31 +402,31 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       fsUrl.searchParams.delete('fullscreen');
     }
     history.replaceState(null, '', fsUrl.toString());
-    requestAnimationFrame(function() { if (window._cy) { window._cy.resize(); window._cy.fit(undefined, 160); } });
+    requestAnimationFrame(() => { if (window._cy) { window._cy.resize(); window._cy.fit(undefined, 160); } });
   });
-  document.addEventListener('keydown', function(e) {
+  document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isFullscreen) { document.getElementById('btn-fullscreen').click(); }
   });
 
   // Relation line drawing state
-  var relMode = false;
-  var relDrawing = false;
-  var relSourceNode = null;
-  var relLine = null;
+  let relMode = false;
+  let relDrawing = false;
+  let relSourceNode = null;
+  let relLine = null;
 
   function initRelOverlay() {
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
 
-    var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
     marker.setAttribute('id', 'rel-arrow');
     marker.setAttribute('markerWidth', '8');
     marker.setAttribute('markerHeight', '6');
     marker.setAttribute('refX', '8');
     marker.setAttribute('refY', '3');
     marker.setAttribute('orient', 'auto');
-    var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     poly.setAttribute('points', '0 0, 8 3, 0 6');
     poly.setAttribute('fill', '#f59e0b');
     marker.appendChild(poly);
@@ -440,19 +443,19 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
     cyEl.appendChild(svg);
 
-    cyEl.addEventListener('mousemove', function(e) {
+    cyEl.addEventListener('mousemove', (e) => {
       if (!relDrawing) return;
-      var rect = cyEl.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var y = e.clientY - rect.top;
+      const rect = cyEl.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       relLine.setAttribute('x2', x);
       relLine.setAttribute('y2', y);
       // Highlight whichever node is under the cursor as the potential target
       if (window._cy) {
         window._cy.nodes().removeClass('rel-target');
-        window._cy.nodes().each(function(n) {
+        window._cy.nodes().each((n) => {
           if (relSourceNode && n.id() === relSourceNode.id()) return;
-          var bb = n.renderedBoundingBox();
+          const bb = n.renderedBoundingBox();
           if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
             n.addClass('rel-target');
           }
@@ -468,18 +471,18 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
     if (window._cy) window._cy.nodes().removeClass('rel-target');
   }
 
-  document.addEventListener('mouseup', function() {
+  document.addEventListener('mouseup', () => {
     if (relDrawing) cancelRelDraw();
   });
 
-  var GRID = 100;
-  var layoutMode = false;
-  var layoutPositionBackup = {};
-  var currentNodeIds = '';
+  const GRID = 100;
+  let layoutMode = false;
+  let layoutPositionBackup = {};
+  let currentNodeIds = '';
 
   function saveLayout(cy) {
-    var pos = {};
-    cy.nodes().each(function(n) { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
+    const pos = {};
+    cy.nodes().each((n) => { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
     WeftUtils.apiFetch('/api/v1/groups/graph/layout', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
@@ -489,27 +492,27 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
   Promise.all([
     fetch('/api/v1/groups/graph', {credentials: 'same-origin'})
-      .then(function(r) {
+      .then(r => {
         if (!r.ok) throw new Error('Failed to load graph data');
         return r.json();
       }),
     fetch('/api/v1/groups/graph/layout', {credentials: 'same-origin'})
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .catch(function() { return null; }),
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null),
   ])
-    .then(function(results) {
-      var data = results[0];
-      var layoutData = results[1];
+    .then((results) => {
+      const data = results[0];
+      const layoutData = results[1];
 
-      var nodeMap = {};
-      data.nodes.forEach(function(n) { nodeMap[n.id] = n; });
+      const nodeMap = {};
+      data.nodes.forEach((n) => { nodeMap[n.id] = n; });
 
-      var groupAvatarStyle = "{{ branding.group_avatar_style }}";
-      var elements = data.nodes.map(function(n) {
-        var vis;
+      const { groupAvatarStyle } = JSON.parse(document.getElementById('page-data-graph').textContent);
+      const elements = data.nodes.map((n) => {
+        let vis;
         if (n.has_logo) {
-          var logoV = n.logo_updated_at ? Math.floor(Date.parse(n.logo_updated_at) / 1000) : 0;
-          vis = {color: '#9ca3af', image: '/branding/group-logo/' + n.id + (logoV ? '?v=' + logoV : '')};
+          const logoV = n.logo_updated_at ? Math.floor(Date.parse(n.logo_updated_at) / 1000) : 0;
+          vis = {color: '#9ca3af', image: `/branding/group-logo/${n.id}${logoV ? `?v=${logoV}` : ''}`};
         } else if (groupAvatarStyle === 'acronym') {
           vis = generateGroupAcronym(n.id, n.name);
         } else {
@@ -523,27 +526,27 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
           memberCount: n.member_count,
           effectiveMemberCount: n.effective_member_count
         }};
-      }).concat(data.edges.map(function(e) {
-        var contrib = nodeMap[e.source] ? nodeMap[e.source].effective_member_count : 0;
+      }).concat(data.edges.map((e) => {
+        const contrib = nodeMap[e.source] ? nodeMap[e.source].effective_member_count : 0;
         return {data: {source: e.source, target: e.target, label: contrib > 0 ? String(contrib) : ''}};
       }));
 
-      currentNodeIds = data.nodes.map(function(n) { return n.id; }).sort().join(',');
+      currentNodeIds = data.nodes.map((n) => n.id).sort().join(',');
 
-      var savedPositions = null;
+      let savedPositions = null;
       if (layoutData && layoutData.node_ids === currentNodeIds) {
         savedPositions = layoutData.positions;
       }
 
       // Root nodes: no outgoing edges (edges go child→parent, so no outgoing = no parents)
-      var nodesWithParents = new Set();
-      data.edges.forEach(function(e) { nodesWithParents.add(e.source); });
-      var rootSelector = data.nodes
-        .filter(function(n) { return !nodesWithParents.has(n.id); })
-        .map(function(n) { return '#' + n.id; })
+      const nodesWithParents = new Set();
+      data.edges.forEach((e) => { nodesWithParents.add(e.source); });
+      const rootSelector = data.nodes
+        .filter((n) => !nodesWithParents.has(n.id))
+        .map((n) => `#${n.id}`)
         .join(', ') || 'node';
 
-      var FRESH_LAYOUT = {
+      const FRESH_LAYOUT = {
         name: 'breadthfirst',
         directed: false,
         roots: rootSelector,
@@ -553,13 +556,13 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         animate: false
       };
 
-      var layoutConfig = savedPositions ? {
+      const layoutConfig = savedPositions ? {
         name: 'preset',
-        positions: function(node) { return savedPositions[node.id()]; },
+        positions: (node) => savedPositions[node.id()],
         padding: 50
       } : FRESH_LAYOUT;
 
-      var cy = cytoscape({
+      const cy = cytoscape({
         container: cyEl,
         elements: elements,
         layout: layoutConfig,
@@ -681,16 +684,16 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
       // Scroll to pan; pinch or Ctrl+scroll to zoom.
       // When a node is selected, zoom anchors on that node instead of the cursor.
-      cyEl.addEventListener('wheel', function(e) {
+      cyEl.addEventListener('wheel', (e) => {
         e.preventDefault();
         if (e.ctrlKey) {
-          var factor = e.deltaY > 0 ? 0.9 : 1.1;
-          var newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
-          var anchor;
+          const factor = e.deltaY > 0 ? 0.9 : 1.1;
+          const newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
+          let anchor;
           if (selectedNode) {
             anchor = selectedNode.renderedPosition();
           } else {
-            var rect = cyEl.getBoundingClientRect();
+            const rect = cyEl.getBoundingClientRect();
             anchor = { x: e.clientX - rect.left, y: e.clientY - rect.top };
           }
           cy.zoom({ level: newZoom, renderedPosition: anchor });
@@ -704,21 +707,21 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
       // Zoom controls — anchor on selected node if one is active, otherwise center
       function zoomToCenter(factor) {
-        var newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
-        var anchor = selectedNode
+        const newZoom = Math.min(Math.max(cy.zoom() * factor, cy.minZoom()), cy.maxZoom());
+        const anchor = selectedNode
           ? selectedNode.renderedPosition()
           : { x: cy.width() / 2, y: cy.height() / 2 };
         cy.animate({ zoom: { level: newZoom, renderedPosition: anchor }, duration: 150 });
       }
-      document.getElementById('btn-zoom-in').addEventListener('click', function() { zoomToCenter(1.25); });
-      document.getElementById('btn-zoom-out').addEventListener('click', function() { zoomToCenter(0.8); });
-      document.getElementById('btn-zoom-fit').addEventListener('click', function() {
+      document.getElementById('btn-zoom-in').addEventListener('click', () => { zoomToCenter(1.25); });
+      document.getElementById('btn-zoom-out').addEventListener('click', () => { zoomToCenter(0.8); });
+      document.getElementById('btn-zoom-fit').addEventListener('click', () => {
         cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 200 });
       });
 
       cy.fit(undefined, 160);
-      cy.nodes().each(function(n) {
-        var pos = n.position();
+      cy.nodes().each((n) => {
+        const pos = n.position();
         n.position({x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID});
       });
       cy.nodes().ungrabify();
@@ -729,9 +732,9 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       }
 
       // Snap-to-grid on drag release (only active in layout mode)
-      cy.on('dragfree', 'node', function(evt) {
-        var node = evt.target;
-        var pos = node.position();
+      cy.on('dragfree', 'node', (evt) => {
+        const node = evt.target;
+        const pos = node.position();
         node.position({
           x: Math.round(pos.x / GRID) * GRID,
           y: Math.round(pos.y / GRID) * GRID,
@@ -739,13 +742,13 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       });
 
       // Snap back if the user pans all nodes off screen
-      var snapTimer = null;
-      cy.on('viewport', function() {
+      let snapTimer = null;
+      cy.on('viewport', () => {
         clearTimeout(snapTimer);
-        snapTimer = setTimeout(function() {
+        snapTimer = setTimeout(() => {
           if (cy.nodes().length === 0) return;
-          var ext = cy.extent();
-          var bb = cy.nodes().boundingBox();
+          const ext = cy.extent();
+          const bb = cy.nodes().boundingBox();
           if (bb.x2 < ext.x1 || bb.x1 > ext.x2 || bb.y2 < ext.y1 || bb.y1 > ext.y2) {
             cy.animate({fit: {eles: cy.nodes(), padding: 40}, duration: 400});
           }
@@ -753,17 +756,15 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       });
 
       // Search highlight pulse
-      var searchParam = new URLSearchParams(window.location.search).get('search');
+      const searchParam = new URLSearchParams(window.location.search).get('search');
       if (searchParam) {
-        var q = searchParam.toLowerCase();
-        var matched = cy.nodes().filter(function(n) {
-          return n.data('label').toLowerCase().indexOf(q) !== -1;
-        });
+        const q = searchParam.toLowerCase();
+        const matched = cy.nodes().filter((n) => n.data('label').toLowerCase().includes(q));
         if (matched.length > 0) {
           cy.fit(matched, 80);
-          var pulseOn = false;
-          var pulseCount = 0;
-          var pulseInterval = setInterval(function() {
+          let pulseOn = false;
+          let pulseCount = 0;
+          const pulseInterval = setInterval(() => {
             pulseOn = !pulseOn;
             matched.style({
               'overlay-color': '#fbbf24',
@@ -791,35 +792,35 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         node.addClass('selected');
         applyOffViewportEdgeLabels();
         hoverTooltip.style.display = 'none';
-        showTooltipForNode(node, '/admin/groups/' + node.id() + '/relationships');
+        showTooltipForNode(node, `/admin/groups/${node.id()}/relationships`);
       }
 
       // Pan just enough to bring a node into view, keeping it ~15% in from each
       // container edge. Does nothing if the node is already sufficiently visible.
       function panToReveal(node) {
-        var pos  = node.renderedPosition();
-        var W    = cyEl.offsetWidth;
-        var H    = cyEl.offsetHeight;
-        var padX = W * 0.15;
-        var padY = H * 0.15;
-        var dx   = 0, dy = 0;
+        const pos  = node.renderedPosition();
+        const W    = cyEl.offsetWidth;
+        const H    = cyEl.offsetHeight;
+        const padX = W * 0.15;
+        const padY = H * 0.15;
+        let dx   = 0, dy = 0;
         if      (pos.x < padX)      dx = padX - pos.x;
         else if (pos.x > W - padX)  dx = (W - padX) - pos.x;
         if      (pos.y < padY)      dy = padY - pos.y;
         else if (pos.y > H - padY)  dy = (H - padY) - pos.y;
         if (dx === 0 && dy === 0) return;
-        var p = cy.pan();
+        const p = cy.pan();
         cy.animate({ pan: { x: p.x + dx, y: p.y + dy }, duration: 380 });
       }
 
       // Single tap: highlight parent/child edges for the clicked node.
-      cy.on('tap', 'node', function(evt) {
+      cy.on('tap', 'node', (evt) => {
         if (relMode) return;
         selectNode(evt.target);
       });
 
       // Tap on background: clear highlights.
-      cy.on('tap', function(evt) {
+      cy.on('tap', (evt) => {
         if (evt.target === cy) {
           clearEdgeLabels();
           selectedNode = null;
@@ -830,21 +831,21 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       });
 
       // Double-tap node: zoom to show the node plus its direct parents and children.
-      cy.on('dbltap', 'node', function(evt) {
+      cy.on('dbltap', 'node', (evt) => {
         if (relMode) return;
-        var node = evt.target;
-        var eles = node.union(node.outgoers()).union(node.incomers());
+        const node = evt.target;
+        const eles = node.union(node.outgoers()).union(node.incomers());
         cy.animate({ fit: { eles: eles, padding: 80 }, duration: 450 });
       });
 
       // Double-tap edge: if connected to the selected node, select the far end
       // and pan to bring it into view.
-      cy.on('dbltap', 'edge', function(evt) {
+      cy.on('dbltap', 'edge', (evt) => {
         if (relMode || cutMode || !selectedNode) return;
-        var edge = evt.target;
-        var src  = edge.source();
-        var tgt  = edge.target();
-        var far;
+        const edge = evt.target;
+        const src  = edge.source();
+        const tgt  = edge.target();
+        let far;
         if      (src.id() === selectedNode.id()) far = tgt;
         else if (tgt.id() === selectedNode.id()) far = src;
         else return; // edge not directly connected to the selected node
@@ -856,7 +857,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       initRelOverlay();
 
       // Pinned tooltip — shown while a node is selected (includes Details button)
-      var tooltip = document.createElement('div');
+      const tooltip = document.createElement('div');
       tooltip.style.cssText = [
         'position:absolute', 'z-index:20',
         'background:rgba(17,24,39,0.92)', 'color:#f9fafb',
@@ -867,7 +868,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       cyEl.appendChild(tooltip);
 
       // Hover tooltip — shown on mouseover of any non-selected node
-      var hoverTooltip = document.createElement('div');
+      const hoverTooltip = document.createElement('div');
       hoverTooltip.style.cssText = [
         'position:absolute', 'pointer-events:none', 'z-index:21',
         'background:rgba(17,24,39,0.92)', 'color:#f9fafb',
@@ -879,23 +880,23 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
       function buildTooltipContent(node, detailsHref) {
         tooltip.innerHTML = '';
-        var nameEl = document.createElement('div');
+        const nameEl = document.createElement('div');
         nameEl.textContent = node.data('label');
         tooltip.appendChild(nameEl);
-        var direct    = node.data('memberCount') || 0;
-        var effective = node.data('effectiveMemberCount') || 0;
-        var inherited = effective - direct;
+        const direct    = node.data('memberCount') || 0;
+        const effective = node.data('effectiveMemberCount') || 0;
+        const inherited = effective - direct;
         if (direct || inherited > 0) {
-          var memEl = document.createElement('div');
-          var label = inherited > 0
-            ? direct + ' + ' + inherited + ' members'
-            : direct + (direct === 1 ? ' member' : ' members');
+          const memEl = document.createElement('div');
+          const label = inherited > 0
+            ? `${direct} + ${inherited} members`
+            : `${direct}${direct === 1 ? ' member' : ' members'}`;
           memEl.textContent = label;
           memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
           tooltip.appendChild(memEl);
         }
         if (detailsHref) {
-          var linkEl = document.createElement('a');
+          const linkEl = document.createElement('a');
           linkEl.textContent = 'Details';
           linkEl.href = detailsHref;
           linkEl.style.cssText = [
@@ -914,7 +915,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         // at any zoom level. renderedBoundingBox() returns screen-pixel coords
         // that already incorporate the current zoom, avoiding the hardcoded
         // offset that caused the tooltip to overlap the node when zoomed in.
-        var bb = node.renderedBoundingBox({ includeLabels: false });
+        const bb = node.renderedBoundingBox({ includeLabels: false });
         tooltip.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - tooltip.offsetWidth / 2) + 'px';
         tooltip.style.top  = (bb.y1 - tooltip.offsetHeight - 6) + 'px';
       }
@@ -927,32 +928,32 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
       // Hover: show a separate hover tooltip for any non-selected node.
       // The pinned tooltip (for the selected node) is unaffected.
-      cy.on('mouseover', 'node', function(evt) {
+      cy.on('mouseover', 'node', (evt) => {
         if (selectedNode && evt.target.id() === selectedNode.id()) return;
-        var node = evt.target;
+        const node = evt.target;
         hoverTooltip.innerHTML = '';
-        var nameEl = document.createElement('div');
+        const nameEl = document.createElement('div');
         nameEl.textContent = node.data('label');
         hoverTooltip.appendChild(nameEl);
-        var direct    = node.data('memberCount') || 0;
-        var effective = node.data('effectiveMemberCount') || 0;
-        var inherited = effective - direct;
+        const direct    = node.data('memberCount') || 0;
+        const effective = node.data('effectiveMemberCount') || 0;
+        const inherited = effective - direct;
         if (direct || inherited > 0) {
-          var memEl = document.createElement('div');
-          var label = inherited > 0
-            ? direct + ' + ' + inherited + ' members'
-            : direct + (direct === 1 ? ' member' : ' members');
+          const memEl = document.createElement('div');
+          const label = inherited > 0
+            ? `${direct} + ${inherited} members`
+            : `${direct}${direct === 1 ? ' member' : ' members'}`;
           memEl.textContent = label;
           memEl.style.cssText = 'font-size:11px;opacity:0.75;font-weight:400;margin-top:2px;';
           hoverTooltip.appendChild(memEl);
         }
         hoverTooltip.style.display = 'block';
-        var hbb = node.renderedBoundingBox({ includeLabels: false });
-        hoverTooltip.style.left = (hbb.x1 + (hbb.x2 - hbb.x1) / 2 - hoverTooltip.offsetWidth / 2) + 'px';
-        hoverTooltip.style.top  = (hbb.y1 - hoverTooltip.offsetHeight - 6) + 'px';
+        const hbb = node.renderedBoundingBox({ includeLabels: false });
+        hoverTooltip.style.left = `${hbb.x1 + (hbb.x2 - hbb.x1) / 2 - hoverTooltip.offsetWidth / 2}px`;
+        hoverTooltip.style.top  = `${hbb.y1 - hoverTooltip.offsetHeight - 6}px`;
       });
-      cy.on('mouseout', 'node', function() { hoverTooltip.style.display = 'none'; });
-      cy.on('pan zoom', function() {
+      cy.on('mouseout', 'node', () => { hoverTooltip.style.display = 'none'; });
+      cy.on('pan zoom', () => {
         hoverTooltip.style.display = 'none';
         if (!selectedNode) tooltip.style.display = 'none';
       });
@@ -961,53 +962,53 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       // Off-viewport edge labels — DOM overlays for highlighted edges whose far
       // endpoint is outside the container. Positioned at the edge's exit point
       // and clamped fully inside so they're always readable.
-      var selectedNode = null;
-      var edgeLabels = [];
-      var labelTimer = null;
+      let selectedNode = null;
+      let edgeLabels = [];
+      let labelTimer = null;
 
       function clearEdgeLabels() {
-        edgeLabels.forEach(function(el) { if (el.parentNode) el.parentNode.removeChild(el); });
+        edgeLabels.forEach((el) => { if (el.parentNode) el.parentNode.removeChild(el); });
         edgeLabels = [];
       }
 
       function applyOffViewportEdgeLabels() {
         clearEdgeLabels();
         if (!selectedNode) return;
-        var W = cyEl.offsetWidth;
-        var H = cyEl.offsetHeight;
-        var margin = 6;
+        const W = cyEl.offsetWidth;
+        const H = cyEl.offsetHeight;
+        const margin = 6;
 
-        cy.edges('.parent-edge, .child-edge').each(function(edge) {
-          var srcPos = edge.source().renderedPosition();
-          var tgtPos = edge.target().renderedPosition();
-          var srcIn = srcPos.x >= 0 && srcPos.x <= W && srcPos.y >= 0 && srcPos.y <= H;
-          var tgtIn = tgtPos.x >= 0 && tgtPos.x <= W && tgtPos.y >= 0 && tgtPos.y <= H;
+        cy.edges('.parent-edge, .child-edge').each((edge) => {
+          const srcPos = edge.source().renderedPosition();
+          const tgtPos = edge.target().renderedPosition();
+          const srcIn = srcPos.x >= 0 && srcPos.x <= W && srcPos.y >= 0 && srcPos.y <= H;
+          const tgtIn = tgtPos.x >= 0 && tgtPos.x <= W && tgtPos.y >= 0 && tgtPos.y <= H;
           if (srcIn === tgtIn) return; // both in or both out — no boundary label needed
 
-          var inPos   = srcIn ? srcPos : tgtPos;
-          var outPos  = srcIn ? tgtPos : srcPos;
-          var outNode = srcIn ? edge.target() : edge.source();
-          var name    = outNode.data('label').split('\n')[0];
-          var color   = edge.hasClass('parent-edge') ? '#f97316' : '#22c55e';
+          const inPos   = srcIn ? srcPos : tgtPos;
+          const outPos  = srcIn ? tgtPos : srcPos;
+          const outNode = srcIn ? edge.target() : edge.source();
+          const name    = outNode.data('label').split('\n')[0];
+          const color   = edge.hasClass('parent-edge') ? '#f97316' : '#22c55e';
 
           // Parametric t where the line crosses the container boundary
-          var dx = outPos.x - inPos.x;
-          var dy = outPos.y - inPos.y;
-          var t = 1;
+          const dx = outPos.x - inPos.x;
+          const dy = outPos.y - inPos.y;
+          let t = 1;
           if (dx < 0) t = Math.min(t, -inPos.x / dx);
           if (dx > 0) t = Math.min(t, (W - inPos.x) / dx);
           if (dy < 0) t = Math.min(t, -inPos.y / dy);
           if (dy > 0) t = Math.min(t, (H - inPos.y) / dy);
 
           // Place at 82% of the way to the boundary so it's clearly inside
-          var lx = inPos.x + t * 0.82 * dx;
-          var ly = inPos.y + t * 0.82 * dy;
+          const lx = inPos.x + t * 0.82 * dx;
+          const ly = inPos.y + t * 0.82 * dy;
 
-          var el = document.createElement('div');
+          const el = document.createElement('div');
           el.textContent = name;
           el.style.cssText = [
             'position:absolute', 'pointer-events:none', 'z-index:15',
-            'background:rgba(17,24,39,0.88)', 'color:' + color,
+            `background:rgba(17,24,39,0.88)`, `color:${color}`,
             'padding:2px 8px', 'border-radius:4px',
             'font-size:12px', 'font-weight:500', 'white-space:nowrap',
             'box-shadow:0 1px 4px rgba(0,0,0,0.3)',
@@ -1017,15 +1018,15 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
           edgeLabels.push(el);
 
           // Hard-clamp so the label never escapes the container
-          var hw = el.offsetWidth  / 2 + margin;
-          var hh = el.offsetHeight / 2 + margin;
-          el.style.left = Math.max(hw, Math.min(W - hw, lx)) + 'px';
-          el.style.top  = Math.max(hh, Math.min(H - hh, ly)) + 'px';
+          const hw = el.offsetWidth  / 2 + margin;
+          const hh = el.offsetHeight / 2 + margin;
+          el.style.left = `${Math.max(hw, Math.min(W - hw, lx))}px`;
+          el.style.top  = `${Math.max(hh, Math.min(H - hh, ly))}px`;
         });
       }
 
       // Rebuild labels and reposition tooltip/button whenever the viewport changes (pan / zoom)
-      cy.on('viewport', function() {
+      cy.on('viewport', () => {
         if (!selectedNode) return;
         clearTimeout(labelTimer);
         labelTimer = setTimeout(applyOffViewportEdgeLabels, 30);
@@ -1033,18 +1034,18 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       });
 
       // Mode helpers
-      var cutMode = false;
+      let cutMode = false;
 
-      var BTN_ADD_ACTIVE = ['bg-amber-500', 'border-amber-500', 'text-white'];
-      var BTN_CUT_ACTIVE = ['bg-red-500', 'border-red-500', 'text-white'];
-      var BTN_INACTIVE = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300',
-                          'border-gray-300', 'dark:border-gray-600'];
+      const BTN_ADD_ACTIVE = ['bg-amber-500', 'border-amber-500', 'text-white'];
+      const BTN_CUT_ACTIVE = ['bg-red-500', 'border-red-500', 'text-white'];
+      const BTN_INACTIVE = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300',
+                            'border-gray-300', 'dark:border-gray-600'];
 
       function deactivateAddMode() {
         relMode = false;
-        var btn = document.getElementById('btn-add-rel');
-        BTN_ADD_ACTIVE.forEach(function(c) { btn.classList.remove(c); });
-        BTN_INACTIVE.forEach(function(c) { btn.classList.add(c); });
+        const btn = document.getElementById('btn-add-rel');
+        BTN_ADD_ACTIVE.forEach((c) => { btn.classList.remove(c); });
+        BTN_INACTIVE.forEach((c) => { btn.classList.add(c); });
         document.getElementById('rel-hint').classList.add('hidden');
         cy.nodes()[layoutMode ? 'grabify' : 'ungrabify']();
         cy.userPanningEnabled(true);
@@ -1055,9 +1056,9 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 
       function deactivateCutMode() {
         cutMode = false;
-        var btn = document.getElementById('btn-cut-rel');
-        BTN_CUT_ACTIVE.forEach(function(c) { btn.classList.remove(c); });
-        BTN_INACTIVE.forEach(function(c) { btn.classList.add(c); });
+        const btn = document.getElementById('btn-cut-rel');
+        BTN_CUT_ACTIVE.forEach((c) => { btn.classList.remove(c); });
+        BTN_INACTIVE.forEach((c) => { btn.classList.add(c); });
         document.getElementById('cut-hint').classList.add('hidden');
         cy.edges().removeClass('cut-hover');
         cyEl.style.cursor = '';
@@ -1067,7 +1068,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       function enterLayoutMode() {
         if (cutMode) { deactivateCutMode(); }
         layoutMode = true;
-        cy.nodes().each(function(n) {
+        cy.nodes().each((n) => {
           layoutPositionBackup[n.id()] = {x: n.position('x'), y: n.position('y')};
         });
         cy.nodes().grabify();
@@ -1084,7 +1085,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         if (save) {
           saveLayout(cy);
         } else {
-          cy.nodes().each(function(n) {
+          cy.nodes().each((n) => {
             if (layoutPositionBackup[n.id()]) { n.position(layoutPositionBackup[n.id()]); }
           });
         }
@@ -1107,8 +1108,8 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         } else {
           if (cutMode) deactivateCutMode();
           relMode = true;
-          BTN_INACTIVE.forEach(function(c) { this.classList.remove(c); }, this);
-          BTN_ADD_ACTIVE.forEach(function(c) { this.classList.add(c); }, this);
+          BTN_INACTIVE.forEach((c) => { this.classList.remove(c); });
+          BTN_ADD_ACTIVE.forEach((c) => { this.classList.add(c); });
           document.getElementById('rel-hint').classList.remove('hidden');
           document.getElementById('btn-layout-mode').classList.add('hidden');
           cy.nodes().ungrabify();
@@ -1124,76 +1125,70 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         } else {
           if (relMode) deactivateAddMode();
           cutMode = true;
-          BTN_INACTIVE.forEach(function(c) { this.classList.remove(c); }, this);
-          BTN_CUT_ACTIVE.forEach(function(c) { this.classList.add(c); }, this);
+          BTN_INACTIVE.forEach((c) => { this.classList.remove(c); });
+          BTN_CUT_ACTIVE.forEach((c) => { this.classList.add(c); });
           document.getElementById('cut-hint').classList.remove('hidden');
           document.getElementById('btn-layout-mode').classList.add('hidden');
         }
       });
 
-      window.addEventListener('beforeunload', function(e) {
+      window.addEventListener('beforeunload', (e) => {
         if (layoutMode) { e.preventDefault(); }
       });
 
       // Layout mode buttons
-      document.getElementById('btn-layout-mode').addEventListener('click', function() {
-        enterLayoutMode();
-      });
-      document.getElementById('btn-save-layout').addEventListener('click', function() {
-        exitLayoutMode(true);
-      });
-      document.getElementById('btn-reset-layout').addEventListener('click', function() {
+      document.getElementById('btn-layout-mode').addEventListener('click', () => enterLayoutMode());
+      document.getElementById('btn-save-layout').addEventListener('click', () => exitLayoutMode(true));
+      document.getElementById('btn-reset-layout').addEventListener('click', () => {
         cy.layout({
           name: 'breadthfirst',
           directed: false,
-          roots: cy.nodes().filter(function(n) { return n.outdegree() === 0; }),
+          roots: cy.nodes().filter((n) => n.outdegree() === 0),
           padding: 60,
           spacingFactor: 1.75,
           avoidOverlap: true,
           animate: false
         }).run();
-        cy.nodes().each(function(n) {
-          var pos = n.position();
+        cy.nodes().each((n) => {
+          const pos = n.position();
           n.position({x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID});
         });
         cy.fit(undefined, 60);
       });
-      document.getElementById('btn-cancel-layout').addEventListener('click', function() {
-        exitLayoutMode(false);
-      });
+      document.getElementById('btn-cancel-layout').addEventListener('click', () => exitLayoutMode(false));
 
       // Edge hover highlight in cut mode
-      cy.on('mouseover', 'edge', function(evt) {
+      cy.on('mouseover', 'edge', (evt) => {
         if (!cutMode) return;
         evt.target.addClass('cut-hover');
         cyEl.style.cursor = 'pointer';
       });
-      cy.on('mouseout', 'edge', function(evt) {
+      cy.on('mouseout', 'edge', (evt) => {
         if (!cutMode) return;
         evt.target.removeClass('cut-hover');
         cyEl.style.cursor = '';
       });
 
       // Cut: tap an edge to delete the relationship
-      cy.on('tap', 'edge', function(evt) {
+      cy.on('tap', 'edge', (evt) => {
         if (!cutMode) return;
-        var edge = evt.target;
-        var childId = edge.data('source');
-        var parentId = edge.data('target');
-        WeftUtils.apiFetch('/api/v1/groups/' + childId + '/parents/' + parentId, {
+        const edge = evt.target;
+        const childId = edge.data('source');
+        const parentId = edge.data('target');
+        WeftUtils.apiFetch(`/api/v1/groups/${childId}/parents/${parentId}`, {
           method: 'DELETE'
-        }).then(function(r) {
+        }).then((r) => {
           if (!r.ok) throw new Error('Failed');
           edge.remove();
-        }).catch(function() {});
+        }).catch(() => {});
       });
 
       // Start drawing on node mousedown
-      cy.on('mousedown', 'node', function(evt) {
+      cy.on('mousedown', 'node', (evt) => {
         if (!relMode) return;
         relDrawing = true;
         relSourceNode = evt.target;
-        var pos = relSourceNode.renderedPosition();
+        const pos = relSourceNode.renderedPosition();
         relLine.setAttribute('x1', pos.x);
         relLine.setAttribute('y1', pos.y);
         relLine.setAttribute('x2', pos.x);
@@ -1204,35 +1199,35 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       // Complete relationship on mouseup — use native DOM event + bounding-box
       // hit test because Cytoscape's synthetic mouseup on a node doesn't fire
       // when the drag originated from a different node.
-      cyEl.addEventListener('mouseup', function(e) {
+      cyEl.addEventListener('mouseup', (e) => {
         if (!relDrawing) return;
-        var source = relSourceNode;
-        var rect = cyEl.getBoundingClientRect();
-        var x = e.clientX - rect.left;
-        var y = e.clientY - rect.top;
-        var targetNode = null;
-        cy.nodes().each(function(n) {
+        const source = relSourceNode;
+        const rect = cyEl.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        let targetNode = null;
+        cy.nodes().each((n) => {
           if (source && n.id() === source.id()) return;
-          var bb = n.renderedBoundingBox();
+          const bb = n.renderedBoundingBox();
           if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
             targetNode = n;
           }
         });
         cancelRelDraw();
         if (!source || !targetNode) return;
-        var childId = source.id();
-        var parentId = targetNode.id();
-        WeftUtils.apiFetch('/api/v1/groups/' + childId + '/parents', {
+        const childId = source.id();
+        const parentId = targetNode.id();
+        WeftUtils.apiFetch(`/api/v1/groups/${childId}/parents`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({parent_group_id: parentId})
-        }).then(function(r) {
+        }).then((r) => {
           if (!r.ok) throw new Error('Failed');
           cy.add({data: {source: childId, target: parentId, label: ''}});
-        }).catch(function() {});
+        }).catch(() => {});
       });
     })
-    .catch(function() {
+    .catch(() => {
       cyEl.innerHTML =
         '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:14px;">Failed to load graph data.</div>';
     });

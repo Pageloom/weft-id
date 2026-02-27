@@ -129,14 +129,14 @@
 
 {% block extra_scripts %}
 <script nonce="{{ csp_nonce }}">
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('timezone').value = WeftUtils.detectTimezone();
     document.getElementById('locale').value = WeftUtils.detectLocale();
 
     // Theme preview on selection (instant feedback before save)
-    document.querySelectorAll('input[name="theme"]').forEach(function(radio) {
+    document.querySelectorAll('input[name="theme"]').forEach((radio) => {
         radio.addEventListener('change', function() {
-            var dark = false;
+            let dark = false;
             if (this.value === 'dark') {
                 dark = true;
             } else if (this.value === 'system') {

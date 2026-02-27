@@ -5,6 +5,33 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [REFACTOR] File Structure: `service_providers/crud.py` exceeds 1100 lines
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Medium
+
+**Resolution:** Split `crud.py` (1168 lines, 23 functions) into three focused sub-modules: `trust.py` (trust establishment), `metadata_sync.py` (metadata refresh/reimport lifecycle), and residual `crud.py` (pure CRUD). Updated `__init__.py` re-exports and test mock targets accordingly.
+
+---
+
+### [REFACTOR] Complexity: `update_branding_settings()` makes two DB reads before writing
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Medium
+
+**Resolution:** Added a single `current_row = database.branding.get_branding(...)` call at the top of `update_branding_settings()`. Both the custom-mode logo check and the previous-style change detection now use `current_row`, eliminating the redundant second read.
+
+---
+
+### [REFACTOR] Duplication: `_make_png()` test helper duplicated across branding test files
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Low
+
+**Resolution:** Extracted `_make_png()` and `_make_svg()` to `tests/helpers/image_fixtures.py`. Both `tests/services/test_branding.py` and `tests/api/test_branding.py` now import from there.
+
+---
+
 ### [UI] Groups graph tooltip unclickable at high zoom levels
 
 **Status:** Resolved (2026-02-26)

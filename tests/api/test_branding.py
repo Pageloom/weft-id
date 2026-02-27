@@ -8,23 +8,9 @@ Covers:
 """
 
 import io
-import struct
 from unittest.mock import patch
 
-# =============================================================================
-# Helpers
-# =============================================================================
-
-
-def _make_png(width: int = 64, height: int = 64) -> bytes:
-    """Create a minimal valid PNG."""
-    magic = b"\x89PNG\r\n\x1a\n"
-    ihdr_data = struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
-    ihdr_length = struct.pack(">I", 13)
-    ihdr_type = b"IHDR"
-    ihdr_crc = b"\x00\x00\x00\x00"
-    iend = b"\x00\x00\x00\x00IEND\xae\x42\x60\x82"
-    return magic + ihdr_length + ihdr_type + ihdr_data + ihdr_crc + iend
+from helpers.image_fixtures import _make_png
 
 
 def _admin_user():

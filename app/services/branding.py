@@ -405,10 +405,11 @@ def update_branding_settings(
     """
     require_admin(requesting_user)
 
+    current_row = database.branding.get_branding(requesting_user["tenant_id"])
+
     # If switching to custom mode, verify a light logo exists
     if settings.logo_mode == LogoMode.CUSTOM:
-        row = database.branding.get_branding(requesting_user["tenant_id"])
-        has_light = row is not None and row["has_logo_light"]
+        has_light = current_row is not None and current_row["has_logo_light"]
         if not has_light:
             raise ValidationError(
                 message="Upload a light logo before switching to custom mode",
@@ -432,8 +433,7 @@ def update_branding_settings(
         )
 
     # Check if group_avatar_style is changing so we can log it separately
-    previous_row = database.branding.get_branding(requesting_user["tenant_id"])
-    previous_style = previous_row["group_avatar_style"] if previous_row else "acronym"
+    previous_style = current_row["group_avatar_style"] if current_row else "acronym"
     new_style = settings.group_avatar_style.value
 
     database.branding.update_branding_settings(

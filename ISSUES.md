@@ -12,12 +12,12 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 |----------|-------|------------|
 | High | 0 | |
 | Medium | 1 | CSRF |
-| Low | 3 | Unbounded Input, Pagination |
+| Low | 2 | Unbounded Input, Pagination |
 
 **Last security scan:** 2026-02-26 (targeted: CSRF on session-cookie API calls, 1 new issue)
 **Last compliance scan:** 2026-02-21 (all clear, scanner now cross-references migrations)
 **Last dependency audit:** 2026-02-23 (all clear; werkzeug upgraded to 3.1.6, pip upgraded to 26.0.1)
-**Last refactor scan:** 2026-02-12 (standard full scan, 4 prior items resolved, 2 new)
+**Last refactor scan:** 2026-02-27 (deep scan of new branding code, 3 new issues; crud.py, branding double-read, _make_png duplication resolved 2026-02-27)
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)

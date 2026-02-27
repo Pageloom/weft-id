@@ -279,8 +279,6 @@
                     <label for="page-size-groups" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
                     <select
                         id="page-size-groups"
-                        data-view="{{ view }}"
-                        data-search="{% if search %}{{ search | urlencode }}{% endif %}"
                         class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     >
                         <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
@@ -339,15 +337,7 @@ document.querySelectorAll('[data-acronym]').forEach((el) => {
   const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
   el.src = v.image;
 });
-(function() {
-  const sel = document.getElementById('page-size-groups');
-  if (!sel) return;
-  sel.addEventListener('change', function() {
-    let url = `?page=1&size=${this.value}&view=${this.dataset.view}`;
-    if (this.dataset.search) url += `&search=${this.dataset.search}`;
-    window.location.href = url;
-  });
-})();
+WeftUtils.listManager({ pageSizeSelector: '#page-size-groups' });
 </script>
 {% else %}
 <script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>

@@ -225,6 +225,7 @@ The project has a shared utility object at `static/js/utils.js` (`WeftUtils`). B
 - `WeftUtils.copyToClipboard(text, el)` - clipboard copy with feedback
 - `WeftUtils.stickyActionBar(id)` - bulk action bar that sticks to bottom when scrolled out of view
 - `WeftUtils.detectTimezone()` / `WeftUtils.detectLocale()` - locale detection
+- `WeftUtils.listManager(config)` - list view manager for localStorage persistence, collapsible filter panel, page size selector, and multiselect with sticky action bar. Use this any time a list view needs any combination of these features. See `.claude/references/list-view-patterns.md` for the full config and examples.
 
 Duplicating these inline is also risky because inline event handlers are blocked by CSP.
 

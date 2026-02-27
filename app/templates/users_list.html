@@ -25,10 +25,6 @@
             <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
             <select
                 id="page-size"
-                data-sort="{{ sort_field }}"
-                data-order="{{ sort_order }}"
-                data-search="{% if search %}{{ search | urlencode }}{% endif %}"
-                data-filters="{{ filter_params() }}"
                 class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
@@ -139,19 +135,19 @@
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-member" value="member"
                                        {% if 'member' in roles %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-admin" value="admin"
                                        {% if 'admin' in roles %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-super_admin" value="super_admin"
                                        {% if 'super_admin' in roles %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
                             </label>
                         </div>
@@ -164,19 +160,19 @@
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-active" value="active"
                                        {% if 'active' in statuses %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-inactivated" value="inactivated"
                                        {% if 'inactivated' in statuses %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-anonymized" value="anonymized"
                                        {% if 'anonymized' in statuses %}checked{% endif %}
-                                       class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
                             </label>
                         </div>
@@ -412,137 +408,38 @@
 }
 </script>
 <script nonce="{{ csp_nonce }}">
-(function() {
-    const { tenantId, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
-        document.getElementById('page-data').textContent
-    );
-    const STORAGE_KEY = `weftid_filters_${tenantId}`;
-    const COLLAPSE_KEY = `weftid_filters_collapsed_${tenantId}`;
-    const PAGE_SIZE_KEY = `weftid_page_size_${tenantId}`;
-
-    // Toggle filter panel
-    const toggleBtn = document.getElementById('toggle-filters-btn');
-    const filterPanel = document.getElementById('filter-panel');
-    const chevron = document.getElementById('filter-chevron');
-
-    const setFilterPanelState = (collapsed) => {
-        if (collapsed) {
-            filterPanel.classList.add('hidden');
-            chevron.style.transform = '';
-        } else {
-            filterPanel.classList.remove('hidden');
-            chevron.style.transform = 'rotate(180deg)';
-        }
-        try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
-    };
-
-    // Restore collapse state (default: collapsed unless filters are active)
-    let savedCollapsed;
-    try { savedCollapsed = localStorage.getItem(COLLAPSE_KEY); } catch(e) {}
-    if (savedCollapsed !== null) {
-        setFilterPanelState(savedCollapsed === '1');
-    } else {
-        setFilterPanelState(!filtersActive);
-    }
-
-    toggleBtn.addEventListener('click', () => {
-        setFilterPanelState(!filterPanel.classList.contains('hidden'));
-    });
-
-    // Apply filters
-    const applyFilters = () => {
-        const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
-        const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
-
-        const selectedRoles = roleCheckboxes
-            .filter(id => document.getElementById(id).checked)
-            .map(id => document.getElementById(id).value);
-
-        const selectedStatuses = statusCheckboxes
-            .filter(id => document.getElementById(id).checked)
-            .map(id => document.getElementById(id).value);
-
-        const selectedAuthMethods = Array.from(
-            document.querySelectorAll('.filter-auth-method:checked')
-        ).map(el => el.value);
-
-        let url = `/users/list?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-        if (selectedRoles.length > 0) url += `&role=${selectedRoles.join(',')}`;
-        if (selectedStatuses.length > 0) url += `&status=${selectedStatuses.join(',')}`;
-        if (selectedAuthMethods.length > 0) url += `&auth_method=${selectedAuthMethods.join(',')}`;
-
-        // Save to localStorage
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                roles: selectedRoles,
-                statuses: selectedStatuses,
-                auth_methods: selectedAuthMethods,
-            }));
-        } catch(e) {}
-
-        window.location.href = url;
-    };
-
-    document.getElementById('apply-filters-btn')?.addEventListener('click', applyFilters);
-
-    // Clear filters action: also clear localStorage
-    document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach((el) => {
-        el.addEventListener('click', () => {
-            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
-        });
-    });
-
-    // Restore page size and filters from localStorage in a single redirect
-    const urlParams = new URLSearchParams(window.location.search);
-    let effectivePageSize = String(pageSize);
-    if (urlParams.has('size')) {
-        effectivePageSize = urlParams.get('size');
-    } else {
-        try {
-            const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
-            if (savedSize && ['10', '25', '50', '100'].includes(savedSize)) {
-                effectivePageSize = savedSize;
-            }
-        } catch(e) {}
-    }
-
-    const needsSizeRestore = !urlParams.has('size') && effectivePageSize !== '25';
-
-    let savedFilters = null;
-    if (!filtersActive) {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) savedFilters = JSON.parse(raw);
-        } catch(e) {}
-    }
-    const needsFilterRestore = savedFilters && (
-        (savedFilters.roles?.length > 0)
-        || (savedFilters.statuses?.length > 0)
-        || (savedFilters.auth_methods?.length > 0)
-    );
-
-    if (needsSizeRestore || needsFilterRestore) {
-        let url = `${window.location.pathname}?page=1&size=${effectivePageSize}&sort=${sortField}&order=${sortOrder}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-        if (needsFilterRestore) {
-            if (savedFilters.roles?.length > 0) url += `&role=${savedFilters.roles.join(',')}`;
-            if (savedFilters.statuses?.length > 0) url += `&status=${savedFilters.statuses.join(',')}`;
-            if (savedFilters.auth_methods?.length > 0) url += `&auth_method=${savedFilters.auth_methods.join(',')}`;
-        }
-        window.location.href = url;
-    }
-
-    // Page size selector
-    document.querySelectorAll('#page-size').forEach((select) => {
-        select.addEventListener('change', function() {
-            try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
-            let url = `?page=1&size=${this.value}&sort=${this.dataset.sort}&order=${this.dataset.order}`;
-            if (this.dataset.search) url += `&search=${this.dataset.search}`;
-            url += this.dataset.filters;
-            window.location.href = url;
-        });
-    });
-})();
+const { tenantId, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
+    document.getElementById('page-data').textContent
+);
+WeftUtils.listManager({
+    storage: {
+        filtersKey: `weftid_filters_${tenantId}`,
+        pageSizeKey: `weftid_page_size_${tenantId}`,
+        collapseKey: `weftid_filters_collapsed_${tenantId}`,
+        currentSize: pageSize,
+        filtersActive,
+    },
+    pageSizeSelector: '#page-size',
+    filterPanel: {
+        toggleBtn: '#toggle-filters-btn',
+        panel: '#filter-panel',
+        chevron: '#filter-chevron',
+        applyBtn: '#apply-filters-btn',
+        clearSelectors: '.clear-filters-action, #clear-filters-link',
+        getState: () => ({
+            roles:        Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
+            statuses:     Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
+            auth_methods: Array.from(document.querySelectorAll('.filter-auth-method:checked')).map(el => el.value),
+        }),
+        buildUrl: (state, size) => {
+            let url = `/users/list?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (state.roles?.length) url += `&role=${state.roles.join(',')}`;
+            if (state.statuses?.length) url += `&status=${state.statuses.join(',')}`;
+            if (state.auth_methods?.length) url += `&auth_method=${state.auth_methods.join(',')}`;
+            return url;
+        },
+    },
+});
 </script>
 {% endblock %}

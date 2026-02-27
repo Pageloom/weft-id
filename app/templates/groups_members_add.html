@@ -21,10 +21,6 @@
         <div class="flex items-center gap-2">
             <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
             <select id="page-size"
-                data-sort="{{ sort_field }}" data-order="{{ sort_order }}"
-                data-search="{% if search %}{{ search | urlencode }}{% endif %}"
-                data-filters="{{ filter_params() }}"
-                data-base-url="/admin/groups/{{ group.id }}/members/add"
                 class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                 <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
                 <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
@@ -115,17 +111,17 @@
                         <div class="flex gap-3">
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-member" value="member" {% if 'member' in roles %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-admin" value="admin" {% if 'admin' in roles %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-super_admin" value="super_admin" {% if 'super_admin' in roles %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
                             </label>
                         </div>
@@ -135,17 +131,17 @@
                         <div class="flex gap-3">
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-active" value="active" {% if 'active' in statuses %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-inactivated" value="inactivated" {% if 'inactivated' in statuses %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
                             </label>
                             <label class="inline-flex items-center">
                                 <input type="checkbox" id="filter-anonymized" value="anonymized" {% if 'anonymized' in statuses %}checked{% endif %}
-                                    class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
                                 <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
                             </label>
                         </div>
@@ -272,9 +268,7 @@
                     <span id="selected-count">0</span> user(s) selected
                 </span>
                 <button type="submit" id="add-selected-btn"
-                    class="confirm-btn px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md"
-                    data-confirm="Add selected users to {{ group.name }}?"
-                    data-destructive="false">
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md">
                     Add Selected
                 </button>
             </div>
@@ -294,121 +288,44 @@
   "search": {{ search | tojson if search else 'null' }},
   "sortField": {{ sort_field | tojson }},
   "sortOrder": {{ sort_order | tojson }},
-  "pageSize": {{ pagination.page_size }}
+  "pageSize": {{ pagination.page_size }},
+  "groupName": {{ group.name | tojson }}
 }
 </script>
 <script nonce="{{ csp_nonce }}">
-(function() {
-    const { baseUrl, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
-        document.getElementById('page-data').textContent
-    );
-
-    // Toggle filter panel
-    const toggleBtn = document.getElementById('toggle-filters-btn');
-    const filterPanel = document.getElementById('filter-panel');
-    const chevron = document.getElementById('filter-chevron');
-
-    toggleBtn.addEventListener('click', () => {
-        const isHidden = filterPanel.classList.contains('hidden');
-        if (isHidden) {
-            filterPanel.classList.remove('hidden');
-            chevron.style.transform = 'rotate(180deg)';
-        } else {
-            filterPanel.classList.add('hidden');
-            chevron.style.transform = '';
-        }
-    });
-
-    if (filtersActive) {
-        filterPanel.classList.remove('hidden');
-        chevron.style.transform = 'rotate(180deg)';
-    }
-
-    // Apply filters
-    document.getElementById('apply-filters-btn').addEventListener('click', () => {
-        const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
-        const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
-
-        const selectedRoles = roleCheckboxes
-            .filter(id => document.getElementById(id).checked)
-            .map(id => document.getElementById(id).value);
-
-        const selectedStatuses = statusCheckboxes
-            .filter(id => document.getElementById(id).checked)
-            .map(id => document.getElementById(id).value);
-
-        let url = `${baseUrl}?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
-        if (search) url += `&search=${encodeURIComponent(search)}`;
-        if (selectedRoles.length > 0) url += `&role=${selectedRoles.join(',')}`;
-        if (selectedStatuses.length > 0) url += `&status=${selectedStatuses.join(',')}`;
-        window.location.href = url;
-    });
-
-    // Page size selector
-    document.querySelectorAll('#page-size').forEach((select) => {
-        select.addEventListener('change', function() {
-            let url = `${this.dataset.baseUrl}?page=1&size=${this.value}&sort=${this.dataset.sort}&order=${this.dataset.order}`;
-            if (this.dataset.search) url += `&search=${this.dataset.search}`;
-            url += this.dataset.filters;
-            window.location.href = url;
-        });
-    });
-
-    // Select-all checkbox and bulk action bar
-    const selectAll = document.getElementById('select-all');
-    const bulkBar = document.getElementById('bulk-action-bar');
-    const selectedCount = document.getElementById('selected-count');
-
-    const updateBulkBar = () => {
-        const checked = document.querySelectorAll('.user-checkbox:checked');
-        if (checked.length > 0) {
-            bulkBar.classList.remove('hidden');
-            selectedCount.textContent = checked.length;
-        } else {
-            bulkBar.classList.add('hidden');
-        }
-    };
-
-    selectAll.addEventListener('change', function() {
-        document.querySelectorAll('.user-checkbox').forEach((cb) => {
-            cb.checked = selectAll.checked;
-        });
-        updateBulkBar();
-    });
-
-    document.querySelectorAll('.user-checkbox').forEach((cb) => {
-        cb.addEventListener('change', updateBulkBar);
-    });
-
-    // Confirmation dialogs
-    document.querySelectorAll('.confirm-btn').forEach((btn) => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const form = this.closest('form');
-            const message = this.dataset.confirm;
-            const isDestructive = this.dataset.destructive === 'true';
-            WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
-        });
-    });
-
-    // Click-to-toggle: clicking a row toggles its checkbox
-    document.querySelectorAll('tbody tr').forEach((row) => {
-        row.addEventListener('click', (e) => {
-            if (e.target.closest('a, input, button')) return;
-            const cb = row.querySelector('.user-checkbox');
-            if (cb) {
-                cb.checked = !cb.checked;
-                updateBulkBar();
-            }
-        });
-    });
-
-})();
-</script>
-{% endblock %}
-
-{% block extra_scripts %}
-<script nonce="{{ csp_nonce }}">
-    WeftUtils.stickyActionBar('bulk-action-bar');
+const { baseUrl, filtersActive, search, sortField, sortOrder, pageSize, groupName } = JSON.parse(
+    document.getElementById('page-data').textContent
+);
+WeftUtils.listManager({
+    pageSizeSelector: '#page-size',
+    filterPanel: {
+        toggleBtn: '#toggle-filters-btn',
+        panel: '#filter-panel',
+        chevron: '#filter-chevron',
+        applyBtn: '#apply-filters-btn',
+        getState: () => ({
+            roles:    Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
+            statuses: Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
+        }),
+        buildUrl: (state, size) => {
+            let url = `${baseUrl}?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (state.roles?.length) url += `&role=${state.roles.join(',')}`;
+            if (state.statuses?.length) url += `&status=${state.statuses.join(',')}`;
+            return url;
+        },
+    },
+    multiselect: {
+        selectAll: '#select-all',
+        rowCheckboxSelector: '.user-checkbox',
+        actionBar: '#bulk-action-bar',
+        countDisplay: '#selected-count',
+        actions: [{
+            selector: '#add-selected-btn',
+            confirmMessage: `Add selected users to ${groupName}?`,
+            callback: () => document.getElementById('add-members-form').submit(),
+        }],
+    },
+});
 </script>
 {% endblock %}

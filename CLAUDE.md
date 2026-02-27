@@ -244,6 +244,7 @@ with session(tenant_id=tenant_id) as cur:
 Common UI patterns are consolidated in `static/js/utils.js` as the `WeftUtils` object. Before writing new JavaScript, check what's already there: confirmation modals, show/hide modals, clipboard copy, sticky action bars, locale/timezone detection. Inline event handlers (`onclick`, `onsubmit`) are blocked by CSP — use `WeftUtils` or `<script nonce="{{ csp_nonce }}">` blocks instead.
 
 - `WeftUtils.apiFetch(url, options)` — drop-in `fetch()` wrapper for state-changing API calls. Automatically injects the `X-CSRF-Token` header (from the `<meta name="csrf-token">` tag) on POST/PUT/PATCH/DELETE requests and sets `credentials: 'same-origin'`. Always use this instead of bare `fetch()` for state-changing requests.
+- `WeftUtils.listManager(config)` — universal list view manager. Handles localStorage persistence (page size + filter state), collapsible filter panel (toggle, apply, clear), page size selector, and multiselect with a sticky bulk action bar. See `.claude/references/list-view-patterns.md` for the full config shape and examples.
 
 All JavaScript in this project targets **ES2020** (`const`/`let`, arrow functions, template literals, optional chaining — no `var`). See `.claude/references/js-patterns.md`. Server-side template values must be placed in a `<script type="application/json" id="page-data">` block and read via `JSON.parse(...)` — never embed `{{ }}` expressions directly in `<script>` bodies.
 

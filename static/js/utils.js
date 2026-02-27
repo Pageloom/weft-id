@@ -226,6 +226,205 @@ const WeftUtils = {
         return fetch(url, options);
     },
 
+    /**
+     * Universal list view manager: localStorage persistence, collapsible
+     * filter panel, page size selector, and multiselect with sticky bulk
+     * action bar. All config keys are optional; each feature activates only
+     * when its config section is present.
+     *
+     * @param {Object} config
+     * @param {Object} [config.storage] - localStorage + redirect-on-load
+     * @param {string} [config.pageSizeSelector] - CSS selector for page size <select>
+     * @param {Object} [config.filterPanel] - Filter panel wiring
+     * @param {Object} [config.multiselect] - Multiselect + sticky action bar
+     */
+    listManager(config) {
+        // --- Storage / redirect-on-load ---
+        if (config.storage) {
+            const s = config.storage;
+            const urlParams = new URLSearchParams(window.location.search);
+            let effectiveSize = String(s.currentSize ?? s.defaultPageSize ?? 25);
+
+            if (urlParams.has('size')) {
+                effectiveSize = urlParams.get('size');
+            } else if (s.pageSizeKey) {
+                try {
+                    const saved = localStorage.getItem(s.pageSizeKey);
+                    if (saved && (s.validPageSizes ?? [10, 25, 50, 100]).map(String).includes(saved)) {
+                        effectiveSize = saved;
+                    }
+                } catch(e) {}
+            }
+
+            const needsSizeRestore = !urlParams.has('size')
+                && effectiveSize !== String(s.defaultPageSize ?? 25);
+
+            let savedFilters = null;
+            if (!s.filtersActive && s.filtersKey) {
+                try {
+                    const raw = localStorage.getItem(s.filtersKey);
+                    if (raw) savedFilters = JSON.parse(raw);
+                } catch(e) {}
+            }
+            const needsFilterRestore = savedFilters
+                && Object.values(savedFilters).some(v => Array.isArray(v) && v.length > 0);
+
+            if (needsSizeRestore || needsFilterRestore) {
+                let url;
+                if (config.filterPanel?.buildUrl) {
+                    url = config.filterPanel.buildUrl(savedFilters || {}, effectiveSize);
+                } else {
+                    const u = new URL(window.location.href);
+                    u.searchParams.set('size', effectiveSize);
+                    u.searchParams.set('page', '1');
+                    url = u.toString();
+                }
+                window.location.href = url;
+                return;
+            }
+        }
+
+        // --- Filter panel ---
+        if (config.filterPanel) {
+            const fp = config.filterPanel;
+            const toggleEl = fp.toggleBtn ? document.querySelector(fp.toggleBtn) : null;
+            const panelEl = fp.panel ? document.querySelector(fp.panel) : null;
+            const chevronEl = fp.chevron ? document.querySelector(fp.chevron) : null;
+
+            let collapsed = !(config.storage?.filtersActive);
+            if (config.storage?.collapseKey) {
+                try {
+                    const saved = localStorage.getItem(config.storage.collapseKey);
+                    if (saved !== null) collapsed = saved === '1';
+                } catch(e) {}
+            }
+
+            if (panelEl && chevronEl) {
+                panelEl.classList.toggle('hidden', collapsed);
+                chevronEl.style.transform = collapsed ? '' : 'rotate(180deg)';
+            }
+
+            if (toggleEl && panelEl && chevronEl) {
+                toggleEl.addEventListener('click', () => {
+                    const isHidden = panelEl.classList.contains('hidden');
+                    panelEl.classList.toggle('hidden', !isHidden);
+                    chevronEl.style.transform = isHidden ? 'rotate(180deg)' : '';
+                    if (config.storage?.collapseKey) {
+                        try {
+                            localStorage.setItem(config.storage.collapseKey, isHidden ? '0' : '1');
+                        } catch(e) {}
+                    }
+                });
+            }
+
+            const applyEl = fp.applyBtn ? document.querySelector(fp.applyBtn) : null;
+            if (applyEl && fp.getState && fp.buildUrl) {
+                applyEl.addEventListener('click', () => {
+                    const state = fp.getState();
+                    const size = config.storage?.currentSize ?? config.storage?.defaultPageSize ?? 25;
+                    const url = fp.buildUrl(state, size);
+                    if (config.storage?.filtersKey) {
+                        try { localStorage.setItem(config.storage.filtersKey, JSON.stringify(state)); } catch(e) {}
+                    }
+                    window.location.href = url;
+                });
+            }
+
+            if (fp.clearSelectors && config.storage?.filtersKey) {
+                document.querySelectorAll(fp.clearSelectors).forEach((el) => {
+                    el.addEventListener('click', () => {
+                        try { localStorage.removeItem(config.storage.filtersKey); } catch(e) {}
+                    });
+                });
+            }
+        }
+
+        // --- Page size selector ---
+        if (config.pageSizeSelector) {
+            document.querySelectorAll(config.pageSizeSelector).forEach((select) => {
+                select.addEventListener('change', function() {
+                    const val = this.value;
+                    if (config.storage?.pageSizeKey) {
+                        try { localStorage.setItem(config.storage.pageSizeKey, val); } catch(e) {}
+                    }
+                    let url;
+                    if (config.filterPanel?.buildUrl && config.filterPanel?.getState) {
+                        url = config.filterPanel.buildUrl(config.filterPanel.getState(), val);
+                    } else {
+                        const u = new URL(window.location.href);
+                        u.searchParams.set('size', val);
+                        u.searchParams.set('page', '1');
+                        url = u.toString();
+                    }
+                    window.location.href = url;
+                });
+            });
+        }
+
+        // --- Multiselect ---
+        if (config.multiselect) {
+            const ms = config.multiselect;
+            const barEl = ms.actionBar ? document.querySelector(ms.actionBar) : null;
+            const countEl = ms.countDisplay ? document.querySelector(ms.countDisplay) : null;
+            const selectAllEl = ms.selectAll ? document.querySelector(ms.selectAll) : null;
+
+            const updateActionBar = () => {
+                if (!barEl) return;
+                const checked = document.querySelectorAll(`${ms.rowCheckboxSelector}:checked`);
+                barEl.classList.toggle('hidden', checked.length === 0);
+                if (countEl) countEl.textContent = checked.length;
+            };
+
+            if (selectAllEl) {
+                selectAllEl.addEventListener('change', function() {
+                    document.querySelectorAll(ms.rowCheckboxSelector).forEach((cb) => {
+                        cb.checked = this.checked;
+                    });
+                    updateActionBar();
+                });
+            }
+
+            document.querySelectorAll(ms.rowCheckboxSelector).forEach((cb) => {
+                cb.addEventListener('change', updateActionBar);
+            });
+
+            document.querySelectorAll('tbody tr').forEach((row) => {
+                const cb = row.querySelector(ms.rowCheckboxSelector);
+                if (!cb) return;
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('a, input, button')) return;
+                    cb.checked = !cb.checked;
+                    updateActionBar();
+                });
+            });
+
+            if (barEl) WeftUtils.stickyActionBar(barEl);
+
+            if (ms.actions) {
+                ms.actions.forEach((action) => {
+                    const btnEl = action.selector ? document.querySelector(action.selector) : null;
+                    if (!btnEl) return;
+                    btnEl.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const selectedIds = Array.from(
+                            document.querySelectorAll(`${ms.rowCheckboxSelector}:checked`)
+                        ).map(cb => cb.value);
+                        if (action.destructive || action.confirmMessage) {
+                            WeftUtils.confirm(
+                                action.confirmMessage || 'Are you sure?',
+                                () => action.callback(selectedIds),
+                                { destructive: !!action.destructive }
+                            );
+                        } else {
+                            action.callback(selectedIds);
+                        }
+                    });
+                });
+            }
+        }
+    },
+
     // Internal: callback storage for confirm modal
     _confirmCallback: null,
 

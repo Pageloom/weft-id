@@ -34,7 +34,7 @@
         {% endif %}
 
         {% if jobs %}
-        <form method="post" action="/account/background-jobs/delete">
+        <form id="delete-jobs-form" method="post" action="/account/background-jobs/delete">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -127,13 +127,17 @@
                 </table>
             </div>
 
-            <div class="mt-6 flex justify-between items-center">
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+            <div id="bulk-action-bar" class="hidden mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center justify-between">
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    <span id="selected-count">0</span> job(s) selected
+                </span>
+                <button type="button" id="delete-selected-btn"
+                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
                     Delete Selected
                 </button>
-                <div class="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>Note:</strong> Export files are automatically deleted 24 hours after creation.
-                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                <strong>Note:</strong> Export files are automatically deleted 24 hours after creation.
             </div>
         </form>
         {% else %}
@@ -155,22 +159,22 @@
 </script>
 <script nonce="{{ csp_nonce }}">
     const { hasActiveJobs } = JSON.parse(document.getElementById('page-data').textContent);
-
-    // Select all checkbox functionality
-    const selectAllCheckbox = document.getElementById('select-all');
-    const jobCheckboxes = document.querySelectorAll('.job-checkbox');
-
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            jobCheckboxes.forEach((checkbox) => {
-                checkbox.checked = this.checked;
-            });
-        });
-    }
-
-    // Polling logic - only poll if there are active jobs
+    WeftUtils.listManager({
+        multiselect: {
+            selectAll: '#select-all',
+            rowCheckboxSelector: '.job-checkbox',
+            actionBar: '#bulk-action-bar',
+            countDisplay: '#selected-count',
+            actions: [{
+                selector: '#delete-selected-btn',
+                destructive: true,
+                confirmMessage: 'Delete selected jobs?',
+                callback: () => document.getElementById('delete-jobs-form').submit(),
+            }],
+        },
+    });
     if (hasActiveJobs) {
-        setInterval(() => { window.location.reload(); }, 10000);  // 10 seconds
+        setInterval(() => { window.location.reload(); }, 10000);
     }
 </script>
 {% endblock %}

@@ -149,12 +149,6 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-// Page size selector
-document.querySelectorAll('#page-size').forEach((select) => {
-    select.addEventListener('change', function() {
-        window.location.href = `?page=1&size=${this.value}`;
-    });
-});
-
+WeftUtils.listManager({ pageSizeSelector: '#page-size' });
 </script>
 {% endblock %}

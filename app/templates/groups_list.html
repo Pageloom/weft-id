@@ -454,9 +454,8 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
   function saveLayout(cy) {
     var pos = {};
     cy.nodes().each(function(n) { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
-    fetch('/api/v1/groups/graph/layout', {
+    WeftUtils.apiFetch('/api/v1/groups/graph/layout', {
       method: 'PUT',
-      credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({node_ids: currentNodeIds, positions: pos}),
     });
@@ -1154,9 +1153,8 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         var edge = evt.target;
         var childId = edge.data('source');
         var parentId = edge.data('target');
-        fetch('/api/v1/groups/' + childId + '/parents/' + parentId, {
-          method: 'DELETE',
-          credentials: 'same-origin'
+        WeftUtils.apiFetch('/api/v1/groups/' + childId + '/parents/' + parentId, {
+          method: 'DELETE'
         }).then(function(r) {
           if (!r.ok) throw new Error('Failed');
           edge.remove();
@@ -1197,9 +1195,8 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
         if (!source || !targetNode) return;
         var childId = source.id();
         var parentId = targetNode.id();
-        fetch('/api/v1/groups/' + childId + '/parents', {
+        WeftUtils.apiFetch('/api/v1/groups/' + childId + '/parents', {
           method: 'POST',
-          credentials: 'same-origin',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({parent_group_id: parentId})
         }).then(function(r) {

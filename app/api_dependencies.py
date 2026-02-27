@@ -1,5 +1,6 @@
 """FastAPI dependencies for API endpoints with dual authentication support."""
 
+import secrets
 from typing import Annotated
 
 import database
@@ -14,6 +15,24 @@ from utils.request_context import set_api_client_context
 # auto_error=False because we handle authentication manually in get_current_user_api
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/oauth2/token", auto_error=False)
 session_cookie_scheme = APIKeyCookie(name="session", auto_error=False)
+
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _validate_session_csrf(request: Request) -> None:
+    """Validate CSRF token for session-cookie-authenticated API requests.
+
+    Safe methods (GET, HEAD, OPTIONS) are exempt. For state-changing methods,
+    the X-CSRF-Token header must match the session token.
+    """
+    if request.method in _CSRF_SAFE_METHODS:
+        return
+    session_token = request.session.get("_csrf_token")
+    request_token = request.headers.get("X-CSRF-Token")
+    if not session_token or not request_token:
+        raise HTTPException(status_code=403, detail="CSRF token required")
+    if not secrets.compare_digest(session_token, request_token):
+        raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
 
 def get_current_user_api(
@@ -78,6 +97,7 @@ def get_current_user_api(
     # Fall back to session cookie
     user = auth.get_current_user(request, tenant_id)
     if user:
+        _validate_session_csrf(request)
         # Add primary email to user dict (API responses include email)
         primary_email = database.user_emails.get_primary_email(tenant_id, user["id"])
         if primary_email:

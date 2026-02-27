@@ -5,6 +5,16 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] CSRF: Session-cookie API calls lack CSRF validation
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Medium
+**OWASP Category:** A01:2021 - Broken Access Control / CSRF
+
+**Resolution:** Added CSRF enforcement on the session-cookie auth path in `api_dependencies.py`. `_validate_session_csrf()` compares the `X-CSRF-Token` request header against the session token using `secrets.compare_digest()`; safe methods (GET, HEAD, OPTIONS) and Bearer-token requests are exempt. Exposed the token via `{% if csrf_token is defined %}<meta name="csrf-token">{% endif %}` in `base.html`. Added `WeftUtils.apiFetch()` helper in `utils.js` that auto-injects the header for state-changing requests. Replaced 5 bare `fetch()` calls in `groups_list.html` and `settings_branding_global.html`. Added 12 unit and integration tests.
+
+---
+
 ### [REFACTOR] File Structure: `service_providers/crud.py` exceeds 1100 lines
 
 **Status:** Resolved (2026-02-27)

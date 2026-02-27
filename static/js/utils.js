@@ -208,6 +208,32 @@ const WeftUtils = {
         }
     },
 
+    /**
+     * Fetch wrapper that automatically injects the CSRF token header for
+     * state-changing requests (POST, PUT, PATCH, DELETE) authenticated via
+     * session cookie. Always sets credentials: 'same-origin'.
+     *
+     * Use this instead of bare fetch() for all state-changing API calls.
+     *
+     * @param {string} url - URL to fetch
+     * @param {Object} [options] - fetch() options (same as native fetch)
+     * @returns {Promise<Response>}
+     */
+    apiFetch: function(url, options) {
+        options = options || {};
+        var method = (options.method || 'GET').toUpperCase();
+        var safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+        if (safeMethods.indexOf(method) === -1) {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) {
+                options.headers = options.headers || {};
+                options.headers['X-CSRF-Token'] = meta.getAttribute('content');
+            }
+        }
+        options.credentials = options.credentials || 'same-origin';
+        return fetch(url, options);
+    },
+
     // Internal: callback storage for confirm modal
     _confirmCallback: null,
 

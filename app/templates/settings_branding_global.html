@@ -240,9 +240,8 @@
         randomizeBtn.disabled = true;
         randomizeBtn.textContent = 'Generating...';
 
-        fetch('/api/v1/branding/mandala/randomize', {
-            method: 'POST',
-            credentials: 'same-origin'
+        WeftUtils.apiFetch('/api/v1/branding/mandala/randomize', {
+            method: 'POST'
         })
         .then(function(resp) { return resp.json(); })
         .then(function(data) {
@@ -266,9 +265,8 @@
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving...';
 
-        fetch('/api/v1/branding/mandala/save', {
+        WeftUtils.apiFetch('/api/v1/branding/mandala/save', {
             method: 'POST',
-            credentials: 'same-origin',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({seed: currentSeed})
         })

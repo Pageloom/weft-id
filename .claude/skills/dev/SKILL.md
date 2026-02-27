@@ -40,6 +40,7 @@ Request → Router → Service → Database → PostgreSQL
 - Every service write must emit an event log
 - New pages must be registered in `app/pages.py`
 - All `str` fields in Pydantic input schemas must have `max_length` (names 255, descriptions 2000, URLs 2048, enums 50)
+- State-changing `fetch()` calls to `/api/` endpoints must use `WeftUtils.apiFetch()`, not bare `fetch()`. The server enforces a CSRF token on the session-cookie auth path — bare `fetch()` will fail with 403.
 
 ## List View Conventions
 

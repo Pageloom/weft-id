@@ -428,6 +428,142 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
+## Frontend JS: Modern ECMAScript + Template Data Isolation
+
+**User Story:**
+As a developer working on JavaScript in this project
+I want all JavaScript to follow a consistent modern ECMAScript standard and to receive template data cleanly from the DOM rather than via Jinja interpolation inside script bodies
+So that scripts are readable, consistently styled, and free from rendering-layer concerns
+
+**Context:**
+
+Two related issues exist in the current JavaScript:
+
+1. **Jinja interpolation inside script blocks.** Template variables (tenant IDs, sort fields, search terms, filter state flags) are injected directly into `<script>` bodies via `{{ }}`. This mixes the rendering layer with script logic, makes scripts hard to read, and is inconsistent. The fix is a single `<script type="application/json" id="page-data">` block per template that holds all server-side values as JSON. The inline script reads from that block; the script body itself contains no `{{ }}` syntax.
+
+2. **Inconsistent ECMAScript.** `static/js/utils.js` uses `var` throughout and old `function() {}` syntax. Inline template scripts mix styles. The project should target ES2020 consistently: `const`/`let`, arrow functions, template literals, destructuring, optional chaining (`?.`), nullish coalescing (`??`).
+
+**Acceptance Criteria:**
+
+ECMAScript modernization:
+- [ ] A JS coding standard is documented in `.claude/references/js-patterns.md` (target: ES2020; rules: `const`/`let`, arrow functions, template literals, no `var`)
+- [ ] `static/js/utils.js` is rewritten to the ES2020 standard (no `var`, arrow functions where appropriate, consistent style)
+- [ ] All inline `<script nonce="...">` blocks in templates are updated to follow the same standard
+
+Template data isolation:
+- [ ] Server-side values needed by a page script are passed in a `<script type="application/json" id="page-data">` block rendered by Jinja; the inline script reads from it via `JSON.parse`
+- [ ] Inline script bodies contain no `{{ }}` template syntax (the nonce attribute and the `page-data` block are the only Jinja contact points)
+- [ ] `users_list.html` is updated as the reference implementation; all other templates with inline scripts follow the same pattern
+
+Quality:
+- [ ] No regressions in existing page behaviour
+- [ ] `./code-quality` passes
+
+**Effort:** S
+**Value:** Medium
+
+---
+
+## WeftUtils: Universal List Manager
+
+**User Story:**
+As a developer implementing or maintaining a list view
+I want a single `WeftUtils.listManager()` call to handle all list behaviour (state persistence, filter panel, multiselect, bulk action bar)
+So that list pages contain minimal bespoke logic, every list works consistently, and new lists are easy to implement correctly
+
+**Context:**
+
+List views in this project share a set of recurring behaviour patterns: localStorage persistence of page size and filter state (with a redirect-on-load to restore), a collapsible filter panel, a page size selector, multiselect checkboxes with a sticky bulk action bar. Currently this logic is written per-template. `users_list.html` alone has ~100 lines of inline script. `groups_members.html` duplicates most of it and adds multiselect on top.
+
+The utility should own all wiring. A template declares its structure in HTML and passes a single config object from a small inline script; the utility does the rest. All config goes in the inline script — no split between `data-*` attributes and JS config (a developer should only have to look in one place).
+
+Config is passed as a plain object to `WeftUtils.listManager(config)`. All sections are optional; the utility activates only the features configured.
+
+**Pages to migrate (in scope):**
+- `users_list.html` — pagination state, filter panel, page size selector
+- `groups_members.html` — pagination state, filter panel, page size selector, multiselect + remove action bar
+- `groups_members_add.html` — multiselect + add action bar
+- `groups_list.html` — pagination state (and filters if present)
+- `admin_events.html` — pagination state, page size selector
+- `account_background_jobs.html` — multiselect + delete action bar
+
+**Config shape (all keys optional):**
+
+```js
+WeftUtils.listManager({
+  // localStorage persistence and redirect-on-load
+  storage: {
+    filtersKey: 'weftid_filters_<tenantId>',
+    pageSizeKey: 'weftid_page_size_<tenantId>',
+    collapseKey: 'weftid_collapse_<tenantId>',
+    defaultPageSize: 25,
+    validPageSizes: [10, 25, 50, 100],
+    currentSize: 25,          // value currently in URL (from server)
+    filtersActive: false,     // whether filter params are in the current URL
+  },
+
+  // Page size selector (navigates to new URL on change)
+  pageSizeSelector: '#page-size',
+
+  // Collapsible filter panel
+  filterPanel: {
+    toggleBtn: '#toggle-filters-btn',
+    panel: '#filter-panel',
+    chevron: '#filter-chevron',
+    applyBtn: '#apply-filters-btn',
+    clearSelectors: '.clear-filters-action, #clear-filters-link',
+    getState: () => ({ roles: [], statuses: [], authMethods: [] }),
+    buildUrl: (state, pageSize) => '/some/list?...',
+  },
+
+  // Multiselect + bulk action bar
+  multiselect: {
+    selectAll: '#select-all',
+    rowCheckboxSelector: '.row-checkbox',
+    actionBar: '#bulk-action-bar',
+    countDisplay: '#selected-count',
+    actions: [
+      {
+        selector: '#remove-btn',
+        destructive: true,
+        callback: (selectedIds) => { /* page-specific logic */ },
+      },
+    ],
+  },
+});
+```
+
+**Acceptance Criteria:**
+
+Utility:
+- [ ] `WeftUtils.listManager(config)` is added to `static/js/utils.js`
+- [ ] All config is passed in the JS object; no `data-*` attributes required
+- [ ] Storage/redirect: on load, if `size` is absent from the URL, reads localStorage and redirects with saved size and saved filters in a single navigation; if filters are absent but size is present, restores filters only; already-correct URLs do not redirect
+- [ ] Page size selector: wires `change` on the configured selector; navigates to page 1 with new size; persists to localStorage
+- [ ] Filter panel: wires toggle button (chevron rotation, show/hide, localStorage collapse state); wires apply button (calls `getState()`, calls `buildUrl()`, persists state, navigates); wires clear elements (removes state from localStorage)
+- [ ] Multiselect: wires select-all checkbox; wires individual row checkboxes; clicking anywhere on a data row toggles its checkbox (except clicks on `a`, `input`, `button`); rows get `cursor-pointer`
+- [ ] Action bar: shown when ≥1 row selected, hidden when 0; count display updated on every selection change; action buttons wired to their callbacks with `selectedIds` (values of checked row checkboxes); sticky behaviour via existing `WeftUtils.stickyActionBar()`
+- [ ] Destructive actions trigger `WeftUtils.confirm()` before executing the callback
+
+Migration:
+- [ ] All six pages listed above are migrated to use `WeftUtils.listManager()`
+- [ ] Each migrated template's inline script is reduced to a `page-data` JSON block and a `WeftUtils.listManager(config)` call (following the template data isolation pattern)
+- [ ] No bespoke list-state logic remains in individual templates
+
+Documentation:
+- [ ] `CLAUDE.md` WeftUtils section updated to list `WeftUtils.listManager(config)` with a one-line description of what it handles
+- [ ] `.claude/THOUGHT_ERRORS.md` "Check WeftUtils Before Writing Inline JavaScript" entry updated to mention `WeftUtils.listManager()` and when to reach for it
+- [ ] `.claude/references/list-view-patterns.md` created with: the full config shape and field descriptions, and a minimal worked example for each usage pattern (pagination-only, filter panel + pagination, multiselect + action bar)
+
+Quality:
+- [ ] Existing behaviour on all migrated pages is preserved (page size, filter persistence, collapse state, sort links, multiselect, bulk actions)
+- [ ] `./code-quality` passes
+
+**Effort:** L
+**Value:** High
+
+---
+
 ## SAML: Group Assertion Transparency (Trunk-Only Mode + Consent Screen Visibility)
 
 **User Story:**

@@ -13,16 +13,15 @@ import services.users as users_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from services.event_log import log_event
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 from utils.request_metadata import extract_request_metadata
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/verify-email/{email_id}/{nonce}")

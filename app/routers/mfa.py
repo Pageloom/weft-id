@@ -14,7 +14,6 @@ import services.users as users_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from services.exceptions import RateLimitError
 from utils.email import send_mfa_code_email
@@ -27,9 +26,9 @@ from utils.mfa import (
 )
 from utils.ratelimit import MINUTE, ratelimit
 from utils.session import regenerate_session
+from utils.templates import templates
 
 router = APIRouter(prefix="/mfa", tags=["mfa"], include_in_schema=False)
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/verify", response_class=HTMLResponse)

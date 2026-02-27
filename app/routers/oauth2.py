@@ -2,7 +2,6 @@
 
 import secrets
 import time
-from pathlib import Path
 from typing import Annotated
 
 import oauth2
@@ -10,17 +9,15 @@ import services.oauth2 as oauth2_service
 from dependencies import get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from schemas.oauth2 import TokenErrorResponse, TokenResponse
 from utils.csp_nonce import get_csp_nonce
+from utils.templates import templates
 
 # Maximum age for authorization requests (10 minutes)
 AUTH_REQUEST_MAX_AGE_SECONDS = 600
 
 router = APIRouter(prefix="/oauth2", tags=["oauth2"], include_in_schema=False)
-_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 # ============================================================================

@@ -44,6 +44,9 @@ class GroupSummary(BaseModel):
     effective_member_count: int = Field(0, description="Total members including inherited")
     sp_count: int = Field(0, description="Number of app (service provider) associations")
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this group")
+    logo_updated_at: datetime | None = Field(
+        None, description="When the group logo was last updated"
+    )  # noqa: E501
     created_at: datetime = Field(..., description="Creation timestamp")
 
 
@@ -64,6 +67,9 @@ class GroupDetail(BaseModel):
     parent_count: int = Field(0, description="Number of parent groups")
     child_count: int = Field(0, description="Number of child groups")
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this group")
+    logo_updated_at: datetime | None = Field(
+        None, description="When the group logo was last updated"
+    )  # noqa: E501
     created_by: str | None = Field(None, description="User who created the group")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
@@ -125,6 +131,9 @@ class GroupRelationship(BaseModel):
     group_type: str = Field(..., description="Related group type")
     member_count: int = Field(0, description="Number of direct members")
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded")
+    logo_updated_at: datetime | None = Field(
+        None, description="When the group logo was last updated"
+    )  # noqa: E501
     created_at: datetime = Field(..., description="When relationship was created")
 
 
@@ -337,6 +346,9 @@ class GroupGraphNode(BaseModel):
     member_count: int = Field(0, description="Number of direct members")
     effective_member_count: int = Field(0, description="Total members including inherited")
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded")
+    logo_updated_at: datetime | None = Field(
+        None, description="When the group logo was last updated"
+    )  # noqa: E501
 
 
 class GroupGraphEdge(BaseModel):

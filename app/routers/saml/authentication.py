@@ -6,7 +6,6 @@ import services.emails as emails_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from routers.saml._helpers import get_base_url, store_saml_debug_and_respond
 from services import saml as saml_service
 from services import settings as settings_service
@@ -19,9 +18,9 @@ from utils.mfa import create_email_otp
 from utils.saml import extract_issuer_from_response
 from utils.session import regenerate_session
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 def _handle_saml_test_response(

@@ -92,7 +92,8 @@ def list_groups(
                 where gl.ancestor_id = g.id) as effective_member_count,
                (select count(*) from sp_group_assignments sga
                 where sga.group_id = g.id) as sp_count,
-               (logo.group_id is not null) as has_logo
+               (logo.group_id is not null) as has_logo,
+               logo.updated_at as logo_updated_at
         from groups g
         left join saml_identity_providers idp on g.idp_id = idp.id
         left join group_logos logo on logo.group_id = g.id
@@ -120,7 +121,8 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
                 from group_memberships gm
                 join group_lineage gl on gm.group_id = gl.descendant_id
                 where gl.ancestor_id = g.id) as effective_member_count,
-               (logo.group_id is not null) as has_logo
+               (logo.group_id is not null) as has_logo,
+               logo.updated_at as logo_updated_at
         from groups g
         left join group_logos logo on logo.group_id = g.id
         order by g.name

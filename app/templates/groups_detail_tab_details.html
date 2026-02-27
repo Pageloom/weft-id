@@ -60,7 +60,7 @@
         <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Group Logo</h3>
         <div class="flex items-center gap-4 mb-3">
             {% if group.has_logo %}
-            <img src="/branding/group-logo/{{ group.id }}"
+            <img src="/branding/group-logo/{{ group.id }}{% if group.logo_updated_at %}?v={{ group.logo_updated_at.timestamp() | int }}{% endif %}"
                  width="48" height="48"
                  class="rounded-full border border-gray-200 dark:border-gray-700" alt="Group logo">
             {% elif branding.group_avatar_style == 'acronym' %}
@@ -111,7 +111,7 @@
 </div>
 
 {% block tab_scripts %}
-<script nonce="{{ csp_nonce }}" src="/static/js/group-mandala.js"></script>
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
     document.querySelectorAll('img[data-mandala]').forEach(function (img) {

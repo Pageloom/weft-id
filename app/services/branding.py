@@ -683,6 +683,7 @@ def get_branding_for_template(tenant_id: str) -> dict:
             "site_title": DEFAULT_SITE_TITLE,
             "show_title_in_nav": True,
             "group_avatar_style": "acronym",
+            "logo_version": 0,
         }
 
     return {
@@ -693,4 +694,5 @@ def get_branding_for_template(tenant_id: str) -> dict:
         "site_title": row["site_title"] or DEFAULT_SITE_TITLE,
         "show_title_in_nav": row["show_title_in_nav"],
         "group_avatar_style": row["group_avatar_style"],
+        "logo_version": int(row["updated_at"].timestamp()) if row.get("updated_at") else 0,
     }

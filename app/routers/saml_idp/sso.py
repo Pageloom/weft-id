@@ -10,7 +10,6 @@ Handles SP-Initiated SSO:
 """
 
 import logging
-from pathlib import Path
 from typing import Annotated
 
 from dependencies import get_tenant_id_from_request
@@ -18,17 +17,14 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from services import service_providers as sp_service
 from services.event_log import log_event
-from starlette.templating import Jinja2Templates
 from utils.csp_nonce import get_csp_nonce
 from utils.saml_authn_request import parse_authn_request, validate_authn_request
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 from ._helpers import PENDING_SSO_KEYS, get_base_url
 
 logger = logging.getLogger(__name__)
-
-_TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 router = APIRouter(
     prefix="/saml/idp",

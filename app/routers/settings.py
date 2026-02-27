@@ -11,7 +11,6 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from pydantic import ValidationError as PydanticValidationError
 from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode, LogoSlot
@@ -22,6 +21,7 @@ from services import settings as settings_service
 from services.exceptions import ServiceError, ValidationError
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/admin/settings",
@@ -29,7 +29,6 @@ router = APIRouter(
     dependencies=[Depends(require_admin)],  # All routes require admin role
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)

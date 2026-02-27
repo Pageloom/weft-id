@@ -5,7 +5,6 @@ from typing import Annotated
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import has_page_access
 from schemas.api import UserCreate
 from services import settings as settings_service
@@ -14,6 +13,7 @@ from services.exceptions import ConflictError, ForbiddenError, ServiceError, Val
 from services.types import RequestingUser
 from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/users",
@@ -21,7 +21,6 @@ router = APIRouter(
     dependencies=[Depends(require_current_user)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/new", response_class=HTMLResponse)

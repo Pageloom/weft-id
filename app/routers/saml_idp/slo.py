@@ -5,21 +5,17 @@ we clear the user's session and return a signed LogoutResponse.
 """
 
 import logging
-from pathlib import Path
 from typing import Annotated
 
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from starlette.templating import Jinja2Templates
 from utils.csp_nonce import get_csp_nonce
+from utils.templates import templates
 
 from ._helpers import get_base_url
 
 logger = logging.getLogger(__name__)
-
-_TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 router = APIRouter(
     prefix="/saml/idp",

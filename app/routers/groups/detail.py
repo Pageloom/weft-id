@@ -10,7 +10,6 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from schemas.groups import GroupUpdate
 from services import groups as groups_service
 from services import service_providers as sp_service
@@ -22,13 +21,13 @@ from services.exceptions import (
 )
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/admin/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 def _load_group_common(requesting_user, group_id):
@@ -52,6 +51,9 @@ def _load_group_common(requesting_user, group_id):
     except ServiceError:
         pass
 
+    def _logo_version(ts) -> int:
+        return int(ts.timestamp()) if ts else 0
+
     neighborhood_data = {
         "group": {
             "id": group.id,
@@ -59,9 +61,16 @@ def _load_group_common(requesting_user, group_id):
             "parent_count": group.parent_count,
             "child_count": group.child_count,
             "has_logo": group.has_logo,
+            "logo_version": _logo_version(group.logo_updated_at),
         },
         "parents": [
-            {"id": p.group_id, "name": p.name, "has_logo": p.has_logo} for p in parents.items
+            {
+                "id": p.group_id,
+                "name": p.name,
+                "has_logo": p.has_logo,
+                "logo_version": _logo_version(p.logo_updated_at),
+            }
+            for p in parents.items
         ],
         "children": [
             {
@@ -69,6 +78,7 @@ def _load_group_common(requesting_user, group_id):
                 "name": c.name,
                 "member_count": c.member_count,
                 "has_logo": c.has_logo,
+                "logo_version": _logo_version(c.logo_updated_at),
             }
             for c in children.items
         ],

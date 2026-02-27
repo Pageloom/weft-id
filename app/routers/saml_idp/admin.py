@@ -10,13 +10,13 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import has_page_access
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.types import RequestingUser
 from utils.saml_assertion import SAML_ATTRIBUTE_URIS
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 from ._helpers import get_base_url
 
@@ -28,7 +28,6 @@ router = APIRouter(
     dependencies=[Depends(require_super_admin)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 SP_LIST_URL = "/admin/settings/service-providers"
 

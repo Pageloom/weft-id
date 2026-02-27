@@ -11,7 +11,6 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import has_page_access
 from routers.saml._helpers import get_base_url
 from schemas.saml import IdPCreate, IdPUpdate
@@ -19,11 +18,11 @@ from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.saml import extract_idp_advertised_attributes
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 IDP_LIST_URL = "/admin/settings/identity-providers"
 

@@ -10,7 +10,6 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import has_page_access
 from schemas.api import UserUpdate
 from services import groups as groups_service
@@ -20,6 +19,7 @@ from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/users",
@@ -27,7 +27,6 @@ router = APIRouter(
     dependencies=[Depends(require_current_user)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/{user_id}", response_class=HTMLResponse)

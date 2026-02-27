@@ -16,7 +16,6 @@ import settings
 from dependencies import get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Cookie, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from middleware.csrf import make_csrf_token_func
 from routers.auth._helpers import _get_client_ip, _route_after_email_verification
 from services.event_log import log_event
@@ -39,9 +38,9 @@ from utils.email_verification import (
 from utils.mfa import create_email_otp
 from utils.ratelimit import HOUR, MINUTE, ratelimit
 from utils.request_metadata import extract_request_metadata
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/login", response_class=HTMLResponse)

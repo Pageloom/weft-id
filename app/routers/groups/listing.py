@@ -10,19 +10,18 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from services import groups as groups_service
 from services.exceptions import ServiceError
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/admin/groups",
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)

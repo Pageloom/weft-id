@@ -6,12 +6,11 @@ import services.emails as emails_service
 from dependencies import build_requesting_user, get_current_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from services import groups as groups_service
 from services import service_providers as sp_service
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

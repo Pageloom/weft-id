@@ -11,7 +11,6 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child
 from schemas.api import UserProfileUpdate
 from services import bg_tasks as bg_tasks_service
@@ -25,6 +24,7 @@ from utils.email import send_email_verification, send_mfa_code_email
 from utils.qr import generate_qr_code_base64
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter(
     prefix="/account",
@@ -32,7 +32,6 @@ router = APIRouter(
     dependencies=[Depends(require_current_user)],  # All routes require authentication
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)

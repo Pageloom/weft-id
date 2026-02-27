@@ -3,12 +3,10 @@
 import base64
 
 from fastapi import Request, Response
-from fastapi.templating import Jinja2Templates
 from services import saml as saml_service
 from settings import IS_DEV
 from utils.csp_nonce import get_csp_nonce
-
-templates = Jinja2Templates(directory="templates")
+from utils.templates import templates
 
 
 def get_base_url(request: Request) -> str:

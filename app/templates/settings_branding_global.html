@@ -139,7 +139,7 @@
                 {% else %}
                 <p class="text-xs text-gray-400 dark:text-gray-500">Example</p>
                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-2 checker-light">
-                    <img src="/static/svgs/example-light-mode-logo.svg" alt="Example light mode logo" class="h-16 w-16 object-contain">
+                    <img src="{{ static_url('svgs/example-light-mode-logo.svg') }}" alt="Example light mode logo" class="h-16 w-16 object-contain">
                 </div>
                 {% endif %}
             </div>
@@ -183,7 +183,7 @@
                 {% else %}
                 <p class="text-xs text-gray-400 dark:text-gray-500">Example</p>
                 <div class="border border-gray-700 rounded-lg p-2 checker-dark">
-                    <img src="/static/svgs/example-dark-mode-logo.svg" alt="Example dark mode logo" class="h-16 w-16 object-contain">
+                    <img src="{{ static_url('svgs/example-dark-mode-logo.svg') }}" alt="Example dark mode logo" class="h-16 w-16 object-contain">
                 </div>
                 {% endif %}
             </div>

@@ -10,11 +10,11 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pages import get_first_accessible_child, has_page_access
 from services import oauth2 as oauth2_service
 from services.exceptions import ServiceError
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,6 @@ router = APIRouter(
     dependencies=[Depends(require_admin)],
     include_in_schema=False,
 )
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -204,7 +204,7 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="flex items-center gap-2">
                                 {% if group.has_logo %}
-                                <img src="/branding/group-logo/{{ group.id }}" width="32" height="32"
+                                <img src="/branding/group-logo/{{ group.id }}{% if group.logo_updated_at %}?v={{ group.logo_updated_at.timestamp() | int }}{% endif %}" width="32" height="32"
                                      class="rounded-full shrink-0 border border-gray-200 dark:border-gray-700" alt="">
                                 {% elif branding.group_avatar_style == 'acronym' %}
                                 <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
@@ -314,7 +314,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="/static/js/group-mandala.js"></script>
+<script src="{{ static_url('js/group-mandala.js') }}"></script>
 {% if view == 'list' %}
 <script nonce="{{ csp_nonce }}">
 (function() {
@@ -350,7 +350,7 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
 })();
 </script>
 {% else %}
-<script src="/static/js/cytoscape.min.js" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
+<script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function() {
   // localStorage redirect
@@ -508,7 +508,8 @@ document.querySelectorAll('[data-acronym]').forEach(function(el) {
       var elements = data.nodes.map(function(n) {
         var vis;
         if (n.has_logo) {
-          vis = {color: '#9ca3af', image: '/branding/group-logo/' + n.id};
+          var logoV = n.logo_updated_at ? Math.floor(Date.parse(n.logo_updated_at) / 1000) : 0;
+          vis = {color: '#9ca3af', image: '/branding/group-logo/' + n.id + (logoV ? '?v=' + logoV : '')};
         } else if (groupAvatarStyle === 'acronym') {
           vis = generateGroupAcronym(n.id, n.name);
         } else {

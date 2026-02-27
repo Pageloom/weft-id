@@ -10,14 +10,13 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from schemas.saml import SAMLTestResult
 from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError
 from utils.template_context import get_template_context
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get(

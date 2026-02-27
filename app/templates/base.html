@@ -18,13 +18,13 @@
     <title>{% block title %}{{ site_title | default('WeftId') }}{% endblock %}</title>
     {% if branding is defined and branding.logo_mode == 'custom' and branding.use_logo_as_favicon and branding.has_logo_light %}
     {% if branding.has_logo_dark %}
-    <link rel="icon" href="/branding/logo/light" media="(prefers-color-scheme: light)">
-    <link rel="icon" href="/branding/logo/dark" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="/branding/logo/light?v={{ branding.logo_version }}" media="(prefers-color-scheme: light)">
+    <link rel="icon" href="/branding/logo/dark?v={{ branding.logo_version }}" media="(prefers-color-scheme: dark)">
     {% else %}
-    <link rel="icon" href="/branding/logo/light">
+    <link rel="icon" href="/branding/logo/light?v={{ branding.logo_version }}">
     {% endif %}
     {% elif mandala_favicon %}<link rel="icon" type="image/svg+xml" href="{{ mandala_favicon }}">{% endif %}
-    <link rel="stylesheet" href="/static/css/output.css">
+    <link rel="stylesheet" href="{{ static_url('css/output.css') }}">
     <style nonce="{{ csp_nonce }}">
         /* Always show scrollbar gutter to prevent layout shift */
         html {
@@ -71,14 +71,14 @@
                         {% if branding is defined and branding.logo_mode == 'custom' and branding.has_logo_light %}
                         {# Custom logo mode #}
                         <div class="dark:hidden">
-                            <img src="/branding/logo/light" alt="Logo" class="h-8 w-8 object-contain">
+                            <img src="/branding/logo/light?v={{ branding.logo_version }}" alt="Logo" class="h-8 w-8 object-contain">
                         </div>
                         <div class="hidden dark:block">
                             {% if branding.has_logo_dark %}
-                            <img src="/branding/logo/dark" alt="Logo" class="h-8 w-8 object-contain">
+                            <img src="/branding/logo/dark?v={{ branding.logo_version }}" alt="Logo" class="h-8 w-8 object-contain">
                             {% else %}
                             <div class="bg-gray-200 rounded-full p-0.5">
-                                <img src="/branding/logo/light" alt="Logo" class="h-7 w-7 object-contain">
+                                <img src="/branding/logo/light?v={{ branding.logo_version }}" alt="Logo" class="h-7 w-7 object-contain">
                             </div>
                             {% endif %}
                         </div>
@@ -226,7 +226,7 @@
     </script>
 
     <!-- Shared utilities (see static/js/utils.js) -->
-    <script src="/static/js/utils.js"></script>
+    <script src="{{ static_url('js/utils.js') }}"></script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

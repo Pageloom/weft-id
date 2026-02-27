@@ -6,12 +6,11 @@ from urllib.parse import quote
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from services import saml as saml_service
 from utils.csp_nonce import get_csp_nonce
+from utils.templates import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/saml/select")

@@ -1,7 +1,6 @@
 """Error handling utilities for service layer exceptions."""
 
 from fastapi import HTTPException, Request
-from fastapi.templating import Jinja2Templates
 from services.exceptions import (
     ConflictError,
     ForbiddenError,
@@ -12,8 +11,7 @@ from services.exceptions import (
 )
 from starlette.responses import Response
 from utils.template_context import get_template_context
-
-templates = Jinja2Templates(directory="templates")
+from utils.templates import templates
 
 
 def translate_to_http_exception(exc: ServiceError) -> HTTPException:

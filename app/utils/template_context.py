@@ -10,6 +10,7 @@ from services.branding import get_branding_for_template
 from utils.csp_nonce import get_csp_nonce
 from utils.datetime_format import create_datetime_formatter, create_relative_date_formatter
 from utils.mandala import generate_mandala_svg
+from utils.static_assets import static_url
 
 
 def get_template_context(request: Request, tenant_id: str, **kwargs):
@@ -69,6 +70,7 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "fmt_relative": fmt_relative,  # Relative date formatter function
         "csrf_token": csrf_token,  # CSRF token getter function
         "csp_nonce": get_csp_nonce(request),  # CSP nonce for inline scripts
+        "static_url": static_url,  # Cache-busting static asset URLs
         "mandala_light": mandala_light,  # Light-mode mandala SVG
         "mandala_dark": mandala_dark,  # Dark-mode mandala SVG (with backdrop)
         "mandala_favicon": mandala_favicon,  # Favicon data URI

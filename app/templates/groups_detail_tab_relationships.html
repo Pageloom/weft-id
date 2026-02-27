@@ -159,8 +159,8 @@
 {% endblock %}
 
 {% block tab_scripts %}
-<script nonce="{{ csp_nonce }}" src="/static/js/cytoscape.min.js"></script>
-<script nonce="{{ csp_nonce }}" src="/static/js/group-mandala.js"></script>
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/cytoscape.min.js') }}"></script>
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
     var raw = document.getElementById('neighborhood-data').textContent;
@@ -177,9 +177,10 @@
 
     var groupAvatarStyle = "{{ branding.group_avatar_style }}";
 
-    function resolveGroupVis(id, name, hasLogo) {
+    function resolveGroupVis(id, name, hasLogo, logoVersion) {
         if (hasLogo) {
-            return {color: '#9ca3af', image: '/branding/group-logo/' + id};
+            var suffix = logoVersion ? '?v=' + logoVersion : '';
+            return {color: '#9ca3af', image: '/branding/group-logo/' + id + suffix};
         } else if (groupAvatarStyle === 'acronym') {
             return generateGroupAcronym(id, name);
         } else {
@@ -188,7 +189,7 @@
     }
 
     // Center node (current group)
-    var centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo);
+    var centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo, data.group.logo_version);
     elements.push({
         data: {
             id: data.group.id,
@@ -206,7 +207,7 @@
         var spacing = 130;
         var totalWidth = (parents.length - 1) * spacing;
         var x = centerX - totalWidth / 2 + i * spacing;
-        var vis = resolveGroupVis(p.id, p.name, p.has_logo);
+        var vis = resolveGroupVis(p.id, p.name, p.has_logo, p.logo_version);
         elements.push({
             data: {
                 id: p.id,
@@ -232,7 +233,7 @@
         var spacing = 130;
         var totalWidth = (children.length - 1) * spacing;
         var x = centerX - totalWidth / 2 + i * spacing;
-        var vis = resolveGroupVis(c.id, c.name, c.has_logo);
+        var vis = resolveGroupVis(c.id, c.name, c.has_logo, c.logo_version);
         elements.push({
             data: {
                 id: c.id,

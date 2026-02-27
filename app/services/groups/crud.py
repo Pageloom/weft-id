@@ -376,6 +376,8 @@ def get_group_graph_data(requesting_user: RequestingUser) -> GroupGraphData:
             group_type=row["group_type"],
             member_count=row.get("member_count", 0),
             effective_member_count=row.get("effective_member_count", 0),
+            has_logo=bool(row.get("has_logo", False)),
+            logo_updated_at=row.get("logo_updated_at"),
         )
         for row in data["groups"]
     ]

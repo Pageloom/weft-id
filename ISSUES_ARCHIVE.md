@@ -5,6 +5,16 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Unbounded Input: No payload size constraint on graph layout positions
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Low
+**OWASP Category:** Unbounded Input / Resource Exhaustion
+
+**Resolution:** Added `NodePosition(x: float, y: float)` Pydantic model and changed `GroupGraphLayout.positions` from `dict` to `dict[str, NodePosition]`. Added a `@field_validator` capping entries at 10,000 nodes. Added migration `0006_group_graph_layout_positions_size_check.sql` with `CHECK (length(positions::text) <= 524288)` (512 KB, matching the `node_ids` pattern). Added 6 new tests (3 schema unit tests, 3 HTTP integration tests).
+
+---
+
 ### [BUG] Pagination: Page size selector missing on groups list; users list size change unreliable
 
 **Status:** Resolved (2026-02-27)

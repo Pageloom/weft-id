@@ -6,40 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Static Asset Cache-Busting
-
-**User Story:**
-As a developer deploying a new version of weft-id
-I want browsers to automatically fetch updated CSS, JavaScript, and images after a deployment
-So that users never see stale UI or broken pages caused by a browser serving old cached assets against new HTML
-
-**Context:**
-Static assets (`/static/css/output.css`, `/static/js/utils.js`, per-template inline scripts, and dynamically served images such as group logos and branding) are currently referenced with bare paths and no versioning. Browsers aggressively cache static files, so a deployment that changes CSS or JS may leave users with a broken or inconsistent UI until they manually hard-refresh.
-
-The problem has two distinct surfaces:
-
-1. **Build-time assets** (CSS, JS files in `static/`) — content changes whenever Tailwind is rebuilt or JS is edited. These are referenced in `base.html` as `/static/css/output.css` and `/static/js/utils.js`.
-2. **Runtime-served assets** (group logos, branding images served via API/router endpoints) — content changes when an admin uploads a new logo. These are referenced by their resource URL (e.g., `/branding/group-logo/{id}`) with no cache-invalidation signal.
-
-**Recommended approach:**
-
-- **Build-time assets:** At app startup, compute a content hash (e.g., SHA-256 truncated to 8 chars) for each file in `static/`. Expose a `static_url(path)` Jinja2 global that appends `?v=<hash>` to the URL. Update `base.html` and any other hardcoded static references to use `{{ static_url('css/output.css') }}`. Hashes are computed once at startup and held in memory — no per-request overhead.
-- **Runtime assets:** Add an `updated_at` or incrementing version column to the relevant database rows (branding, group logo). Include it as a query parameter in the image URL (e.g., `/branding/group-logo/{id}?v={updated_at_ts}`). This busts the cache exactly when the content changes.
-
-**Acceptance Criteria:**
-- [ ] A `static_url(path: str) -> str` helper is registered as a Jinja2 global at app startup
-- [ ] The helper computes a SHA-256 content hash of the file (truncated, hex) and appends it as `?v=<hash>`; if the file does not exist the path is returned unchanged
-- [ ] Hashes are computed once at startup (not per-request)
-- [ ] `base.html` uses `{{ static_url('css/output.css') }}` and `{{ static_url('js/utils.js') }}` instead of bare paths
-- [ ] Any other hardcoded `/static/...` references in templates are updated to use `static_url()`
-- [ ] Branding image URLs (global logo, group logos) include an `updated_at`-derived query parameter so browsers refetch after an upload
-- [ ] The feature is tested: static_url returns the same hash for unchanged files and a different hash after file content changes
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## Groups: Unique Names for WeftId Groups + IdP Group Labeling
 
 **User Story:**

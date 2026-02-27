@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Static Asset Cache-Busting
+
+**Status:** Complete
+
+**Summary:** Build-time assets (CSS, JS) now use SHA-256 content hashes as `?v=<hash>` query params via a new `static_url()` Jinja2 global computed once at startup (`app/utils/static_assets.py`). All routers share a single `Jinja2Templates` instance (`app/utils/templates.py`) so the global is available without per-request injection. Uploaded images (global branding logo, group logos) use `updated_at` timestamps as version params, which are CDN-safe because URL changes force cache invalidation regardless of `Cache-Control` headers. `GroupSummary`/`GroupDetail`/`GroupRelationship`/`GroupGraphNode` schemas gained `logo_updated_at`, populated from the `group_logos` table in all relevant DB queries.
+
+**Acceptance Criteria:**
+- [x] A `static_url(path: str) -> str` helper is registered as a Jinja2 global at app startup
+- [x] The helper computes a SHA-256 content hash of the file (truncated, hex) and appends it as `?v=<hash>`; if the file does not exist the path is returned unchanged
+- [x] Hashes are computed once at startup (not per-request)
+- [x] `base.html` uses `{{ static_url('css/output.css') }}` and `{{ static_url('js/utils.js') }}` instead of bare paths
+- [x] Any other hardcoded `/static/...` references in templates are updated to use `static_url()`
+- [x] Branding image URLs (global logo, group logos) include an `updated_at`-derived query parameter so browsers refetch after an upload
+- [x] The feature is tested: static_url returns the same hash for unchanged files and a different hash after file content changes
+
+---
+
 ## Branding: Group Avatar Customization (Acronyms, Per-Group Logos, Tabbed Branding Page)
 
 **Status:** Complete

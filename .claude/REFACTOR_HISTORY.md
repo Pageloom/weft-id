@@ -40,7 +40,7 @@ Track when each area was last analyzed to identify gaps:
 
 | Area | Last Scanned | Last Deep Scan | Notes |
 |------|--------------|----------------|-------|
-| `app/services/` | 2026-02-12 | 2026-02-01 | service_providers.py at 1129 lines (REFACT-002 logged); rest <660 lines |
+| `app/services/` | 2026-02-27 | 2026-02-01 | service_providers/ split into package; crud.py at 1168 lines (new issue logged) |
 | `app/database/` | 2026-02-06 | 2026-02-01 | RESOLVED - all files now <360 lines (split into packages) |
 | `app/routers/` | 2026-02-06 | 2026-02-01 | RESOLVED - 4 large files split into packages; log_event calls documented as intentional |
 | `app/routers/api/` | 2026-02-06 | 2026-02-01 | RESOLVED - dead code removed in router split |
@@ -49,7 +49,12 @@ Track when each area was last analyzed to identify gaps:
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
 | `app/utils/` | 2026-02-12 | 2026-02-07 | Clean - largest file 649 lines (email.py) |
 | `app/worker.py` | 2026-02-12 | 2026-02-07 | RESOLVED - refactored to PeriodicJob class, 200 lines |
+| `app/services/branding.py` | 2026-02-27 | 2026-02-27 | 696 lines, 5 concerns (validation, CRUD, mandala, group logos, serving) — borderline, monitor |
+| `app/routers/api/v1/groups.py` | 2026-02-27 | 2026-02-27 | 704 lines, 7 concerns including new group logo endpoints — monitor |
+| `app/database/branding.py` | 2026-02-27 | 2026-02-27 | 242 lines, clean |
+| `app/routers/settings.py` | 2026-02-27 | 2026-02-27 | 584 lines, growing with branding routes — monitor |
 | `tests/` | 2026-02-06 | 2026-02-06 | Parametrization applied (commit 979c5f4), large files mirror app structure (accepted) |
+| `tests/services/test_branding.py` | 2026-02-27 | 2026-02-27 | 814 lines, mirrors production complexity (accepted); _make_png() duplication logged |
 
 ## Recurring Patterns
 
@@ -58,14 +63,57 @@ Track issues that keep appearing to identify systemic problems:
 | Pattern | Occurrences | Areas Affected | Root Cause Hypothesis |
 |---------|-------------|----------------|----------------------|
 | Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
-| Growing god modules | ~~1 (saml.py at 2658 lines)~~ → RESOLVED | services | FIXED: Split into `app/services/saml/` sub-modules |
-| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → 15 app files | services, routers, utils | 1 critical: service_providers.py at 1129 lines (grew with Phase 3 SP access control) |
+| Growing god modules | ~~1 (saml.py at 2658 lines)~~ → 1 (crud.py at 1168 lines) | services | service_providers.py split into package but crud.py became new god module |
+| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → ~~15~~ → 17 app files | services, routers, utils | 1 critical: crud.py at 1168 lines; branding.py (696), groups API (704), settings (584) borderline |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-02-27 - New Code (Branding Module) Deep Scan
+
+**Scan type:** Deep
+**Areas analyzed:** New code since 2026-02-12: `app/services/branding.py`, `app/database/branding.py`, `app/routers/branding.py`, `app/routers/settings.py` (branding routes), `app/routers/api/v1/groups.py` (group logo endpoints), `tests/services/test_branding.py`, `tests/api/test_branding.py`, `app/services/service_providers/` (post-split state)
+**Categories focused:** All (file structure, duplication, complexity, architecture, dead code)
+
+**Prior open items:**
+- REFACT-001 (dropdown pagination): Captured in ISSUES.md as "[BUG] Pagination: Page size selector missing..." — still open
+- REFACT-002 (service_providers.py at 1129 lines): Resolved by package split (2026-02-13), but `crud.py` is now 1168 lines — new issue logged
+
+**New findings:**
+
+1. **`service_providers/crud.py` at 1168 lines, 23 functions (Medium)** — Package split from REFACT-002 created a new god module. Status: Open
+
+2. **`update_branding_settings()` two DB reads before writing (Medium)** — `get_branding()` called twice at lines 410 and 435 before the write at 439. Easily fixed by a single read at function start. Status: Open
+
+3. **`_make_png()` duplicated across branding test files (Low)** — Identical helper in `tests/services/test_branding.py:33` and `tests/api/test_branding.py:19`. Status: Open
+
+**What was clean in new branding code:**
+- Architecture: Router → service → database layering maintained; no router-to-database imports
+- Event logging: All branding writes log events (`branding_logo_uploaded`, `branding_logo_deleted`, `branding_settings_updated`, etc.)
+- Activity tracking: `get_branding_settings()` and `randomize_mandala()` both call `track_activity()`
+- Authorization: `require_admin()` called at the top of every write function
+- Test coverage: ~100% on service layer (service tests), adequate coverage on API layer (API tests)
+- No dead code found
+- `app/database/branding.py` is clean (242 lines)
+- ETag serving logic in `app/routers/branding.py` is a minor cosmetic duplication (87-line file), not logged
+
+**Monitor items (not logged):**
+- `app/services/branding.py`: 696 lines, borderline. 5 concerns with clear section headers — acceptable for now
+- `app/routers/api/v1/groups.py`: 704 lines, growing. Group logo endpoints added to groups router (conceptually orthogonal, but acceptable)
+- `app/routers/settings.py`: 584 lines, growing with new branding routes — watch
+
+**Recommendations for next scan:**
+- After `crud.py` is split, verify test mock targets updated in `test_services_service_providers.py`
+- If `settings.py` grows past 650 lines, consider extracting branding routes to a dedicated settings-branding router
+- If `branding.py` service grows past 750 lines, consider splitting serving helpers and validation into sub-modules
+
+**Issues logged:** 3 new issues (1 medium file structure, 1 medium complexity, 1 low duplication)
+**Issues resolved since last scan:** REFACT-002 (service_providers.py split — per commit 2026-02-13)
+
+---
 
 ### 2026-02-12 - Standard Full Scan
 

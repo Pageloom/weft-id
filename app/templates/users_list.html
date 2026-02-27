@@ -222,149 +222,6 @@
             </div>
         </div>
 
-        <script nonce="{{ csp_nonce }}">
-        (function() {
-            const TENANT_ID = {{ user.tenant_id | string | tojson }};
-            const STORAGE_KEY = 'weftid_filters_' + TENANT_ID;
-            const COLLAPSE_KEY = 'weftid_filters_collapsed_' + TENANT_ID;
-            const PAGE_SIZE_KEY = 'weftid_page_size_' + TENANT_ID;
-
-            // Toggle filter panel
-            const toggleBtn = document.getElementById('toggle-filters-btn');
-            const filterPanel = document.getElementById('filter-panel');
-            const chevron = document.getElementById('filter-chevron');
-
-            function setFilterPanelState(collapsed) {
-                if (collapsed) {
-                    filterPanel.classList.add('hidden');
-                    chevron.style.transform = '';
-                } else {
-                    filterPanel.classList.remove('hidden');
-                    chevron.style.transform = 'rotate(180deg)';
-                }
-                try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
-            }
-
-            // Restore collapse state (default: collapsed unless filters are active)
-            const hasActiveFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
-            let savedCollapsed;
-            try { savedCollapsed = localStorage.getItem(COLLAPSE_KEY); } catch(e) {}
-            if (savedCollapsed !== null) {
-                setFilterPanelState(savedCollapsed === '1');
-            } else {
-                setFilterPanelState(!hasActiveFilters);
-            }
-
-            toggleBtn.addEventListener('click', function() {
-                const isHidden = filterPanel.classList.contains('hidden');
-                setFilterPanelState(!isHidden);
-            });
-
-            // Apply filters
-            function applyFilters() {
-                const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
-                const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
-
-                const selectedRoles = roleCheckboxes
-                    .filter(id => document.getElementById(id).checked)
-                    .map(id => document.getElementById(id).value);
-
-                const selectedStatuses = statusCheckboxes
-                    .filter(id => document.getElementById(id).checked)
-                    .map(id => document.getElementById(id).value);
-
-                const selectedAuthMethods = Array.from(
-                    document.querySelectorAll('.filter-auth-method:checked')
-                ).map(el => el.value);
-
-                let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
-                {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
-                if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
-                if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
-                if (selectedAuthMethods.length > 0) url += '&auth_method=' + selectedAuthMethods.join(',');
-
-                // Save to localStorage
-                try {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                        roles: selectedRoles,
-                        statuses: selectedStatuses,
-                        auth_methods: selectedAuthMethods,
-                    }));
-                } catch(e) {}
-
-                window.location.href = url;
-            }
-
-            document.getElementById('apply-filters-btn')?.addEventListener('click', applyFilters);
-
-            // Clear filters action: also clear localStorage
-            document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach(function(el) {
-                el.addEventListener('click', function() {
-                    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
-                });
-            });
-
-            // Restore page size and filters from localStorage in a single redirect
-            const urlParams = new URLSearchParams(window.location.search);
-            let effectivePageSize = '{{ pagination.page_size }}';
-            if (urlParams.has('size')) {
-                effectivePageSize = urlParams.get('size');
-            } else {
-                try {
-                    const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
-                    if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
-                        effectivePageSize = savedSize;
-                    }
-                } catch(e) {}
-            }
-
-            const needsSizeRestore = !urlParams.has('size')
-                && effectivePageSize !== '25';
-
-            const urlHasFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
-            let savedFilters = null;
-            if (!urlHasFilters) {
-                try {
-                    const raw = localStorage.getItem(STORAGE_KEY);
-                    if (raw) savedFilters = JSON.parse(raw);
-                } catch(e) {}
-            }
-            const needsFilterRestore = savedFilters && (
-                (savedFilters.roles && savedFilters.roles.length > 0)
-                || (savedFilters.statuses && savedFilters.statuses.length > 0)
-                || (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
-            );
-
-            if (needsSizeRestore || needsFilterRestore) {
-                let url = window.location.pathname + '?page=1&size=' + effectivePageSize
-                    + '&sort={{ sort_field }}&order={{ sort_order }}';
-                {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
-                if (needsFilterRestore) {
-                    if (savedFilters.roles && savedFilters.roles.length > 0)
-                        url += '&role=' + savedFilters.roles.join(',');
-                    if (savedFilters.statuses && savedFilters.statuses.length > 0)
-                        url += '&status=' + savedFilters.statuses.join(',');
-                    if (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
-                        url += '&auth_method=' + savedFilters.auth_methods.join(',');
-                }
-                window.location.href = url;
-            }
-
-            // Page size selector
-            document.querySelectorAll('#page-size').forEach(function(select) {
-                select.addEventListener('change', function() {
-                    try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
-                    let url = '?page=1&size=' + this.value;
-                    url += '&sort=' + this.dataset.sort;
-                    url += '&order=' + this.dataset.order;
-                    if (this.dataset.search) url += '&search=' + this.dataset.search;
-                    url += this.dataset.filters;
-                    window.location.href = url;
-                });
-            });
-        })();
-        </script>
-
         <!-- Active Filters Indicator -->
         {% if roles or statuses or auth_methods %}
         <div class="mb-4 flex flex-wrap gap-2 items-center">
@@ -543,4 +400,147 @@
         </div>
     </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    const TENANT_ID = {{ user.tenant_id | string | tojson }};
+    const STORAGE_KEY = 'weftid_filters_' + TENANT_ID;
+    const COLLAPSE_KEY = 'weftid_filters_collapsed_' + TENANT_ID;
+    const PAGE_SIZE_KEY = 'weftid_page_size_' + TENANT_ID;
+
+    // Toggle filter panel
+    const toggleBtn = document.getElementById('toggle-filters-btn');
+    const filterPanel = document.getElementById('filter-panel');
+    const chevron = document.getElementById('filter-chevron');
+
+    function setFilterPanelState(collapsed) {
+        if (collapsed) {
+            filterPanel.classList.add('hidden');
+            chevron.style.transform = '';
+        } else {
+            filterPanel.classList.remove('hidden');
+            chevron.style.transform = 'rotate(180deg)';
+        }
+        try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+    }
+
+    // Restore collapse state (default: collapsed unless filters are active)
+    const hasActiveFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
+    let savedCollapsed;
+    try { savedCollapsed = localStorage.getItem(COLLAPSE_KEY); } catch(e) {}
+    if (savedCollapsed !== null) {
+        setFilterPanelState(savedCollapsed === '1');
+    } else {
+        setFilterPanelState(!hasActiveFilters);
+    }
+
+    toggleBtn.addEventListener('click', function() {
+        const isHidden = filterPanel.classList.contains('hidden');
+        setFilterPanelState(!isHidden);
+    });
+
+    // Apply filters
+    function applyFilters() {
+        const roleCheckboxes = ['filter-member', 'filter-admin', 'filter-super_admin'];
+        const statusCheckboxes = ['filter-active', 'filter-inactivated', 'filter-anonymized'];
+
+        const selectedRoles = roleCheckboxes
+            .filter(id => document.getElementById(id).checked)
+            .map(id => document.getElementById(id).value);
+
+        const selectedStatuses = statusCheckboxes
+            .filter(id => document.getElementById(id).checked)
+            .map(id => document.getElementById(id).value);
+
+        const selectedAuthMethods = Array.from(
+            document.querySelectorAll('.filter-auth-method:checked')
+        ).map(el => el.value);
+
+        let url = '/users/list?page=1&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}';
+        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+        if (selectedRoles.length > 0) url += '&role=' + selectedRoles.join(',');
+        if (selectedStatuses.length > 0) url += '&status=' + selectedStatuses.join(',');
+        if (selectedAuthMethods.length > 0) url += '&auth_method=' + selectedAuthMethods.join(',');
+
+        // Save to localStorage
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                roles: selectedRoles,
+                statuses: selectedStatuses,
+                auth_methods: selectedAuthMethods,
+            }));
+        } catch(e) {}
+
+        window.location.href = url;
+    }
+
+    document.getElementById('apply-filters-btn')?.addEventListener('click', applyFilters);
+
+    // Clear filters action: also clear localStorage
+    document.querySelectorAll('.clear-filters-action, #clear-filters-link').forEach(function(el) {
+        el.addEventListener('click', function() {
+            try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+        });
+    });
+
+    // Restore page size and filters from localStorage in a single redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    let effectivePageSize = '{{ pagination.page_size }}';
+    if (urlParams.has('size')) {
+        effectivePageSize = urlParams.get('size');
+    } else {
+        try {
+            const savedSize = localStorage.getItem(PAGE_SIZE_KEY);
+            if (savedSize && ['10', '25', '50', '100'].indexOf(savedSize) !== -1) {
+                effectivePageSize = savedSize;
+            }
+        } catch(e) {}
+    }
+
+    const needsSizeRestore = !urlParams.has('size')
+        && effectivePageSize !== '25';
+
+    const urlHasFilters = {{ 'true' if (roles or statuses or auth_methods) else 'false' }};
+    let savedFilters = null;
+    if (!urlHasFilters) {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) savedFilters = JSON.parse(raw);
+        } catch(e) {}
+    }
+    const needsFilterRestore = savedFilters && (
+        (savedFilters.roles && savedFilters.roles.length > 0)
+        || (savedFilters.statuses && savedFilters.statuses.length > 0)
+        || (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
+    );
+
+    if (needsSizeRestore || needsFilterRestore) {
+        let url = window.location.pathname + '?page=1&size=' + effectivePageSize
+            + '&sort={{ sort_field }}&order={{ sort_order }}';
+        {% if search %}url += '&search=' + encodeURIComponent({{ search | tojson }});{% endif %}
+        if (needsFilterRestore) {
+            if (savedFilters.roles && savedFilters.roles.length > 0)
+                url += '&role=' + savedFilters.roles.join(',');
+            if (savedFilters.statuses && savedFilters.statuses.length > 0)
+                url += '&status=' + savedFilters.statuses.join(',');
+            if (savedFilters.auth_methods && savedFilters.auth_methods.length > 0)
+                url += '&auth_method=' + savedFilters.auth_methods.join(',');
+        }
+        window.location.href = url;
+    }
+
+    // Page size selector
+    document.querySelectorAll('#page-size').forEach(function(select) {
+        select.addEventListener('change', function() {
+            try { localStorage.setItem(PAGE_SIZE_KEY, this.value); } catch(e) {}
+            let url = '?page=1&size=' + this.value;
+            url += '&sort=' + this.dataset.sort;
+            url += '&order=' + this.dataset.order;
+            if (this.dataset.search) url += '&search=' + this.dataset.search;
+            url += this.dataset.filters;
+            window.location.href = url;
+        });
+    });
+})();
+</script>
 {% endblock %}

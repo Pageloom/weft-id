@@ -6,6 +6,44 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Groups: Inline Members Tab (Remove Manage Members Indirection)
+
+**User Story:**
+As an admin managing a group
+I want the Members tab to show the full paginated member list directly, with an "Add Members" button in the header
+So that I don't have to navigate to a separate page just to see or manage who's in the group
+
+**Context:**
+
+The current Members tab (`groups_detail_tab_membership.html`) shows a truncated preview of
+members and a "Manage Members" button that navigates to `/admin/groups/{id}/members`. That
+page then shows the same list again, with pagination, search, sort, and remove controls.
+The extra hop adds friction without adding value.
+
+The target state: the Members tab IS the members page. Full list, paginated, searchable,
+sortable, with remove controls inline. "Add Members" button in the tab header. The separate
+`/admin/groups/{id}/members` route is removed (or redirects to the tab).
+
+The add-members flow at `/admin/groups/{id}/members/add` is unaffected.
+
+**Acceptance Criteria:**
+
+- [ ] The Members tab renders the full paginated member list directly (no truncation, no "View all" link)
+- [ ] Tab header contains an "Add Members" button (links to `/admin/groups/{id}/members/add`) for weftid groups
+- [ ] Members list supports pagination, search, and sort (matching the current `/admin/groups/{id}/members` page)
+- [ ] Direct members can be removed inline (individual remove button or checkbox + bulk remove bar), for weftid groups only
+- [ ] The separate `/admin/groups/{id}/members` route is removed; any inbound links redirect to the group detail Members tab (`/admin/groups/{id}?tab=members` or equivalent)
+- [ ] IdP groups show the read-only notice and no add/remove controls (same as today)
+- [ ] Inherited members are still shown and labeled (same as today)
+- [ ] `app/pages.py` updated: `/admin/groups/{id}/members` entry removed
+- [ ] All existing tests updated or replaced; new tests cover the inline tab behaviour
+- [ ] API endpoints for member management are unchanged
+
+**Effort:** M
+**Value:** Medium
+
+---
+
 ## Groups: Unique Names for WeftId Groups + IdP Group Labeling
 
 **User Story:**

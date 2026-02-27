@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
 from main import app
 from schemas.groups import (
     GroupChildrenList,
@@ -1526,6 +1527,72 @@ def test_save_graph_layout_forbidden_for_non_admin(make_user_dict, override_api_
         response = client.put("/api/v1/groups/graph/layout", json=payload)
 
         assert response.status_code == 403
+
+
+def test_save_graph_layout_rejects_too_many_positions(make_user_dict, override_api_auth):
+    """PUT /graph/layout rejects a payload with more than 10,000 position entries."""
+    admin = make_user_dict(role="admin")
+    positions = {str(i): {"x": float(i), "y": float(i)} for i in range(10_001)}
+    payload = {"node_ids": "", "positions": positions}
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service"):
+        client = TestClient(app)
+        response = client.put("/api/v1/groups/graph/layout", json=payload)
+
+        assert response.status_code == 422
+
+
+def test_save_graph_layout_rejects_invalid_position_shape(make_user_dict, override_api_auth):
+    """PUT /graph/layout rejects positions whose values are not {x, y} objects."""
+    admin = make_user_dict(role="admin")
+    payload = {"node_ids": "aaa", "positions": {"aaa": "not-a-dict"}}
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service"):
+        client = TestClient(app)
+        response = client.put("/api/v1/groups/graph/layout", json=payload)
+
+        assert response.status_code == 422
+
+
+# =============================================================================
+# GroupGraphLayout Schema Unit Tests
+# =============================================================================
+
+
+def test_group_graph_layout_positions_valid_shape():
+    """GroupGraphLayout accepts well-formed {x, y} position dicts."""
+
+    from schemas.groups import GroupGraphLayout
+
+    layout = GroupGraphLayout(
+        node_ids="a,b",
+        positions={"a": {"x": 1.0, "y": 2.0}, "b": {"x": 3.5, "y": -1.0}},
+    )
+    assert layout.positions["a"].x == 1.0
+    assert layout.positions["b"].y == -1.0
+
+
+def test_group_graph_layout_positions_invalid_shape():
+    """GroupGraphLayout rejects position values that are not {x, y} objects."""
+    from pydantic import ValidationError
+    from schemas.groups import GroupGraphLayout
+
+    with pytest.raises(ValidationError):
+        GroupGraphLayout(node_ids="a", positions={"a": "string"})
+
+
+def test_group_graph_layout_positions_key_limit():
+    """GroupGraphLayout rejects more than 10,000 position entries."""
+    from pydantic import ValidationError
+    from schemas.groups import GroupGraphLayout
+
+    too_many = {str(i): {"x": float(i), "y": 0.0} for i in range(10_001)}
+    with pytest.raises(ValidationError):
+        GroupGraphLayout(node_ids="", positions=too_many)
 
 
 # =============================================================================

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ============================================================================
 # Group Schemas
@@ -353,8 +353,24 @@ class GroupGraphData(BaseModel):
     edges: list[GroupGraphEdge] = Field(..., description="Parent-child edges")
 
 
+class NodePosition(BaseModel):
+    """X/Y coordinates for a single graph node."""
+
+    x: float
+    y: float
+
+
 class GroupGraphLayout(BaseModel):
     """Saved graph layout for a user."""
 
     node_ids: str = Field("", max_length=65535, description="Sorted comma-separated node UUIDs")
-    positions: dict = Field(default_factory=dict, description="Node positions keyed by node ID")
+    positions: dict[str, NodePosition] = Field(
+        default_factory=dict, description="Node positions keyed by node ID"
+    )
+
+    @field_validator("positions")
+    @classmethod
+    def validate_positions_size(cls, v: dict) -> dict:
+        if len(v) > 10_000:
+            raise ValueError("positions exceeds maximum of 10,000 nodes")
+        return v

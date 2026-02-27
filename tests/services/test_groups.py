@@ -3416,7 +3416,10 @@ def test_get_graph_layout_returns_saved_layout(make_requesting_user):
 
         assert result is not None
         assert result.node_ids == node_ids
-        assert result.positions == positions
+        assert result.positions["aaa"].x == 40.0
+        assert result.positions["aaa"].y == 80.0
+        assert result.positions["bbb"].x == 120.0
+        assert result.positions["bbb"].y == 160.0
         mock_db.groups.get_graph_layout.assert_called_once_with(tenant_id, user_id)
 
 

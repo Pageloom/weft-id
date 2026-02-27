@@ -5,6 +5,17 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [BUG] Pagination: Page size selector missing on groups list; users list size change unreliable
+
+**Status:** Resolved (2026-02-27)
+**Original Severity:** Low
+
+**Resolution:**
+- Groups list: added a `<select id="page-size-groups">` to the pagination row with a JS change handler. All navigation links (prev/next, view toggle, search form, clear) now carry `&size={{ pagination.page_size }}` so the chosen size survives page turns, searches, and view switches.
+- Users list: fixed the localStorage restore block to prefer the URL's explicit `size` param over localStorage when present, eliminating the stale-tab race condition. Replaced the hardcoded `/users/list` redirect base with `window.location.pathname`.
+
+---
+
 ### [SECURITY] CSRF: Session-cookie API calls lack CSRF validation
 
 **Status:** Resolved (2026-02-27)

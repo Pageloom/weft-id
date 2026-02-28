@@ -4,6 +4,22 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## WeftUtils: Universal List Manager
+
+**Status:** Complete
+
+**Summary:** Added `WeftUtils.listManager(config)` to `static/js/utils.js` as a universal list view manager handling localStorage persistence (page size, filter state, collapse state), collapsible filter panels, page size selectors, and multiselect with sticky bulk action bars. All six target templates migrated: `users_list.html`, `groups_members.html` (now `groups_detail_tab_membership.html`), `groups_members_add.html`, `groups_list.html`, `admin_events.html`, and `account_background_jobs.html`. Reference documentation created at `.claude/references/list-view-patterns.md`.
+
+**Acceptance Criteria:**
+- [x] `WeftUtils.listManager(config)` added to `static/js/utils.js`
+- [x] All config passed in JS object; no `data-*` attributes required
+- [x] Storage/redirect, page size selector, filter panel, multiselect, and action bar features all implemented
+- [x] All six target pages migrated to use `WeftUtils.listManager()`
+- [x] CLAUDE.md and THOUGHT_ERRORS.md updated
+- [x] `.claude/references/list-view-patterns.md` created with config shape, field descriptions, and worked examples
+
+---
+
 ## Static Asset Cache-Busting
 
 **Status:** Complete

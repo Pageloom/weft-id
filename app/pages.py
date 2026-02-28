@@ -378,13 +378,6 @@ PAGES = [
                                 creates_nav_level=False,
                             ),
                             Page(
-                                path="/admin/groups/members",
-                                title="Group Members",
-                                permission=PagePermission.ADMIN,
-                                show_in_nav=False,
-                                creates_nav_level=False,
-                            ),
-                            Page(
                                 path="/admin/groups/members/add",
                                 title="Add Members",
                                 permission=PagePermission.ADMIN,

@@ -314,6 +314,9 @@
 {% block extra_scripts %}
 <script src="{{ static_url('js/group-mandala.js') }}"></script>
 {% if view == 'list' %}
+<script type="application/json" id="page-data-list">
+{ "tenantId": {{ user.tenant_id | string | tojson }}, "pageSize": {{ pagination.page_size }} }
+</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
   const params = new URLSearchParams(window.location.search);
@@ -337,7 +340,14 @@ document.querySelectorAll('[data-acronym]').forEach((el) => {
   const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
   el.src = v.image;
 });
-WeftUtils.listManager({ pageSizeSelector: '#page-size-groups' });
+const { tenantId, pageSize } = JSON.parse(document.getElementById('page-data-list').textContent);
+WeftUtils.listManager({
+    storage: {
+        pageSizeKey: `weftid_grp_list_size_${tenantId}`,
+        currentSize: pageSize,
+    },
+    pageSizeSelector: '#page-size-groups',
+});
 </script>
 {% else %}
 <script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>

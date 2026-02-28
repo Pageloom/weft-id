@@ -10,6 +10,7 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from routers.groups.members import _parse_member_query_params
 from schemas.groups import GroupUpdate
 from services import groups as groups_service
 from services import service_providers as sp_service
@@ -147,11 +148,20 @@ def group_tab_membership(
 ):
     """Display the Members tab for a group."""
     requesting_user = build_requesting_user(user, tenant_id, request)
+    params = _parse_member_query_params(request)
 
     try:
         ctx = _load_group_common(requesting_user, group_id)
-        members_result = groups_service.get_effective_members(
-            requesting_user, group_id, page=1, page_size=500
+        result = groups_service.list_members_filtered(
+            requesting_user,
+            group_id,
+            search=params["search"] or None,
+            roles=params["roles"],
+            statuses=params["statuses"],
+            sort_field=params["sort_field"],
+            sort_order=params["sort_order"],
+            page=params["page"],
+            page_size=params["page_size"],
         )
     except NotFoundError:
         return render_error_page(
@@ -162,6 +172,29 @@ def group_tab_membership(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
+    total_count = result.total
+    page_size = params["page_size"]
+    page = params["page"]
+    total_pages = max(1, (total_count + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+
+    pagination = {
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_previous": page > 1,
+        "has_next": page < total_pages,
+        "start_index": offset + 1 if total_count > 0 else 0,
+        "end_index": min(offset + page_size, total_count),
+    }
+
+    inherited_members = []
+    if ctx["group"].child_count > 0:
+        eff = groups_service.get_effective_members(requesting_user, group_id, page=1, page_size=500)
+        inherited_members = [m for m in eff.items if not m.is_direct]
+
     return templates.TemplateResponse(
         "groups_detail_tab_membership.html",
         get_template_context(
@@ -169,8 +202,14 @@ def group_tab_membership(
             tenant_id,
             **ctx,
             active_tab="membership",
-            effective_members=members_result.items,
-            effective_members_total=members_result.total,
+            members=result.items,
+            pagination=pagination,
+            search=params["search"],
+            sort_field=params["sort_field"],
+            sort_order=params["sort_order"],
+            roles=params["roles"] or [],
+            statuses=params["statuses"] or [],
+            inherited_members=inherited_members,
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),

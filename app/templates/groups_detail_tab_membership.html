@@ -1,20 +1,60 @@
 {% extends "groups_detail_base.html" %}
 
 {% block tab_content %}
+<!-- Filter Params Macro -->
+{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% endmacro %}
+
+<!-- Pagination Controls Macro -->
+{% macro pagination_controls(border_class="border-t") %}
+{% if pagination.total_count > 0 %}
+<div class="flex items-center justify-between {{ border_class }} border-gray-200 dark:border-gray-700 py-4">
+    <div class="flex items-center gap-4">
+        <div class="text-sm text-gray-700 dark:text-gray-300">
+            Showing <span class="font-medium">{{ pagination.start_index }}</span> to
+            <span class="font-medium">{{ pagination.end_index }}</span> of
+            <span class="font-medium">{{ pagination.total_count }}</span> member{{ 's' if pagination.total_count != 1 else '' }}
+        </div>
+        <div class="flex items-center gap-2">
+            <label for="page-size" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
+            <select id="page-size"
+                class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{% if pagination.has_previous %}/admin/groups/{{ group.id }}/membership?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_previous %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_previous %}aria-disabled="true"{% endif %}>Previous</a>
+        <span class="text-sm text-gray-700 dark:text-gray-300">
+            Page <span class="font-medium">{{ pagination.page }}</span> of <span class="font-medium">{{ pagination.total_pages }}</span>
+        </span>
+        <a href="{% if pagination.has_next %}/admin/groups/{{ group.id }}/membership?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&sort={{ sort_field }}&order={{ sort_order }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}{% else %}#{% endif %}"
+            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium {% if pagination.has_next %}text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700{% else %}text-gray-400 bg-gray-100 dark:bg-gray-700 cursor-not-allowed{% endif %}"
+            {% if not pagination.has_next %}aria-disabled="true"{% endif %}>Next</a>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}
+
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+    <!-- Header -->
     <div class="px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Members
-            {% if effective_members_total > 0 %}
+            {% if group.effective_member_count > 0 %}
             <span class="ml-1 text-sm font-normal text-gray-500 dark:text-gray-400">
-                ({{ group.member_count }} direct{% if effective_members_total > group.member_count %}, {{ effective_members_total - group.member_count }} inherited{% endif %})
+                ({{ group.member_count }} direct{% if group.effective_member_count > group.member_count %}, {{ group.effective_member_count - group.member_count }} inherited{% endif %})
             </span>
             {% endif %}
         </h2>
         {% if group.group_type == 'weftid' %}
-        <a href="/admin/groups/{{ group.id }}/members"
+        <a href="/admin/groups/{{ group.id }}/members/add"
            class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition duration-150">
-            Manage Members
+            Add Members
         </a>
         {% endif %}
     </div>
@@ -27,69 +67,354 @@
     </div>
     {% endif %}
 
-    {% if not effective_members %}
-    <div class="px-6 py-12 text-center">
-        <p class="text-sm text-gray-500 dark:text-gray-400">No members yet.</p>
-        {% if group.group_type == 'weftid' %}
-        <a href="/admin/groups/{{ group.id }}/members"
-           class="mt-3 inline-block text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-            Add members &rarr;
-        </a>
-        {% endif %}
-    </div>
-    {% else %}
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead class="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Name
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Email
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Membership
-                    </th>
-                </tr>
-            </thead>
-            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {% for m in effective_members %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-6 py-3 whitespace-nowrap">
-                        <a href="/admin/users/{{ m.user_id }}"
-                           class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                            {{ m.first_name }} {{ m.last_name }}
-                        </a>
-                    </td>
-                    <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {{ m.email or '—' }}
-                    </td>
-                    <td class="px-6 py-3 whitespace-nowrap">
-                        {% if m.is_direct %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                            Direct
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                            Inherited
-                        </span>
+    <div class="px-6 pt-4">
+        <!-- Search Form -->
+        <div class="mb-6">
+            <form method="get" action="/admin/groups/{{ group.id }}/membership" class="flex gap-2">
+                <input type="hidden" name="sort" value="{{ sort_field }}">
+                <input type="hidden" name="order" value="{{ sort_order }}">
+                <input type="hidden" name="size" value="{{ pagination.page_size }}">
+                {% if roles %}<input type="hidden" name="role" value="{{ roles|join(',') }}">{% endif %}
+                {% if statuses %}<input type="hidden" name="status" value="{{ statuses|join(',') }}">{% endif %}
+                <input type="text" name="search" value="{{ search }}" placeholder="Search by name or email..."
+                    class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Search</button>
+                {% if search %}
+                <a href="/admin/groups/{{ group.id }}/membership?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{{ filter_params() }}"
+                    class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Collapsible Filter Panel -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3">
+                <button type="button" id="toggle-filters-btn"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg id="filter-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    Filters
+                </button>
+                {% if roles or statuses %}
+                <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Filtered results</span>
+                <a href="/admin/groups/{{ group.id }}/membership?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                    id="clear-filters-link" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline">Clear filters</a>
+                {% endif %}
+            </div>
+
+            <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-6 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
+                        <div class="flex gap-3">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-member" value="member" {% if 'member' in roles %}checked{% endif %}
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-admin" value="admin" {% if 'admin' in roles %}checked{% endif %}
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-super_admin" value="super_admin" {% if 'super_admin' in roles %}checked{% endif %}
+                                    class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                        <div class="flex gap-3">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-active" value="active" {% if 'active' in statuses %}checked{% endif %}
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-inactivated" value="inactivated" {% if 'inactivated' in statuses %}checked{% endif %}
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="filter-anonymized" value="anonymized" {% if 'anonymized' in statuses %}checked{% endif %}
+                                    class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" id="apply-filters-btn"
+                            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Apply Filters</button>
+                        {% if roles or statuses %}
+                        <a href="/admin/groups/{{ group.id }}/membership?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                            class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Clear Filters</a>
                         {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Filters Indicator -->
+        {% if roles or statuses %}
+        <div class="mb-4 flex flex-wrap gap-2 items-center">
+            <span class="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
+            {% for role in roles %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                {% elif role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ role }}</span>
+            {% endfor %}
+            {% for status in statuses %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                {% if status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300
+                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300
+                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ status }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if search %}
+        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            Found {{ pagination.total_count }} result{{ 's' if pagination.total_count != 1 else '' }} for "{{ search }}"
+        </div>
+        {% endif %}
+
+        <!-- Pagination Controls - Top -->
+        {{ pagination_controls(border_class="border-b") }}
+
+        <!-- Bulk Remove Form wraps the table -->
+        {% if group.group_type == 'weftid' %}
+        <form id="bulk-remove-form" method="post" action="/admin/groups/{{ group.id }}/members/bulk-remove">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% endif %}
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        {% if group.group_type == 'weftid' %}
+                        <th scope="col" class="px-4 py-3 w-10">
+                            <input type="checkbox" id="select-all"
+                                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                        </th>
+                        {% endif %}
+
+                        {% macro sort_header(field, label, width_class="") %}
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
+                            <a href="/admin/groups/{{ group.id }}/membership?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
+                               class="group inline-flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-300">
+                                <span>{{ label }}</span>
+                                {% if sort_field == field %}
+                                    {% if sort_order == 'asc' %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                                    {% else %}
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    {% endif %}
+                                {% else %}
+                                <svg class="w-4 h-4 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                                {% endif %}
+                            </a>
+                        </th>
+                        {% endmacro %}
+
+                        {{ sort_header('name', 'Name') }}
+                        {{ sort_header('email', 'Email') }}
+                        {{ sort_header('role', 'Role') }}
+                        {{ sort_header('status', 'Status') }}
+                        {{ sort_header('created_at', 'Joined') }}
+                        {{ sort_header('last_activity_at', 'Last Activity') }}
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% if members %}
+                        {% for m in members %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700{% if group.group_type == 'weftid' %} cursor-pointer{% endif %}">
+                            {% if group.group_type == 'weftid' %}
+                            <td class="px-4 py-4">
+                                <input type="checkbox" name="user_ids" value="{{ m.user_id }}" form="bulk-remove-form"
+                                    class="member-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            </td>
+                            {% endif %}
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <a href="/users/{{ m.user_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                    {% if m.is_anonymized %}
+                                    <span class="italic">[Anonymized User]</span>
+                                    {% else %}
+                                    {{ m.last_name }}, {{ m.first_name }}
+                                    {% endif %}
+                                </a>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ m.email or '' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    {% if m.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                                    {% elif m.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                                    {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ m.role }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if m.is_anonymized %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Anonymized</span>
+                                {% elif m.is_inactivated %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Inactivated</span>
+                                {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {% set rel = fmt_relative(m.created_at) %}
+                                <span title="{{ rel[1] }}">{{ rel[0] }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                {% set rel_activity = fmt_relative(m.last_activity_at) %}
+                                <span title="{{ rel_activity[1] }}">{{ rel_activity[0] }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="{% if group.group_type == 'weftid' %}7{% else %}6{% endif %}" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                {% if search %}No members found matching "{{ search }}"{% else %}No members in this group.{% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if group.group_type == 'weftid' %}
+        <!-- Bulk Action Bar -->
+        <div id="bulk-action-bar" class="hidden mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex items-center justify-between">
+            <span class="text-sm text-gray-700 dark:text-gray-300">
+                <span id="selected-count">0</span> member(s) selected
+            </span>
+            <button type="submit" form="bulk-remove-form" id="bulk-remove-btn"
+                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md">
+                Remove Selected
+            </button>
+        </div>
+        </form>
+        {% endif %}
+
+        <!-- Pagination Controls - Bottom -->
+        <div class="mt-6 mb-4">
+            {{ pagination_controls(border_class="border-t") }}
+        </div>
     </div>
-    {% if effective_members_total > effective_members|length %}
-    <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-        Showing {{ effective_members|length }} of {{ effective_members_total }} members.
-        <a href="/admin/groups/{{ group.id }}/members"
-           class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-            View all &rarr;
-        </a>
+
+    <!-- Inherited Members Section -->
+    {% if inherited_members %}
+    <div class="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
+        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Inherited via child groups ({{ inherited_members|length }})
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for m in inherited_members %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-6 py-3 whitespace-nowrap">
+                            <a href="/users/{{ m.user_id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                {% if m.is_anonymized %}
+                                <span class="italic">[Anonymized User]</span>
+                                {% else %}
+                                {{ m.last_name }}, {{ m.first_name }}
+                                {% endif %}
+                            </a>
+                        </td>
+                        <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ m.email or '' }}</td>
+                        <td class="px-6 py-3 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if m.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                                {% elif m.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">{{ m.role }}</span>
+                        </td>
+                        <td class="px-6 py-3 whitespace-nowrap">
+                            {% if m.is_anonymized %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">Anonymized</span>
+                            {% elif m.is_inactivated %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Inactivated</span>
+                            {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Active</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-    {% endif %}
     {% endif %}
 </div>
+{% endblock %}
+
+{% block tab_scripts %}
+<script type="application/json" id="page-data">
+{
+  "tenantId": {{ user.tenant_id | string | tojson }},
+  "groupId": {{ group.id | tojson }},
+  "baseUrl": {{ ('/admin/groups/' ~ group.id ~ '/membership') | tojson }},
+  "filtersActive": {{ 'true' if (roles or statuses) else 'false' }},
+  "search": {{ search | tojson if search else 'null' }},
+  "sortField": {{ sort_field | tojson }},
+  "sortOrder": {{ sort_order | tojson }},
+  "pageSize": {{ pagination.page_size }},
+  "confirmMessage": "Remove selected members from this group?"
+}
+</script>
+<script nonce="{{ csp_nonce }}">
+const { tenantId, groupId, baseUrl, filtersActive, search, sortField, sortOrder, pageSize, confirmMessage } = JSON.parse(
+    document.getElementById('page-data').textContent
+);
+WeftUtils.listManager({
+    storage: {
+        filtersKey: `weftid_grp_members_filters_${tenantId}_${groupId}`,
+        pageSizeKey: `weftid_grp_members_size_${tenantId}_${groupId}`,
+        collapseKey: `weftid_grp_members_collapsed_${tenantId}_${groupId}`,
+        currentSize: pageSize,
+        filtersActive,
+    },
+    pageSizeSelector: '#page-size',
+    filterPanel: {
+        toggleBtn: '#toggle-filters-btn',
+        panel: '#filter-panel',
+        chevron: '#filter-chevron',
+        applyBtn: '#apply-filters-btn',
+        clearSelectors: '.clear-filters-action, #clear-filters-link',
+        getState: () => ({
+            roles:    Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
+            statuses: Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
+        }),
+        buildUrl: (state, size) => {
+            let url = `${baseUrl}?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (state.roles?.length) url += `&role=${state.roles.join(',')}`;
+            if (state.statuses?.length) url += `&status=${state.statuses.join(',')}`;
+            return url;
+        },
+    },
+    multiselect: {
+        selectAll: '#select-all',
+        rowCheckboxSelector: '.member-checkbox',
+        actionBar: '#bulk-action-bar',
+        countDisplay: '#selected-count',
+        actions: [{
+            selector: '#bulk-remove-btn',
+            destructive: true,
+            confirmMessage,
+            callback: () => document.getElementById('bulk-remove-form').submit(),
+        }],
+    },
+});
+</script>
 {% endblock %}

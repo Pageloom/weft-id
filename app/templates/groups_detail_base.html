@@ -18,10 +18,14 @@
             Group updated successfully.
             {% elif success == 'member_added' %}
             Member added successfully.
+            {% elif success == 'members_added' %}
+            Members added successfully.
             {% elif success == 'members_bulk_added' %}
             Members added successfully.
             {% elif success == 'member_removed' %}
             Member removed successfully.
+            {% elif success == 'members_removed' %}
+            Members removed successfully.
             {% elif success == 'child_added' %}
             Child group added successfully.
             {% elif success == 'child_removed' %}
@@ -60,6 +64,8 @@
             User is already a member of this group.
             {% elif error == 'not_a_member' %}
             User is not a member of this group.
+            {% elif error == 'idp_group_read_only' %}
+            IdP groups cannot be modified.
             {% elif error == 'has_relationships' %}
             Remove all relationships before deleting this group.
             {% elif error == 'sp_group_already_assigned' %}

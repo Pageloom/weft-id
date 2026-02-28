@@ -440,6 +440,9 @@ def mock_group_detail_deps(mocker):
         "get_effective_members": mocker.patch(
             f"{DETAIL_MODULE}.groups_service.get_effective_members"
         ),
+        "list_members_filtered": mocker.patch(
+            f"{DETAIL_MODULE}.groups_service.list_members_filtered"
+        ),
         "sp_service": mocker.patch(f"{DETAIL_MODULE}.sp_service"),
         "get_context": mocker.patch(f"{DETAIL_MODULE}.get_template_context"),
         "template": mocker.patch(f"{DETAIL_MODULE}.templates.TemplateResponse"),
@@ -490,6 +493,8 @@ def test_group_tab_details_renders(test_admin_user, override_auth, mock_group_de
 
 def test_group_tab_membership_renders(test_admin_user, override_auth, mock_group_detail_deps):
     """Test group membership tab renders successfully."""
+    from schemas.groups import GroupMemberDetailList
+
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
@@ -504,6 +509,9 @@ def test_group_tab_membership_renders(test_admin_user, override_auth, mock_group
     )
     mock_group_detail_deps["list_available_parents"].return_value = []
     mock_group_detail_deps["list_available_children"].return_value = []
+    mock_group_detail_deps["list_members_filtered"].return_value = GroupMemberDetailList(
+        items=[], total=0, page=1, limit=25
+    )
     mock_group_detail_deps["get_context"].return_value = {"request": MagicMock()}
     mock_group_detail_deps["template"].return_value = HTMLResponse(
         content="<html>membership</html>"
@@ -935,124 +943,59 @@ def test_clear_relationships_not_found(test_admin_user, override_auth, mocker):
 
 
 def test_member_list_renders(test_admin_user, override_auth, mocker):
-    """Test member list page renders successfully."""
-    from schemas.groups import GroupMemberDetail, GroupMemberDetailList
-
+    """Test GET /members redirects to the membership tab."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
-    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
-
-    mock_result = GroupMemberDetailList(
-        items=[
-            GroupMemberDetail(
-                id=str(uuid4()),
-                user_id=str(uuid4()),
-                email="user@example.com",
-                first_name="Test",
-                last_name="User",
-                role="member",
-                is_inactivated=False,
-                is_anonymized=False,
-                created_at=datetime.now(UTC),
-            )
-        ],
-        total=1,
-        page=1,
-        limit=25,
-    )
-
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
-    mock_template = mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse")
-    mocker.patch(f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()})
-
-    mock_get.return_value = mock_group
-    mock_list.return_value = mock_result
-    mock_template.return_value = HTMLResponse(content="<html>members</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members")
+    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
 
-    assert response.status_code == 200
-    mock_template.assert_called_once()
-    template_name = mock_template.call_args[0][0]
-    assert template_name == "groups_members.html"
+    assert response.status_code == 301
+    assert response.headers["location"] == f"/admin/groups/{group_id}/membership"
 
 
 def test_member_list_with_search(test_admin_user, override_auth, mocker):
-    """Test member list page with search query."""
-    from schemas.groups import GroupMemberDetailList
-
+    """Test GET /members with query params redirects and preserves query string."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
-    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
-    mock_result = GroupMemberDetailList(items=[], total=0, page=1, limit=25)
-
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
-    mock_template = mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse")
-    mocker.patch(f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()})
-
-    mock_get.return_value = mock_group
-    mock_list.return_value = mock_result
-    mock_template.return_value = HTMLResponse(content="<html>members</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?search=test&sort=name&order=asc")
+    response = client.get(
+        f"/admin/groups/{group_id}/members?search=test&sort=name&order=asc",
+        follow_redirects=False,
+    )
 
-    assert response.status_code == 200
-    mock_list.assert_called_once()
-    call_kwargs = mock_list.call_args
-    assert call_kwargs[1]["search"] == "test"
-    assert call_kwargs[1]["sort_field"] == "name"
-    assert call_kwargs[1]["sort_order"] == "asc"
+    assert response.status_code == 301
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
+    assert "search=test" in response.headers["location"]
 
 
 def test_member_list_not_found(test_admin_user, override_auth, mocker):
-    """Test member list page handles group not found."""
-    from services.exceptions import NotFoundError
-
+    """Test GET /members redirects even when group does not exist (redirect is unconditional)."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
 
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_error = mocker.patch(f"{MEMBERS_MODULE}.render_error_page")
-
-    mock_get.side_effect = NotFoundError("Group not found")
-    mock_error.return_value = HTMLResponse(content="<html>error</html>")
-
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members")
+    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
 
-    assert response.status_code == 200
-    mock_error.assert_called_once()
+    assert response.status_code == 301
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
 
 
 def test_member_list_service_error(test_admin_user, override_auth, mocker):
-    """Test member list page handles service error."""
-    from services.exceptions import ServiceError
-
+    """Test GET /members redirects regardless of any downstream state."""
     override_auth(test_admin_user, level="admin")
 
     group_id = str(uuid4())
-    mock_group = _make_group_detail(group_id=group_id, name="Engineering")
-
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
-    mock_error = mocker.patch(f"{MEMBERS_MODULE}.render_error_page")
-
-    mock_get.return_value = mock_group
-    mock_list.side_effect = ServiceError("Database error")
-    mock_error.return_value = HTMLResponse(content="<html>error</html>")
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members")
+    response = client.get(f"/admin/groups/{group_id}/members", follow_redirects=False)
 
-    assert response.status_code == 200
-    mock_error.assert_called_once()
+    assert response.status_code == 301
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
 
 
 # =============================================================================
@@ -1174,6 +1117,7 @@ def test_add_members_submit_not_found(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -1196,6 +1140,7 @@ def test_add_members_submit_forbidden(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "error=idp_group_read_only" in response.headers["location"]
 
 
@@ -1241,7 +1186,7 @@ def test_remove_member_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}" in response.headers["location"]
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "success=member_removed" in response.headers["location"]
 
 
@@ -1264,6 +1209,7 @@ def test_remove_member_not_found(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "error=not_a_member" in response.headers["location"]
 
 
@@ -1770,7 +1716,7 @@ def test_bulk_remove_members_success(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
-    assert f"/admin/groups/{group_id}/members" in response.headers["location"]
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "success=members_removed" in response.headers["location"]
     mock_bulk.assert_called_once()
 
@@ -1794,6 +1740,7 @@ def test_bulk_remove_members_not_found(test_admin_user, override_auth, mocker):
     )
 
     assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "error=group_not_found" in response.headers["location"]
 
 
@@ -1816,6 +1763,7 @@ def test_bulk_remove_members_idp_forbidden(test_admin_user, override_auth, mocke
     )
 
     assert response.status_code == 303
+    assert f"/admin/groups/{group_id}/membership" in response.headers["location"]
     assert "error=idp_group_read_only" in response.headers["location"]
 
 
@@ -1990,22 +1938,29 @@ class TestParseMemberQueryParams:
 
 
 def _setup_member_list_mocks(mocker, group_id, total, page=1, page_size=25):
-    """Helper to set up mocks for member list pagination tests."""
+    """Helper to set up mocks for membership tab pagination tests."""
     from schemas.groups import GroupMemberDetailList
 
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
     mock_result = GroupMemberDetailList(items=[], total=total, page=page, limit=page_size)
 
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
-    mock_template = mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse")
-    mock_ctx = mocker.patch(
-        f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()}
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group", return_value=mock_group)
+    mocker.patch(
+        f"{DETAIL_MODULE}.groups_service.list_parents",
+        return_value=_make_relationship_list(list_type="parents"),
     )
-
-    mock_get.return_value = mock_group
-    mock_list.return_value = mock_result
-    mock_template.return_value = HTMLResponse(content="<html>members</html>")
+    mocker.patch(
+        f"{DETAIL_MODULE}.groups_service.list_children",
+        return_value=_make_relationship_list(list_type="children"),
+    )
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.list_available_parents", return_value=[])
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.list_available_children", return_value=[])
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.list_members_filtered", return_value=mock_result)
+    mocker.patch(f"{DETAIL_MODULE}.sp_service")
+    mocker.patch(f"{DETAIL_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mock_ctx = mocker.patch(
+        f"{DETAIL_MODULE}.get_template_context", return_value={"request": MagicMock()}
+    )
 
     return mock_ctx
 
@@ -2018,7 +1973,7 @@ def test_member_list_pagination_metadata_middle_page(test_admin_user, override_a
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?page=2&size=25")
+    response = client.get(f"/admin/groups/{group_id}/membership?page=2&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2039,7 +1994,7 @@ def test_member_list_pagination_empty_results(test_admin_user, override_auth, mo
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=0)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members")
+    response = client.get(f"/admin/groups/{group_id}/membership")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2058,7 +2013,7 @@ def test_member_list_pagination_last_page(test_admin_user, override_auth, mocker
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=53)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?page=3&size=25")
+    response = client.get(f"/admin/groups/{group_id}/membership?page=3&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2077,7 +2032,7 @@ def test_member_list_page_clamped_to_total(test_admin_user, override_auth, mocke
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=10)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?page=99&size=25")
+    response = client.get(f"/admin/groups/{group_id}/membership?page=99&size=25")
 
     assert response.status_code == 200
     pagination = mock_ctx.call_args[1]["pagination"]
@@ -2102,17 +2057,27 @@ def test_member_list_passes_filters_to_service(test_admin_user, override_auth, m
     mock_group = _make_group_detail(group_id=group_id, name="Engineering")
     mock_result = GroupMemberDetailList(items=[], total=0, page=1, limit=25)
 
-    mock_get = mocker.patch(f"{MEMBERS_MODULE}.groups_service.get_group")
-    mock_list = mocker.patch(f"{MEMBERS_MODULE}.groups_service.list_members_filtered")
-    mocker.patch(f"{MEMBERS_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
-    mocker.patch(f"{MEMBERS_MODULE}.get_template_context", return_value={"request": MagicMock()})
-
-    mock_get.return_value = mock_group
-    mock_list.return_value = mock_result
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.get_group", return_value=mock_group)
+    mocker.patch(
+        f"{DETAIL_MODULE}.groups_service.list_parents",
+        return_value=_make_relationship_list(list_type="parents"),
+    )
+    mocker.patch(
+        f"{DETAIL_MODULE}.groups_service.list_children",
+        return_value=_make_relationship_list(list_type="children"),
+    )
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.list_available_parents", return_value=[])
+    mocker.patch(f"{DETAIL_MODULE}.groups_service.list_available_children", return_value=[])
+    mock_list = mocker.patch(
+        f"{DETAIL_MODULE}.groups_service.list_members_filtered", return_value=mock_result
+    )
+    mocker.patch(f"{DETAIL_MODULE}.sp_service")
+    mocker.patch(f"{DETAIL_MODULE}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mocker.patch(f"{DETAIL_MODULE}.get_template_context", return_value={"request": MagicMock()})
 
     client = TestClient(app)
     response = client.get(
-        f"/admin/groups/{group_id}/members"
+        f"/admin/groups/{group_id}/membership"
         "?role=member,admin&status=active&sort=email&order=desc&page=2&size=50"
     )
 
@@ -2239,14 +2204,14 @@ def test_add_members_submit_omits_empty_search_and_filters(test_admin_user, over
 
 
 def test_member_list_success_message(test_admin_user, override_auth, mocker):
-    """Test that success/error query params are passed to template context."""
+    """Test that success query param is passed to template context on membership tab."""
     override_auth(test_admin_user, level="admin")
     group_id = str(uuid4())
 
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?success=members_removed&count=3")
+    response = client.get(f"/admin/groups/{group_id}/membership?success=members_removed&count=3")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]
@@ -2254,14 +2219,14 @@ def test_member_list_success_message(test_admin_user, override_auth, mocker):
 
 
 def test_member_list_error_message(test_admin_user, override_auth, mocker):
-    """Test that error query param is passed to template context."""
+    """Test that error query param is passed to template context on membership tab."""
     override_auth(test_admin_user, level="admin")
     group_id = str(uuid4())
 
     mock_ctx = _setup_member_list_mocks(mocker, group_id, total=5)
 
     client = TestClient(app)
-    response = client.get(f"/admin/groups/{group_id}/members?error=idp_group_read_only")
+    response = client.get(f"/admin/groups/{group_id}/membership?error=idp_group_read_only")
 
     assert response.status_code == 200
     ctx_kwargs = mock_ctx.call_args[1]

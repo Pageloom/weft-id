@@ -88,70 +88,12 @@ def member_list(
     user: Annotated[dict, Depends(get_current_user)],
     group_id: str,
 ):
-    """Display paginated group member list with search and filters."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-    params = _parse_member_query_params(request)
-
-    try:
-        group = groups_service.get_group(requesting_user, group_id)
-        result = groups_service.list_members_filtered(
-            requesting_user,
-            group_id,
-            search=params["search"] or None,
-            roles=params["roles"],
-            statuses=params["statuses"],
-            sort_field=params["sort_field"],
-            sort_order=params["sort_order"],
-            page=params["page"],
-            page_size=params["page_size"],
-        )
-    except NotFoundError:
-        return render_error_page(
-            request,
-            tenant_id,
-            NotFoundError(message="Group not found", code="group_not_found"),
-        )
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    total_count = result.total
-    page_size = params["page_size"]
-    page = params["page"]
-    total_pages = max(1, (total_count + page_size - 1) // page_size)
-    page = min(page, total_pages)
-    offset = (page - 1) * page_size
-
-    pagination = {
-        "page": page,
-        "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_previous": page > 1,
-        "has_next": page < total_pages,
-        "start_index": offset + 1 if total_count > 0 else 0,
-        "end_index": min(offset + page_size, total_count),
-    }
-
-    success = request.query_params.get("success")
-    error = request.query_params.get("error")
-
-    return templates.TemplateResponse(
-        "groups_members.html",
-        get_template_context(
-            request,
-            tenant_id,
-            group=group,
-            members=result.items,
-            pagination=pagination,
-            search=params["search"],
-            sort_field=params["sort_field"],
-            sort_order=params["sort_order"],
-            roles=params["roles"] or [],
-            statuses=params["statuses"] or [],
-            success=success,
-            error=error,
-        ),
-    )
+    """Redirect to the membership tab (members management is now inline)."""
+    qs = request.url.query
+    location = f"/admin/groups/{group_id}/membership"
+    if qs:
+        location += f"?{qs}"
+    return RedirectResponse(url=location, status_code=301)
 
 
 @router.get("/{group_id}/members/add", response_class=HTMLResponse)
@@ -249,7 +191,7 @@ def add_members_submit(
         count = groups_service.bulk_add_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}/members?error={exc.code}",
+            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
@@ -282,14 +224,14 @@ def bulk_remove_members(
         count = groups_service.bulk_remove_members(requesting_user, group_id, user_ids)
     except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}/members?error={exc.code}",
+            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}/members?success=members_removed&count={count}",
+        url=f"/admin/groups/{group_id}/membership?success=members_removed&count={count}",
         status_code=303,
     )
 
@@ -309,13 +251,13 @@ def remove_member(
         groups_service.remove_member(requesting_user, group_id, user_id)
     except NotFoundError as exc:
         return RedirectResponse(
-            url=f"/admin/groups/{group_id}/members?error={exc.code}",
+            url=f"/admin/groups/{group_id}/membership?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/admin/groups/{group_id}/members?success=member_removed",
+        url=f"/admin/groups/{group_id}/membership?success=member_removed",
         status_code=303,
     )

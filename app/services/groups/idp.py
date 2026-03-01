@@ -69,7 +69,11 @@ def create_idp_base_group(
         tenant_id_value=tenant_id,
         idp_id=idp_id,
         name=idp_name,
-        description=f"All users authenticating via {idp_name}",
+        description=(
+            f"This group was created automatically when setting up {idp_name}. "
+            f"It contains every user who authenticates through this identity provider. "
+            f"Groups reported by the IdP during authentication appear as children of this group."
+        ),
     )
 
     if not result:
@@ -102,6 +106,32 @@ def create_idp_base_group(
             message="Failed to fetch created group",
             code="fetch_failed",
         )
+    return _row_to_detail(row)
+
+
+def get_idp_base_group(
+    tenant_id: str,
+    idp_id: str,
+) -> "GroupDetail | None":
+    """
+    Fetch the base (umbrella) group for an IdP.
+
+    System-level lookup with no authorization check. Returns None if no base
+    group exists for the given IdP.
+
+    Args:
+        tenant_id: Tenant UUID
+        idp_id: The IdP UUID
+
+    Returns:
+        The GroupDetail for the base group, or None if not found
+    """
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if not base_group_id:
+        return None
+    row = database.groups.get_group_by_id(tenant_id, base_group_id)
+    if not row:
+        return None
     return _row_to_detail(row)
 
 
@@ -138,7 +168,11 @@ def get_or_create_idp_group(
         tenant_id_value=tenant_id,
         idp_id=idp_id,
         name=group_name,
-        description=f"Discovered from {idp_name}",
+        description=(
+            f"This group is synced from {idp_name}. "
+            "Membership is managed automatically whenever a user authenticates "
+            "through the identity provider."
+        ),
     )
 
     if not result:

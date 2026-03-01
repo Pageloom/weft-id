@@ -1296,7 +1296,11 @@ def test_create_idp_base_group_success():
     mock_group = {
         "id": group_id,
         "name": idp_name,
-        "description": f"All users authenticating via {idp_name}",
+        "description": (
+            f"This group was created automatically when setting up {idp_name}. "
+            f"It contains every user who authenticates through this identity provider. "
+            f"Groups reported by the IdP during authentication appear as children of this group."
+        ),
         "group_type": "idp",
         "idp_id": idp_id,
         "idp_name": idp_name,
@@ -1327,6 +1331,60 @@ def test_create_idp_base_group_success():
         call_kwargs = mock_log.call_args[1]
         assert call_kwargs["event_type"] == "idp_group_created"
         assert call_kwargs["metadata"]["idp_name"] == idp_name
+
+
+def test_get_idp_base_group_success():
+    """Test fetching the base group for an IdP."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    idp_name = "Okta Corporate"
+    group_id = str(uuid4())
+
+    mock_group = {
+        "id": group_id,
+        "name": idp_name,
+        "description": "base group description",
+        "group_type": "idp",
+        "idp_id": idp_id,
+        "idp_name": idp_name,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_idp_base_group_id.return_value = group_id
+        mock_db.groups.get_group_by_id.return_value = mock_group
+
+        result = groups_service.get_idp_base_group(tenant_id, idp_id)
+
+        assert result is not None
+        assert result.id == group_id
+        assert result.group_type == "idp"
+        mock_db.groups.get_idp_base_group_id.assert_called_once_with(tenant_id, idp_id)
+        mock_db.groups.get_group_by_id.assert_called_once_with(tenant_id, group_id)
+
+
+def test_get_idp_base_group_not_found():
+    """Test that get_idp_base_group returns None when no base group exists."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_idp_base_group_id.return_value = None
+
+        result = groups_service.get_idp_base_group(tenant_id, idp_id)
+
+        assert result is None
+        mock_db.groups.get_group_by_id.assert_not_called()
 
 
 def test_sync_user_idp_groups_adds_new_groups():

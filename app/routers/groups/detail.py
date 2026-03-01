@@ -303,6 +303,11 @@ def group_tab_relationships(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
+    group = ctx["group"]
+    idp_umbrella_group = None
+    if group.group_type == "idp" and group.idp_id and group.name != group.idp_name:
+        idp_umbrella_group = groups_service.get_idp_base_group(tenant_id, group.idp_id)
+
     return templates.TemplateResponse(
         "groups_detail_tab_relationships.html",
         get_template_context(
@@ -310,6 +315,7 @@ def group_tab_relationships(
             tenant_id,
             **ctx,
             active_tab="relationships",
+            idp_umbrella_group=idp_umbrella_group,
             success=request.query_params.get("success"),
             error=request.query_params.get("error"),
         ),

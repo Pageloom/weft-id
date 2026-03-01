@@ -7,15 +7,12 @@ from unittest.mock import patch
 
 def test_static_url_appends_version_for_known_file():
     """static_url returns a versioned URL for a file that exists in the hash cache."""
-    from utils.static_assets import static_url
+    from utils import static_assets as module
 
-    result = static_url("css/output.css")
-    # Must start with the correct path
-    assert result.startswith("/static/css/output.css?v=")
-    # Version suffix must be an 8-char hex string
-    version = result.split("?v=")[1]
-    assert len(version) == 8
-    assert all(c in "0123456789abcdef" for c in version)
+    fake_cache = {"css/output.css": "a1b2c3d4"}
+    with patch.object(module, "_hash_cache", fake_cache):
+        result = module.static_url("css/output.css")
+    assert result == "/static/css/output.css?v=a1b2c3d4"
 
 
 def test_static_url_returns_plain_path_for_unknown_file():

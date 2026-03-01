@@ -4,6 +4,22 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups: IdP Umbrella Group Descriptive Copy
+
+**Status:** Complete
+
+**Summary:** Umbrella and assertion IdP groups now have distinct, informative descriptions and UI notices. `create_idp_base_group()` and `get_or_create_idp_group()` generate expanded descriptions explaining each group's role. The Details and Relationships tabs show different copy for umbrella vs. assertion sub-groups. A new `get_idp_base_group()` service function enables the Relationships tab to render the umbrella as a read-only pseudo-parent entry for assertion sub-groups.
+
+**Acceptance Criteria:**
+- [x] `create_idp_base_group()` generates the improved description (referencing the IdP name)
+- [x] `get_or_create_idp_group()` generates the improved description for assertion sub-groups
+- [x] The Details tab for an umbrella group shows a contextual read-only notice distinguishing it from a regular IdP sub-group
+- [x] The Details tab for an assertion sub-group shows a different read-only notice
+- [x] The Relationships tab for the umbrella group replaces the "IdP groups cannot have child groups" notice with one that accurately describes the umbrella's role
+- [x] The Relationships tab for an assertion sub-group shows a read-only parent entry (the umbrella) with explanatory copy indicating the relationship is IdP-managed
+
+---
+
 ## Groups: Inline Members Tab (Remove Manage Members Indirection)
 
 **Status:** Complete

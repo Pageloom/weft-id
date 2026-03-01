@@ -6,52 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Groups: IdP Umbrella Group Descriptive Copy
-
-**User Story:**
-As an admin
-I want the auto-created IdP umbrella group to have a clear, informative description
-So that I understand what the group is, how it was created, and what it represents without needing outside documentation
-
-**Context:**
-
-When an IdP is created, the system auto-creates an umbrella group (the "base group") named
-after the IdP. Its current description is the terse string `"All users authenticating via
-{idp_name}"`. Groups discovered from SAML assertions get an equally terse `"Discovered from
-{idp_name}"`. Neither copy explains the relationship between them or the automated nature of
-the membership.
-
-The umbrella group description should read something like:
-
-> This group was created automatically when setting up {idp_name}. It contains every user
-> who authenticates through this identity provider. Groups reported by the IdP during
-> authentication appear as children of this group.
-
-The assertion sub-group description should read something like:
-
-> This group is synced from {idp_name}. Membership is managed automatically whenever a user
-> authenticates through the identity provider.
-
-**Acceptance Criteria:**
-
-- [ ] `create_idp_base_group()` generates the improved description (referencing the IdP name)
-- [ ] `get_or_create_idp_group()` generates the improved description for assertion sub-groups
-- [ ] The Details tab for an umbrella group shows a contextual read-only notice distinguishing
-      it from a regular IdP sub-group (e.g. "This is the root group for {idp_name}. All
-      authenticating users are added automatically.")
-- [ ] The Details tab for an assertion sub-group shows a different read-only notice (e.g.
-      "This group is synced from {idp_name}. Membership is managed during authentication.")
-- [ ] The Relationships tab for the umbrella group replaces the current
-      "IdP groups cannot have child groups" notice with one that accurately describes the
-      umbrella's role: assertion groups from this IdP appear here as read-only children
-- [ ] The Relationships tab for an assertion sub-group shows a read-only parent entry (the
-      umbrella) with explanatory copy indicating the relationship is IdP-managed
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## Groups: SAML Assertion Groups as DAG Children of Umbrella
 
 **User Story:**

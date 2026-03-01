@@ -95,6 +95,9 @@
                         via
                         <a href="/admin/groups/{{ item.from_group_id }}/applications"
                            class="hover:underline">{{ item.from_group_name }}</a>
+                        {% if item.from_group_type == 'idp' %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                        {% endif %}
                     </p>
                 </div>
                 {% if item.sp.sp_entity_id %}

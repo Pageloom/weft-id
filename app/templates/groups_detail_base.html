@@ -86,7 +86,8 @@
             bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300
             {% else %}
             bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
-            {% endif %}">
+            {% endif %}"
+            {% if group.group_type == 'idp' %}title="Managed by identity provider"{% endif %}>
             {{ group.group_type|upper }}
         </span>
         {% if group.group_type == 'idp' and group.idp_name %}

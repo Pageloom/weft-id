@@ -4,6 +4,26 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups: Inline Members Tab (Remove Manage Members Indirection)
+
+**Status:** Complete
+
+**Summary:** The Members tab on the group detail page now renders the full paginated member list directly, with search, sort, filters, and bulk remove. The separate `/admin/groups/{id}/members` route redirects (301) to the membership tab. Add Members flow is unchanged. IdP groups show a read-only notice. Inherited members are shown in a separate section. `WeftUtils.listManager()` handles localStorage persistence and filter panel management.
+
+**Acceptance Criteria:**
+- [x] The Members tab renders the full paginated member list directly (no truncation, no "View all" link)
+- [x] Tab header contains an "Add Members" button (links to `/admin/groups/{id}/members/add`) for weftid groups
+- [x] Members list supports pagination, search, and sort
+- [x] Direct members can be removed inline (checkbox + bulk remove bar), for weftid groups only
+- [x] The separate `/admin/groups/{id}/members` route redirects to the group detail Members tab
+- [x] IdP groups show the read-only notice and no add/remove controls
+- [x] Inherited members are still shown and labeled
+- [x] `app/pages.py` updated: `/admin/groups/members` entry removed
+- [x] All existing tests updated or replaced; new tests cover the inline tab behaviour
+- [x] API endpoints for member management are unchanged
+
+---
+
 ## WeftUtils: Universal List Manager
 
 **Status:** Complete

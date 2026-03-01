@@ -158,6 +158,46 @@
 
         {% else %}
         <!-- List View -->
+        {% macro pagination_controls(border_class="border-t") %}
+        {% if pagination.total > 0 %}
+        <div class="flex items-center justify-between {{ border_class }} border-gray-200 dark:border-gray-700 py-4">
+            <div class="flex items-center gap-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    Showing page {{ pagination.page }} of {{ pagination.total_pages }}
+                    ({{ pagination.total }} total group{{ 's' if pagination.total != 1 else '' }})
+                </p>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
+                    <select
+                        class="page-size-groups border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    >
+                        <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
+                        <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+                    </select>
+                </div>
+            </div>
+            {% if pagination.total_pages > 1 %}
+            <div class="flex gap-2">
+                {% if pagination.page > 1 %}
+                <a href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
+                   class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    Previous
+                </a>
+                {% endif %}
+                {% if pagination.page < pagination.total_pages %}
+                <a href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
+                   class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endmacro %}
+
         {% if groups|length == 0 %}
         <div class="text-center py-12 border border-gray-200 dark:border-gray-700 rounded-md">
             <p class="text-gray-500 dark:text-gray-400 text-lg">
@@ -174,6 +214,7 @@
             </p>
         </div>
         {% else %}
+        {{ pagination_controls("border-b") }}
         <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-700">
@@ -236,7 +277,8 @@
                                 bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300
                                 {% else %}
                                 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300
-                                {% endif %}">
+                                {% endif %}"
+                                {% if group.group_type == 'idp' %}title="Managed by identity provider"{% endif %}>
                                 {{ group.group_type|upper }}
                             </span>
                         </td>
@@ -268,43 +310,7 @@
             </table>
         </div>
 
-        <!-- Pagination -->
-        <div class="mt-6 flex items-center justify-between">
-            <div class="flex items-center gap-4">
-                <p class="text-sm text-gray-600 dark:text-gray-400">
-                    Showing page {{ pagination.page }} of {{ pagination.total_pages }}
-                    ({{ pagination.total }} total group{{ 's' if pagination.total != 1 else '' }})
-                </p>
-                <div class="flex items-center gap-2">
-                    <label for="page-size-groups" class="text-sm text-gray-700 dark:text-gray-300">Per page:</label>
-                    <select
-                        id="page-size-groups"
-                        class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    >
-                        <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
-                        <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
-                        <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
-                        <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
-                    </select>
-                </div>
-            </div>
-            {% if pagination.total_pages > 1 %}
-            <div class="flex gap-2">
-                {% if pagination.page > 1 %}
-                <a href="?page={{ pagination.page - 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
-                   class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
-                    Previous
-                </a>
-                {% endif %}
-                {% if pagination.page < pagination.total_pages %}
-                <a href="?page={{ pagination.page + 1 }}&size={{ pagination.page_size }}&view={{ view }}{% if search %}&search={{ search }}{% endif %}"
-                   class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
-                    Next
-                </a>
-                {% endif %}
-            </div>
-            {% endif %}
-        </div>
+        {{ pagination_controls() }}
         {% endif %}
         {% endif %}
     </div>
@@ -346,7 +352,7 @@ WeftUtils.listManager({
         pageSizeKey: `weftid_grp_list_size_${tenantId}`,
         currentSize: pageSize,
     },
-    pageSizeSelector: '#page-size-groups',
+    pageSizeSelector: '.page-size-groups',
 });
 </script>
 {% else %}
@@ -524,7 +530,8 @@ WeftUtils.listManager({
           color: vis.color,
           mandala: vis.image,
           memberCount: n.member_count,
-          effectiveMemberCount: n.effective_member_count
+          effectiveMemberCount: n.effective_member_count,
+          groupType: n.group_type
         }};
       }).concat(data.edges.map((e) => {
         const contrib = nodeMap[e.source] ? nodeMap[e.source].effective_member_count : 0;
@@ -664,6 +671,15 @@ WeftUtils.listManager({
               'overlay-color': '#f59e0b',
               'overlay-padding': 6,
               'overlay-opacity': 0.25
+            }
+          },
+          {
+            selector: 'node[groupType = "idp"]',
+            style: {
+              'border-width': 2,
+              'border-color': '#9333ea',
+              'border-opacity': 1,
+              'border-style': 'dashed'
             }
           },
           {
@@ -883,6 +899,12 @@ WeftUtils.listManager({
         const nameEl = document.createElement('div');
         nameEl.textContent = node.data('label');
         tooltip.appendChild(nameEl);
+        if (node.data('groupType') === 'idp') {
+          const idpEl = document.createElement('div');
+          idpEl.textContent = 'IdP managed';
+          idpEl.style.cssText = 'font-size:10px;color:#c084fc;font-weight:500;margin-top:1px;';
+          tooltip.appendChild(idpEl);
+        }
         const direct    = node.data('memberCount') || 0;
         const effective = node.data('effectiveMemberCount') || 0;
         const inherited = effective - direct;
@@ -935,6 +957,12 @@ WeftUtils.listManager({
         const nameEl = document.createElement('div');
         nameEl.textContent = node.data('label');
         hoverTooltip.appendChild(nameEl);
+        if (node.data('groupType') === 'idp') {
+          const idpEl = document.createElement('div');
+          idpEl.textContent = 'IdP managed';
+          idpEl.style.cssText = 'font-size:10px;color:#c084fc;font-weight:500;margin-top:1px;';
+          hoverTooltip.appendChild(idpEl);
+        }
         const direct    = node.data('memberCount') || 0;
         const effective = node.data('effectiveMemberCount') || 0;
         const inherited = effective - direct;

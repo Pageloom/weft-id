@@ -38,7 +38,7 @@
                         class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                     <option value="">Select parent group...</option>
                     {% for g in available_parents %}
-                    <option value="{{ g.id }}">{{ g.name }}</option>
+                    <option value="{{ g.id }}">{{ g.name }}{% if g.group_type == 'idp' %} (IdP){% endif %}</option>
                     {% endfor %}
                 </select>
                 <button type="submit"
@@ -56,6 +56,9 @@
                        class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
                         {{ parent.name }}
                     </a>
+                    {% if parent.group_type == 'idp' %}
+                    <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                    {% endif %}
                     <form method="post" action="/admin/groups/{{ group.id }}/parents/{{ parent.group_id }}/remove">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit"
@@ -107,6 +110,9 @@
                            class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
                             {{ child.name }}
                         </a>
+                        {% if child.group_type == 'idp' %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                        {% endif %}
                         <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
                             ({{ child.member_count }} members)
                         </span>
@@ -141,6 +147,9 @@
                        class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
                         {{ parent.name }}
                     </a>
+                    {% if parent.group_type == 'idp' %}
+                    <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -195,7 +204,8 @@
             label: data.group.name,
             image: centerVis.image,
             color: centerVis.color,
-            nodeType: 'center'
+            nodeType: 'center',
+            groupType: data.group.group_type
         },
         position: { x: centerX, y: 240 }
     });
@@ -213,7 +223,8 @@
                 label: p.name,
                 image: vis.image,
                 color: vis.color,
-                nodeType: 'parent'
+                nodeType: 'parent',
+                groupType: p.group_type
             },
             position: { x: x, y: 90 }
         });
@@ -239,7 +250,8 @@
                 label: c.name,
                 image: vis.image,
                 color: vis.color,
-                nodeType: 'child'
+                nodeType: 'child',
+                groupType: c.group_type
             },
             position: { x: x, y: 390 }
         });
@@ -290,6 +302,15 @@
                     'border-width': 3,
                     'border-color': isDark ? '#60a5fa' : '#2563eb',
                     'border-opacity': 1
+                }
+            },
+            {
+                selector: 'node[groupType = "idp"]',
+                style: {
+                    'border-width': 2,
+                    'border-color': '#9333ea',
+                    'border-opacity': 1,
+                    'border-style': 'dashed'
                 }
             },
             {

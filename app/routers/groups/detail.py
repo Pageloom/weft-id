@@ -59,6 +59,7 @@ def _load_group_common(requesting_user, group_id):
         "group": {
             "id": group.id,
             "name": group.name,
+            "group_type": group.group_type,
             "parent_count": group.parent_count,
             "child_count": group.child_count,
             "has_logo": group.has_logo,
@@ -68,6 +69,7 @@ def _load_group_common(requesting_user, group_id):
             {
                 "id": p.group_id,
                 "name": p.name,
+                "group_type": p.group_type,
                 "has_logo": p.has_logo,
                 "logo_version": _logo_version(p.logo_updated_at),
             }
@@ -77,6 +79,7 @@ def _load_group_common(requesting_user, group_id):
             {
                 "id": c.group_id,
                 "name": c.name,
+                "group_type": c.group_type,
                 "member_count": c.member_count,
                 "has_logo": c.has_logo,
                 "logo_version": _logo_version(c.logo_updated_at),
@@ -251,6 +254,7 @@ def group_tab_applications(
                             "sp": spa,
                             "from_group_name": parent.name,
                             "from_group_id": parent.group_id,
+                            "from_group_type": parent.group_type,
                         }
                     )
                     seen_inherited.add(spa.sp_id)

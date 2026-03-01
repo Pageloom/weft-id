@@ -395,6 +395,44 @@ General:
 
 ---
 
+## Group Graph: Replace breadthfirst Layout with Dagre
+
+**User Story:**
+As an admin using the group graph view
+I want the group hierarchy laid out with proper edge-crossing minimization
+So that the graph is more compact and easier to read, especially with large group structures
+
+**Context:**
+
+The graph currently uses Cytoscape's built-in `breadthfirst` layout, which layers nodes by
+BFS depth but does nothing to minimize edge crossings or compact nodes within a layer. The
+result is a wide, spread-out bottom row when there are many leaf groups.
+
+The `cytoscape-dagre` plugin implements the Sugiyama algorithm, adding crossing minimization
+and smarter coordinate assignment. This typically produces a noticeably narrower, less
+tangled layout for DAG structures like the group hierarchy, with no server-side changes.
+
+The plugin is a small client-side JS file (~30KB). Existing saved layouts continue to work
+unchanged via the `preset` layout path.
+
+**Acceptance Criteria:**
+
+- [ ] `cytoscape-dagre` plugin added to `static/js/` and registered with Cytoscape
+- [ ] `FRESH_LAYOUT` in `groups_list.html` updated to use `name: 'dagre'` with sensible
+      `rankSep` and `nodeSep` values
+- [ ] `FRESH_LAYOUT` in `groups_detail_tab_relationships.html` updated the same way
+- [ ] The "Reset layout" button in the graph toolbar triggers dagre, not breadthfirst
+- [ ] Saved layouts (`preset`) continue to load and display correctly
+- [ ] The graph renders correctly on both the group list page and the group detail
+      relationships tab
+- [ ] Visually verified to be more compact than the current breadthfirst output on a
+      representative group structure
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Groups: Remove Mandala Avatar Option
 
 **User Story:**

@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse
 from services import groups as groups_service
 from services.exceptions import (
     ConflictError,
+    ForbiddenError,
     NotFoundError,
     ServiceError,
     ValidationError,
@@ -92,7 +93,7 @@ def remove_child(
 
     try:
         groups_service.remove_child(requesting_user, group_id, child_group_id)
-    except NotFoundError as exc:
+    except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
             url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,
@@ -148,7 +149,7 @@ def remove_parent(
     try:
         # Removing a parent = removing this group as a child of that parent
         groups_service.remove_child(requesting_user, parent_group_id, group_id)
-    except NotFoundError as exc:
+    except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
             url=f"/admin/groups/{group_id}/relationships?error={exc.code}",
             status_code=303,

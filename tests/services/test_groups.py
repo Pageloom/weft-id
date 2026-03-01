@@ -3553,3 +3553,377 @@ def test_save_graph_layout_forbidden_for_non_admin(make_requesting_user):
         groups_service.save_graph_layout(requesting_user, layout)
 
     assert exc_info.value.code == "admin_required"
+
+
+# =============================================================================
+# IdP Umbrella Relationship Wiring
+# =============================================================================
+
+
+def test_get_or_create_idp_group_creates_umbrella_relationship():
+    """New assertion group gets wired as a child of the umbrella group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    base_group_id = str(uuid4())
+    new_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        # No existing group
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        # Create returns the new group
+        mock_db.groups.create_idp_group.return_value = {"id": new_group_id}
+        # Base group exists
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        # Relationship doesn't exist yet
+        mock_db.groups.relationship_exists.return_value = False
+
+        result = groups_service.get_or_create_idp_group(tenant_id, idp_id, "Okta", "Engineering")
+
+        assert result["id"] == new_group_id
+        assert result["created"] is True
+
+        # Relationship should have been created
+        mock_db.groups.add_group_relationship.assert_called_once_with(
+            tenant_id, tenant_id, base_group_id, new_group_id
+        )
+
+        # Two log_event calls: discovery + relationship
+        assert mock_log.call_count == 2
+        rel_call = mock_log.call_args_list[1]
+        assert rel_call[1]["event_type"] == "idp_group_relationship_created"
+        assert rel_call[1]["artifact_id"] == base_group_id
+
+
+def test_get_or_create_idp_group_existing_group_ensures_relationship():
+    """Existing assertion group still gets wired if relationship was missing."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    base_group_id = str(uuid4())
+    existing_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event") as mock_log,
+        patch("services.groups.idp.system_context"),
+    ):
+        # Group already exists
+        mock_db.groups.get_group_by_idp_and_name.return_value = {
+            "id": existing_group_id,
+            "name": "Engineering",
+        }
+        # Base group exists
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        # Relationship missing
+        mock_db.groups.relationship_exists.return_value = False
+
+        result = groups_service.get_or_create_idp_group(tenant_id, idp_id, "Okta", "Engineering")
+
+        assert result["id"] == existing_group_id
+        assert result["created"] is False
+
+        # Relationship should have been created retroactively
+        mock_db.groups.add_group_relationship.assert_called_once_with(
+            tenant_id, tenant_id, base_group_id, existing_group_id
+        )
+
+        mock_log.assert_called_once()
+        assert mock_log.call_args[1]["event_type"] == "idp_group_relationship_created"
+
+
+def test_get_or_create_idp_group_relationship_idempotent():
+    """No error when umbrella relationship already exists."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    base_group_id = str(uuid4())
+    existing_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_group_by_idp_and_name.return_value = {
+            "id": existing_group_id,
+            "name": "Engineering",
+        }
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        # Relationship already exists
+        mock_db.groups.relationship_exists.return_value = True
+
+        result = groups_service.get_or_create_idp_group(tenant_id, idp_id, "Okta", "Engineering")
+
+        assert result["id"] == existing_group_id
+        # Should NOT create a duplicate relationship
+        mock_db.groups.add_group_relationship.assert_not_called()
+
+
+def test_get_or_create_idp_group_no_base_group_skips_wiring():
+    """When no umbrella group exists, wiring is skipped gracefully."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    new_group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = {"id": new_group_id}
+        # No base group
+        mock_db.groups.get_idp_base_group_id.return_value = None
+
+        result = groups_service.get_or_create_idp_group(tenant_id, idp_id, "Okta", "Engineering")
+
+        assert result["id"] == new_group_id
+        mock_db.groups.add_group_relationship.assert_not_called()
+
+
+def test_sync_user_idp_groups_wires_relationships():
+    """sync_user_idp_groups wires all resolved groups via get_or_create_idp_group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    idp_id = str(uuid4())
+    base_group_id = str(uuid4())
+    group1_id = str(uuid4())
+    group2_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        # Two groups to resolve
+        mock_db.groups.get_group_by_idp_and_name.side_effect = [
+            {"id": group1_id, "name": "Engineering"},
+            {"id": group2_id, "name": "Product"},
+        ]
+        mock_db.groups.get_idp_base_group_id.return_value = base_group_id
+        mock_db.groups.relationship_exists.return_value = False
+        mock_db.groups.get_user_idp_group_ids.return_value = []
+        mock_db.groups.bulk_add_user_to_groups.return_value = 2
+        mock_db.groups.get_group_by_id.return_value = {"name": "test"}
+
+        groups_service.sync_user_idp_groups(
+            tenant_id,
+            user_id,
+            "user@example.com",
+            idp_id,
+            "Okta",
+            ["Engineering", "Product"],
+        )
+
+        # Both groups should have been wired to the umbrella
+        assert mock_db.groups.add_group_relationship.call_count == 2
+
+
+# =============================================================================
+# IdP Managed Relationship Protection
+# =============================================================================
+
+
+def test_remove_child_idp_managed_forbidden(make_requesting_user):
+    """Removing an IdP-managed relationship raises ForbiddenError."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    umbrella_id = str(uuid4())
+    assertion_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_umbrella = {
+        "id": umbrella_id,
+        "name": "Okta",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+    mock_assertion = {
+        "id": assertion_id,
+        "name": "Engineering",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups._helpers.database") as mock_helpers_db,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_umbrella, mock_assertion]
+        # _is_idp_umbrella_group needs to query the base group ID
+        mock_helpers_db.groups.get_idp_base_group_id.return_value = umbrella_id
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            groups_service.remove_child(requesting_user, umbrella_id, assertion_id)
+
+        assert exc_info.value.code == "idp_managed_relationship"
+
+
+def test_remove_child_non_idp_managed_allowed(make_requesting_user):
+    """Normal (non-IdP-managed) removal still works."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_parent = {"id": parent_id, "name": "Parent", "group_type": "weftid"}
+    mock_child = {"id": child_id, "name": "Child", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_parent, mock_child]
+        mock_db.groups.remove_group_relationship.return_value = 1
+
+        groups_service.remove_child(requesting_user, parent_id, child_id)
+
+        mock_db.groups.remove_group_relationship.assert_called_once()
+        mock_log.assert_called_once()
+
+
+def test_remove_all_relationships_skips_idp_managed(make_requesting_user):
+    """Clear relationships skips IdP-managed ones."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    umbrella_id = str(uuid4())
+    assertion_id = str(uuid4())
+    weftid_child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_group = {
+        "id": umbrella_id,
+        "name": "Okta",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
+        patch("services.groups._helpers.database") as mock_helpers_db,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = lambda tid, gid: {
+            umbrella_id: mock_group,
+            assertion_id: {
+                "id": assertion_id,
+                "name": "Engineering",
+                "group_type": "idp",
+                "idp_id": idp_id,
+            },
+            weftid_child_id: {
+                "id": weftid_child_id,
+                "name": "Manual Child",
+                "group_type": "weftid",
+            },
+        }.get(gid)
+
+        mock_db.groups.get_group_parents.return_value = []
+        mock_db.groups.get_group_children.return_value = [
+            {"group_id": assertion_id, "name": "Engineering", "group_type": "idp"},
+            {"group_id": weftid_child_id, "name": "Manual Child", "group_type": "weftid"},
+        ]
+        mock_db.groups.remove_group_relationship.return_value = 1
+        mock_helpers_db.groups.get_idp_base_group_id.return_value = umbrella_id
+
+        count = groups_service.remove_all_relationships(requesting_user, umbrella_id)
+
+        # Only the weftid child should have been removed (1), not the IdP one
+        assert count == 1
+        mock_db.groups.remove_group_relationship.assert_called_once_with(
+            tenant_id, umbrella_id, weftid_child_id
+        )
+        mock_log.assert_called_once()
+
+
+# =============================================================================
+# IdP Umbrella as Parent
+# =============================================================================
+
+
+def test_add_child_umbrella_as_parent_allowed(make_requesting_user):
+    """Umbrella group can have children added to it."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    umbrella_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_umbrella = {
+        "id": umbrella_id,
+        "name": "Okta",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+    mock_child = {"id": child_id, "name": "Some Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups.hierarchy.log_event") as mock_log,
+        patch("services.groups._helpers.database") as mock_helpers_db,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_umbrella, mock_child]
+        mock_db.groups.relationship_exists.return_value = False
+        mock_db.groups.would_create_cycle.return_value = False
+        mock_db.groups.add_group_relationship.return_value = {"id": str(uuid4())}
+        # _is_idp_umbrella_group lookup
+        mock_helpers_db.groups.get_idp_base_group_id.return_value = umbrella_id
+
+        groups_service.add_child(requesting_user, umbrella_id, child_id)
+
+        mock_db.groups.add_group_relationship.assert_called_once()
+        mock_log.assert_called_once()
+        assert mock_log.call_args[1]["event_type"] == "group_relationship_created"
+
+
+def test_add_child_assertion_as_parent_still_blocked(make_requesting_user):
+    """Assertion sub-groups still cannot be parents."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    umbrella_id = str(uuid4())
+    assertion_id = str(uuid4())
+    child_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    mock_assertion = {
+        "id": assertion_id,
+        "name": "Engineering",
+        "group_type": "idp",
+        "idp_id": idp_id,
+    }
+    mock_child = {"id": child_id, "name": "Some Group", "group_type": "weftid"}
+
+    with (
+        patch("services.groups.hierarchy.database") as mock_db,
+        patch("services.groups._helpers.database") as mock_helpers_db,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_assertion, mock_child]
+        # This assertion group is NOT the umbrella
+        mock_helpers_db.groups.get_idp_base_group_id.return_value = umbrella_id
+
+        with pytest.raises(ValidationError) as exc_info:
+            groups_service.add_child(requesting_user, assertion_id, child_id)
+
+        assert exc_info.value.code == "idp_cannot_be_parent"

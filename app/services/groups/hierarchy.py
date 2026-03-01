@@ -19,9 +19,18 @@ from schemas.groups import GroupChildrenList, GroupParentsList
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
-from services.exceptions import ConflictError, NotFoundError, ValidationError
+from services.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from services.groups._converters import _row_to_relationship
-from services.groups._helpers import _is_idp_group
+from services.groups._helpers import (
+    _is_idp_group,
+    _is_idp_managed_relationship,
+    _is_idp_umbrella_group,
+)
 from services.types import RequestingUser
 
 
@@ -124,8 +133,8 @@ def add_child(
             code="child_not_found",
         )
 
-    # IdP groups cannot be parents (they can only be children)
-    if _is_idp_group(parent):
+    # IdP assertion sub-groups cannot be parents; umbrella groups can
+    if _is_idp_group(parent) and not _is_idp_umbrella_group(tenant_id, parent):
         raise ValidationError(
             message="IdP groups cannot have children",
             code="idp_cannot_be_parent",
@@ -197,6 +206,10 @@ def remove_all_relationships(
 
     for parent in parents:
         parent_id = str(parent["group_id"])
+        # Skip IdP-managed relationships
+        parent_data = database.groups.get_group_by_id(tenant_id, parent_id)
+        if parent_data and _is_idp_managed_relationship(tenant_id, parent_data, group):
+            continue
         rows_affected = database.groups.remove_group_relationship(tenant_id, parent_id, group_id)
         if rows_affected > 0:
             log_event(
@@ -216,6 +229,10 @@ def remove_all_relationships(
 
     for child in children:
         child_id = str(child["group_id"])
+        # Skip IdP-managed relationships
+        child_data = database.groups.get_group_by_id(tenant_id, child_id)
+        if child_data and _is_idp_managed_relationship(tenant_id, group, child_data):
+            continue
         rows_affected = database.groups.remove_group_relationship(tenant_id, group_id, child_id)
         if rows_affected > 0:
             log_event(
@@ -253,9 +270,16 @@ def remove_child(
 
     tenant_id = requesting_user["tenant_id"]
 
-    # Get group names for logging
+    # Get group data for logging and protection checks
     parent = database.groups.get_group_by_id(tenant_id, parent_group_id)
     child = database.groups.get_group_by_id(tenant_id, child_group_id)
+
+    # Protect IdP-managed relationships from manual removal
+    if parent and child and _is_idp_managed_relationship(tenant_id, parent, child):
+        raise ForbiddenError(
+            message="Cannot remove IdP-managed relationship",
+            code="idp_managed_relationship",
+        )
 
     # Remove relationship (transactional: updates both relationships and lineage)
     rows_affected = database.groups.remove_group_relationship(

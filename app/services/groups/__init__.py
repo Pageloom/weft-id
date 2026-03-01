@@ -30,6 +30,8 @@ from services.groups._converters import (
 # Re-export helpers for backwards compatibility
 from services.groups._helpers import (
     _is_idp_group,
+    _is_idp_managed_relationship,
+    _is_idp_umbrella_group,
     _require_not_idp_group,
 )
 
@@ -155,6 +157,8 @@ __all__ = [
     "_apply_membership_additions",
     "_apply_membership_removals",
     "_is_idp_group",
+    "_is_idp_managed_relationship",
+    "_is_idp_umbrella_group",
     "_require_not_idp_group",
     "_row_to_detail",
     "_row_to_member",

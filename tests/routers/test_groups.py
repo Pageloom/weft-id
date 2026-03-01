@@ -1402,6 +1402,56 @@ def test_remove_child_not_found(test_admin_user, override_auth, mocker):
     assert "error=relationship_not_found" in response.headers["location"]
 
 
+def test_remove_child_idp_managed_returns_error(test_admin_user, override_auth, mocker):
+    """Removing an IdP-managed child redirects with error."""
+    from services.exceptions import ForbiddenError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    child_group_id = str(uuid4())
+
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
+    mock_remove.side_effect = ForbiddenError(
+        message="Cannot remove IdP-managed relationship",
+        code="idp_managed_relationship",
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/children/{child_group_id}/remove",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=idp_managed_relationship" in response.headers["location"]
+
+
+def test_remove_parent_idp_managed_returns_error(test_admin_user, override_auth, mocker):
+    """Removing an IdP-managed parent redirects with error."""
+    from services.exceptions import ForbiddenError
+
+    override_auth(test_admin_user, level="admin")
+
+    group_id = str(uuid4())
+    parent_group_id = str(uuid4())
+
+    mock_remove = mocker.patch(f"{RELATIONSHIPS_MODULE}.groups_service.remove_child")
+    mock_remove.side_effect = ForbiddenError(
+        message="Cannot remove IdP-managed relationship",
+        code="idp_managed_relationship",
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/groups/{group_id}/parents/{parent_group_id}/remove",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=idp_managed_relationship" in response.headers["location"]
+
+
 def test_remove_child_service_error(test_admin_user, override_auth, mocker):
     """Test removing a child with service error renders error page."""
     from services.exceptions import ServiceError

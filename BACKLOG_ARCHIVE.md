@@ -4,6 +4,28 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups: SAML Assertion Groups as DAG Children of Umbrella
+
+**Status:** Complete
+
+**Summary:** Assertion groups discovered from SAML authentication are now automatically wired as DAG children of their IdP umbrella group. `get_or_create_idp_group()` calls a new `_ensure_umbrella_relationship()` helper that idempotently creates the parent-child edge (both for new and pre-existing groups). `sync_user_idp_groups()` inherits this behavior automatically. IdP-managed relationships are protected from manual removal: `remove_child()` raises `ForbiddenError`, and `remove_all_relationships()` skips them. The umbrella group's Relationships tab now shows assertion children as read-only entries with an "IdP-managed" label, while still allowing manually-added WeftId children. The dev seed script creates 9 assertion groups across 3 IdPs to demonstrate the feature.
+
+**Acceptance Criteria:**
+- [x] `get_or_create_idp_group()` ensures a DAG relationship exists between umbrella and assertion group (transactional via `add_group_relationship()`)
+- [x] Idempotent: no error or duplicate edges when relationship already exists
+- [x] `sync_user_idp_groups()` wires all resolved groups via `get_or_create_idp_group()`
+- [x] Event log entry (`idp_group_relationship_created`) emitted on new wiring
+- [x] `remove_child()` raises `ForbiddenError` for IdP-managed relationships
+- [x] `remove_all_relationships()` skips IdP-managed relationships
+- [x] API endpoints return HTTP 403 for protected removals
+- [x] Remove button hidden for IdP-managed entries; shown as read-only with "IdP-managed" label
+- [x] Umbrella Relationships tab shows assertion children (read-only) and supports adding WeftId children
+- [x] Assertion sub-group Relationships tab shows umbrella as read-only parent
+- [x] Unit tests for wiring, idempotency, removal protection, and relaxed parent restriction
+- [x] Router and API integration tests for 403 on protected removals
+
+---
+
 ## Groups: IdP Umbrella Group Descriptive Copy
 
 **Status:** Complete

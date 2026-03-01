@@ -146,6 +146,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "idp_group_invalidated": "IdP group marked invalid after IdP deletion",
     "idp_group_member_added": "User added to IdP group during authentication",
     "idp_group_member_removed": "User removed from IdP group during authentication",
+    "idp_group_relationship_created": "IdP group wired as child of umbrella group",
 }
 
 

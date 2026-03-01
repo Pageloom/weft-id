@@ -135,6 +135,43 @@ def get_idp_base_group(
     return _row_to_detail(row)
 
 
+def _ensure_umbrella_relationship(
+    tenant_id: str,
+    idp_id: str,
+    idp_name: str,
+    assertion_group_id: str,
+) -> None:
+    """Wire an assertion group as a DAG child of the umbrella group.
+
+    Idempotent: does nothing if the relationship already exists or if
+    the umbrella group does not exist yet (IdP setup may be incomplete).
+    """
+    base_group_id = database.groups.get_idp_base_group_id(tenant_id, idp_id)
+    if not base_group_id:
+        return
+
+    # Already wired
+    if database.groups.relationship_exists(tenant_id, base_group_id, assertion_group_id):
+        return
+
+    database.groups.add_group_relationship(tenant_id, tenant_id, base_group_id, assertion_group_id)
+
+    with system_context():
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=SYSTEM_ACTOR_ID,
+            artifact_type="group_relationship",
+            artifact_id=base_group_id,
+            event_type="idp_group_relationship_created",
+            metadata={
+                "idp_id": idp_id,
+                "idp_name": idp_name,
+                "parent_group_id": base_group_id,
+                "child_group_id": assertion_group_id,
+            },
+        )
+
+
 def get_or_create_idp_group(
     tenant_id: str,
     idp_id: str,
@@ -148,6 +185,9 @@ def get_or_create_idp_group(
     If a group with this name already exists for this IdP, returns it.
     Otherwise creates a new IdP group.
 
+    In both cases, ensures the group is wired as a DAG child of the
+    umbrella group (retroactive for pre-existing groups).
+
     Args:
         tenant_id: Tenant UUID
         idp_id: The IdP UUID
@@ -160,7 +200,9 @@ def get_or_create_idp_group(
     # Check if group already exists for this IdP
     existing = database.groups.get_group_by_idp_and_name(tenant_id, idp_id, group_name)
     if existing:
-        return {"id": str(existing["id"]), "name": existing["name"], "created": False}
+        group_id = str(existing["id"])
+        _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id)
+        return {"id": group_id, "name": existing["name"], "created": False}
 
     # Create new IdP group
     result = database.groups.create_idp_group(
@@ -197,6 +239,9 @@ def get_or_create_idp_group(
                 "group_name": group_name,
             },
         )
+
+    # Wire to umbrella group
+    _ensure_umbrella_relationship(tenant_id, idp_id, idp_name, group_id)
 
     return {"id": group_id, "name": group_name, "created": True}
 

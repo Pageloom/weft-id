@@ -2,7 +2,8 @@
 """Meridian Health dev seed script.
 
 Provisions a complete Meridian Health tenant with realistic data for
-development and testing: 350 users, 32 groups, 5 service providers, 3 IdPs.
+development and testing: 350 users, 32 groups, 9 IdP assertion groups,
+5 service providers, 3 IdPs.
 
 Usage:
     python ./dev/seed_dev.py
@@ -18,7 +19,7 @@ import database
 import utils.password
 import utils.saml
 from dev.tenants import provision_tenant
-from services.groups.idp import create_idp_base_group
+from services.groups.idp import create_idp_base_group, get_or_create_idp_group
 from settings import IS_DEV
 
 # ---------------------------------------------------------------------------
@@ -336,6 +337,25 @@ IDPS = [
     ("Vertex SSO", "vertex-sso", None),
     ("HealthConnect SSO", "healthconnect-sso", None),
 ]
+
+# IdP assertion groups (discovered from SAML claims during authentication)
+IDP_ASSERTION_GROUPS: dict[str, list[str]] = {
+    "Cloudbridge IdP": [
+        "CB-Engineering",
+        "CB-DevOps",
+        "CB-Security",
+        "CB-Product",
+    ],
+    "Vertex SSO": [
+        "VTX-Physicians",
+        "VTX-Nurses",
+        "VTX-Lab-Technicians",
+    ],
+    "HealthConnect SSO": [
+        "HC-Admissions",
+        "HC-Billing",
+    ],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -823,6 +843,55 @@ def step_9_identity_providers(
                 log.info("Domain binding exists: %s", domain)
 
 
+def step_10_idp_assertion_groups(
+    log: logging.Logger,
+    tenant_id: str,
+    dept_user_ids: dict[str, list[str]],
+) -> None:
+    """Create IdP assertion groups and add sample members.
+
+    Uses get_or_create_idp_group() which automatically wires each
+    assertion group as a DAG child of its IdP umbrella group.
+    """
+    log.info("--- Step 10: IdP assertion groups ---")
+
+    # Collect all bulk user IDs for sampling members into IdP groups
+    all_user_ids: list[str] = []
+    for uids in dept_user_ids.values():
+        all_user_ids.extend(uids)
+
+    for idp_name, slug, _domain in IDPS:
+        group_names = IDP_ASSERTION_GROUPS.get(idp_name, [])
+        if not group_names:
+            continue
+
+        entity_id = f"https://{slug}.example.com/saml/metadata"
+        idp_row = database.saml.providers.get_identity_provider_by_entity_id(tenant_id, entity_id)
+        if not idp_row:
+            log.warning("IdP not found, skipping assertion groups: %s", idp_name)
+            continue
+
+        idp_id = str(idp_row["id"])
+
+        for group_name in group_names:
+            info = get_or_create_idp_group(tenant_id, idp_id, idp_name, group_name)
+            group_id = info["id"]
+
+            if info.get("created"):
+                log.info("Created IdP assertion group: %s / %s", idp_name, group_name)
+            else:
+                log.info("IdP assertion group exists: %s / %s", idp_name, group_name)
+
+            # Add a sample of members (5-10 users per assertion group)
+            sample_size = min(random.randint(5, 10), len(all_user_ids))
+            sample_ids = random.sample(all_user_ids, sample_size)
+            database.groups.bulk_add_user_to_groups(tenant_id, tenant_id, sample_ids[0], [group_id])
+            for uid in sample_ids[1:]:
+                database.groups.bulk_add_user_to_groups(tenant_id, tenant_id, uid, [group_id])
+
+    log.info("IdP assertion groups ready")
+
+
 def _print_summary(log: logging.Logger, tenant_id: str) -> None:
     user_count = database.fetchone(tenant_id, "select count(*) as n from users", {})
     group_count = database.fetchone(tenant_id, "select count(*) as n from groups", {})
@@ -881,6 +950,7 @@ def main() -> None:
     sp_ids = step_7_service_providers(log, tenant_id, super_admin_id)
     step_8_sp_group_assignments(log, tenant_id, sp_ids, groups, super_admin_id)
     step_9_identity_providers(log, tenant_id, super_admin_id)
+    step_10_idp_assertion_groups(log, tenant_id, dept_user_ids)
     _print_summary(log, tenant_id)
 
 

@@ -644,6 +644,52 @@ def test_remove_child_success(make_user_dict, override_api_auth):
         assert response.status_code == 204
 
 
+def test_api_remove_child_idp_managed_returns_403(make_user_dict, override_api_auth):
+    """Removing an IdP-managed child returns 403."""
+    from services.exceptions import ForbiddenError
+
+    admin = make_user_dict(role="admin")
+    parent_id = str(uuid4())
+    child_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_child.side_effect = ForbiddenError(
+            message="Cannot remove IdP-managed relationship",
+            code="idp_managed_relationship",
+        )
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{parent_id}/children/{child_id}")
+
+        assert response.status_code == 403
+        assert "IdP-managed" in response.json()["detail"]
+
+
+def test_api_remove_parent_idp_managed_returns_403(make_user_dict, override_api_auth):
+    """Removing an IdP-managed parent returns 403."""
+    from services.exceptions import ForbiddenError
+
+    admin = make_user_dict(role="admin")
+    child_id = str(uuid4())
+    parent_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_child.side_effect = ForbiddenError(
+            message="Cannot remove IdP-managed relationship",
+            code="idp_managed_relationship",
+        )
+
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{child_id}/parents/{parent_id}")
+
+        assert response.status_code == 403
+        assert "IdP-managed" in response.json()["detail"]
+
+
 # =============================================================================
 # IdP Group API Tests
 # =============================================================================

@@ -157,10 +157,69 @@
             {% else %}
             <p class="text-sm text-gray-500 dark:text-gray-400">No parent groups.</p>
             {% endif %}
-            <p class="text-sm text-amber-600 dark:text-amber-400 mt-4">
-                This is the root group for {{ group.idp_name }}. Assertion groups reported by
-                this identity provider during authentication appear as read-only children of this group.
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-base font-semibold mb-3 text-gray-900 dark:text-gray-100">
+                Child Groups ({{ children|length }})
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Assertion groups reported by {{ group.idp_name }} during authentication are
+                automatically wired as children of this group.
             </p>
+
+            {% set weftid_children = children | selectattr('group_type', 'equalto', 'weftid') | list %}
+            {% if available_children %}
+            <form method="post" action="/admin/groups/{{ group.id }}/children/add" class="mb-4 flex gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="child_group_id" required
+                        class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                    <option value="">Select child group...</option>
+                    {% for g in available_children %}
+                    <option value="{{ g.id }}">{{ g.name }}{% if g.group_type == 'idp' %} (IdP){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-md text-sm whitespace-nowrap">
+                    Add
+                </button>
+            </form>
+            {% endif %}
+
+            {% if children %}
+            <div class="space-y-1">
+                {% for child in children %}
+                <div class="flex items-center justify-between py-2 px-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                    <div>
+                        <a href="/admin/groups/{{ child.group_id }}/relationships"
+                           class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                            {{ child.name }}
+                        </a>
+                        {% if child.group_type == 'idp' %}
+                        <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                        <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">IdP-managed</span>
+                        {% endif %}
+                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                            ({{ child.member_count }} members)
+                        </span>
+                    </div>
+                    {% if child.group_type != 'idp' %}
+                    <form method="post" action="/admin/groups/{{ group.id }}/children/{{ child.group_id }}/remove">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit"
+                                class="confirm-btn text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                                data-confirm="Remove {{ child.name }} as a child of this group?"
+                                data-destructive="true">
+                            Remove
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">No child groups.</p>
+            {% endif %}
         </div>
 
 {% else %}
@@ -182,13 +241,16 @@
                 </div>
                 {% endif %}
                 {% for parent in parents %}
-                <div class="py-2 px-3 border border-gray-200 dark:border-gray-700 rounded-md">
+                <div class="py-2 px-3 border border-gray-200 dark:border-gray-700 rounded-md flex items-center gap-2">
                     <a href="/admin/groups/{{ parent.group_id }}/relationships"
                        class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
                         {{ parent.name }}
                     </a>
                     {% if parent.group_type == 'idp' %}
                     <span class="ml-1 px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300 rounded-full" title="Managed by identity provider">IdP</span>
+                    {% endif %}
+                    {% if idp_umbrella_group and parent.group_id == idp_umbrella_group.id %}
+                    <span class="text-xs text-gray-400 dark:text-gray-500">IdP-managed</span>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -198,7 +260,7 @@
             </div>
             <p class="text-sm text-amber-600 dark:text-amber-400 mt-4">
                 This group is synced from {{ group.idp_name }}. Its relationship with the
-                {{ group.idp_name }} umbrella group is established automatically during authentication.
+                {{ group.idp_name }} umbrella group is managed automatically.
             </p>
         </div>
 {% endif %}

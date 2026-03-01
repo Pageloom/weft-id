@@ -6,36 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Groups: Unique Names for WeftId Groups + IdP Group Labeling
-
-**User Story:**
-As an admin
-I want WeftId-managed groups to have unique names and IdP groups to be clearly labeled everywhere
-So that I can unambiguously identify groups and avoid confusion between locally-managed and externally-synced groups
-
-**Context:**
-Groups have a `type` field: `weftid` (manually managed) or `idp` (synced from an external identity provider). IdP groups may legitimately share names across providers. WeftId groups have no such excuse and duplicate names cause confusion.
-
-**Acceptance Criteria:**
-- [ ] Database: partial unique constraint on `(tenant_id, name)` WHERE `type = 'weftid'`
-- [ ] Migration added for the constraint
-- [ ] Service layer: creating or renaming a WeftId group to a name already in use returns a clear `ValidationError` ("A group with this name already exists")
-- [ ] IdP groups are explicitly exempt: no uniqueness check applies when syncing IdP groups
-- [ ] UI: IdP groups display a visible "IdP" badge/tag in all views where groups appear:
-  - [ ] Group list (table and graph views)
-  - [ ] Group detail page header
-  - [ ] Membership lists (where a group is shown as a member)
-  - [ ] Relationship views (parent/child group listings)
-  - [ ] Application access views (groups granting SP access)
-  - [ ] Any user profile group membership listings
-- [ ] Badge styling makes clear the group is read-only / externally managed (e.g. tooltip "Managed by identity provider")
-- [ ] API: group create/update endpoints return 400 with descriptive message on name collision for WeftId groups
-
-**Effort:** M
-**Value:** High
-
----
-
 ## Groups: IdP Umbrella Group Descriptive Copy
 
 **User Story:**

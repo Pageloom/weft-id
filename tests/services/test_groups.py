@@ -271,7 +271,7 @@ def test_create_group_duplicate_name(make_requesting_user):
     with patch("services.groups.crud.database") as mock_db:
         mock_db.groups.get_weftid_group_by_name.return_value = {"id": str(uuid4())}
 
-        with pytest.raises(ConflictError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             groups_service.create_group(requesting_user, group_data)
 
         assert exc_info.value.code == "group_name_exists"
@@ -416,7 +416,7 @@ def test_update_group_duplicate_name(make_requesting_user):
         mock_db.groups.get_group_by_id.return_value = mock_existing
         mock_db.groups.get_weftid_group_by_name.return_value = {"id": str(uuid4())}
 
-        with pytest.raises(ConflictError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             groups_service.update_group(requesting_user, group_id, group_data)
 
         assert exc_info.value.code == "group_name_exists"

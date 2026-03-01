@@ -3186,3 +3186,30 @@ Quality:
 **Value:** Medium
 
 ---
+
+## Groups: Unique Names for WeftId Groups + IdP Group Labeling
+
+**Status:** Complete
+
+**User Story:**
+As an admin
+I want WeftId-managed groups to have unique names and IdP groups to be clearly labeled everywhere
+So that I can unambiguously identify groups and avoid confusion between locally-managed and externally-synced groups
+
+**Acceptance Criteria:**
+
+- [x] Database: partial unique constraint on `(tenant_id, name)` WHERE `idp_id IS NULL` (migration `0007_weftid_group_unique_name.sql`)
+- [x] Migration added for the constraint
+- [x] Service layer: creating or renaming a WeftId group to a name already in use returns `ValidationError` ("A group with this name already exists", code `group_name_exists`, field `name`)
+- [x] IdP groups are explicitly exempt: no uniqueness check applies when syncing IdP groups
+- [x] UI: IdP groups display a visible "IdP" badge in all views (group list table, graph view, group detail, membership lists, relationship views, user profile, application access views); badge has tooltip "Managed by identity provider"
+- [x] Badge text corrected to "IdP" / "WeftID" proper-case in group list table
+- [x] IdP badge color standardized to purple across all views (user detail direct-groups list corrected from blue)
+- [x] API: group create/update endpoints return 400 with descriptive message on name collision
+
+**Resolution:** Enforced uniqueness at the service layer via `ValidationError` (not `ConflictError`) on duplicate WeftID group names. Fixed badge label casing in `groups_list.html` and standardized IdP badge color to purple in `user_detail.html`. Updated service and API tests to reflect the corrected error type and HTTP status.
+
+**Effort:** M
+**Value:** High
+
+---

@@ -29,7 +29,6 @@ from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import (
-    ConflictError,
     ForbiddenError,
     NotFoundError,
     ValidationError,
@@ -158,9 +157,10 @@ def create_group(
 
     # Check for duplicate name (only among WeftID groups)
     if database.groups.get_weftid_group_by_name(tenant_id, name):
-        raise ConflictError(
-            message=f"A group named '{name}' already exists",
+        raise ValidationError(
+            message="A group with this name already exists",
             code="group_name_exists",
+            field="name",
         )
 
     # Create group (also creates self-referential lineage entry)
@@ -252,9 +252,10 @@ def update_group(
         if name != existing["name"]:
             other = database.groups.get_weftid_group_by_name(tenant_id, name)
             if other:
-                raise ConflictError(
-                    message=f"A group named '{name}' already exists",
+                raise ValidationError(
+                    message="A group with this name already exists",
                     code="group_name_exists",
+                    field="name",
                 )
 
     # Update

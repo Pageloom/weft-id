@@ -135,20 +135,22 @@ def test_create_group_success(make_user_dict, override_api_auth):
 
 
 def test_create_group_duplicate_name(make_user_dict, override_api_auth):
-    """Creating a group with duplicate name returns 409."""
+    """Creating a group with duplicate name returns 400."""
     admin = make_user_dict(role="admin")
 
     override_api_auth(admin)
 
     with patch("routers.api.v1.groups.groups_service") as mock_svc:
-        mock_svc.create_group.side_effect = ConflictError(
-            message="Group name exists", code="group_name_exists"
+        mock_svc.create_group.side_effect = ValidationError(
+            message="A group with this name already exists",
+            code="group_name_exists",
+            field="name",
         )
 
         client = TestClient(app)
         response = client.post("/api/v1/groups", json={"name": "Existing"})
 
-        assert response.status_code == 409
+        assert response.status_code == 400
 
 
 def test_create_group_name_required(make_user_dict, override_api_auth):
@@ -263,6 +265,26 @@ def test_update_group_success(make_user_dict, override_api_auth):
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Updated Name"
+
+
+def test_update_group_duplicate_name(make_user_dict, override_api_auth):
+    """Updating a group to a duplicate name returns 400."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.update_group.side_effect = ValidationError(
+            message="A group with this name already exists",
+            code="group_name_exists",
+            field="name",
+        )
+
+        client = TestClient(app)
+        response = client.patch(f"/api/v1/groups/{group_id}", json={"name": "Taken"})
+
+        assert response.status_code == 400
 
 
 # =============================================================================

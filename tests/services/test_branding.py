@@ -200,6 +200,56 @@ class TestValidation:
         mime = branding_service._validate_logo(data)
         assert mime == "image/svg+xml"
 
+    def test_detect_png_by_extension_fallback(self):
+        """Detects PNG by filename when magic bytes don't match."""
+        # Random data that doesn't start with PNG magic
+        data = b"\x00\x00\x00\x00\x00\x00\x00\x00"
+        mime = branding_service._detect_mime_type(data, "icon.png")
+        assert mime == "image/png"
+
+    def test_detect_svg_by_extension_fallback(self):
+        """Detects SVG by filename when content isn't recognized as SVG."""
+        # Binary data that won't match SVG pattern
+        data = b"\x00\x01\x02\x03"
+        mime = branding_service._detect_mime_type(data, "logo.svg")
+        assert mime == "image/svg+xml"
+
+    def test_validate_png_data_too_short(self):
+        """PNG with valid magic but truncated data is rejected."""
+        # PNG magic (8 bytes) + not enough data for IHDR (need 24 total)
+        data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 10  # Only 18 bytes total
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_png(data)
+        assert exc_info.value.code == "invalid_png"
+
+    def test_validate_svg_invalid_utf8(self):
+        """SVG with invalid UTF-8 bytes is rejected."""
+        data = b"\xff\xfe<svg><rect/></svg>"
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_svg_content(data)
+        assert exc_info.value.code == "invalid_svg"
+
+    def test_validate_svg_invalid_xml(self):
+        """SVG with valid UTF-8 but invalid XML is rejected."""
+        data = b"<svg><rect unclosed"
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_svg_content(data)
+        assert exc_info.value.code == "invalid_svg"
+
+    def test_validate_svg_javascript_in_safe_element_attr(self):
+        """SVG with javascript: in a safe element's attribute is rejected."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg"><image href="javascript:alert(1)"/></svg>'
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service._validate_svg_content(data)
+        assert exc_info.value.code == "svg_unsafe_content"
+
+    def test_validate_svg_malformed_viewbox(self):
+        """SVG with non-numeric viewBox values is accepted (browser handles it)."""
+        data = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 abc def"><rect/></svg>'
+        # Malformed viewBox: ValueError from float(), function returns without error
+        mime = branding_service._validate_logo(data)
+        assert mime == "image/svg+xml"
+
 
 # =============================================================================
 # Get Settings Tests

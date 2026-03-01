@@ -4006,3 +4006,167 @@ def test_add_child_assertion_as_parent_still_blocked(make_requesting_user):
             groups_service.add_child(requesting_user, assertion_id, child_id)
 
         assert exc_info.value.code == "idp_cannot_be_parent"
+
+
+# =============================================================================
+# Coverage gap: idp.py defensive paths
+# =============================================================================
+
+
+def test_create_idp_base_group_db_returns_none():
+    """Raises ValidationError when create_idp_group returns None."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = None
+
+        with pytest.raises(ValidationError, match="Failed to create IdP group"):
+            idp_service.create_idp_base_group(tenant_id, idp_id, "Okta")
+
+
+def test_create_idp_base_group_fetch_after_create_fails():
+    """Raises ValidationError when group can't be fetched after creation."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+    group_id = str(uuid4())
+
+    with (
+        patch("services.groups.idp.database") as mock_db,
+        patch("services.groups.idp.log_event"),
+        patch("services.groups.idp.system_context"),
+    ):
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = {"id": group_id}
+        mock_db.groups.get_group_by_id.return_value = None
+
+        with pytest.raises(ValidationError, match="Failed to fetch created group"):
+            idp_service.create_idp_base_group(tenant_id, idp_id, "Okta")
+
+
+def test_get_idp_base_group_row_not_found_after_id_lookup():
+    """Returns None when base group ID exists but row is not found."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_idp_base_group_id.return_value = str(uuid4())
+        mock_db.groups.get_group_by_id.return_value = None
+
+        result = idp_service.get_idp_base_group(tenant_id, idp_id)
+        assert result is None
+
+
+def test_get_or_create_idp_group_creation_fails():
+    """Raises ValidationError when create_idp_group returns None."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+    idp_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_group_by_idp_and_name.return_value = None
+        mock_db.groups.create_idp_group.return_value = None
+
+        with pytest.raises(ValidationError, match="Failed to create IdP group"):
+            idp_service.get_or_create_idp_group(tenant_id, idp_id, "Okta", "Engineering")
+
+
+def test_remove_user_from_base_group_no_base_group():
+    """Returns without error when base group doesn't exist."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_idp_base_group_id.return_value = None
+
+        # Should not raise
+        idp_service.remove_user_from_base_group(
+            tenant_id, str(uuid4()), "user@test.com", str(uuid4()), "Okta"
+        )
+
+        # Should not attempt bulk remove
+        mock_db.groups.bulk_remove_user_from_groups.assert_not_called()
+
+
+def test_ensure_users_in_base_group_empty_list():
+    """Returns 0 when user_ids list is empty."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+
+    result = idp_service.ensure_users_in_base_group(tenant_id, [], str(uuid4()), "Okta")
+    assert result == 0
+
+
+def test_remove_user_from_all_idp_groups_no_groups():
+    """Returns without error when user has no groups for the IdP."""
+    from services.groups import idp as idp_service
+
+    tenant_id = str(uuid4())
+
+    with patch("services.groups.idp.database") as mock_db:
+        mock_db.groups.get_user_idp_group_ids.return_value = []
+
+        # Should not raise
+        idp_service.remove_user_from_all_idp_groups(
+            tenant_id, str(uuid4()), "user@test.com", str(uuid4()), "Okta"
+        )
+
+        # Should not attempt bulk remove
+        mock_db.groups.bulk_remove_user_from_groups.assert_not_called()
+
+
+# =============================================================================
+# Coverage gap: _helpers.py defensive paths
+# =============================================================================
+
+
+def test_is_idp_umbrella_group_non_idp_group():
+    """Non-IdP group is not an umbrella group."""
+    from services.groups._helpers import _is_idp_umbrella_group
+
+    group = {"id": str(uuid4()), "group_type": "weftid"}
+    assert _is_idp_umbrella_group("tenant-1", group) is False
+
+
+def test_is_idp_umbrella_group_no_idp_id():
+    """IdP group without idp_id is not an umbrella group."""
+    from services.groups._helpers import _is_idp_umbrella_group
+
+    group = {"id": str(uuid4()), "group_type": "idp", "idp_id": None}
+    assert _is_idp_umbrella_group("tenant-1", group) is False
+
+
+def test_is_idp_managed_relationship_both_idp_same_idp():
+    """Detects managed relationship when parent is umbrella of shared IdP."""
+    from services.groups._helpers import _is_idp_managed_relationship
+
+    idp_id = str(uuid4())
+    umbrella_id = str(uuid4())
+    child_id = str(uuid4())
+    parent = {"id": umbrella_id, "group_type": "idp", "idp_id": idp_id}
+    child = {"id": child_id, "group_type": "idp", "idp_id": idp_id}
+
+    with patch("services.groups._helpers.database") as mock_db:
+        mock_db.groups.get_idp_base_group_id.return_value = umbrella_id
+
+        assert _is_idp_managed_relationship("tenant-1", parent, child) is True
+
+
+def test_is_idp_managed_relationship_different_idps():
+    """Not managed when parent and child belong to different IdPs."""
+    from services.groups._helpers import _is_idp_managed_relationship
+
+    parent = {"id": str(uuid4()), "group_type": "idp", "idp_id": str(uuid4())}
+    child = {"id": str(uuid4()), "group_type": "idp", "idp_id": str(uuid4())}
+
+    assert _is_idp_managed_relationship("tenant-1", parent, child) is False

@@ -2386,3 +2386,633 @@ class TestSSORejectsPendingSP:
                     authn_request_id="_req1",
                     base_url="https://idp.example.com",
                 )
+
+
+# =============================================================================
+# Trust Establishment: establish_trust_from_metadata_url
+# =============================================================================
+
+
+class TestEstablishTrustFromMetadataUrl:
+    """Tests for establish_trust_from_metadata_url."""
+
+    def test_success(self, make_requesting_user):
+        """Establishes trust from a metadata URL."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            entity_id=None,
+            acs_url=None,
+        )
+        established_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=True,
+            entity_id="https://sp.example.com",
+            acs_url="https://sp.example.com/acs",
+            metadata_url="https://sp.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.trust.database") as mock_db,
+            patch("services.service_providers.trust.log_event") as mock_log,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = established_row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.establish_trust_from_metadata_url(
+                requesting_user, sp_id, "https://sp.example.com/metadata"
+            )
+
+            assert result.trust_established is True
+            assert result.entity_id == "https://sp.example.com"
+            mock_log.assert_called_once()
+            assert mock_log.call_args[1]["metadata"]["method"] == "metadata_url"
+
+    def test_fetch_error(self, make_requesting_user):
+        """Raises ValidationError when metadata URL fetch fails."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch(
+            "utils.saml_idp.fetch_sp_metadata",
+            side_effect=ValueError("Connection refused"),
+        ):
+            with pytest.raises(ValidationError, match="Connection refused"):
+                sp_service.establish_trust_from_metadata_url(
+                    requesting_user, str(uuid4()), "https://bad.example.com/metadata"
+                )
+
+    def test_parse_error(self, make_requesting_user):
+        """Raises ValidationError when metadata XML is unparseable."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with (
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="not-xml"),
+            patch(
+                "utils.saml_idp.parse_sp_metadata_xml",
+                side_effect=ValueError("Invalid metadata"),
+            ),
+        ):
+            with pytest.raises(ValidationError, match="Invalid metadata"):
+                sp_service.establish_trust_from_metadata_url(
+                    requesting_user, str(uuid4()), "https://sp.example.com/metadata"
+                )
+
+    def test_with_attribute_mapping(self, make_requesting_user):
+        """Auto-detects attribute mapping from requested attributes."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, trust_established=False)
+        established_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, trust_established=True)
+        parsed = {
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "requested_attributes": [
+                {"Name": "email", "FriendlyName": "email"},
+            ],
+        }
+
+        with (
+            patch("services.service_providers.trust.database") as mock_db,
+            patch("services.service_providers.trust.log_event"),
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+            patch(
+                "utils.saml_idp.auto_detect_attribute_mapping",
+                return_value={"email": "user.email"},
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = established_row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.establish_trust_from_metadata_url(
+                requesting_user, sp_id, "https://sp.example.com/metadata"
+            )
+
+            assert result.trust_established is True
+            call_kwargs = mock_db.service_providers.establish_trust.call_args[1]
+            assert call_kwargs["attribute_mapping"] == {"email": "user.email"}
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot establish trust from metadata URL."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.establish_trust_from_metadata_url(
+                requesting_user, str(uuid4()), "https://sp.example.com/metadata"
+            )
+
+
+# =============================================================================
+# Trust Establishment: establish_trust_from_metadata_xml
+# =============================================================================
+
+
+class TestEstablishTrustFromMetadataXml:
+    """Tests for establish_trust_from_metadata_xml."""
+
+    def test_success(self, make_requesting_user):
+        """Establishes trust from provided metadata XML."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            entity_id=None,
+            acs_url=None,
+        )
+        established_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=True,
+            entity_id="https://sp.example.com",
+            acs_url="https://sp.example.com/acs",
+        )
+        parsed = {
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": SAMPLE_CERT_PEM,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "slo_url": "https://sp.example.com/slo",
+        }
+
+        with (
+            patch("services.service_providers.trust.database") as mock_db,
+            patch("services.service_providers.trust.log_event") as mock_log,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = established_row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.establish_trust_from_metadata_xml(
+                requesting_user, sp_id, "<EntityDescriptor>...</EntityDescriptor>"
+            )
+
+            assert result.trust_established is True
+            assert mock_log.call_args[1]["metadata"]["method"] == "metadata_xml"
+            call_kwargs = mock_db.service_providers.establish_trust.call_args[1]
+            assert call_kwargs["slo_url"] == "https://sp.example.com/slo"
+            assert call_kwargs["certificate_pem"] == SAMPLE_CERT_PEM
+
+    def test_parse_error(self, make_requesting_user):
+        """Raises ValidationError for invalid metadata XML."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch(
+            "utils.saml_idp.parse_sp_metadata_xml",
+            side_effect=ValueError("Not valid SAML metadata"),
+        ):
+            with pytest.raises(ValidationError, match="Not valid SAML metadata"):
+                sp_service.establish_trust_from_metadata_xml(
+                    requesting_user, str(uuid4()), "garbage"
+                )
+
+    def test_with_attribute_mapping(self, make_requesting_user):
+        """Auto-detects attribute mapping from requested attributes."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, trust_established=False)
+        established_row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, trust_established=True)
+        parsed = {
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "requested_attributes": [{"Name": "displayName"}],
+        }
+
+        with (
+            patch("services.service_providers.trust.database") as mock_db,
+            patch("services.service_providers.trust.log_event"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+            patch(
+                "utils.saml_idp.auto_detect_attribute_mapping",
+                return_value={"displayName": "user.display_name"},
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = established_row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            sp_service.establish_trust_from_metadata_xml(requesting_user, sp_id, "<xml/>")
+
+            call_kwargs = mock_db.service_providers.establish_trust.call_args[1]
+            assert call_kwargs["attribute_mapping"] == {"displayName": "user.display_name"}
+
+    def test_forbidden_for_admin(self, make_requesting_user):
+        """Admin role cannot establish trust from metadata XML."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.establish_trust_from_metadata_xml(requesting_user, str(uuid4()), "<xml/>")
+
+
+# =============================================================================
+# Trust Establishment: concurrent update failure
+# =============================================================================
+
+
+class TestEstablishTrustConcurrentFailure:
+    """Test that concurrent update failure is handled."""
+
+    def test_establish_trust_db_returns_none(self, make_requesting_user):
+        """Raises ValidationError when establish_trust returns None."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        pending_row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            trust_established=False,
+            entity_id=None,
+            acs_url=None,
+        )
+
+        with patch("services.service_providers.trust.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = pending_row
+            mock_db.service_providers.get_service_provider_by_entity_id.return_value = None
+            mock_db.service_providers.establish_trust.return_value = None
+
+            with pytest.raises(ValidationError, match="updated concurrently"):
+                sp_service.establish_trust_manually(
+                    requesting_user,
+                    sp_id,
+                    entity_id="https://sp.example.com",
+                    acs_url="https://sp.example.com/acs",
+                )
+
+
+# =============================================================================
+# Metadata Sync: _cert_fingerprint helper
+# =============================================================================
+
+
+class TestCertFingerprint:
+    """Tests for the _cert_fingerprint helper."""
+
+    def test_returns_sha256_fingerprint(self):
+        """Computes SHA-256 fingerprint for a PEM certificate."""
+        from services.service_providers.metadata_sync import _cert_fingerprint
+
+        result = _cert_fingerprint(SAMPLE_CERT_PEM)
+        assert result is not None
+        # SHA-256 fingerprint has 32 colon-separated hex pairs
+        parts = result.split(":")
+        assert len(parts) == 32
+        assert all(len(p) == 2 for p in parts)
+
+    def test_returns_none_for_empty(self):
+        """Returns None for empty/None input."""
+        from services.service_providers.metadata_sync import _cert_fingerprint
+
+        assert _cert_fingerprint(None) is None
+        assert _cert_fingerprint("") is None
+
+
+# =============================================================================
+# Metadata Sync: _compute_metadata_diff edge cases
+# =============================================================================
+
+
+class TestComputeMetadataDiff:
+    """Tests for _compute_metadata_diff uncovered paths."""
+
+    def test_certificate_change_detected(self):
+        """Detects certificate change and shows fingerprints."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        current = _make_sp_row(certificate_pem=SAMPLE_CERT_PEM)
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "nameid_format": current["nameid_format"],
+            "certificate_pem": None,
+        }
+
+        changes = _compute_metadata_diff(current, parsed, None)
+        cert_change = next((c for c in changes if c.field == "Certificate"), None)
+        assert cert_change is not None
+        assert cert_change.old_value is not None  # fingerprint
+        assert cert_change.new_value is None
+
+    def test_requested_attributes_change_detected(self):
+        """Detects change in requested attributes and shows count summary."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        old_attrs = [{"Name": "email"}, {"Name": "name"}]
+        current = _make_sp_row(sp_requested_attributes=old_attrs)
+        new_attrs = [{"Name": "email"}]
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "nameid_format": current["nameid_format"],
+            "certificate_pem": None,
+            "requested_attributes": new_attrs,
+        }
+
+        changes = _compute_metadata_diff(current, parsed, None)
+        attrs_change = next((c for c in changes if c.field == "Requested Attributes"), None)
+        assert attrs_change is not None
+        assert attrs_change.old_value == "2 attribute(s)"
+        assert attrs_change.new_value == "1 attribute(s)"
+
+    def test_attribute_mapping_change_detected(self):
+        """Detects change in attribute mapping and shows key summary."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        old_mapping = {"email": "user.email", "name": "user.name"}
+        current = _make_sp_row(attribute_mapping=old_mapping)
+        new_mapping = {"email": "user.email"}
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "nameid_format": current["nameid_format"],
+            "certificate_pem": None,
+        }
+
+        changes = _compute_metadata_diff(current, parsed, new_mapping)
+        mapping_change = next((c for c in changes if c.field == "Attribute Mapping"), None)
+        assert mapping_change is not None
+        assert "email" in mapping_change.old_value
+        assert "name" in mapping_change.old_value
+        assert mapping_change.new_value == "email"
+
+
+# =============================================================================
+# Metadata Sync: _parse_and_detect_mapping with attributes
+# =============================================================================
+
+
+class TestParseAndDetectMapping:
+    """Tests for _parse_and_detect_mapping attribute detection."""
+
+    def test_auto_detects_attribute_mapping(self):
+        """Calls auto_detect_attribute_mapping when requested_attributes present."""
+        from services.service_providers.metadata_sync import _parse_and_detect_mapping
+
+        parsed = {
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "requested_attributes": [{"Name": "email"}],
+        }
+
+        with (
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+            patch(
+                "utils.saml_idp.auto_detect_attribute_mapping",
+                return_value={"email": "user.email"},
+            ) as mock_auto,
+        ):
+            result_parsed, mapping = _parse_and_detect_mapping("<xml/>")
+
+            mock_auto.assert_called_once_with(parsed["requested_attributes"])
+            assert mapping == {"email": "user.email"}
+
+
+# =============================================================================
+# Metadata Sync: _apply_metadata_refresh returns None
+# =============================================================================
+
+
+class TestApplyMetadataRefreshEdge:
+    """Tests for _apply_metadata_refresh edge cases."""
+
+    def test_returns_none_raises_not_found(self):
+        """Raises NotFoundError when refresh_sp_metadata_fields returns None."""
+        from services.service_providers.metadata_sync import _apply_metadata_refresh
+
+        parsed = {
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
+            mock_db.service_providers.refresh_sp_metadata_fields.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                _apply_metadata_refresh("t1", "sp1", parsed, "<xml/>", None)
+
+
+# =============================================================================
+# Metadata Sync: apply_sp_metadata_refresh edge cases
+# =============================================================================
+
+
+class TestApplySPMetadataRefreshEdges:
+    """Edge case tests for apply_sp_metadata_refresh."""
+
+    def test_no_metadata_url(self, make_requesting_user):
+        """Raises ValidationError when SP has no metadata URL."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, metadata_url=None)
+
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="no metadata URL"):
+                sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+    def test_fetch_error(self, make_requesting_user):
+        """Raises ValidationError when metadata URL fetch fails."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch(
+                "utils.saml_idp.fetch_sp_metadata",
+                side_effect=ValueError("Timeout"),
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Timeout"):
+                sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+    def test_entity_id_changed(self, make_requesting_user):
+        """Raises ValidationError when entity_id changed during refresh."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            entity_id="https://old.example.com",
+            metadata_url="https://app.example.com/metadata",
+        )
+        parsed = {
+            "entity_id": "https://new.example.com",
+            "acs_url": "https://app.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("utils.saml_idp.fetch_sp_metadata", return_value="<xml/>"),
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Entity ID changed"):
+                sp_service.apply_sp_metadata_refresh(requesting_user, sp_id)
+
+
+# =============================================================================
+# Metadata Sync: preview/apply reimport edge cases
+# =============================================================================
+
+
+class TestReimportEdgeCases:
+    """Edge case tests for reimport preview and apply."""
+
+    def test_preview_reimport_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP not found for reimport preview."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.preview_sp_metadata_reimport(requesting_user, str(uuid4()), "<xml/>")
+
+    def test_apply_reimport_sp_not_found(self, make_requesting_user):
+        """Raises NotFoundError when SP not found for reimport apply."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="super_admin")
+
+        with patch("services.service_providers.metadata_sync.database") as mock_db:
+            mock_db.service_providers.get_service_provider.return_value = None
+
+            with pytest.raises(NotFoundError, match="Service provider not found"):
+                sp_service.apply_sp_metadata_reimport(requesting_user, str(uuid4()), "<xml/>")
+
+    def test_apply_reimport_entity_id_changed(self, make_requesting_user):
+        """Raises ValidationError when entity_id changed during reimport."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            entity_id="https://old.example.com",
+        )
+        parsed = {
+            "entity_id": "https://new.example.com",
+            "acs_url": "https://app.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        }
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch("utils.saml_idp.parse_sp_metadata_xml", return_value=parsed),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="Entity ID changed"):
+                sp_service.apply_sp_metadata_reimport(requesting_user, sp_id, "<xml/>")
+
+
+# =============================================================================
+# Metadata Sync: preview_sp_metadata_refresh fetch error
+# =============================================================================
+
+
+class TestPreviewRefreshFetchError:
+    """Test fetch error path in preview_sp_metadata_refresh."""
+
+    def test_fetch_raises_validation_error(self, make_requesting_user):
+        """Raises ValidationError when fetch_sp_metadata raises ValueError."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(
+            tenant_id=tenant_id,
+            sp_id=sp_id,
+            metadata_url="https://app.example.com/metadata",
+        )
+
+        with (
+            patch("services.service_providers.metadata_sync.database") as mock_db,
+            patch(
+                "utils.saml_idp.fetch_sp_metadata",
+                side_effect=ValueError("DNS resolution failed"),
+            ),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+
+            with pytest.raises(ValidationError, match="DNS resolution failed"):
+                sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)

@@ -357,6 +357,8 @@ WeftUtils.listManager({
 </script>
 {% else %}
 <script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
+<script src="{{ static_url('js/dagre.min.js') }}" integrity="sha384-2IH3T69EIKYC4c+RXZifZRvaH5SRUdacJW7j6HtE5rQbvLhKKdawxq6vpIzJ7j9M" nonce="{{ csp_nonce }}"></script>
+<script src="{{ static_url('js/cytoscape-dagre.min.js') }}" integrity="sha384-u69h9ebXeSjlg6q/rb1zKTRAGu/h8deCl0409xpS/QJctMKnc4M9Fzkm01VOQdeF" nonce="{{ csp_nonce }}"></script>
 <script type="application/json" id="page-data-graph">
 { "groupAvatarStyle": {{ branding.group_avatar_style | tojson }} }
 </script>
@@ -459,7 +461,7 @@ WeftUtils.listManager({
       // Highlight whichever node is under the cursor as the potential target
       if (window._cy) {
         window._cy.nodes().removeClass('rel-target');
-        window._cy.nodes().each((n) => {
+        window._cy.nodes().filter((n) => !n.data('isCluster')).each((n) => {
           if (relSourceNode && n.id() === relSourceNode.id()) return;
           const bb = n.renderedBoundingBox();
           if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
@@ -488,7 +490,7 @@ WeftUtils.listManager({
 
   function saveLayout(cy) {
     const pos = {};
-    cy.nodes().each((n) => { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
+    cy.nodes().filter((n) => !n.data('isCluster')).each((n) => { pos[n.id()] = {x: n.position('x'), y: n.position('y')}; });
     WeftUtils.apiFetch('/api/v1/groups/graph/layout', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
@@ -513,6 +515,21 @@ WeftUtils.listManager({
       const nodeMap = {};
       data.nodes.forEach((n) => { nodeMap[n.id] = n; });
 
+      // Build synthetic compound clusters: each IdP umbrella + its direct children
+      // share an invisible parent node so dagre groups them spatially.
+      const directChildrenOf = {};
+      data.edges.forEach((e) => {
+        if (!directChildrenOf[e.target]) directChildrenOf[e.target] = [];
+        directChildrenOf[e.target].push(e.source);
+      });
+      const nodeParent = {};
+      data.nodes.forEach((n) => {
+        if (!n.is_umbrella) return;
+        const clusterId = `cluster_${n.id}`;
+        nodeParent[n.id] = clusterId;
+        (directChildrenOf[n.id] || []).forEach((childId) => { nodeParent[childId] = clusterId; });
+      });
+
       const { groupAvatarStyle } = JSON.parse(document.getElementById('page-data-graph').textContent);
       const elements = data.nodes.map((n) => {
         let vis;
@@ -524,7 +541,7 @@ WeftUtils.listManager({
         } else {
           vis = generateGroupMandala(n.id);
         }
-        return {data: {
+        const elem = {data: {
           id: n.id,
           label: n.name,
           color: vis.color,
@@ -533,10 +550,14 @@ WeftUtils.listManager({
           effectiveMemberCount: n.effective_member_count,
           groupType: n.group_type
         }};
+        if (nodeParent[n.id]) elem.data.parent = nodeParent[n.id];
+        return elem;
       }).concat(data.edges.map((e) => {
         const contrib = nodeMap[e.source] ? nodeMap[e.source].effective_member_count : 0;
         return {data: {source: e.source, target: e.target, label: contrib > 0 ? String(contrib) : ''}};
-      }));
+      })).concat([...new Set(Object.values(nodeParent))].map((clusterId) => (
+        {data: {id: clusterId, isCluster: true}}
+      )));
 
       currentNodeIds = data.nodes.map((n) => n.id).sort().join(',');
 
@@ -545,21 +566,12 @@ WeftUtils.listManager({
         savedPositions = layoutData.positions;
       }
 
-      // Root nodes: no outgoing edges (edges go child→parent, so no outgoing = no parents)
-      const nodesWithParents = new Set();
-      data.edges.forEach((e) => { nodesWithParents.add(e.source); });
-      const rootSelector = data.nodes
-        .filter((n) => !nodesWithParents.has(n.id))
-        .map((n) => `#${n.id}`)
-        .join(', ') || 'node';
-
       const FRESH_LAYOUT = {
-        name: 'breadthfirst',
-        directed: false,
-        roots: rootSelector,
+        name: 'dagre',
+        rankDir: 'TB',
+        rankSep: 120,
+        nodeSep: 80,
         padding: 60,
-        spacingFactor: 1.75,
-        avoidOverlap: true,
         animate: false
       };
 
@@ -635,7 +647,7 @@ WeftUtils.listManager({
               'text-background-opacity': 0.75,
               'text-background-padding': '2px',
               'text-background-shape': 'round-rectangle',
-              'text-rotation': 'autorotate'
+              'text-rotation': 0
             }
           },
           {
@@ -671,6 +683,23 @@ WeftUtils.listManager({
               'overlay-color': '#f59e0b',
               'overlay-padding': 6,
               'overlay-opacity': 0.25
+            }
+          },
+          {
+            selector: 'node[?isCluster]',
+            style: {
+              'background-color': '#7c3aed',
+              'background-opacity': 0.06,
+              'background-image': 'none',
+              'border-width': 1.5,
+              'border-color': '#9333ea',
+              'border-opacity': 0.3,
+              'border-style': 'dashed',
+              'label': '',
+              'shape': 'round-rectangle',
+              'padding': '20px',
+              'text-opacity': 0,
+              'events': 'no'
             }
           },
           {
@@ -736,7 +765,7 @@ WeftUtils.listManager({
       });
 
       cy.fit(undefined, 160);
-      cy.nodes().each((n) => {
+      cy.nodes().filter((n) => !n.data('isCluster')).each((n) => {
         const pos = n.position();
         n.position({x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID});
       });
@@ -775,7 +804,7 @@ WeftUtils.listManager({
       const searchParam = new URLSearchParams(window.location.search).get('search');
       if (searchParam) {
         const q = searchParam.toLowerCase();
-        const matched = cy.nodes().filter((n) => n.data('label').toLowerCase().includes(q));
+        const matched = cy.nodes().filter((n) => n.data('label') && n.data('label').toLowerCase().includes(q));
         if (matched.length > 0) {
           cy.fit(matched, 80);
           let pulseOn = false;
@@ -1169,15 +1198,14 @@ WeftUtils.listManager({
       document.getElementById('btn-save-layout').addEventListener('click', () => exitLayoutMode(true));
       document.getElementById('btn-reset-layout').addEventListener('click', () => {
         cy.layout({
-          name: 'breadthfirst',
-          directed: false,
-          roots: cy.nodes().filter((n) => n.outdegree() === 0),
+          name: 'dagre',
+          rankDir: 'TB',
+          rankSep: 120,
+          nodeSep: 80,
           padding: 60,
-          spacingFactor: 1.75,
-          avoidOverlap: true,
           animate: false
         }).run();
-        cy.nodes().each((n) => {
+        cy.nodes().filter((n) => !n.data('isCluster')).each((n) => {
           const pos = n.position();
           n.position({x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID});
         });
@@ -1234,7 +1262,7 @@ WeftUtils.listManager({
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         let targetNode = null;
-        cy.nodes().each((n) => {
+        cy.nodes().filter((n) => !n.data('isCluster')).each((n) => {
           if (source && n.id() === source.id()) return;
           const bb = n.renderedBoundingBox();
           if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {

@@ -3431,6 +3431,7 @@ def test_get_group_graph_data_includes_idp_nodes(make_requesting_user):
                     "id": idp_group_id,
                     "name": "Okta Users",
                     "group_type": "idp",
+                    "is_umbrella": False,
                     "member_count": 10,
                     "effective_member_count": 10,
                 }
@@ -3443,6 +3444,84 @@ def test_get_group_graph_data_includes_idp_nodes(make_requesting_user):
         assert len(result.nodes) == 1
         assert result.nodes[0].group_type == "idp"
         assert result.nodes[0].name == "Okta Users"
+
+
+def test_get_group_graph_data_umbrella_flag_propagated(make_requesting_user):
+    """Umbrella flag is passed through from database row to graph node."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    umbrella_id = str(uuid4())
+    assertion_id = str(uuid4())
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
+    ):
+        mock_db.groups.list_all_groups_for_graph.return_value = {
+            "groups": [
+                {
+                    "id": umbrella_id,
+                    "name": "Okta",
+                    "group_type": "idp",
+                    "is_umbrella": True,
+                    "member_count": 5,
+                    "effective_member_count": 8,
+                },
+                {
+                    "id": assertion_id,
+                    "name": "Okta / Engineering",
+                    "group_type": "idp",
+                    "is_umbrella": False,
+                    "member_count": 3,
+                    "effective_member_count": 3,
+                },
+            ],
+            "relationships": [
+                {"child_group_id": assertion_id, "parent_group_id": umbrella_id},
+            ],
+        }
+
+        result = groups_service.get_group_graph_data(requesting_user)
+
+        umbrella_node = next(n for n in result.nodes if n.id == umbrella_id)
+        assertion_node = next(n for n in result.nodes if n.id == assertion_id)
+        assert umbrella_node.is_umbrella is True
+        assert assertion_node.is_umbrella is False
+
+
+def test_get_group_graph_data_umbrella_defaults_false(make_requesting_user):
+    """is_umbrella defaults to False when not present in database row."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_id = str(uuid4())
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.track_activity"),
+    ):
+        mock_db.groups.list_all_groups_for_graph.return_value = {
+            "groups": [
+                {
+                    "id": group_id,
+                    "name": "Engineering",
+                    "group_type": "weftid",
+                    # is_umbrella not present — simulates old data
+                    "member_count": 5,
+                    "effective_member_count": 5,
+                }
+            ],
+            "relationships": [],
+        }
+
+        result = groups_service.get_group_graph_data(requesting_user)
+
+        assert result.nodes[0].is_umbrella is False
 
 
 # =============================================================================
@@ -3537,7 +3616,7 @@ def test_save_graph_layout_success(make_requesting_user):
             tenant_id,
             user_id,
             layout.node_ids,
-            layout.positions,
+            {"aaa": {"x": 40.0, "y": 80.0}, "bbb": {"x": 120.0, "y": 160.0}},
         )
 
 

@@ -28,5 +28,5 @@ def save_graph_layout(requesting_user: RequestingUser, layout: GroupGraphLayout)
         requesting_user["tenant_id"],
         requesting_user["id"],
         layout.node_ids,
-        layout.positions,
+        {k: v.model_dump() for k, v in layout.positions.items()},
     )

@@ -375,6 +375,7 @@ def get_group_graph_data(requesting_user: RequestingUser) -> GroupGraphData:
             id=str(row["id"]),
             name=row["name"],
             group_type=row["group_type"],
+            is_umbrella=bool(row.get("is_umbrella", False)),
             member_count=row.get("member_count", 0),
             effective_member_count=row.get("effective_member_count", 0),
             has_logo=bool(row.get("has_logo", False)),

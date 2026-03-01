@@ -343,6 +343,7 @@ class GroupGraphNode(BaseModel):
     id: str = Field(..., description="Group UUID")
     name: str = Field(..., description="Group name")
     group_type: str = Field(..., description="Group type (weftid or idp)")
+    is_umbrella: bool = Field(False, description="Whether this group is an IdP umbrella group")
     member_count: int = Field(0, description="Number of direct members")
     effective_member_count: int = Field(0, description="Total members including inherited")
     has_logo: bool = Field(False, description="Whether a custom logo is uploaded")

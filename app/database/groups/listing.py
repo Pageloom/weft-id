@@ -115,6 +115,7 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
         tenant_id,
         """
         select g.id, g.name, g.group_type,
+               (idp_match.id is not null) as is_umbrella,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,
                (select count(distinct gm.user_id)
@@ -125,6 +126,9 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
                logo.updated_at as logo_updated_at
         from groups g
         left join group_logos logo on logo.group_id = g.id
+        left join saml_identity_providers idp_match
+          on idp_match.id = g.idp_id
+          and idp_match.name = g.name
         order by g.name
         """,
         {},

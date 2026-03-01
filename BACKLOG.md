@@ -414,3 +414,108 @@ Consent screen group disclosure:
 **Value:** Medium
 
 ---
+
+## Service Provider Logo / Avatar
+
+**User Story:**
+As an admin
+I want to upload a logo for each service provider, with a generated acronym avatar as fallback
+So that SPs are visually identifiable in lists, detail pages, and the user dashboard
+
+**Context:**
+
+Service providers currently have no visual identity. Group logos already support PNG and SVG
+uploads with an acronym fallback. This item brings the same pattern to service providers,
+reusing the existing validation and serving infrastructure.
+
+Upload happens from the SP detail page. The acronym fallback uses the same generation logic
+as groups (works with any UUID + name). Logos appear in the SP list, SP detail header,
+dashboard "My Apps" cards, and the SSO consent screen.
+
+**Acceptance Criteria:**
+
+Database:
+- [ ] New `sp_logos` table (parallel to `group_logos`): `sp_id`, `logo_data`, `content_type`,
+      `created_at`, `updated_at`, tenant-scoped with RLS
+- [ ] Migration adds the table with appropriate constraints
+- [ ] Add `has_logo` and `logo_updated_at` fields to SP response schemas
+
+Service:
+- [ ] Reuse validation from `app/services/branding.py` (`_validate_png`, `_validate_svg_content`)
+- [ ] Same constraints as group logos: PNG (square, >=48x48, <=256KB) or SVG
+- [ ] Upload and delete service functions with event logging
+
+Serving and API:
+- [ ] `/branding/sp-logo/{sp_id}` endpoint (parallel to `/branding/group-logo/{group_id}`)
+- [ ] Upload endpoint under SP admin routes
+- [ ] Delete endpoint under SP admin routes
+- [ ] API endpoints for upload and delete under `/api/v1/`
+
+Templates:
+- [ ] SP list (`saml_idp_sp_list.html`): show logo or acronym avatar
+- [ ] SP detail header (`saml_idp_sp_tab_details.html`): show logo with upload/remove controls
+- [ ] Dashboard "My Apps" cards (`dashboard.html`): show logo or acronym avatar
+- [ ] SSO consent screen (`saml_idp_sso_consent.html`): show logo or acronym avatar
+
+Frontend:
+- [ ] Acronym generation reuses `generateGroupAcronym()` from `static/js/group-mandala.js`
+      (works with any UUID + name)
+
+Tests:
+- [ ] Service layer tests for upload validation (PNG constraints, SVG sanitization)
+- [ ] Service layer tests for upload and delete with event logging
+- [ ] API integration tests for upload, serve, and delete endpoints
+- [ ] Template rendering tests verify logo/acronym fallback behavior
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## Groups: Remove Mandala Avatar Option
+
+**User Story:**
+As a developer
+I want to remove the mandala option from group avatar styles
+So that we simplify the codebase and standardize on the acronym avatar
+
+**Context:**
+
+Groups currently support two avatar styles: mandala (generative art from the group UUID) and
+acronym (letter-based, derived from the group name). The mandala option adds complexity with
+limited value. Removing it simplifies the frontend and reduces the number of code paths.
+
+Scope: groups only. The tenant-level site logo mandala generator (`app/utils/mandala.py`)
+stays, as it serves a different purpose.
+
+**Acceptance Criteria:**
+
+Enum and migration:
+- [ ] Remove `MANDALA = "mandala"` from `GroupAvatarStyle` enum
+- [ ] Migration updates any tenant with `group_avatar_style = 'mandala'` to `'acronym'`
+- [ ] Migration updates the `CHECK` constraint on the column to exclude `'mandala'`
+
+Templates:
+- [ ] Remove mandala rendering branch from group list template
+- [ ] Remove mandala rendering branch from group detail template
+- [ ] Remove mandala rendering branch from group graph template
+- [ ] Remove mandala radio option from `settings_branding_groups.html`
+
+JavaScript:
+- [ ] Remove `generateGroupMandala()` from `static/js/group-mandala.js`
+- [ ] Keep `generateGroupAcronym()` (still needed for groups and SP acronym avatars)
+- [ ] Rename `group-mandala.js` to `group-avatar.js`
+- [ ] Update all `<script>` references to the renamed file
+
+Backend:
+- [ ] Keep `app/utils/mandala.py` (still used for site logo)
+- [ ] Remove any mandala-specific service or template logic for groups
+
+Tests:
+- [ ] Existing tests continue to pass after enum and template changes
+- [ ] Verify migration correctly converts existing `'mandala'` rows to `'acronym'`
+
+**Effort:** S
+**Value:** Low
+
+---

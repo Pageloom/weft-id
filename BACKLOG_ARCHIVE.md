@@ -4,6 +4,58 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Infra: Health Check Endpoint
+
+**Status:** Complete
+
+**Summary:** Added `GET /healthz` endpoint for load balancer health probes. The endpoint runs `SELECT 1` against the database and returns 200 (healthy) or 503 (DB unreachable). It bypasses tenant resolution (no subdomain required), needs no authentication, and is not registered in `pages.py`. A `TenantGuardMiddleware` exempts `/healthz` from subdomain checks.
+
+**Acceptance Criteria:**
+- [x] `GET /healthz` returns HTTP 200 with an empty body when the app is healthy
+- [x] The route runs a `SELECT 1` against the database to verify connectivity
+- [x] If the database is unreachable, returns HTTP 503
+- [x] The route bypasses tenant resolution middleware (no subdomain required)
+- [x] The route requires no authentication or session
+- [x] Works with any Host header (bare domain, subdomain, IP, etc.)
+- [x] Route is NOT registered in `app/pages.py` (it is infrastructure, not a user-facing page)
+- [x] Tests cover the 200 (healthy) and 503 (DB unreachable) cases
+
+---
+
+## Infra: Reject Requests Without Tenant Subdomain
+
+**Status:** Complete
+
+**Summary:** Added `TenantGuardMiddleware` that rejects requests arriving on the bare domain or `www` subdomain with HTTP 400 and a self-contained HTML error page. The middleware runs as the outermost layer (before session, CSRF, etc.) and exempts `/healthz`. Existing subdomain-based tenant resolution is unaffected.
+
+**Acceptance Criteria:**
+- [x] Requests without a recognized tenant subdomain return HTTP 400 with a friendly HTML page explaining that a tenant subdomain is required
+- [x] The `/healthz` route is exempted and continues to work on the bare domain
+- [x] The rejection happens in the tenant resolution middleware, before routing
+- [x] `www` is not treated as a valid tenant subdomain (same 400 behavior)
+- [x] The error page is minimal, self-contained HTML (no template dependencies that require tenant context)
+- [x] Existing subdomain-based tenant resolution is unaffected
+- [x] Tests cover: bare domain rejected, `www` rejected, `/healthz` allowed on bare domain, valid subdomain still works
+
+---
+
+## Group Graph: Replace breadthfirst Layout with Dagre
+
+**Status:** Complete
+
+**Summary:** Replaced Cytoscape's built-in `breadthfirst` layout with the `cytoscape-dagre` plugin for group graph views. Dagre implements the Sugiyama algorithm with edge-crossing minimization, producing a more compact and readable layout for DAG structures. The plugin is loaded as a client-side JS file, and both the group list and group detail relationship tabs use the new layout. Saved layouts continue to work via the `preset` path. The "Reset layout" button triggers dagre instead of breadthfirst.
+
+**Acceptance Criteria:**
+- [x] `cytoscape-dagre` plugin added to `static/js/` and registered with Cytoscape
+- [x] `FRESH_LAYOUT` in `groups_list.html` updated to use `name: 'dagre'` with sensible `rankSep` and `nodeSep` values
+- [x] `FRESH_LAYOUT` in `groups_detail_tab_relationships.html` updated the same way
+- [x] The "Reset layout" button in the graph toolbar triggers dagre, not breadthfirst
+- [x] Saved layouts (`preset`) continue to load and display correctly
+- [x] The graph renders correctly on both the group list page and the group detail relationships tab
+- [x] Visually verified to be more compact than the current breadthfirst output on a representative group structure
+
+---
+
 ## Groups: SAML Assertion Groups as DAG Children of Umbrella
 
 **Status:** Complete

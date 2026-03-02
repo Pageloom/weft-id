@@ -18,11 +18,13 @@ from middleware.csrf import CSRFMiddleware  # noqa: E402
 from middleware.request_context import RequestContextMiddleware  # noqa: E402
 from middleware.security_headers import SecurityHeadersMiddleware  # noqa: E402
 from middleware.session import DynamicSessionMiddleware  # noqa: E402
+from middleware.tenant_guard import TenantGuardMiddleware  # noqa: E402
 from routers import account as account_router  # noqa: E402
 from routers import admin as admin_router  # noqa: E402
 from routers import auth, mfa, oauth2, saml, tenants, users  # noqa: E402
 from routers import branding as branding_router  # noqa: E402
 from routers import groups as groups_router  # noqa: E402
+from routers import health as health_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
@@ -56,6 +58,10 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENABLE_OPENAPI_DOCS else None,
 )
 
+# Reject requests without a tenant subdomain (outermost, runs first)
+# /healthz is exempt so load balancers can probe without a subdomain
+app.add_middleware(TenantGuardMiddleware)
+
 # Add session middleware with dynamic per-tenant session configuration
 app.add_middleware(
     DynamicSessionMiddleware,
@@ -86,6 +92,9 @@ async def redirect_error_handler(request: Request, exc: RedirectError):
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Infrastructure routes (no tenant context required)
+app.include_router(health_router.router)
 
 # Include routers - Web UI (HTML)
 app.include_router(branding_router.router)

@@ -39,6 +39,7 @@ from routers.api.v1 import saml as saml_api  # noqa: E402
 from routers.api.v1 import service_providers as service_providers_api  # noqa: E402
 from routers.api.v1 import settings as settings_api  # noqa: E402
 from routers.api.v1 import users as users_api  # noqa: E402
+from utils.crypto import derive_session_key  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ app.add_middleware(TenantGuardMiddleware)
 # Add session middleware with dynamic per-tenant session configuration
 app.add_middleware(
     DynamicSessionMiddleware,
-    secret_key=settings.SESSION_SECRET_KEY,
+    secret_key=derive_session_key(),
     https_only=not settings.IS_DEV,
 )
 

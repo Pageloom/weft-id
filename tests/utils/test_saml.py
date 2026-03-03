@@ -1116,50 +1116,6 @@ def test_build_logout_response_slo_url_with_query_string(sample_certificate):
 # =============================================================================
 
 
-def test_get_encryption_key_with_valid_32_byte_key():
-    """Test encryption key generation when key is exactly 32 bytes."""
-    import base64
-
-    # Create a valid 32-byte key (base64 encoded)
-    valid_key = base64.urlsafe_b64encode(b"a" * 32).decode()
-
-    with patch("app.utils.saml.settings") as mock_settings:
-        mock_settings.SAML_KEY_ENCRYPTION_KEY = valid_key
-
-        # Reimport to pick up mocked settings
-        from importlib import reload
-
-        import app.utils.saml
-
-        reload(app.utils.saml)
-        from app.utils.saml import _get_encryption_key
-
-        result = _get_encryption_key()
-
-        # Should return base64-encoded version of the key
-        assert len(base64.urlsafe_b64decode(result)) == 32
-
-
-def test_get_encryption_key_with_invalid_key_falls_back_to_hkdf():
-    """Test encryption key generation falls back to HKDF derivation for invalid keys."""
-    import base64
-
-    with patch("app.utils.saml.settings") as mock_settings:
-        mock_settings.SAML_KEY_ENCRYPTION_KEY = "not-valid-base64!"
-
-        from importlib import reload
-
-        import app.utils.saml
-
-        reload(app.utils.saml)
-        from app.utils.saml import _get_encryption_key
-
-        result = _get_encryption_key()
-
-        # Should still return a valid 32-byte key (base64 encoded)
-        assert len(base64.urlsafe_b64decode(result)) == 32
-
-
 def test_get_certificate_expiry_fallback_for_older_cryptography():
     """Test certificate expiry uses not_valid_after when not_valid_after_utc not available."""
     cert_pem, _ = generate_sp_certificate("test-tenant")

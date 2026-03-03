@@ -300,17 +300,3 @@ def test_get_totp_secret_unverified(test_user):
     retrieved_secret = get_totp_secret(test_user["tenant_id"], test_user["id"], "totp")
 
     assert retrieved_secret is None
-
-
-def test_encryption_key_fallback():
-    """Test that encryption key fallback works with invalid base64."""
-    from unittest.mock import patch
-
-    from utils.mfa import _get_encryption_key
-
-    # Test with invalid base64
-    with patch("settings.MFA_ENCRYPTION_KEY", "not-valid-base64-!!!"):
-        key = _get_encryption_key()
-        # Should still return a valid key (fallback to SHA256)
-        assert isinstance(key, bytes)
-        assert len(key) > 0

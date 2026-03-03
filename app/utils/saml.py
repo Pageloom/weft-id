@@ -5,38 +5,15 @@ import datetime
 from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
 
-import settings
 from cryptography import x509
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.x509.oid import NameOID
 from defusedxml import ElementTree as DefusedET
+from utils.crypto import derive_fernet_key
 
-
-def _get_encryption_key() -> bytes:
-    """Get or generate encryption key from settings."""
-    key_str = settings.SAML_KEY_ENCRYPTION_KEY
-    # Ensure the key is valid base64 and correct length for Fernet
-    try:
-        key_bytes = base64.urlsafe_b64decode(key_str)
-        if len(key_bytes) == 32:
-            return base64.urlsafe_b64encode(key_bytes)
-    except Exception:
-        pass
-    # Fallback: derive a proper key using HKDF
-    hkdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b"saml-key-encryption",
-    )
-    key_bytes = hkdf.derive(key_str.encode())
-    return base64.urlsafe_b64encode(key_bytes)
-
-
-_cipher = Fernet(_get_encryption_key())
+_cipher = Fernet(derive_fernet_key(b"saml-key-encryption"))
 
 
 def encrypt_private_key(private_key_pem: str) -> str:

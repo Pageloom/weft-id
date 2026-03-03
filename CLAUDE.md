@@ -56,6 +56,7 @@ Request → Router → Service → Database → PostgreSQL
 | `app/services/exceptions.py` | ServiceError subclasses (ForbiddenError, NotFoundError, ValidationError) |
 | `app/services/event_log.py` | `log_event()` function for audit logging |
 | `app/services/activity.py` | `track_activity()` for read operation tracking |
+| `app/utils/crypto.py` | HKDF key derivation from `SECRET_KEY` (session, MFA, SAML, email) |
 | `BACKLOG.md` | Product backlog (pending items) |
 | `BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
 | `ISSUES.md` | Active quality/security issues (goal: keep empty) |

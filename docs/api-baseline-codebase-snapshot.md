@@ -126,7 +126,7 @@ All current endpoints return HTML responses. No JSON API endpoints exist.
 - `DynamicSessionMiddleware` (custom, extends Starlette's `SessionMiddleware`)
 - Server-side session storage
 - Configurable `max_age` per tenant
-- Secret key: `SESSION_SECRET_KEY` from environment
+- Secret key: Derived from `SECRET_KEY` via HKDF (`utils/crypto.py`)
 
 **Session Data:**
 ```python
@@ -188,7 +188,7 @@ All current endpoints return HTML responses. No JSON API endpoints exist.
 - **Backup Codes** - Single-use emergency codes
 
 **Implementation:**
-- TOTP secrets: Encrypted with `MFA_ENCRYPTION_KEY` (cryptography library)
+- TOTP secrets: Encrypted with key derived from `SECRET_KEY` via HKDF (`utils/crypto.py`)
 - Email OTP codes: SHA-256 hashed, time-limited
 - Backup codes: SHA-256 hashed, single-use
 
@@ -406,7 +406,7 @@ from fastapi.staticfiles import StaticFiles
 app = FastAPI(title="Loom")
 app.add_middleware(
     DynamicSessionMiddleware,
-    secret_key=settings.SESSION_SECRET_KEY
+    secret_key=derive_session_key()
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

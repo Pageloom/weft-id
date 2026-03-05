@@ -54,6 +54,69 @@ API surface for it. The dependency on SAML IdP Phase 2 is resolved.
 
 ---
 
+## Service Provider: "Available to All Users" Access Mode
+
+**User Story:**
+As an admin
+I want to mark a service provider as available to all users without requiring explicit group
+assignments
+So that universal apps (e.g., company intranet, HR portal) are accessible to everyone without
+maintaining a catch-all group
+
+**Context:**
+
+Currently, SP access requires at least one group connection. For apps that every user should
+access, admins must create a catch-all group and keep it up to date. This item adds a
+first-class "available to all" toggle that grants access to every active user in the tenant.
+
+A future enhancement may add group-based exclusions ("available to all except Group X"), but
+that is out of scope for this item.
+
+**Acceptance Criteria:**
+
+Database:
+- [ ] New boolean column on the `service_providers` table: `available_to_all` (default `false`)
+- [ ] Migration adds the column with appropriate default and constraint
+- [ ] `check_user_sp_access()` updated to return `true` when `available_to_all` is `true`
+      (regardless of group membership)
+- [ ] SP list/detail queries include the new field
+
+Service:
+- [ ] Update SP create/update schemas to accept `available_to_all`
+- [ ] When `available_to_all` is `true`, the SP appears in every user's accessible apps
+- [ ] SSO flow treats "available to all" SPs identically to group-connected SPs (consent
+      screen, attribute assertions, audit logging all behave the same)
+- [ ] Event logged when `available_to_all` is toggled (`sp_access_mode_updated`)
+
+Dashboard and IdP-initiated SSO:
+- [ ] "Available to all" SPs appear in every user's "My Apps" on the dashboard
+- [ ] Users can initiate IdP-initiated sign-in to these SPs from the dashboard
+
+SP detail page (no-access warning):
+- [ ] When an SP has `available_to_all = false` AND has zero group connections, show a
+      prominent banner at the top of the detail page: "No users have access to this application"
+- [ ] Banner includes a "Set up access" link that navigates to the SP's group/access
+      configuration section
+- [ ] The access configuration section offers two options: "Available to all users" (toggle)
+      or connecting specific groups (existing behaviour)
+
+API:
+- [ ] `available_to_all` field exposed in SP API responses
+- [ ] SP create/update API endpoints accept and persist the field
+- [ ] `GET /api/v1/users/{user_id}/accessible-apps` includes "available to all" SPs
+
+Tests:
+- [ ] Service tests: toggling `available_to_all` grants/revokes universal access
+- [ ] Service tests: SSO flow works identically for "available to all" SPs
+- [ ] API tests: create/update SP with `available_to_all`, verify in accessible-apps response
+- [ ] Template tests: no-access banner appears when SP has no groups and is not available to all
+- [ ] Template tests: banner is hidden when SP has groups or is available to all
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Auto-assign Users to Groups Based on Privileged Email Domains
 
 **User Story:**
@@ -440,6 +503,59 @@ Tests:
 
 **Effort:** S
 **Value:** Low
+
+---
+
+## Onboarding Wizard for New Super Admins
+
+> **Status: Needs grooming.** The shape is roughed out below but the details need more thought before implementation.
+
+**User Story:**
+As the first super admin of a new WeftID instance
+I want a guided setup wizard that helps me get my identity layer running
+So that I can reach a working configuration quickly without guessing what to do first
+
+**Context:**
+
+A brand new WeftID instance gives no guidance on where to start. The wizard meets the first super admin after onboarding and walks them through initial setup. It is dismissable forever (per-user flag) and only appears for super admins.
+
+WeftID serves three primary deployment scenarios, and the wizard should adapt to whichever the admin is pursuing:
+
+- **Identity Federation Hub:** Multiple upstream IdPs unified behind one identity layer
+- **Standalone Identity Provider:** WeftID manages users directly (email/password, MFA)
+- **SSO Gateway:** One IdP, but WeftID adds group-based access control and audit for downstream apps
+
+**Rough Flow:**
+
+1. **Welcome.** Friendly intro, explain what the wizard will help with.
+2. **"How will your people sign in?"** Branching question: existing IdP, directly with WeftID, or both. Determines whether the next step is IdP setup or domain/user setup.
+3. **Identity source setup.** If IdP: walk through connecting the first provider (Okta, Entra, Google, generic SAML). If direct: collect company email domain, create a privileged domain.
+4. **"Let's organize your people."** Create the first group (suggest a name based on domain, e.g. "Acme Staff"). Link the domain to the group if applicable.
+5. **"Connect an application."** Optional. Walk through registering the first SP, or skip for later.
+6. **"Who should have access?"** Assign the group from step 4 to the SP from step 5. This is the "aha" moment.
+7. **Quick security check.** MFA policy toggle, session timeout recommendation.
+8. **Summary and next steps.** Show what was accomplished, link to key areas (audit logs, more apps, invite users).
+
+**Open Design Questions:**
+
+- Should step 3 (IdP setup) be a full inline walkthrough or just navigate to the existing config page with contextual guidance?
+- For the "Both" path in step 2, run both flows sequentially or pick one as primary?
+- Persistence model: wizard state as JSON on the tenant (checklist on dashboard) vs. a modal/sequential experience?
+- Should "invite a co-admin" be a wizard step?
+- Does the auto-assign-users-to-groups backlog item need to land first for the domain-to-group linking in step 4?
+
+**Acceptance Criteria:**
+
+- [ ] Wizard appears for the first super admin on a new tenant (not for subsequent admins unless they haven't dismissed it)
+- [ ] Dismissable forever via a per-user flag
+- [ ] Adapts flow based on the admin's stated intent (federation, standalone, SSO gateway)
+- [ ] Each step is skippable ("I'll do this later")
+- [ ] Completing or dismissing the wizard never blocks access to the main UI
+- [ ] Progress is persisted so the wizard can be resumed across sessions
+- [ ] Summary step links to relevant admin pages for continued setup
+
+**Effort:** XL
+**Value:** High
 
 ---
 

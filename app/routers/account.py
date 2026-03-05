@@ -58,7 +58,7 @@ def profile_settings(
 ):
     """Display and edit user profile settings (name, etc)."""
     return templates.TemplateResponse(
-        "settings_profile.html", get_template_context(request, tenant_id)
+        request, "settings_profile.html", get_template_context(request, tenant_id)
     )
 
 
@@ -180,7 +180,7 @@ def email_settings(
     emails = emails_service.list_user_emails(requesting_user, user["id"])
 
     return templates.TemplateResponse(
-        "settings_emails.html", get_template_context(request, tenant_id, emails=emails)
+        request, "settings_emails.html", get_template_context(request, tenant_id, emails=emails)
     )
 
 
@@ -195,6 +195,7 @@ def mfa_settings(
     backup_codes = mfa_service.list_backup_codes_raw(tenant_id, user["id"])
 
     return templates.TemplateResponse(
+        request,
         "settings_mfa.html",
         get_template_context(
             request,
@@ -353,6 +354,7 @@ def mfa_setup_totp(
     qr_data_url = generate_qr_code_base64(setup_response.uri)
 
     return templates.TemplateResponse(
+        request,
         "mfa_setup_totp.html",
         get_template_context(
             request,
@@ -401,6 +403,7 @@ def mfa_setup_verify(
         backup_codes_response = mfa_service.verify_totp_and_enable(requesting_user, user, code)
         # Show backup codes
         return templates.TemplateResponse(
+            request,
             "mfa_backup_codes.html",
             get_template_context(request, tenant_id, backup_codes=backup_codes_response.codes),
         )
@@ -411,6 +414,7 @@ def mfa_setup_verify(
             if pending_setup:
                 secret_display, uri = pending_setup
                 return templates.TemplateResponse(
+                    request,
                     "mfa_setup_totp.html",
                     get_template_context(
                         request, tenant_id, uri=uri, secret=secret_display, error="Invalid code"
@@ -432,6 +436,7 @@ def mfa_regenerate_backup_codes(
         backup_codes_response = mfa_service.regenerate_backup_codes(requesting_user, user)
         # Show backup codes
         return templates.TemplateResponse(
+            request,
             "mfa_backup_codes.html",
             get_template_context(request, tenant_id, backup_codes=backup_codes_response.codes),
         )
@@ -451,6 +456,7 @@ def mfa_generate_backup_codes(
 
     # Show backup codes
     return templates.TemplateResponse(
+        request,
         "mfa_backup_codes.html",
         get_template_context(request, tenant_id, backup_codes=backup_codes),
     )
@@ -466,7 +472,7 @@ def mfa_downgrade_verify_page(
         return RedirectResponse(url="/account/mfa", status_code=303)
 
     return templates.TemplateResponse(
-        "mfa_downgrade_verify.html", get_template_context(request, tenant_id)
+        request, "mfa_downgrade_verify.html", get_template_context(request, tenant_id)
     )
 
 
@@ -492,6 +498,7 @@ def mfa_downgrade_verify(
     except ValidationError as e:
         if e.code == "invalid_email_otp":
             return templates.TemplateResponse(
+                request,
                 "mfa_downgrade_verify.html",
                 get_template_context(request, tenant_id, error="Invalid or expired code"),
             )
@@ -520,6 +527,7 @@ def background_jobs_list(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "account_background_jobs.html",
         get_template_context(
             request,
@@ -577,6 +585,7 @@ def job_output_detail(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
+        request,
         "account_job_output.html",
         get_template_context(request, tenant_id, job=job),
     )

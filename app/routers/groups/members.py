@@ -151,6 +151,7 @@ def add_members_page(
     success_count = request.query_params.get("count")
 
     return templates.TemplateResponse(
+        request,
         "groups_members_add.html",
         get_template_context(
             request,

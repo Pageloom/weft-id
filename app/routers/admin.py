@@ -128,6 +128,7 @@ def event_log_list(
     success = request.query_params.get("success")
 
     return templates.TemplateResponse(
+        request,
         "admin_events.html",
         get_template_context(
             request,
@@ -157,6 +158,7 @@ def event_log_detail(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
+        request,
         "admin_event_detail.html",
         get_template_context(
             request,
@@ -206,6 +208,7 @@ def reactivation_requests_list(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "admin_reactivation_requests.html",
         get_template_context(
             request,
@@ -232,6 +235,7 @@ def reactivation_requests_history(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
+        request,
         "admin_reactivation_history.html",
         get_template_context(
             request,

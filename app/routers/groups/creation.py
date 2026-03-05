@@ -40,6 +40,7 @@ def new_group(
     description = request.query_params.get("description", "")
 
     return templates.TemplateResponse(
+        request,
         "groups_new.html",
         get_template_context(
             request,

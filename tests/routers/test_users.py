@@ -1527,9 +1527,9 @@ def test_users_list_passes_auth_method_fields_to_template(test_admin_user, mocke
     assert response.status_code == 200
 
     # Verify template was called with user data containing auth method fields
-    # TemplateResponse(name, context) - context is the 2nd positional arg
+    # TemplateResponse(request, name, context) - context is the 3rd positional arg
     template_call_args = mock_template.call_args[0]
-    context = template_call_args[1]
+    context = template_call_args[2]
     users = context["users"]
 
     assert len(users) == 4
@@ -1585,7 +1585,7 @@ def test_users_list_with_auth_method_filter(test_admin_user, mocker, override_au
 
     # Verify auth_method_options in template context
     template_call_args = mock_template.call_args[0]
-    context = template_call_args[1]
+    context = template_call_args[2]
     assert context["auth_methods"] == ["password_email"]
     assert context["auth_method_options"] == mock_auth_opts.return_value
 
@@ -1613,7 +1613,7 @@ def test_users_list_template_context_includes_auth_method_options(
 
     assert response.status_code == 200
     template_call_args = mock_template.call_args[0]
-    context = template_call_args[1]
+    context = template_call_args[2]
     assert "auth_method_options" in context
     assert "auth_methods" in context
     assert context["auth_methods"] == []
@@ -3105,7 +3105,7 @@ def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
 
     # Verify template was called with group data in context
     template_call_args = mock_template.call_args[0]
-    context = template_call_args[1]
+    context = template_call_args[2]
     assert "user_groups" in context
     assert "available_groups" in context
     assert context["user_groups"] == mock_memberships

@@ -754,9 +754,9 @@ def test_background_jobs_list_page(test_user, override_auth, mocker):
     mock_list.assert_called_once()
     # Verify template was called with correct template name
     template_call = mock_template.call_args
-    assert template_call[0][0] == "account_background_jobs.html"
-    # Context is the second positional argument
-    context = template_call[0][1]
+    assert template_call[0][1] == "account_background_jobs.html"
+    # Context is the third positional argument (after request and template name)
+    context = template_call[0][2]
     assert "jobs" in context
     assert context["has_active_jobs"] is True
 
@@ -793,7 +793,7 @@ def test_background_jobs_list_no_active_jobs(test_user, override_auth, mocker):
     assert response.status_code == 200
     # Verify has_active_jobs is False (polling should not run)
     template_call = mock_template.call_args
-    context = template_call[0][1]
+    context = template_call[0][2]
     assert context["has_active_jobs"] is False
 
 
@@ -871,8 +871,8 @@ def test_job_output_detail_success(test_user, override_auth, mocker):
     assert job_id == "job1"
     # Verify template was called with job details
     template_call = mock_template.call_args
-    assert template_call[0][0] == "account_job_output.html"
-    context = template_call[0][1]
+    assert template_call[0][1] == "account_job_output.html"
+    context = template_call[0][2]
     assert "job" in context
 
 

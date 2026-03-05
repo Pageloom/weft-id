@@ -88,7 +88,7 @@ def sp_list(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_list.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_list.html", context)
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -106,7 +106,7 @@ def sp_new(
         tenant_id,
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_new.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_new.html", context)
 
 
 @router.post("/create", response_class=HTMLResponse)
@@ -249,7 +249,7 @@ def sp_tab_details(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_details.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_details.html", context)
 
 
 @router.get("/{sp_id}/attributes", response_class=HTMLResponse)
@@ -287,7 +287,7 @@ def sp_tab_attributes(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_attributes.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_attributes.html", context)
 
 
 @router.get("/{sp_id}/groups", response_class=HTMLResponse)
@@ -327,7 +327,7 @@ def sp_tab_groups(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_groups.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_groups.html", context)
 
 
 @router.get("/{sp_id}/certificates", response_class=HTMLResponse)
@@ -365,7 +365,7 @@ def sp_tab_certificates(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_certificates.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_certificates.html", context)
 
 
 @router.get("/{sp_id}/metadata", response_class=HTMLResponse)
@@ -394,7 +394,7 @@ def sp_tab_metadata(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_metadata.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_metadata.html", context)
 
 
 @router.get("/{sp_id}/danger", response_class=HTMLResponse)
@@ -424,7 +424,7 @@ def sp_tab_danger(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("saml_idp_sp_tab_danger.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_tab_danger.html", context)
 
 
 # =============================================================================
@@ -589,7 +589,7 @@ def sp_refresh_metadata_preview(
         preview=preview,
         metadata_xml=None,
     )
-    return templates.TemplateResponse("saml_idp_sp_metadata_preview.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_metadata_preview.html", context)
 
 
 @router.post("/{sp_id}/refresh-metadata-apply", response_class=HTMLResponse)
@@ -652,7 +652,7 @@ def sp_reimport_metadata_preview(
         preview=preview,
         metadata_xml=metadata_xml.strip(),
     )
-    return templates.TemplateResponse("saml_idp_sp_metadata_preview.html", context)
+    return templates.TemplateResponse(request, "saml_idp_sp_metadata_preview.html", context)
 
 
 @router.post("/{sp_id}/reimport-metadata-apply", response_class=HTMLResponse)

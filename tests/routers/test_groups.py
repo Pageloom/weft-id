@@ -132,7 +132,7 @@ def test_groups_list_renders(test_admin_user, override_auth, mocker):
     assert response.status_code == 200
     mock_list.assert_called_once()
     mock_tmpl.assert_called_once()
-    template_name = mock_tmpl.call_args[0][0]
+    template_name = mock_tmpl.call_args[0][1]
     assert template_name == "groups_list.html"
 
 
@@ -279,7 +279,7 @@ def test_new_group_form_renders(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 200
     mock_tmpl.assert_called_once()
-    template_name = mock_tmpl.call_args[0][0]
+    template_name = mock_tmpl.call_args[0][1]
     assert template_name == "groups_new.html"
 
 
@@ -487,7 +487,7 @@ def test_group_tab_details_renders(test_admin_user, override_auth, mock_group_de
 
     assert response.status_code == 200
     mock_group_detail_deps["template"].assert_called_once()
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_details.html"
 
 
@@ -521,7 +521,7 @@ def test_group_tab_membership_renders(test_admin_user, override_auth, mock_group
     response = client.get(f"/admin/groups/{group_id}/membership")
 
     assert response.status_code == 200
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_membership.html"
 
 
@@ -550,7 +550,7 @@ def test_group_tab_applications_renders(test_admin_user, override_auth, mock_gro
     response = client.get(f"/admin/groups/{group_id}/applications")
 
     assert response.status_code == 200
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_applications.html"
 
 
@@ -579,7 +579,7 @@ def test_group_tab_relationships_renders(test_admin_user, override_auth, mock_gr
     response = client.get(f"/admin/groups/{group_id}/relationships")
 
     assert response.status_code == 200
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_relationships.html"
 
 
@@ -606,7 +606,7 @@ def test_group_tab_delete_renders(test_admin_user, override_auth, mock_group_det
     response = client.get(f"/admin/groups/{group_id}/delete")
 
     assert response.status_code == 200
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_delete.html"
 
 
@@ -1043,7 +1043,7 @@ def test_add_members_page_renders(test_admin_user, override_auth, mocker):
 
     assert response.status_code == 200
     mock_template.assert_called_once()
-    template_name = mock_template.call_args[0][0]
+    template_name = mock_template.call_args[0][1]
     assert template_name == "groups_members_add.html"
 
 
@@ -2600,7 +2600,7 @@ def test_group_tab_applications_sp_service_swallowed(
     response = client.get(f"/admin/groups/{group_id}/applications")
 
     assert response.status_code == 200
-    template_name = mock_group_detail_deps["template"].call_args[0][0]
+    template_name = mock_group_detail_deps["template"].call_args[0][1]
     assert template_name == "groups_detail_tab_applications.html"
 
 

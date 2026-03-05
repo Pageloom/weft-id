@@ -68,6 +68,7 @@ def groups_list(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "groups_list.html",
         get_template_context(
             request,

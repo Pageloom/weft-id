@@ -139,7 +139,7 @@ class TestSPListPage:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_list.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert "service_providers" in ctx_kwargs
@@ -211,7 +211,7 @@ class TestSPNewPage:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_new.html"
 
 
@@ -587,7 +587,7 @@ class TestSPTabDetails:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_details.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "details"
@@ -641,7 +641,7 @@ class TestSPTabAttributes:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_attributes.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "attributes"
@@ -684,7 +684,7 @@ class TestSPTabGroups:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_groups.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "groups"
@@ -803,7 +803,7 @@ class TestSPTabCertificates:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_certificates.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "certificates"
@@ -858,7 +858,7 @@ class TestSPTabMetadata:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_metadata.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "metadata"
@@ -888,7 +888,7 @@ class TestSPTabDanger:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_tab_danger.html"
         ctx_kwargs = mock_ctx.call_args[1]
         assert ctx_kwargs["active_tab"] == "danger"
@@ -1628,7 +1628,7 @@ class TestSPRefreshMetadataPreview:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_metadata_preview.html"
 
     def test_preview_error_redirects_to_metadata_tab(self, sp_admin_session, sp_host):
@@ -1738,7 +1738,7 @@ class TestSPReimportMetadataPreview:
 
         assert response.status_code == 200
         mock_tmpl.assert_called_once()
-        template_name = mock_tmpl.call_args[0][0]
+        template_name = mock_tmpl.call_args[0][1]
         assert template_name == "saml_idp_sp_metadata_preview.html"
 
     def test_preview_empty_xml_redirects_to_metadata_tab(self, sp_admin_session, sp_host):

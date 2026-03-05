@@ -153,6 +153,7 @@ def users_list(
     }
 
     return templates.TemplateResponse(
+        request,
         "users_list.html",
         get_template_context(
             request,

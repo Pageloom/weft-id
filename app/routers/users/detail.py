@@ -83,6 +83,7 @@ def user_detail(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "user_detail.html",
         get_template_context(
             request,

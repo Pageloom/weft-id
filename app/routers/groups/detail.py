@@ -130,6 +130,7 @@ def group_tab_details(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
+        request,
         "groups_detail_tab_details.html",
         get_template_context(
             request,
@@ -199,6 +200,7 @@ def group_tab_membership(
         inherited_members = [m for m in eff.items if not m.is_direct]
 
     return templates.TemplateResponse(
+        request,
         "groups_detail_tab_membership.html",
         get_template_context(
             request,
@@ -268,6 +270,7 @@ def group_tab_applications(
         pass
 
     return templates.TemplateResponse(
+        request,
         "groups_detail_tab_applications.html",
         get_template_context(
             request,
@@ -309,6 +312,7 @@ def group_tab_relationships(
         idp_umbrella_group = groups_service.get_idp_base_group(tenant_id, group.idp_id)
 
     return templates.TemplateResponse(
+        request,
         "groups_detail_tab_relationships.html",
         get_template_context(
             request,
@@ -344,6 +348,7 @@ def group_tab_delete(
         return render_error_page(request, tenant_id, exc)
 
     return templates.TemplateResponse(
+        request,
         "groups_detail_tab_delete.html",
         get_template_context(
             request,

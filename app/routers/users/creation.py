@@ -42,6 +42,7 @@ def new_user(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "users_new.html",
         get_template_context(
             request,

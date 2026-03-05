@@ -70,6 +70,7 @@ def privileged_domains(
     success = request.query_params.get("success")
 
     return templates.TemplateResponse(
+        request,
         "settings_privileged_domains.html",
         get_template_context(
             request,
@@ -193,6 +194,7 @@ def admin_security(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "settings_tenant_security.html",
         get_template_context(
             request,
@@ -358,6 +360,7 @@ def admin_branding_global(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "settings_branding_global.html",
         get_template_context(
             request,
@@ -387,6 +390,7 @@ def admin_branding_groups(
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
+        request,
         "settings_branding_groups.html",
         get_template_context(
             request,

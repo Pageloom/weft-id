@@ -62,7 +62,7 @@ def apps_list(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("integrations_apps.html", context)
+    return templates.TemplateResponse(request, "integrations_apps.html", context)
 
 
 @router.post("/apps/create", response_class=HTMLResponse)
@@ -136,7 +136,7 @@ def b2b_list(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("integrations_b2b.html", context)
+    return templates.TemplateResponse(request, "integrations_b2b.html", context)
 
 
 @router.post("/b2b/create", response_class=HTMLResponse)
@@ -213,7 +213,7 @@ def app_detail(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("integrations_app_detail.html", context)
+    return templates.TemplateResponse(request, "integrations_app_detail.html", context)
 
 
 @router.post("/apps/{client_id}/edit", response_class=HTMLResponse)
@@ -360,7 +360,7 @@ def b2b_detail(
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
     )
-    return templates.TemplateResponse("integrations_b2b_detail.html", context)
+    return templates.TemplateResponse(request, "integrations_b2b_detail.html", context)
 
 
 @router.post("/b2b/{client_id}/edit", response_class=HTMLResponse)

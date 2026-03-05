@@ -39,6 +39,7 @@ def _make_sp_row(
     acs_url: str = "https://app.example.com/saml/acs",
     enabled: bool = True,
     trust_established: bool = True,
+    available_to_all: bool = False,
     sp_requested_attributes: list[dict] | None = None,
     attribute_mapping: dict[str, str] | None = None,
     metadata_url: str | None = None,
@@ -63,6 +64,7 @@ def _make_sp_row(
         "include_group_claims": False,
         "enabled": enabled,
         "trust_established": trust_established,
+        "available_to_all": available_to_all,
         "created_by": str(uuid4()),
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
@@ -3016,3 +3018,157 @@ class TestPreviewRefreshFetchError:
 
             with pytest.raises(ValidationError, match="DNS resolution failed"):
                 sp_service.preview_sp_metadata_refresh(requesting_user, sp_id)
+
+
+# =============================================================================
+# available_to_all
+# =============================================================================
+
+
+class TestUpdateSPAvailableToAll:
+    """Tests for the available_to_all field in update_service_provider."""
+
+    def test_set_available_to_all_true(self, make_requesting_user):
+        """Setting available_to_all=True persists the value."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(available_to_all=True)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, available_to_all=False
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.available_to_all is True
+            mock_db.service_providers.update_service_provider.assert_called_once_with(
+                tenant_id, sp_id, available_to_all=True
+            )
+
+    def test_set_available_to_all_false(self, make_requesting_user):
+        """Setting available_to_all=False persists the value."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(available_to_all=False)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=False)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, available_to_all=True
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            result = sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            assert result.available_to_all is False
+
+    def test_logs_sp_access_mode_updated_event(self, make_requesting_user):
+        """Emits sp_access_mode_updated event when value changes."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(available_to_all=True)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, available_to_all=False
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Should have two log calls: service_provider_updated + sp_access_mode_updated
+            assert mock_log.call_count == 2
+            access_mode_call = mock_log.call_args_list[1]
+            assert access_mode_call.kwargs["event_type"] == "sp_access_mode_updated"
+            assert access_mode_call.kwargs["metadata"] == {"available_to_all": True}
+
+    def test_no_event_when_value_unchanged(self, make_requesting_user):
+        """Does not emit sp_access_mode_updated when value is the same."""
+        from schemas.service_providers import SPUpdate
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        data = SPUpdate(available_to_all=True)
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.log_event") as mock_log,
+        ):
+            mock_db.service_providers.get_service_provider.return_value = _make_sp_row(
+                tenant_id=tenant_id, sp_id=sp_id, available_to_all=True
+            )
+            mock_db.service_providers.update_service_provider.return_value = row
+
+            sp_service.update_service_provider(requesting_user, sp_id, data)
+
+            # Only the generic service_provider_updated event
+            assert mock_log.call_count == 1
+            assert mock_log.call_args.kwargs["event_type"] == "service_provider_updated"
+
+    def test_list_sp_includes_available_to_all(self, make_requesting_user):
+        """available_to_all field appears in list response."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].available_to_all is True
+
+    def test_get_sp_includes_available_to_all(self, make_requesting_user):
+        """available_to_all field appears in detail response."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
+        ):
+            mock_db.service_providers.get_service_provider.return_value = row
+            mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+
+            result = sp_service.get_service_provider(requesting_user, sp_id)
+
+            assert result.available_to_all is True

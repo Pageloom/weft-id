@@ -1078,3 +1078,44 @@ class TestApplyMetadataReimportAPI:
             json={"metadata_xml": "<xml/>"},
         )
         assert response.status_code == 401
+
+
+# =============================================================================
+# available_to_all via API
+# =============================================================================
+
+
+class TestUpdateSPAvailableToAllAPI:
+    """Tests for PATCH /api/v1/service-providers/{sp_id} with available_to_all."""
+
+    def test_patch_available_to_all(self, sp_api_client, api_host, sample_sp):
+        """PATCH with available_to_all updates the field."""
+        updated_sp = sample_sp.model_copy(update={"available_to_all": True})
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=updated_sp,
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+                json={"available_to_all": True},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["available_to_all"] is True
+
+    def test_patch_available_to_all_false(self, sp_api_client, api_host, sample_sp):
+        """PATCH with available_to_all=false updates the field."""
+        updated_sp = sample_sp.model_copy(update={"available_to_all": False})
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=updated_sp,
+        ):
+            response = sp_api_client.patch(
+                f"/api/v1/service-providers/{sample_sp.id}",
+                headers={"Host": api_host},
+                json={"available_to_all": False},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["available_to_all"] is False

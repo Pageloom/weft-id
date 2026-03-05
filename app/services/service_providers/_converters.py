@@ -25,6 +25,7 @@ def _row_to_config(row: dict) -> SPConfig:
         metadata_xml=row.get("metadata_xml"),
         enabled=row.get("enabled", True),
         trust_established=row.get("trust_established", False),
+        available_to_all=row.get("available_to_all", False),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -40,6 +41,7 @@ def _row_to_list_item(
         entity_id=row.get("entity_id"),
         enabled=row.get("enabled", True),
         trust_established=row.get("trust_established", True),
+        available_to_all=row.get("available_to_all", False),
         signing_cert_expires_at=signing_cert_expires_at,
         assigned_group_count=assigned_group_count,
         created_at=row["created_at"],

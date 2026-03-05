@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Service Provider: "Available to All Users" Access Mode
+
+**Status:** Complete
+
+**Summary:** Added `available_to_all` boolean to service providers. When enabled, all active users can access the SP via SSO without requiring group assignments. Includes migration, database query updates (access check and accessible-apps), schema/service/router/template changes, event logging, and tests.
+
+**Acceptance Criteria:**
+- [x] New `available_to_all` boolean column (default false) via migration 0008
+- [x] `check_user_sp_access()` short-circuits to true when `available_to_all` is true
+- [x] `get_accessible_sps_for_user()` includes available-to-all SPs via UNION
+- [x] SP update schema, API PATCH, and admin UI toggle all support the field
+- [x] `sp_access_mode_updated` event emitted when value changes
+- [x] SP list shows "All users" badge; detail page shows no-access warning banner
+- [x] Service, API, and router tests covering toggle, events, badges, and banners
+
+---
+
 ## Infra: Health Check Endpoint
 
 **Status:** Complete

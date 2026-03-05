@@ -65,6 +65,7 @@ class SPUpdate(BaseModel):
         None, max_length=50
     )
     include_group_claims: bool | None = None
+    available_to_all: bool | None = None
     attribute_mapping: (
         dict[Annotated[str, Field(max_length=255)], Annotated[str, Field(max_length=255)]] | None
     ) = None
@@ -93,6 +94,7 @@ class SPConfig(BaseModel):
     metadata_xml: str | None = None
     enabled: bool = True
     trust_established: bool = False
+    available_to_all: bool = False
     signing_cert_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -106,6 +108,7 @@ class SPListItem(BaseModel):
     entity_id: str | None = None
     enabled: bool = True
     trust_established: bool = True
+    available_to_all: bool = False
     signing_cert_expires_at: datetime | None = None
     assigned_group_count: int = 0
     created_at: datetime

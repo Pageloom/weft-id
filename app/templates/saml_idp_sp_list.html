@@ -9,7 +9,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
         <div class="flex justify-between items-center mb-6">
             <div>
-                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Providers</h1>
+                <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Providers (apps)</h1>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Downstream applications that authenticate users via SAML SSO</p>
             </div>
             <a href="/admin/settings/service-providers/new"
@@ -90,7 +90,9 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if sp.assigned_group_count > 0 %}
+                            {% if sp.available_to_all %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">All users</span>
+                            {% elif sp.assigned_group_count > 0 %}
                             <span class="text-sm text-gray-900 dark:text-gray-100">{{ sp.assigned_group_count }}</span>
                             {% else %}
                             <span class="text-sm text-gray-400 dark:text-gray-500">0</span>

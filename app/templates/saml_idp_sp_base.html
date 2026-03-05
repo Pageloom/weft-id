@@ -47,6 +47,16 @@
     </div>
     {% endif %}
 
+    {% if sp.trust_established and not sp.available_to_all and group_count == 0 %}
+    <div class="mb-6 p-4 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md flex items-center justify-between">
+        <p class="text-sm text-amber-800 dark:text-amber-300">
+            No users have access to this application.
+        </p>
+        <a href="/admin/settings/service-providers/{{ sp.id }}/groups"
+           class="text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline">Set up access</a>
+    </div>
+    {% endif %}
+
     {# SP Title + Badge #}
     <div class="flex items-center gap-3 mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ sp.name }}</h1>

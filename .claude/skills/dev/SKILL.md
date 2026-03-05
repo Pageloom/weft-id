@@ -86,6 +86,16 @@ make watch-tests    # Auto-rerun only affected tests on file changes
 
 This runs only tests affected by your changes, providing fast feedback (seconds instead of minutes). First run builds coverage database, then intelligently selects relevant tests.
 
+## After Adding Migrations
+
+When you create a new migration file in `db-init/migrations/`, apply it to the running dev database before running tests:
+
+```bash
+make migrate                            # Apply pending migrations to dev DB
+```
+
+Database tests run against the actual schema. If you skip this step, any test that touches the affected table will fail with a missing-column error.
+
 ## Before Committing
 
 ```bash
@@ -101,7 +111,8 @@ Both must pass.
 ## Testing Requirements
 
 - ~100% coverage on new code
-- Unit tests (service layer) and integration tests (routes/API)
+- **Three test layers:** database integration tests (`tests/database/`), service unit tests, and route/API integration tests
+- Database tests run against the real Postgres schema and verify SQL correctness (joins, filters, constraints)
 - Cover happy paths AND edge cases
 - All existing tests must pass
 

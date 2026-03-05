@@ -143,6 +143,9 @@ def user_can_access_sp(tenant_id: TenantArg, user_id: str, sp_id: str) -> bool:
         tenant_id,
         """
         select exists (
+            select 1 from service_providers
+            where id = :sp_id and available_to_all = true
+        ) or exists (
             select 1
             from group_memberships gm
             join group_lineage gl on gl.descendant_id = gm.group_id
@@ -172,7 +175,13 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
         where gm.user_id = :user_id
           and sp.enabled = true
           and sp.trust_established = true
-        order by sp.name
+        union
+        select sp.id, sp.name, sp.description, sp.entity_id
+        from service_providers sp
+        where sp.available_to_all = true
+          and sp.enabled = true
+          and sp.trust_established = true
+        order by name
         """,
         {"user_id": user_id},
     )

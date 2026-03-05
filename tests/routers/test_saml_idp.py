@@ -1819,3 +1819,173 @@ class TestSPReimportMetadataApply:
         assert response.status_code == 303
         assert f"/{sp_id}/metadata" in response.headers["location"]
         assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# Toggle Available to All Users
+# =============================================================================
+
+
+class TestToggleAvailableToAll:
+    """Tests for POST /{sp_id}/toggle-available-to-all."""
+
+    def test_toggle_on_redirects_to_groups_tab(self, sp_admin_session, sp_host, sample_sp_config):
+        """Toggling available_to_all=true redirects to groups tab with success."""
+        sp_id = sample_sp_config.id
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                data={"csrf_token": "test", "available_to_all": "true"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
+        assert "success=updated" in response.headers["location"]
+
+    def test_toggle_off_redirects_to_groups_tab(self, sp_admin_session, sp_host, sample_sp_config):
+        """Toggling available_to_all=false redirects to groups tab with success."""
+        sp_id = sample_sp_config.id
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            return_value=sample_sp_config,
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                data={"csrf_token": "test", "available_to_all": "false"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
+        assert "success=updated" in response.headers["location"]
+
+    def test_toggle_error_redirects_with_error(self, sp_admin_session, sp_host):
+        """Service error redirects with error message."""
+        from services.exceptions import NotFoundError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=NotFoundError(message="Service provider not found"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/toggle-available-to-all",
+                data={"csrf_token": "test", "available_to_all": "true"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert f"/{sp_id}/groups" in response.headers["location"]
+        assert "error=" in response.headers["location"]
+
+
+class TestSPListAvailableToAllBadge:
+    """Tests for 'All users' badge in SP list page."""
+
+    def test_sp_list_shows_all_users_badge(self, sp_admin_session, sp_host, mocker):
+        """SP with available_to_all=True shows 'All users' badge."""
+        sp_list = SPListResponse(
+            items=[
+                SPListItem(
+                    id=str(uuid4()),
+                    name="Universal App",
+                    entity_id="https://universal.example.com",
+                    available_to_all=True,
+                    created_at=datetime.now(UTC),
+                ),
+            ],
+            total=1,
+        )
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=sp_list,
+        ):
+            response = sp_admin_session.get(
+                "/admin/settings/service-providers/",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "All users" in response.text
+
+
+class TestSPBaseNoAccessBanner:
+    """Tests for no-access warning banner on SP detail pages."""
+
+    def test_shows_no_access_banner(self, sp_admin_session, sp_host):
+        """Shows warning when trust established but no groups and not available_to_all."""
+        sp_id = str(uuid4())
+        sp_config = SPConfig(
+            id=sp_id,
+            name="Lonely App",
+            entity_id="https://lonely.example.com",
+            acs_url="https://lonely.example.com/acs",
+            nameid_format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            trust_established=True,
+            available_to_all=False,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sp_config,
+            ),
+            patch(
+                "services.service_providers.count_sp_group_assignments",
+                return_value=0,
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sp_id}/details",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "No users have access" in response.text
+        assert "Set up access" in response.text
+
+    def test_no_banner_when_available_to_all(self, sp_admin_session, sp_host):
+        """No warning when available_to_all is true."""
+        sp_id = str(uuid4())
+        sp_config = SPConfig(
+            id=sp_id,
+            name="Universal App",
+            entity_id="https://universal.example.com",
+            acs_url="https://universal.example.com/acs",
+            nameid_format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            trust_established=True,
+            available_to_all=True,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        with (
+            patch(
+                "services.service_providers.get_service_provider",
+                return_value=sp_config,
+            ),
+            patch(
+                "services.service_providers.count_sp_group_assignments",
+                return_value=0,
+            ),
+        ):
+            response = sp_admin_session.get(
+                f"/admin/settings/service-providers/{sp_id}/details",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        assert "No users have access" not in response.text

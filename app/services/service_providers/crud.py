@@ -407,6 +407,8 @@ def update_service_provider(
         update_fields["nameid_format"] = NAMEID_FORMAT_LABELS[data.nameid_format]
     if data.include_group_claims is not None:
         update_fields["include_group_claims"] = data.include_group_claims
+    if data.available_to_all is not None:
+        update_fields["available_to_all"] = data.available_to_all
     if data.attribute_mapping is not None:
         update_fields["attribute_mapping"] = data.attribute_mapping
 
@@ -435,6 +437,21 @@ def update_service_provider(
         event_type="service_provider_updated",
         metadata={"changed_fields": list(update_fields.keys())},
     )
+
+    # Emit specific event when available_to_all actually changes
+    if "available_to_all" in update_fields and update_fields["available_to_all"] != existing.get(
+        "available_to_all", False
+    ):
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="service_provider",
+            artifact_id=sp_id,
+            event_type="sp_access_mode_updated",
+            metadata={
+                "available_to_all": update_fields["available_to_all"],
+            },
+        )
 
     # Emit specific event when nameid_format actually changes
     if "nameid_format" in update_fields and update_fields["nameid_format"] != old_nameid_format:

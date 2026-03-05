@@ -245,3 +245,12 @@ inside a `<script nonce="...">` body.
 **Right:** `fetchall(UNSCOPED, query)` or `execute(UNSCOPED, query, params)`
 
 The `UNSCOPED` sentinel skips the `SET LOCAL app.tenant_id` call, giving the query cross-tenant visibility. This is cleaner and uses the standard database helpers instead of duplicating connection management. Use it for background worker queries that need to scan across all tenants.
+
+---
+
+## Database Changes Go in Migrations Only
+
+**Wrong:** Adding a new column to `db-init/schema.sql` (the baseline schema)
+**Right:** Create a new migration file in `db-init/migrations/` (e.g., `0008_description.sql`)
+
+The `schema.sql` file represents the initial database state before any migrations. It is only applied on a fresh database. All schema changes must go exclusively in migration files. Never modify `schema.sql` for new changes.

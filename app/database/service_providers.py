@@ -7,7 +7,7 @@ from database._core import TenantArg, execute, fetchall, fetchone
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, nameid_format, metadata_xml, metadata_url,
                slo_url, include_group_claims, sp_requested_attributes,
-               attribute_mapping, enabled, trust_established,
+               attribute_mapping, enabled, trust_established, available_to_all,
                created_by, created_at, updated_at"""
 
 
@@ -144,6 +144,7 @@ def update_service_provider(
         "include_group_claims",
         "attribute_mapping",
         "enabled",
+        "available_to_all",
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:

@@ -76,6 +76,7 @@ service_provider_trust_established
 service_provider_updated
 slo_idp_propagated
 slo_sp_initiated
+sp_access_mode_updated
 sp_group_assigned
 sp_group_unassigned
 sp_groups_bulk_assigned

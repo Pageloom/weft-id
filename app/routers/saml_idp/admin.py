@@ -821,6 +821,35 @@ def sp_rotate_certificate(
         )
 
 
+@router.post("/{sp_id}/toggle-available-to-all", response_class=HTMLResponse)
+def sp_toggle_available_to_all(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    available_to_all: str = Form("false"),
+):
+    """Toggle the 'available to all users' access mode for an SP."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    from schemas.service_providers import SPUpdate
+
+    try:
+        data = SPUpdate(available_to_all=available_to_all == "true")
+        sp_service.update_service_provider(requesting_user, sp_id, data)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/groups?success=updated", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to toggle available_to_all: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/groups?error={exc.message}", status_code=303
+        )
+
+
 @router.post("/{sp_id}/groups/add", response_class=HTMLResponse)
 def sp_add_group(
     request: Request,

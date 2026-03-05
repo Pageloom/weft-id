@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SCHEMA] Audit schema.sql for Changes That Belong in Migrations Only
+
+**Status:** Resolved (2026-03-05)
+**Original Severity:** Medium
+
+**Resolution:** Audited all 8 migrations against `schema.sql`. Found two duplicates: migration 0001 (`certificate_rotation_window_days` column and constraint) and migration 0007 (two unique partial indexes on `groups`). Removed the duplicated definitions from `schema.sql` so migrations are the sole source of truth for those changes. All 3582 tests pass.
+
+---
+
+### [DEPRECATION] Starlette TemplateResponse Deprecated Call Signature
+
+**Status:** Resolved (2026-03-05)
+**Original Severity:** Medium
+
+**Resolution:** Updated all 90 `TemplateResponse` calls across 26 router files from `TemplateResponse(name, context)` to `TemplateResponse(request, name, context)`. Updated test assertions and removed the deprecation warning filter from `pytest.ini`.
+
+---
+
 ### [SECURITY] Unbounded Input: No payload size constraint on graph layout positions
 
 **Status:** Resolved (2026-02-27)

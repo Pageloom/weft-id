@@ -220,13 +220,11 @@ CREATE TABLE public.tenant_security_settings (
     allow_users_add_emails boolean DEFAULT true NOT NULL,
     inactivity_threshold_days integer,
     max_certificate_lifetime_years integer DEFAULT 10 NOT NULL,
-    certificate_rotation_window_days integer DEFAULT 90 NOT NULL,
     CONSTRAINT tenant_security_settings_pkey PRIMARY KEY (id),
     CONSTRAINT tenant_security_settings_tenant_id_key UNIQUE (tenant_id),
     CONSTRAINT tenant_security_settings_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
     CONSTRAINT fk_updated_by_user FOREIGN KEY (updated_by, tenant_id) REFERENCES public.users(id, tenant_id) ON DELETE SET NULL,
     CONSTRAINT chk_certificate_lifetime_years CHECK ((max_certificate_lifetime_years = ANY (ARRAY[1, 2, 3, 5, 10]))),
-    CONSTRAINT chk_certificate_rotation_window_days CHECK ((certificate_rotation_window_days = ANY (ARRAY[14, 30, 60, 90]))),
     CONSTRAINT tenant_security_settings_inactivity_threshold_days_check CHECK (((inactivity_threshold_days IS NULL) OR (inactivity_threshold_days > 0))),
     CONSTRAINT tenant_security_settings_session_timeout_seconds_check CHECK (((session_timeout_seconds IS NULL) OR (session_timeout_seconds > 0)))
 );
@@ -918,8 +916,6 @@ CREATE INDEX idx_reactivation_requests_pending ON public.reactivation_requests U
 CREATE INDEX idx_groups_tenant ON public.groups USING btree (tenant_id);
 CREATE INDEX idx_groups_tenant_type ON public.groups USING btree (tenant_id, group_type);
 CREATE INDEX idx_groups_idp_id ON public.groups USING btree (idp_id) WHERE (idp_id IS NOT NULL);
-CREATE UNIQUE INDEX idx_groups_weftid_name_unique ON public.groups USING btree (tenant_id, name) WHERE (idp_id IS NULL);
-CREATE UNIQUE INDEX idx_groups_idp_name_unique ON public.groups USING btree (tenant_id, idp_id, name) WHERE (idp_id IS NOT NULL);
 
 -- group_memberships
 CREATE INDEX idx_group_memberships_group ON public.group_memberships USING btree (group_id);

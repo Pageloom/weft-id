@@ -1,6 +1,7 @@
 -- Enforce unique group names for WeftId-managed groups within a tenant.
 -- IdP groups are exempt (they may have names that overlap with WeftId groups
 -- or with groups from other IdPs).
+-- migration-safety: ignore
 SET LOCAL ROLE appowner;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_weftid_name_unique

@@ -138,6 +138,52 @@ class SPCreate(BaseModel):
     description: str | None = None  # VIOLATION: No max_length!
 ```
 
+### 8. Migration Backwards Compatibility
+
+**Rule:** Migrations must be safe to apply on a running instance.
+
+**Breaking (never do in a single migration):**
+```sql
+-- VIOLATION: breaks running code that references the column
+ALTER TABLE users DROP COLUMN legacy_field;
+
+-- VIOLATION: breaks running code that references the table
+DROP TABLE old_audit_log;
+
+-- VIOLATION: breaks running code using old name
+ALTER TABLE users RENAME COLUMN name TO display_name;
+
+-- VIOLATION: fails on non-empty tables, breaks running inserts
+ALTER TABLE users ADD COLUMN role text NOT NULL;
+```
+
+**Safe alternatives:**
+```sql
+-- Safe: nullable column, no impact on running code
+ALTER TABLE users ADD COLUMN new_field text;
+
+-- Safe: NOT NULL with DEFAULT, existing rows get the default
+ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active';
+
+-- Safe: non-blocking index creation
+CREATE INDEX CONCURRENTLY idx_users_email ON users (email);
+```
+
+**Multi-step migration strategy for breaking changes:**
+1. Add new column (nullable or with default)
+2. Deploy code that writes to both old and new columns
+3. Backfill existing data
+4. Deploy code that reads from new column only
+5. Drop old column in a later migration
+
+**Suppression:** Add `-- migration-safety: ignore` on its own line to skip checks for a file:
+```sql
+-- migration-safety: ignore
+-- This cleanup migration runs after v2.3 removed all references to legacy_field.
+SET LOCAL ROLE appowner;
+ALTER TABLE users DROP COLUMN legacy_field;
+```
+
 ## Red Flags
 
 | Pattern | Example | Violation |
@@ -149,6 +195,10 @@ class SPCreate(BaseModel):
 | Router imports database | `from database import users` | Architecture |
 | No API coverage | Service operation only in web router | API-First |
 | No max_length | `name: str` without `Field(max_length=N)` | Input Validation |
+| DROP COLUMN/TABLE | `ALTER TABLE x DROP COLUMN y` in migration | Migration Safety |
+| RENAME in migration | `ALTER TABLE x RENAME COLUMN y TO z` | Migration Safety |
+| NOT NULL without DEFAULT | `ADD COLUMN x text NOT NULL` (no DEFAULT) | Migration Safety |
+| Non-concurrent index | `CREATE INDEX` without `CONCURRENTLY` | Migration Safety |
 
 ## Verification Checklists
 

@@ -96,6 +96,18 @@ make migrate                            # Apply pending migrations to dev DB
 
 Database tests run against the actual schema. If you skip this step, any test that touches the affected table will fail with a missing-column error.
 
+### Migration Safety
+
+Migrations must be backwards compatible (safe to apply on a running instance). The compliance checker (`--check migration-safety`) flags dangerous operations:
+
+- **Never in a single migration:** `DROP COLUMN`, `DROP TABLE`, `RENAME COLUMN/TABLE`, `ADD COLUMN NOT NULL` without `DEFAULT`
+- **Caution:** `ALTER COLUMN TYPE`, `SET NOT NULL`, `CREATE INDEX` without `CONCURRENTLY`
+- **Safe:** `ADD COLUMN` (nullable or with DEFAULT), `CREATE TABLE`, `ADD CONSTRAINT`, `CREATE INDEX CONCURRENTLY`
+
+For breaking changes, use a multi-step approach: add new column, deploy code that uses it, backfill, then drop old column in a later migration.
+
+If a migration intentionally contains a breaking change (e.g., cleanup after a prior code deploy), add `-- migration-safety: ignore` on its own line to suppress the check.
+
 ## Before Committing
 
 ```bash

@@ -21,6 +21,8 @@ Principles checked:
     8. rls             - RLS policies must have USING + WITH CHECK, use
                         current_setting(..., true), and exist for all
                         RLS-enabled tables
+    9. migration-safety - Migrations must be backwards compatible (no DROP
+                        COLUMN/TABLE, RENAME, type changes, etc.)
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -1524,6 +1526,268 @@ def check_rls_policy_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 9: Migration Backwards Compatibility
+# =============================================================================
+
+# Operations that break a running application when applied to a live database.
+# These patterns are detected via regex on migration SQL files.
+
+# High severity: immediate breakage of running application code
+_MIGRATION_HIGH_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
+    (
+        re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+            r"DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?(\w+)",
+            re.IGNORECASE,
+        ),
+        "DROP COLUMN on table '{0}' removes column '{1}' while running code may reference it",
+        "Deploy code that stops referencing the column first, then drop in a later migration",
+    ),
+    (
+        re.compile(
+            r"\bDROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(\w+)",
+            re.IGNORECASE,
+        ),
+        "DROP TABLE removes '{0}' while running code may reference it",
+        "Deploy code that stops referencing the table first, then drop in a later migration",
+    ),
+    (
+        re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+            r"RENAME\s+COLUMN\s+(\w+)\s+TO\s+(\w+)",
+            re.IGNORECASE,
+        ),
+        "RENAME COLUMN on '{0}' from '{1}' to '{2}' breaks running code referencing the old name",
+        "Add a new column, backfill data, deploy code using new column, then drop old column",
+    ),
+    (
+        re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+            r"RENAME\s+TO\s+(\w+)",
+            re.IGNORECASE,
+        ),
+        "RENAME TABLE from '{0}' to '{1}' breaks running code referencing the old name",
+        "Create a new table, migrate data, deploy code using new table, then drop old table",
+    ),
+    (
+        re.compile(
+            r"\bDROP\s+TYPE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(\w+)",
+            re.IGNORECASE,
+        ),
+        "DROP TYPE removes '{0}' while running queries may reference it",
+        "Deploy code that stops using the type first, then drop in a later migration",
+    ),
+]
+
+# Medium severity: may cause lock contention, data issues, or partial breakage
+_MIGRATION_MEDIUM_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
+    (
+        re.compile(
+            r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+            r"ALTER\s+COLUMN\s+(\w+)\s+(?:SET\s+DATA\s+)?TYPE\b",
+            re.IGNORECASE,
+        ),
+        "ALTER COLUMN TYPE on '{0}.{1}' acquires ACCESS EXCLUSIVE lock and may break running queries",
+        "Consider adding a new column with the desired type, backfilling, then swapping",
+    ),
+    (
+        re.compile(
+            r"\bDROP\s+INDEX\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(\w+)",
+            re.IGNORECASE | re.DOTALL,
+        ),
+        "DROP INDEX '{0}' may degrade query performance for running application",
+        "Ensure no queries depend on this index before dropping",
+    ),
+]
+
+# Patterns to detect NOT NULL without DEFAULT on ADD COLUMN
+_ADD_COLUMN_PATTERN = re.compile(
+    r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+    r"ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+"
+    r"([^;]+?)(?:;|\n\n)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Patterns to detect SET NOT NULL on existing column
+_SET_NOT_NULL_PATTERN = re.compile(
+    r"\bALTER\s+TABLE\s+(?:ONLY\s+)?(?:public\.)?(\w+)\s+"
+    r"ALTER\s+COLUMN\s+(\w+)\s+SET\s+NOT\s+NULL",
+    re.IGNORECASE,
+)
+
+# Pattern to detect CREATE INDEX without CONCURRENTLY
+_CREATE_INDEX_PATTERN = re.compile(
+    r"\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+(?!CONCURRENTLY\b)(?:IF\s+NOT\s+EXISTS\s+)?(\w+)",
+    re.IGNORECASE,
+)
+
+# Pattern to detect CREATE INDEX CONCURRENTLY (safe)
+_CREATE_INDEX_CONCURRENT_PATTERN = re.compile(
+    r"\bCREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b",
+    re.IGNORECASE,
+)
+
+
+# Comment directive to suppress migration safety checks for a file.
+# Place "-- migration-safety: ignore" on its own line (anywhere in the file).
+_MIGRATION_SAFETY_IGNORE = re.compile(
+    r"^\s*--\s*migration-safety:\s*ignore\b", re.IGNORECASE | re.MULTILINE
+)
+
+
+def check_migration_safety_violations(report: ComplianceReport) -> None:
+    """
+    Check that migration files are backwards compatible with a running application.
+
+    Scans db-init/migrations/*.sql for operations that would break a running
+    instance if applied while the application is still serving traffic.
+
+    High severity:
+    - DROP COLUMN / DROP TABLE / RENAME COLUMN / RENAME TABLE / DROP TYPE
+    - ADD COLUMN NOT NULL without DEFAULT
+
+    Medium severity:
+    - ALTER COLUMN TYPE (type changes acquire exclusive locks)
+    - ALTER COLUMN SET NOT NULL (may fail on existing NULL data)
+    - CREATE INDEX without CONCURRENTLY (blocks writes)
+    - DROP INDEX (may degrade performance)
+
+    Files containing "-- migration-safety: ignore" are skipped entirely.
+    """
+    migrations_dir = get_project_root() / "db-init" / "migrations"
+    if not migrations_dir.exists():
+        return
+
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        report.files_scanned += 1
+
+        with open(sql_file) as f:
+            sql = f.read()
+
+        # Allow opting out with a comment directive
+        if _MIGRATION_SAFETY_IGNORE.search(sql):
+            continue
+
+        rel_path = str(sql_file.relative_to(get_project_root()))
+
+        # Check high-severity patterns
+        for pattern, desc_template, fix in _MIGRATION_HIGH_PATTERNS:
+            for match in pattern.finditer(sql):
+                groups = match.groups()
+                line_num = sql[: match.start()].count("\n") + 1
+                report.add(
+                    Violation(
+                        principle="Migration Safety",
+                        severity="high",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=desc_template.format(*groups),
+                        evidence=match.group(0).strip(),
+                        suggested_fix=fix,
+                    )
+                )
+
+        # Check medium-severity patterns
+        for pattern, desc_template, fix in _MIGRATION_MEDIUM_PATTERNS:
+            for match in pattern.finditer(sql):
+                groups = match.groups()
+                line_num = sql[: match.start()].count("\n") + 1
+                report.add(
+                    Violation(
+                        principle="Migration Safety",
+                        severity="medium",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=desc_template.format(*groups),
+                        evidence=match.group(0).strip(),
+                        suggested_fix=fix,
+                    )
+                )
+
+        # Check ADD COLUMN NOT NULL without DEFAULT
+        for match in _ADD_COLUMN_PATTERN.finditer(sql):
+            table = match.group(1)
+            column = match.group(2)
+            col_def = match.group(3)
+
+            has_not_null = bool(re.search(r"\bNOT\s+NULL\b", col_def, re.IGNORECASE))
+            has_default = bool(re.search(r"\bDEFAULT\b", col_def, re.IGNORECASE))
+
+            if has_not_null and not has_default:
+                line_num = sql[: match.start()].count("\n") + 1
+                report.add(
+                    Violation(
+                        principle="Migration Safety",
+                        severity="high",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=(
+                            f"ADD COLUMN '{column}' on '{table}' is NOT NULL without DEFAULT. "
+                            f"Fails on non-empty tables and breaks running inserts missing this column"
+                        ),
+                        evidence=match.group(0).strip(),
+                        suggested_fix=(
+                            "Add a DEFAULT value, or add as nullable first, "
+                            "backfill, then set NOT NULL"
+                        ),
+                    )
+                )
+
+        # Check SET NOT NULL on existing column
+        for match in _SET_NOT_NULL_PATTERN.finditer(sql):
+            table = match.group(1)
+            column = match.group(2)
+            line_num = sql[: match.start()].count("\n") + 1
+            report.add(
+                Violation(
+                    principle="Migration Safety",
+                    severity="medium",
+                    file_path=rel_path,
+                    line_number=line_num,
+                    function_name=None,
+                    description=(
+                        f"SET NOT NULL on '{table}.{column}' may fail if existing rows "
+                        f"contain NULL values, and breaks running code that inserts NULLs"
+                    ),
+                    evidence=match.group(0).strip(),
+                    suggested_fix=(
+                        "Backfill NULLs first, add a NOT VALID CHECK constraint, "
+                        "then validate separately"
+                    ),
+                )
+            )
+
+        # Check CREATE INDEX without CONCURRENTLY
+        # Only flag if the file has non-concurrent indexes (skip if all are concurrent)
+        if _CREATE_INDEX_PATTERN.search(sql) and not _CREATE_INDEX_CONCURRENT_PATTERN.search(sql):
+            for match in _CREATE_INDEX_PATTERN.finditer(sql):
+                index_name = match.group(1)
+                line_num = sql[: match.start()].count("\n") + 1
+                report.add(
+                    Violation(
+                        principle="Migration Safety",
+                        severity="medium",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=(
+                            f"CREATE INDEX '{index_name}' without CONCURRENTLY "
+                            f"acquires a write lock on the table"
+                        ),
+                        evidence=match.group(0).strip(),
+                        suggested_fix=(
+                            "Use CREATE INDEX CONCURRENTLY to avoid blocking writes. "
+                            "Note: CONCURRENTLY cannot run inside a transaction, "
+                            "so the migration runner must support this"
+                        ),
+                    )
+                )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -1554,6 +1818,7 @@ def run_compliance_check(
         "input-length",
         "sql-length",
         "rls",
+        "migration-safety",
     ]
     if principles is None:
         principles = all_principles
@@ -1581,6 +1846,9 @@ def run_compliance_check(
 
     if "rls" in principles:
         check_rls_policy_violations(report)
+
+    if "migration-safety" in principles:
+        check_migration_safety_violations(report)
 
     return report
 
@@ -1643,6 +1911,7 @@ def main() -> int:
             "input-length",
             "sql-length",
             "rls",
+            "migration-safety",
             "all",
         ],
         default="all",

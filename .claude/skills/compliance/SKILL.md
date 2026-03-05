@@ -63,6 +63,29 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 - Optional fields use `Field(default=None, max_length=N)`
 - Database should have `CHECK (length(...) <= N)` or `VARCHAR(N)` as backstop
 
+### 8. Migration Backwards Compatibility
+
+**Rule:** Migrations must be safe to apply on a running instance without breaking the application.
+
+**High severity (immediate breakage):**
+- `DROP COLUMN` / `DROP TABLE` / `RENAME COLUMN` / `RENAME TABLE` / `DROP TYPE`
+- `ADD COLUMN ... NOT NULL` without `DEFAULT` (fails on non-empty tables)
+
+**Medium severity (lock contention or partial breakage):**
+- `ALTER COLUMN TYPE` (acquires ACCESS EXCLUSIVE lock, may break queries)
+- `ALTER COLUMN SET NOT NULL` (fails if existing NULLs, breaks inserts)
+- `CREATE INDEX` without `CONCURRENTLY` (acquires write lock)
+- `DROP INDEX` (may degrade query performance)
+
+**Safe patterns:**
+- `ADD COLUMN` (nullable or with DEFAULT)
+- `CREATE TABLE` / `CREATE TYPE`
+- `ADD CONSTRAINT` (with or without `NOT VALID`)
+- `CREATE INDEX CONCURRENTLY`
+- `ALTER COLUMN SET DEFAULT` / `ALTER COLUMN DROP DEFAULT`
+
+**Suppression:** Add `-- migration-safety: ignore` on its own line in a migration file to skip all safety checks for that file. Use this for intentional cleanup migrations where breaking changes have already been prepared by a prior code deploy.
+
 ### 7. RLS Policy Consistency
 
 **Rule:** Every table with `ENABLE ROW LEVEL SECURITY` must have a correct policy.
@@ -90,6 +113,7 @@ Compliance-only options:
 --check input-length    # Pydantic str fields without max_length
 --check sql-length      # SQL TEXT columns without length CHECK constraints
 --check rls             # RLS policies: USING + WITH CHECK, current_setting(true)
+--check migration-safety # Backwards compatibility of migration files
 ```
 
 ### 2. Investigate Findings
@@ -125,6 +149,11 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | TEXT/CITEXT column without `CHECK (length(...) <= N)` | SQL Length Validation |
 | RLS policy missing `WITH CHECK` clause | RLS Policy Consistency |
 | `current_setting()` without `true` parameter | RLS Policy Consistency |
+| `DROP COLUMN` / `DROP TABLE` in migration | Migration Safety |
+| `RENAME COLUMN` / `RENAME TABLE` in migration | Migration Safety |
+| `ADD COLUMN NOT NULL` without `DEFAULT` in migration | Migration Safety |
+| `ALTER COLUMN TYPE` in migration | Migration Safety |
+| `CREATE INDEX` without `CONCURRENTLY` in migration | Migration Safety |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 
@@ -155,7 +184,6 @@ log_event(
 ```
 
 ---
-```
 
 ## What You Cannot Do
 

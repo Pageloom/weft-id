@@ -496,3 +496,32 @@ WeftID serves three primary deployment scenarios, and the wizard should adapt to
 
 ---
 
+## Service Provider List: User Access Count
+
+**User Story:**
+As an admin
+I want to see how many users have access to each service provider in the SP list view
+So that I can quickly gauge the reach of each application at a glance
+
+**Context:**
+
+The SP list currently shows name, entity ID, and status but gives no indication of how many
+users can access each app. Access is granted via group assignments, so the count is the
+number of unique users across all groups assigned to the SP. SPs marked "available to all"
+should display the total tenant user count (or a label like "All users") rather than computing
+group-based access.
+
+**Acceptance Criteria:**
+
+- [ ] SP list view shows a user access count for each service provider
+- [ ] Count reflects unique users across all groups assigned to the SP
+- [ ] SPs with "available to all" enabled show the total tenant user count or "All users" label
+- [ ] Count is computed efficiently (single query, not N+1 per SP)
+- [ ] API list endpoint (`GET /api/v1/service-providers`) includes the count in the response
+- [ ] Zero-access SPs show "0" (not hidden or blank)
+
+**Effort:** S
+**Value:** Medium
+
+---
+

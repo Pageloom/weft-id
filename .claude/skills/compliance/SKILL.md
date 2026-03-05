@@ -53,6 +53,8 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 
 **Exceptions:** Auth flows, SAML ACS/SLO, admin UI conveniences.
 
+**Documentation:** API endpoint docstrings must accurately list all supported parameters and fields. When a PATCH/PUT endpoint accepts a schema, the docstring must document every field the schema exposes (not just a subset). Incomplete documentation misleads API consumers.
+
 ### 6. Input Length Validation
 
 **Rule:** Every `str` field in Pydantic input schemas must have `max_length`. Database TEXT columns must have matching constraints.
@@ -108,7 +110,7 @@ Compliance-only options:
 --check architecture    # Router imports
 --check activity        # Activity/event logging
 --check tenant          # Tenant isolation
---check api-first       # API coverage
+--check api-first       # API coverage + endpoint docstring completeness
 --check authorization   # Route auth
 --check input-length    # Pydantic str fields without max_length
 --check sql-length      # SQL TEXT columns without length CHECK constraints
@@ -144,6 +146,7 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | SQL without `tenant_id` filter | Tenant Isolation |
 | Router imports database | Architecture |
 | Service operation without API endpoint | API-First |
+| API docstring missing supported fields | API-First |
 | `str` field without `max_length` in input schema | Input Validation |
 | `Field(default=None)` without `max_length` | Input Validation |
 | TEXT/CITEXT column without `CHECK (length(...) <= N)` | SQL Length Validation |

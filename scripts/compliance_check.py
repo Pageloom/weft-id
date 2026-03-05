@@ -13,7 +13,8 @@ Principles checked:
     2. activity       - Service functions with RequestingUser must call track_activity()
                         or log_event()
     3. tenant         - SQL queries should filter by tenant_id
-    4. api-first      - Service operations should have corresponding API endpoints
+    4. api-first      - Service operations should have corresponding API endpoints,
+                        and PATCH/PUT docstrings should document all accepted fields
     5. authorization  - Web routes have proper auth dependencies matching pages.py
     6. input-length   - All str fields in Pydantic input schemas must have max_length
     7. sql-length     - All TEXT/CITEXT columns in SQL schema must have length CHECK
@@ -655,6 +656,153 @@ def check_api_first_violations(report: ComplianceReport) -> None:
                         ),
                     )
                 )
+
+
+def check_api_doc_violations(report: ComplianceReport) -> None:
+    """
+    Check that API PATCH/PUT endpoint docstrings document all accepted fields.
+
+    For each PATCH/PUT endpoint that accepts a Pydantic schema parameter,
+    verify that the docstring mentions every field defined in that schema.
+    """
+    api_path = get_app_path() / "routers" / "api" / "v1"
+    schemas_path = get_app_path() / "schemas"
+
+    if not api_path.exists() or not schemas_path.exists():
+        return
+
+    # Collect all schema classes and their fields from app/schemas/
+    schema_fields: dict[str, list[str]] = {}  # ClassName -> [field_names]
+
+    for py_file in _iter_python_files(schemas_path):
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                fields = []
+                for item in node.body:
+                    if isinstance(item, ast.AnnAssign) and isinstance(
+                        item.target, ast.Name
+                    ):
+                        # Skip class-level config or private attrs
+                        if not item.target.id.startswith("_"):
+                            fields.append(item.target.id)
+                if fields:
+                    schema_fields[node.name] = fields
+
+    # Scan API routers for PATCH/PUT endpoints
+    for py_file in _iter_python_files(api_path):
+        try:
+            with open(py_file) as f:
+                source = f.read()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        report.files_scanned += 1
+
+        # Collect imports to resolve schema names
+        imported_names: dict[str, str] = {}  # local_name -> original_name
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    local = alias.asname if alias.asname else alias.name
+                    imported_names[local] = alias.name
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+
+            # Check if this function has a PATCH or PUT decorator
+            is_patch_or_put = False
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Call) and isinstance(
+                    decorator.func, ast.Attribute
+                ):
+                    if decorator.func.attr in ("patch", "put"):
+                        is_patch_or_put = True
+                        break
+                elif isinstance(decorator, ast.Attribute):
+                    if decorator.attr in ("patch", "put"):
+                        is_patch_or_put = True
+                        break
+
+            if not is_patch_or_put:
+                continue
+
+            # Find the schema parameter (non-builtin type annotation
+            # that matches a known schema class)
+            schema_name = None
+            for arg in node.args.args:
+                if arg.annotation is None:
+                    continue
+                ann_name = None
+                if isinstance(arg.annotation, ast.Name):
+                    ann_name = arg.annotation.id
+                elif isinstance(arg.annotation, ast.Attribute):
+                    ann_name = arg.annotation.attr
+
+                if ann_name:
+                    # Resolve to original name if aliased
+                    original = imported_names.get(ann_name, ann_name)
+                    if original in schema_fields:
+                        schema_name = original
+                        break
+
+            if not schema_name:
+                continue
+
+            # Get the docstring
+            docstring = ast.get_docstring(node) or ""
+
+            # Check which fields are mentioned in the docstring
+            fields = schema_fields[schema_name]
+            missing_fields = []
+            for field_name in fields:
+                # Check for the field name in the docstring (case-insensitive,
+                # allow underscore-to-space or underscore-to-hyphen variants)
+                variants = [
+                    field_name,
+                    field_name.replace("_", " "),
+                    field_name.replace("_", "-"),
+                ]
+                found = any(v.lower() in docstring.lower() for v in variants)
+                if not found:
+                    missing_fields.append(field_name)
+
+            if missing_fields:
+                rel_path = str(py_file.relative_to(get_project_root()))
+                report.add(
+                    Violation(
+                        principle="API-First Methodology",
+                        severity="medium",
+                        file_path=rel_path,
+                        line_number=node.lineno,
+                        function_name=node.name,
+                        description=(
+                            f"PATCH/PUT endpoint docstring missing {len(missing_fields)} "
+                            f"of {len(fields)} fields from {schema_name}"
+                        ),
+                        evidence=f"Missing: {', '.join(missing_fields)}",
+                        suggested_fix=(
+                            f"Update the docstring to document all fields: "
+                            f"{', '.join(fields)}"
+                        ),
+                    )
+                )
+
+
+def _iter_python_files(directory: Path):
+    """Yield all .py files in a directory tree."""
+    for py_file in directory.rglob("*.py"):
+        if py_file.name.startswith("__"):
+            continue
+        yield py_file
 
 
 # =============================================================================
@@ -1834,6 +1982,7 @@ def run_compliance_check(
 
     if "api-first" in principles:
         check_api_first_violations(report)
+        check_api_doc_violations(report)
 
     if "authorization" in principles:
         check_authorization_violations(report)

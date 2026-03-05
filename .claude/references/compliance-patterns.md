@@ -107,6 +107,33 @@ from database import users as users_db  # VIOLATION: Direct database import!
 - SAML ACS/SLO endpoints
 - Admin UI conveniences combining multiple API operations
 
+**Documentation:** API endpoint docstrings must accurately list all supported parameters and fields. When a PATCH/PUT endpoint accepts a schema, the docstring must document every field the schema exposes. Incomplete documentation misleads API consumers and is a compliance violation.
+
+**Correct:**
+```python
+@router.patch("/{sp_id}", response_model=SPConfig)
+def update_service_provider(..., sp_data: SPUpdate):
+    """Update a Service Provider's configuration.
+
+    Requires super_admin role.
+
+    Request body (all fields optional, at least one required):
+    - name: Display name
+    - description: Description
+    - acs_url: Assertion Consumer Service URL
+    - slo_url: Single Logout URL
+    - nameid_format: NameID format
+    - available_to_all: Whether SP is available to all users
+    - include_group_claims: Include group claims in assertion
+    - attribute_mapping: Custom attribute mappings
+    """
+```
+
+**Violation:**
+```python
+# Docstring lists only 3 of 8+ fields — misleads consumers
+```
+
 ### 6. Input Length Validation
 
 **Rule:** All `str` fields in Pydantic input schemas must have `max_length`. Database TEXT columns should have matching constraints.
@@ -194,6 +221,7 @@ ALTER TABLE users DROP COLUMN legacy_field;
 | Missing tenant filter | `SELECT * FROM users WHERE email = %s` | Tenant Isolation |
 | Router imports database | `from database import users` | Architecture |
 | No API coverage | Service operation only in web router | API-First |
+| Incomplete API docs | Docstring lists subset of accepted fields | API-First |
 | No max_length | `name: str` without `Field(max_length=N)` | Input Validation |
 | DROP COLUMN/TABLE | `ALTER TABLE x DROP COLUMN y` in migration | Migration Safety |
 | RENAME in migration | `ALTER TABLE x RENAME COLUMN y TO z` | Migration Safety |
@@ -218,6 +246,10 @@ ALTER TABLE users DROP COLUMN legacy_field;
 - [ ] All `str` fields have `max_length` specified
 - [ ] Limits follow the standard categories (names 255, descriptions 2000, URLs 2048, enums 50)
 - [ ] Optional string fields also have `max_length` via `Field(default=None, max_length=N)`
+
+**Per API Router Module:**
+- [ ] Endpoint docstrings list all accepted fields/parameters
+- [ ] PATCH/PUT docstrings match the schema they accept (no missing fields)
 
 **Per Router Module:**
 - [ ] No `from database import` statements

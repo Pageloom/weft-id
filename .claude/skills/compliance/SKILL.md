@@ -88,6 +88,15 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 
 **Suppression:** Add `-- migration-safety: ignore` on its own line in a migration file to skip all safety checks for that file. Use this for intentional cleanup migrations where breaking changes have already been prepared by a prior code deploy.
 
+### 10. Template Links
+
+**Rule:** Template `href` and `action` attributes must point to routes that exist in the application.
+
+- All links in `app/templates/**/*.html` are matched against registered routes from `app/routers/` and `app/pages.py`
+- Jinja2 `{{ }}` segments in paths are treated as wildcards
+- External links, anchors, static assets, and fully dynamic Jinja2 paths are skipped
+- Conditional Jinja2 blocks (`{% if %}`) are skipped to avoid false positives
+
 ### 7. RLS Policy Consistency
 
 **Rule:** Every table with `ENABLE ROW LEVEL SECURITY` must have a correct policy.
@@ -116,6 +125,7 @@ Compliance-only options:
 --check sql-length      # SQL TEXT columns without length CHECK constraints
 --check rls             # RLS policies: USING + WITH CHECK, current_setting(true)
 --check migration-safety # Backwards compatibility of migration files
+--check template-links   # Template href/action link validity
 ```
 
 ### 2. Investigate Findings
@@ -157,6 +167,7 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | `ADD COLUMN NOT NULL` without `DEFAULT` in migration | Migration Safety |
 | `ALTER COLUMN TYPE` in migration | Migration Safety |
 | `CREATE INDEX` without `CONCURRENTLY` in migration | Migration Safety |
+| Template `href`/`action` not matching any route | Template Links |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 

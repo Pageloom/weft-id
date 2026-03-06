@@ -24,6 +24,8 @@ Principles checked:
                         RLS-enabled tables
     9. migration-safety - Migrations must be backwards compatible (no DROP
                         COLUMN/TABLE, RENAME, type changes, etc.)
+   10. template-links  - Template href/action attributes must match registered
+                        routes (catches dead links at CI time)
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -1936,6 +1938,290 @@ def check_migration_safety_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 10: Template Links
+# =============================================================================
+
+
+def _collect_all_routes() -> set[str]:
+    """Collect all registered route path patterns from router files and pages.py.
+
+    Returns a set of route patterns (with {param} segments replaced by regex wildcards).
+    """
+    root = get_project_root()
+    routes: set[str] = set()
+
+    # Source A: Router files - extract prefix + decorator paths
+    router_dir = root / "app" / "routers"
+    for py_file in sorted(router_dir.rglob("*.py")):
+        if py_file.name.startswith("_"):
+            continue
+
+        try:
+            source = py_file.read_text()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        # Find router prefix(es) in this file
+        prefixes: dict[str, str] = {}  # variable name -> prefix
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and isinstance(
+                        node.value, ast.Call
+                    ):
+                        call = node.value
+                        # Check if it's APIRouter(...)
+                        func = call.func
+                        if (isinstance(func, ast.Name) and func.id == "APIRouter") or (
+                            isinstance(func, ast.Attribute) and func.attr == "APIRouter"
+                        ):
+                            prefix = ""
+                            for kw in call.keywords:
+                                if kw.arg == "prefix" and isinstance(
+                                    kw.value, ast.Constant
+                                ):
+                                    prefix = kw.value.value
+                            prefixes[target.id] = prefix
+
+        # Extract route decorator paths
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) or isinstance(
+                node, ast.AsyncFunctionDef
+            ):
+                for decorator in node.decorator_list:
+                    if isinstance(decorator, ast.Call) and isinstance(
+                        decorator.func, ast.Attribute
+                    ):
+                        method = decorator.func.attr
+                        if method in ("get", "post", "put", "patch", "delete"):
+                            # Get the router variable name
+                            router_var = None
+                            if isinstance(decorator.func.value, ast.Name):
+                                router_var = decorator.func.value.id
+
+                            # Get the route path (first positional arg)
+                            route_path = ""
+                            if decorator.args and isinstance(
+                                decorator.args[0], ast.Constant
+                            ):
+                                route_path = decorator.args[0].value
+
+                            # Combine prefix + route path
+                            prefix = prefixes.get(router_var, "") if router_var else ""
+                            full_path = prefix + route_path
+                            if full_path:
+                                routes.add(full_path)
+
+    # Source B: Pages.py
+    pages_path = root / "app" / "pages.py"
+    if pages_path.exists():
+        page_permissions = _extract_page_permissions(pages_path)
+        for path in page_permissions:
+            routes.add(path)
+
+    # Source C: Known special paths
+    routes.add("/")
+    routes.add("/healthz")
+
+    return routes
+
+
+def _normalize_route_for_matching(route: str) -> str:
+    """Convert a route pattern like /users/{id}/edit to a regex pattern."""
+    # Replace {param} segments with regex wildcard
+    pattern = re.sub(r"\{[^}]+\}", "[^/]+", route)
+    # Escape other regex-special chars (but not [ ] ^ + which we use)
+    # We need to be careful: escape dots, question marks, etc.
+    parts = []
+    i = 0
+    while i < len(pattern):
+        if pattern[i : i + 5] == "[^/]+":
+            parts.append("[^/]+")
+            i += 5
+        elif pattern[i] in r"\.?*(){}|$":
+            parts.append("\\" + pattern[i])
+            i += 1
+        else:
+            parts.append(pattern[i])
+            i += 1
+    return "".join(parts)
+
+
+def _extract_template_links(
+    root: Path,
+) -> list[tuple[str, int, str]]:
+    """Extract href and action attribute values from all template files.
+
+    Returns list of (relative_file_path, line_number, raw_value) tuples.
+    """
+    templates_dir = root / "app" / "templates"
+    if not templates_dir.exists():
+        return []
+
+    links: list[tuple[str, int, str]] = []
+    # Match href="..." or action="..." (double or single quotes)
+    link_pattern = re.compile(r'(?:href|action)\s*=\s*"([^"]*)"')
+    link_pattern_sq = re.compile(r"(?:href|action)\s*=\s*'([^']*)'")
+
+    for html_file in sorted(templates_dir.rglob("*.html")):
+        rel_path = str(html_file.relative_to(root))
+        try:
+            content = html_file.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+
+        for line_num, line in enumerate(content.splitlines(), start=1):
+            for match in link_pattern.finditer(line):
+                links.append((rel_path, line_num, match.group(1)))
+            for match in link_pattern_sq.finditer(line):
+                links.append((rel_path, line_num, match.group(1)))
+
+    return links
+
+
+def _should_skip_link(raw_value: str) -> bool:
+    """Return True if a link value should be skipped (not checkable)."""
+    if not raw_value:
+        return True
+    # External links
+    if raw_value.startswith(("http://", "https://", "//", "mailto:")):
+        return True
+    # Anchors
+    if raw_value == "#" or raw_value.startswith("#"):
+        return True
+    # Query-only
+    if raw_value.startswith("?"):
+        return True
+    # Static and branding assets
+    if raw_value.startswith(("/static/", "/branding/")):
+        return True
+    # Entirely Jinja2 (fully dynamic path)
+    if raw_value.startswith("{{"):
+        return True
+    # Jinja2 block tags (conditional paths)
+    if "{% if" in raw_value or "{% else" in raw_value:
+        return True
+    return False
+
+
+def _normalize_link_for_matching(raw_value: str) -> str | None:
+    """Normalize a template link value for matching against routes.
+
+    Returns a regex pattern string, or None if the link cannot be normalized.
+    """
+    # Strip fragment identifiers and query strings
+    path = raw_value.split("#")[0]
+    path = path.split("?")[0]
+
+    # Strip trailing slash for consistency (but keep "/" as-is)
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/")
+
+    if not path:
+        return None
+
+    # Replace {{ ... }} Jinja2 expressions with wildcard
+    path = re.sub(r"\{\{[^}]*\}\}", "[^/]+", path)
+
+    # Now escape literal parts and keep wildcards
+    parts = []
+    i = 0
+    while i < len(path):
+        if path[i : i + 5] == "[^/]+":
+            parts.append("[^/]+")
+            i += 5
+        elif path[i] in r"\.?*(){}|$+":
+            parts.append("\\" + path[i])
+            i += 1
+        else:
+            parts.append(path[i])
+            i += 1
+
+    return "".join(parts)
+
+
+def check_template_links_violations(report: ComplianceReport) -> None:
+    """Check that template href/action links match registered routes."""
+    root = get_project_root()
+
+    # Collect all routes and convert to regex patterns
+    raw_routes = _collect_all_routes()
+    route_patterns: list[re.Pattern[str]] = []
+    for route in raw_routes:
+        regex_str = _normalize_route_for_matching(route)
+        try:
+            route_patterns.append(re.compile("^" + regex_str + "$"))
+        except re.error:
+            continue
+
+    # Extract all template links
+    template_links = _extract_template_links(root)
+    report.files_scanned += len(
+        {link[0] for link in template_links}
+    )
+
+    for file_path, line_num, raw_value in template_links:
+        if _should_skip_link(raw_value):
+            continue
+
+        normalized = _normalize_link_for_matching(raw_value)
+        if normalized is None:
+            continue
+
+        # Check if this link matches any route
+        try:
+            link_regex = re.compile("^" + normalized + "$")
+        except re.error:
+            continue
+
+        matched = False
+        for route_pattern in route_patterns:
+            # Check both directions: link matches route, or route matches link
+            # (handles cases where both have wildcards)
+            if route_pattern.pattern == link_regex.pattern:
+                matched = True
+                break
+            # Try matching the literal link against route patterns
+            # For links without wildcards, match directly
+            if "[^/]+" not in normalized:
+                if route_pattern.match(normalized):
+                    matched = True
+                    break
+            else:
+                # Both have wildcards: compare structural patterns
+                # Convert wildcards to a common placeholder and compare
+                link_struct = re.sub(r"\[\^/\]\+", "<PARAM>", normalized)
+                route_struct = re.sub(
+                    r"\[\^/\]\+",
+                    "<PARAM>",
+                    route_pattern.pattern.removeprefix("^").removesuffix("$"),
+                )
+                if link_struct == route_struct:
+                    matched = True
+                    break
+
+        if not matched:
+            # Truncate evidence if too long
+            evidence = raw_value
+            if len(evidence) > 100:
+                evidence = evidence[:97] + "..."
+
+            report.add(
+                Violation(
+                    principle="Template Links",
+                    severity="medium",
+                    file_path=file_path,
+                    line_number=line_num,
+                    function_name=None,
+                    description="Template link does not match any registered route",
+                    evidence=f'href/action="{evidence}"',
+                    suggested_fix="Check the path against app/routers/ and app/pages.py",
+                )
+            )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -1967,6 +2253,7 @@ def run_compliance_check(
         "sql-length",
         "rls",
         "migration-safety",
+        "template-links",
     ]
     if principles is None:
         principles = all_principles
@@ -1998,6 +2285,9 @@ def run_compliance_check(
 
     if "migration-safety" in principles:
         check_migration_safety_violations(report)
+
+    if "template-links" in principles:
+        check_template_links_violations(report)
 
     return report
 
@@ -2061,6 +2351,7 @@ def main() -> int:
             "sql-length",
             "rls",
             "migration-safety",
+            "template-links",
             "all",
         ],
         default="all",

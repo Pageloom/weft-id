@@ -6,29 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Tooling: Dead Links Compliance Check
-
-**User Story:**
-As a developer
-I want the `./code-quality` script to flag template links that don't match any registered route
-So that typos and stale paths in templates are caught during CI rather than at runtime
-
-**Acceptance Criteria:**
-- [ ] New `--check template-links` principle added to `scripts/compliance_check.py`
-- [ ] Scans all `app/templates/**/*.html` files for `href` and `action` attribute values
-- [ ] Skips external URLs, relative-only links (`?...`, `#`), and static/branding paths
-- [ ] Normalizes Jinja2 dynamic segments (`{{ ... }}`) to wildcards before matching
-- [ ] Collects all registered route paths from Python router files in `app/routers/`
-- [ ] Strips query strings from template paths before matching
-- [ ] Reports unmatched paths as violations with file and line number
-- [ ] Integrated into the default `--check all` run (picked up by `./code-quality`)
-- [ ] Zero false positives on the existing template set at time of implementation
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## Admin: User-App Access Query
 
 **User Story:**

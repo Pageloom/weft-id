@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [API-FIRST] Incomplete PATCH/PUT endpoint docstrings (6 endpoints)
+
+**Status:** Resolved (2026-03-06)
+**Original Severity:** Medium
+
+**Resolution:** Updated docstrings on 6 API endpoints to document all accepted fields from their schemas: service_providers PATCH (added 5 fields), branding PUT (added 5 fields), tenant-security PATCH (added 3 fields), graph layout PUT (added 2 fields), group PATCH (added 2 fields), user profile PATCH (added 1 field).
+
+---
+
 ### [SCHEMA] Audit schema.sql for Changes That Belong in Migrations Only
 
 **Status:** Resolved (2026-03-05)

@@ -87,10 +87,17 @@ def update_branding(
     admin: Annotated[dict, Depends(require_admin_api)],
     settings: BrandingSettingsUpdate,
 ):
-    """Update branding display settings (logo mode, favicon preference).
+    """Update branding display settings.
 
     Requires admin role.
     Switching to custom mode requires a light logo to be uploaded first.
+
+    Request body:
+    - logo_mode: Logo display mode (required)
+    - use_logo_as_favicon: Use custom logo as favicon (default false)
+    - site_title: Custom site title, max 30 chars (optional, null to clear)
+    - show_title_in_nav: Show title in navigation bar (default true)
+    - group_avatar_style: Default avatar style for group icons (default acronym)
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
 

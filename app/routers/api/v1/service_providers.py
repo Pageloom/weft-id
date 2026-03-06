@@ -193,6 +193,11 @@ def update_service_provider(
     - name: Display name
     - description: Description
     - acs_url: Assertion Consumer Service URL
+    - slo_url: Single Logout URL
+    - nameid_format: NameID format (emailAddress, persistent, transient, unspecified)
+    - include_group_claims: Whether to include group claims in assertions
+    - available_to_all: Whether the SP is accessible to all users
+    - attribute_mapping: Custom SAML attribute name mappings (dict)
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:

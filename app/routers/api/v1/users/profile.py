@@ -63,11 +63,12 @@ def update_current_user_profile(
     - Bearer token (OAuth2)
     - Session cookie
 
-    Request Body:
-        first_name: User's first name (optional)
-        last_name: User's last name (optional)
-        timezone: IANA timezone (optional, e.g., "America/New_York")
-        locale: Two-letter locale code (optional, e.g., "en")
+    Request Body (all fields optional):
+        first_name: User's first name
+        last_name: User's last name
+        timezone: IANA timezone (e.g., "America/New_York")
+        locale: Locale code (e.g., "en" or "en_US")
+        theme: Theme preference (system, light, or dark)
 
     Returns:
         Updated user profile

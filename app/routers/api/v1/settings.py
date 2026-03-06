@@ -132,11 +132,14 @@ def update_tenant_security(
 
     Requires super_admin role.
 
-    Request Body:
+    Request Body (all fields optional):
         session_timeout_seconds: Session timeout in seconds (null = indefinite)
         persistent_sessions: Whether sessions persist after browser close
         allow_users_edit_profile: Whether users can edit their own profile
         allow_users_add_emails: Whether users can add alternative email addresses
+        inactivity_threshold_days: Days of inactivity before auto-inactivation (null = disabled)
+        max_certificate_lifetime_years: Lifetime for new signing certs (1, 2, 3, 5, or 10)
+        certificate_rotation_window_days: Days before expiry for auto-rotation (14, 30, 60, or 90)
 
     Returns:
         Updated security settings

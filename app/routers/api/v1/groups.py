@@ -155,6 +155,10 @@ def save_graph_layout(
     Save graph layout for the current user.
 
     Requires admin role.
+
+    Request body:
+        node_ids: Sorted comma-separated node UUIDs (string)
+        positions: Node positions keyed by node ID (dict of {id: {x, y}})
     """
     requesting_user = build_requesting_user(admin, tenant_id, request)
 
@@ -199,6 +203,10 @@ def update_group(
     Update a group.
 
     Requires admin role.
+
+    Request body (all fields optional):
+        name: Group name
+        description: Group description (empty string to clear)
 
     Returns:
         Updated group details

@@ -18,6 +18,7 @@ SERVICES_USERS = "services.users"
 SERVICES_EMAILS = "services.emails"
 SERVICES_SETTINGS = "services.settings"
 SERVICES_ACTIVITY = "services.activity"
+SERVICES_SP = "services.service_providers"
 DATABASE_SETTINGS = "database.settings"
 DATABASE_USERS = "database.users"
 
@@ -162,8 +163,19 @@ def test_users_list_invalid_sort_field(test_admin_user, mocker, override_auth):
     assert call_args[2] == "created_at"
 
 
+def test_user_detail_redirects_to_profile(test_admin_user, override_auth):
+    """Test bare user detail URL redirects to profile tab."""
+    override_auth(test_admin_user)
+
+    client = TestClient(app)
+    response = client.get("/users/user-123", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/users/user-123/profile"
+
+
 def test_user_detail_page(test_admin_user, mocker, override_auth):
-    """Test user detail page renders."""
+    """Test user detail profile tab renders."""
     from datetime import UTC, datetime
 
     from fastapi.responses import HTMLResponse
@@ -191,13 +203,14 @@ def test_user_detail_page(test_admin_user, mocker, override_auth):
     mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
     mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
     mocker.patch(f"{USERS_DETAIL}.groups_service")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
 
     mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
     mock_get.return_value = target_user
     mock_domains.return_value = []
 
     client = TestClient(app)
-    response = client.get("/users/user-123")
+    response = client.get("/users/user-123/profile")
 
     assert response.status_code == 200
     mock_get.assert_called_once()
@@ -213,7 +226,7 @@ def test_user_detail_not_found(test_admin_user, mocker, override_auth):
     mock_get.side_effect = NotFoundError(message="User not found", code="user_not_found")
 
     client = TestClient(app)
-    response = client.get("/users/user-123", follow_redirects=False)
+    response = client.get("/users/user-123/profile", follow_redirects=False)
 
     assert response.status_code == 303
     assert "/users/list" in response.headers["location"]
@@ -224,7 +237,7 @@ def test_user_detail_regular_user_denied(test_user, override_auth):
     override_auth(test_user)
 
     client = TestClient(app)
-    response = client.get("/users/user-123", follow_redirects=False)
+    response = client.get("/users/user-123/profile", follow_redirects=False)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
@@ -1669,7 +1682,7 @@ def test_create_user_privileged_domain_creates_event_log(
 
     # Extract user_id from redirect URL
     location = response.headers["location"]
-    user_id = location.split("/users/")[1].split("?")[0]
+    user_id = location.split("/users/")[1].split("/")[0]
 
     # Query event_logs table to verify event was created
     event = database.fetchone(
@@ -1747,7 +1760,7 @@ def test_create_user_non_privileged_domain_creates_event_log(
 
     # Extract user_id from redirect URL
     location = response.headers["location"]
-    user_id = location.split("/users/")[1].split("?")[0]
+    user_id = location.split("/users/")[1].split("/")[0]
 
     # Query event_logs table to verify event was created
     event = database.fetchone(
@@ -1890,7 +1903,7 @@ def test_update_user_idp_success(test_super_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=idp_updated" in response.headers["location"]
+    assert "/users/user-123/profile?success=idp_updated" in response.headers["location"]
     mock_assign.assert_called_once()
     call_args = mock_assign.call_args
     assert call_args[1]["user_id"] == "user-123"
@@ -1970,7 +1983,7 @@ def test_update_user_idp_user_not_found(test_super_admin_user, mocker, override_
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=user_not_found" in response.headers["location"]
+    assert "/users/user-123/profile?error=user_not_found" in response.headers["location"]
 
 
 def test_update_user_idp_idp_not_found(test_super_admin_user, mocker, override_auth):
@@ -1990,7 +2003,7 @@ def test_update_user_idp_idp_not_found(test_super_admin_user, mocker, override_a
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=idp_not_found" in response.headers["location"]
+    assert "/users/user-123/profile?error=idp_not_found" in response.headers["location"]
 
 
 def test_update_user_idp_validation_error(test_super_admin_user, mocker, override_auth):
@@ -2012,7 +2025,7 @@ def test_update_user_idp_validation_error(test_super_admin_user, mocker, overrid
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=idp_disabled" in response.headers["location"]
+    assert "/users/user-123/profile?error=idp_disabled" in response.headers["location"]
 
 
 def test_update_user_idp_service_error(test_super_admin_user, mocker, override_auth):
@@ -2057,7 +2070,7 @@ def test_inactivate_user_success(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=user_inactivated" in response.headers["location"]
+    assert "/users/user-123/danger?success=user_inactivated" in response.headers["location"]
     mock_inactivate.assert_called_once()
 
 
@@ -2115,7 +2128,7 @@ def test_inactivate_user_validation_error(test_admin_user, mocker, override_auth
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=already_inactivated" in response.headers["location"]
+    assert "/users/user-123/danger?error=already_inactivated" in response.headers["location"]
 
 
 def test_inactivate_user_service_error(test_admin_user, mocker, override_auth):
@@ -2159,7 +2172,7 @@ def test_reactivate_user_success(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=user_reactivated" in response.headers["location"]
+    assert "/users/user-123/danger?success=user_reactivated" in response.headers["location"]
     mock_reactivate.assert_called_once()
 
 
@@ -2217,7 +2230,7 @@ def test_reactivate_user_validation_error(test_admin_user, mocker, override_auth
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=already_active" in response.headers["location"]
+    assert "/users/user-123/danger?error=already_active" in response.headers["location"]
 
 
 def test_reactivate_user_service_error(test_admin_user, mocker, override_auth):
@@ -2261,7 +2274,7 @@ def test_anonymize_user_success(test_super_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=user_anonymized" in response.headers["location"]
+    assert "/users/user-123/danger?success=user_anonymized" in response.headers["location"]
     mock_anonymize.assert_called_once()
 
 
@@ -2336,7 +2349,7 @@ def test_anonymize_user_validation_error(test_super_admin_user, mocker, override
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=cannot_anonymize_self" in response.headers["location"]
+    assert "/users/user-123/danger?error=cannot_anonymize_self" in response.headers["location"]
 
 
 def test_anonymize_user_service_error(test_super_admin_user, mocker, override_auth):
@@ -2384,7 +2397,7 @@ def test_reset_mfa_success(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+    assert "/users/user-123/danger?success=mfa_reset" in response.headers["location"]
     mock_reset.assert_called_once()
     mock_email.assert_called_once()
     # Verify email recipient (1st positional arg)
@@ -2444,7 +2457,7 @@ def test_reset_mfa_validation_error(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?error=mfa_not_enabled" in response.headers["location"]
+    assert "/users/user-123/danger?error=mfa_not_enabled" in response.headers["location"]
 
 
 def test_reset_mfa_service_error(test_admin_user, mocker, override_auth):
@@ -2513,7 +2526,7 @@ def test_reset_mfa_no_email_notification_when_no_primary_email(
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=mfa_reset" in response.headers["location"]
+    assert "/users/user-123/danger?success=mfa_reset" in response.headers["location"]
     mock_reset.assert_called_once()
     mock_email.assert_not_called()
 
@@ -2942,7 +2955,7 @@ def test_add_user_to_group_success(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=group_added#groups" in response.headers["location"]
+    assert "/users/user-123/groups?success=group_added" in response.headers["location"]
     mock_add.assert_called_once()
 
 
@@ -3018,7 +3031,7 @@ def test_remove_user_from_group_success(test_admin_user, mocker, override_auth):
     )
 
     assert response.status_code == 303
-    assert "/users/user-123?success=group_removed#groups" in response.headers["location"]
+    assert "/users/user-123/groups?success=group_removed" in response.headers["location"]
     mock_remove.assert_called_once()
 
 
@@ -3043,7 +3056,7 @@ def test_remove_user_from_group_not_found(test_admin_user, mocker, override_auth
 
 
 def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
-    """Test user detail page loads group memberships and available groups."""
+    """Test user groups tab loads group memberships and available groups."""
     from datetime import UTC, datetime
 
     from fastapi.responses import HTMLResponse
@@ -3070,13 +3083,10 @@ def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
 
     mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
     mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
-    mock_domains = mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains")
-    mock_groups = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
-    mock_available = mocker.patch(f"{USERS_DETAIL}.groups_service.list_available_groups_for_user")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
 
     mock_template.return_value = HTMLResponse(content="<html>User Detail</html>")
     mock_get.return_value = target_user
-    mock_domains.return_value = []
 
     mock_memberships = EffectiveMembershipList(
         items=[
@@ -3091,17 +3101,17 @@ def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
             ),
         ]
     )
+    mock_groups = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
+    mock_available = mocker.patch(f"{USERS_DETAIL}.groups_service.list_available_groups_for_user")
     mock_groups.return_value = mock_memberships
     mock_available.return_value = [
         {"id": "group-2", "name": "Sales"},
     ]
 
     client = TestClient(app)
-    response = client.get("/users/user-123")
+    response = client.get("/users/user-123/groups")
 
     assert response.status_code == 200
-    mock_groups.assert_called_once()
-    mock_available.assert_called_once()
 
     # Verify template was called with group data in context
     template_call_args = mock_template.call_args[0]
@@ -3110,3 +3120,134 @@ def test_user_detail_loads_group_data(test_admin_user, mocker, override_auth):
     assert "available_groups" in context
     assert context["user_groups"] == mock_memberships
     assert len(context["available_groups"]) == 1
+
+
+def test_user_detail_apps_tab(test_admin_user, mocker, override_auth):
+    """Test user detail apps tab renders with accessible apps."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from schemas.service_providers import (
+        GrantingGroup,
+        UserAccessibleApp,
+        UserAccessibleAppList,
+    )
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
+
+    mock_apps = UserAccessibleAppList(
+        items=[
+            UserAccessibleApp(
+                id="sp-1",
+                name="Test App",
+                description="A test app",
+                entity_id="https://app.example.com",
+                available_to_all=False,
+                granting_groups=[GrantingGroup(id="g-1", name="Engineering")],
+            ),
+        ],
+        total=1,
+    )
+    mock_sp_svc = mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mock_sp_svc.get_user_accessible_apps_admin.return_value = mock_apps
+
+    mock_template.return_value = HTMLResponse(content="<html>Apps Tab</html>")
+    mock_get.return_value = target_user
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/apps")
+
+    assert response.status_code == 200
+    template_call_args = mock_template.call_args[0]
+    assert template_call_args[1] == "user_detail_tab_apps.html"
+    context = template_call_args[2]
+    assert "accessible_apps" in context
+    assert context["accessible_apps"] == mock_apps
+    assert context["active_tab"] == "apps"
+
+
+def test_user_detail_danger_tab(test_admin_user, mocker, override_auth):
+    """Test user detail danger tab renders."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mocker.patch(f"{USERS_DETAIL}.saml_service.idp_requires_platform_mfa", return_value=False)
+
+    mock_template.return_value = HTMLResponse(content="<html>Danger Tab</html>")
+    mock_get.return_value = target_user
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/danger")
+
+    assert response.status_code == 200
+    template_call_args = mock_template.call_args[0]
+    assert template_call_args[1] == "user_detail_tab_danger.html"
+    context = template_call_args[2]
+    assert context["active_tab"] == "danger"
+
+
+def test_user_detail_apps_tab_denied_for_regular_user(test_user, override_auth):
+    """Regular user cannot access user detail apps tab."""
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/apps", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+
+
+def test_user_detail_danger_tab_denied_for_regular_user(test_user, override_auth):
+    """Regular user cannot access user detail danger tab."""
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/danger", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"

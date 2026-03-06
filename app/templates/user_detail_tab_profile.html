@@ -1,0 +1,275 @@
+{% extends "user_detail_base.html" %}
+
+{% block tab_content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <!-- User Information -->
+        <div class="mb-8">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">User Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-700 rounded-md p-4">
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">User ID</p>
+                    <p class="text-sm font-mono text-gray-900 dark:text-gray-100 mt-1">{{ target_user.id }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                            {% if target_user.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+                            {% elif target_user.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+                            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                            {{ target_user.role }}
+                        </span>
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timezone</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ target_user.tz or 'Not set' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Locale</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ target_user.locale or 'Not set' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">MFA Enabled</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ 'Yes' if target_user.mfa_enabled else 'No' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">MFA Method</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">
+                        {% if target_user.mfa_method %}
+                        {{ target_user.mfa_method.upper() }}
+                        {% else %}
+                        Not set
+                        {% endif %}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ fmt_datetime(target_user.created_at) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Login</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ fmt_datetime(target_user.last_login) if target_user.last_login else 'Never' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Name Form -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Name</h2>
+            <form method="post" action="/users/{{ target_user.id }}/update-name" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                        <input type="text" id="first_name" name="first_name" value="{{ target_user.first_name }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                               required>
+                    </div>
+                    <div>
+                        <label for="last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                        <input type="text" id="last_name" name="last_name" value="{{ target_user.last_name }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                               required>
+                    </div>
+                </div>
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Update Name
+                </button>
+            </form>
+        </div>
+
+        <!-- Edit Role Form (Super Admin Only) -->
+        {% if user.role == 'super_admin' %}
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Role</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Only super administrators can change user roles.
+            </p>
+            <form method="post" action="/users/{{ target_user.id }}/update-role" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                    <select id="role" name="role"
+                            class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            {% if target_user.id == user.id %}disabled{% endif %}>
+                        <option value="member" {% if target_user.role == 'member' %}selected{% endif %}>Member</option>
+                        <option value="admin" {% if target_user.role == 'admin' %}selected{% endif %}>Admin</option>
+                        <option value="super_admin" {% if target_user.role == 'super_admin' %}selected{% endif %}>Super Admin</option>
+                    </select>
+                    {% if target_user.id == user.id %}
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">You cannot change your own role.</p>
+                    {% endif %}
+                </div>
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        {% if target_user.id == user.id %}disabled{% endif %}>
+                    Update Role
+                </button>
+            </form>
+        </div>
+
+        <!-- Authentication Method (Super Admin Only) -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Authentication Method</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Every user must be either a password user or assigned to an IdP.
+            </p>
+
+            <!-- Current Status -->
+            <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Current:</span>
+                    {% if target_user.saml_idp_id %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">
+                        SAML ({{ target_user.saml_idp_name or 'IdP Assigned' }})
+                    </span>
+                    {% elif target_user.has_password %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300 rounded-full">
+                        Password
+                    </span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 rounded-full">
+                        No Auth Method
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <form method="post" action="/users/{{ target_user.id }}/update-idp" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="saml_idp_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Authentication
+                    </label>
+                    <select id="saml_idp_id" name="saml_idp_id"
+                            class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                        <option value="" {% if not target_user.saml_idp_id %}selected{% endif %}>
+                            Password Authentication
+                        </option>
+                        {% for idp in idps %}
+                        <option value="{{ idp.id }}" {% if target_user.saml_idp_id == idp.id %}selected{% endif %}>
+                            {{ idp.name }}{% if not idp.is_enabled %} (disabled){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if not target_user.has_password %}
+                <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
+                    <p class="text-xs text-amber-800 dark:text-amber-300">
+                        <br><strong>Note:</strong> This user has no password. If disconnected from IdP, they will need a password set or new IdP assigned after reactivation.
+                    </p>
+                </div>
+                {% endif %}
+                <button type="submit"
+                        class="confirm-btn bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        data-confirm="Update authentication for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;This action may make their password unusable or inactivate their account.">
+                    Update Authentication
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Email Addresses -->
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Email Addresses</h2>
+
+            {% if emails %}
+            <div class="space-y-3 mb-6">
+                {% for email in emails %}
+                <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ email.email }}</span>
+                            {% if email.is_primary %}
+                            <span class="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full">
+                                PRIMARY
+                            </span>
+                            {% endif %}
+                            {% if email.verified_at %}
+                            <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
+                                Verified
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 rounded-full">
+                                Unverified
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Added {{ fmt_datetime(email.created_at) }}
+                        </p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        {% if not email.is_primary %}
+                        <form method="post" action="/users/{{ target_user.id }}/promote-email/{{ email.id }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 px-2 py-1">
+                                Make Primary
+                            </button>
+                        </form>
+                        <form method="post" action="/users/{{ target_user.id }}/remove-email/{{ email.id }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="confirm-btn text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1"
+                                    data-confirm="Remove {{ email.email }} from {{ target_user.first_name }} {{ target_user.last_name }}?"
+                                    data-destructive="true">
+                                Remove
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-sm text-gray-400 dark:text-gray-500 px-2 py-1">Cannot modify</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="border border-gray-200 dark:border-gray-700 rounded-md p-4 text-center mb-6">
+                <p class="text-sm text-gray-500 dark:text-gray-400">No email addresses found.</p>
+            </div>
+            {% endif %}
+
+            <!-- Add Email Form -->
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <h3 class="text-md font-medium mb-4 text-gray-900 dark:text-gray-100">Add Secondary Email</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Only email addresses from privileged domains can be added. The email will be automatically verified.
+                </p>
+                {% if privileged_domains %}
+                <form method="post" action="/users/{{ target_user.id }}/add-email" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                        <input type="email" id="email" name="email" placeholder="user@example.com"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                               required>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            Allowed domains:
+                            {% for domain in privileged_domains %}
+                            <code class="bg-gray-100 dark:bg-gray-600 px-1 py-0.5 rounded">@{{ domain.domain }}</code>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
+                    </div>
+                    <button type="submit"
+                            class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                        Add Email
+                    </button>
+                </form>
+                {% else %}
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md p-4">
+                    <p class="text-sm text-yellow-800 dark:text-yellow-300">
+                        No privileged domains configured. Please configure privileged domains in
+                        <a href="/admin/settings/privileged-domains" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">Settings</a>
+                        before adding secondary emails.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

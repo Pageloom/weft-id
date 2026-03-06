@@ -6,31 +6,6 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Admin: User-App Access Query
-
-**User Story:**
-As an admin
-I want to check whether a specific user has access to a specific application, and see all
-apps available to a user
-So that I can troubleshoot access issues and audit permissions
-
-**Context:**
-
-`check_user_sp_access()` already exists in the database layer. This item adds a UI and
-API surface for it. The dependency on SAML IdP Phase 2 is resolved.
-
-**Acceptance Criteria:**
-
-- [ ] Admin page or widget: select a user, see all their accessible SPs
-- [ ] Shows which groups grant each SP access (traceability)
-- [ ] Search/filter by user
-- [ ] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
-
-**Effort:** M
-**Value:** Medium (Admin troubleshooting, low implementation cost)
-
----
-
 ## Auto-assign Users to Groups Based on Privileged Email Domains
 
 **User Story:**

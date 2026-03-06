@@ -41,14 +41,14 @@ def add_user_to_group(
         groups_service.add_member(requesting_user, group_id, user_id)
     except (NotFoundError, ConflictError, ForbiddenError) as exc:
         return RedirectResponse(
-            url=f"/users/{user_id}?error={exc.code}#groups",
+            url=f"/users/{user_id}/groups?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/users/{user_id}?success=group_added#groups",
+        url=f"/users/{user_id}/groups?success=group_added",
         status_code=303,
     )
 
@@ -71,14 +71,14 @@ def bulk_add_user_to_groups(
         count = groups_service.bulk_add_user_to_groups(requesting_user, user_id, group_ids)
     except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
-            url=f"/users/{user_id}?error={exc.code}#groups",
+            url=f"/users/{user_id}/groups?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/users/{user_id}?success=groups_bulk_added&count={count}#groups",
+        url=f"/users/{user_id}/groups?success=groups_bulk_added&count={count}",
         status_code=303,
     )
 
@@ -101,13 +101,13 @@ def remove_user_from_group(
         groups_service.remove_member(requesting_user, group_id, user_id)
     except (NotFoundError, ForbiddenError) as exc:
         return RedirectResponse(
-            url=f"/users/{user_id}?error={exc.code}#groups",
+            url=f"/users/{user_id}/groups?error={exc.code}",
             status_code=303,
         )
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(
-        url=f"/users/{user_id}?success=group_removed#groups",
+        url=f"/users/{user_id}/groups?success=group_removed",
         status_code=303,
     )

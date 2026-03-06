@@ -265,3 +265,33 @@ class UserAppList(BaseModel):
 
     items: list[UserApp]
     total: int
+
+
+# ============================================================================
+# User Accessible Apps (Admin View with Attribution)
+# ============================================================================
+
+
+class GrantingGroup(BaseModel):
+    """A group that grants access to a service provider."""
+
+    id: str
+    name: str
+
+
+class UserAccessibleApp(BaseModel):
+    """An application accessible to a user, with group attribution."""
+
+    id: str
+    name: str
+    description: str | None = None
+    entity_id: str | None = None
+    available_to_all: bool = False
+    granting_groups: list[GrantingGroup] = []
+
+
+class UserAccessibleAppList(BaseModel):
+    """List of apps accessible to a user with attribution details."""
+
+    items: list[UserAccessibleApp]
+    total: int

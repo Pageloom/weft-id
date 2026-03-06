@@ -1584,3 +1584,151 @@ def test_assign_user_idp_forbidden_error(make_user_dict, override_api_auth):
 
 # Note: test_assign_user_idp_admin_forbidden (role-based auth) is covered
 # in integration tests where the full auth flow is tested.
+
+
+# =============================================================================
+# User Accessible Apps
+# =============================================================================
+
+
+def test_get_user_accessible_apps_as_admin(make_user_dict, override_api_auth):
+    """Admin can get accessible apps for a user."""
+    from schemas.service_providers import (
+        GrantingGroup,
+        UserAccessibleApp,
+        UserAccessibleAppList,
+    )
+
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    sp_id = str(uuid4())
+    group_id = str(uuid4())
+
+    mock_result = UserAccessibleAppList(
+        items=[
+            UserAccessibleApp(
+                id=sp_id,
+                name="Test App",
+                description="A test application",
+                entity_id="https://app.example.com",
+                available_to_all=False,
+                granting_groups=[
+                    GrantingGroup(id=group_id, name="Engineering"),
+                ],
+            ),
+        ],
+        total=1,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.sp_service") as mock_svc:
+        mock_svc.get_user_accessible_apps_admin.return_value = mock_result
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/accessible-apps")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == sp_id
+        assert data["items"][0]["name"] == "Test App"
+        assert data["items"][0]["available_to_all"] is False
+        assert len(data["items"][0]["granting_groups"]) == 1
+        assert data["items"][0]["granting_groups"][0]["name"] == "Engineering"
+
+
+def test_get_user_accessible_apps_empty(make_user_dict, override_api_auth):
+    """Returns empty list when user has no accessible apps."""
+    from schemas.service_providers import UserAccessibleAppList
+
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.sp_service") as mock_svc:
+        mock_svc.get_user_accessible_apps_admin.return_value = UserAccessibleAppList(
+            items=[], total=0
+        )
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/accessible-apps")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["items"] == []
+
+
+def test_get_user_accessible_apps_user_not_found(make_user_dict, override_api_auth):
+    """Returns 404 when target user does not exist."""
+    admin = make_user_dict(role="admin")
+    fake_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.sp_service") as mock_svc:
+        mock_svc.get_user_accessible_apps_admin.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get(f"/api/v1/users/{fake_id}/accessible-apps")
+
+        assert response.status_code == 404
+
+
+def test_get_user_accessible_apps_forbidden(make_user_dict, override_api_auth):
+    """Returns 403 when service raises ForbiddenError."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.sp_service") as mock_svc:
+        mock_svc.get_user_accessible_apps_admin.side_effect = ForbiddenError(
+            message="Admin access required", code="admin_required"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get(f"/api/v1/users/{user_id}/accessible-apps")
+
+        assert response.status_code == 403
+
+
+def test_get_user_accessible_apps_available_to_all(make_user_dict, override_api_auth):
+    """Available-to-all apps are returned with empty granting_groups."""
+    from schemas.service_providers import UserAccessibleApp, UserAccessibleAppList
+
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    sp_id = str(uuid4())
+
+    mock_result = UserAccessibleAppList(
+        items=[
+            UserAccessibleApp(
+                id=sp_id,
+                name="Public App",
+                description=None,
+                entity_id="https://public.example.com",
+                available_to_all=True,
+                granting_groups=[],
+            ),
+        ],
+        total=1,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.sp_service") as mock_svc:
+        mock_svc.get_user_accessible_apps_admin.return_value = mock_result
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/users/{user_id}/accessible-apps")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["items"][0]["available_to_all"] is True
+        assert data["items"][0]["granting_groups"] == []

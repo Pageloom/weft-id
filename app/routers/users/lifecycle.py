@@ -45,11 +45,13 @@ def inactivate_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}?success=user_inactivated", status_code=303)
+    return RedirectResponse(
+        url=f"/users/{user_id}/danger?success=user_inactivated", status_code=303
+    )
 
 
 @router.post("/{user_id}/reactivate")
@@ -70,11 +72,13 @@ def reactivate_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}?success=user_reactivated", status_code=303)
+    return RedirectResponse(
+        url=f"/users/{user_id}/danger?success=user_reactivated", status_code=303
+    )
 
 
 @router.post("/{user_id}/anonymize")
@@ -95,11 +99,11 @@ def anonymize_user_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url=f"/users/{user_id}?success=user_anonymized", status_code=303)
+    return RedirectResponse(url=f"/users/{user_id}/danger?success=user_anonymized", status_code=303)
 
 
 @router.post("/{user_id}/reset-mfa")
@@ -120,7 +124,7 @@ def reset_mfa_route(
     except NotFoundError:
         return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
     except ValidationError as exc:
-        return RedirectResponse(url=f"/users/{user_id}?error={exc.code}", status_code=303)
+        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -131,4 +135,4 @@ def reset_mfa_route(
         reset_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
         send_mfa_reset_notification(primary_email, admin_name, reset_time)
 
-    return RedirectResponse(url=f"/users/{user_id}?success=mfa_reset", status_code=303)
+    return RedirectResponse(url=f"/users/{user_id}/danger?success=mfa_reset", status_code=303)

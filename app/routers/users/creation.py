@@ -147,4 +147,4 @@ def create_new_user(
             verification_url = f"{request.base_url}verify-email/{email_id}/{verify_nonce}"
             send_new_user_invitation(email, admin_name, org_name, verification_url)
 
-    return RedirectResponse(url=f"/users/{user_id}?success=user_created", status_code=303)
+    return RedirectResponse(url=f"/users/{user_id}/profile?success=user_created", status_code=303)

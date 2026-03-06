@@ -187,6 +187,47 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
     )
 
 
+def get_accessible_sps_with_attribution(tenant_id: TenantArg, user_id: str) -> list[dict]:
+    """Get accessible SPs for a user with granting group attribution.
+
+    Returns one row per SP-group pair for group-based access, plus one row
+    per available_to_all SP. Caller should aggregate by SP id.
+
+    Returns:
+        List of dicts with sp id/name/description/entity_id,
+        available_to_all flag, and granting_group_id/name.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select sp.id, sp.name, sp.description, sp.entity_id,
+               false as available_to_all,
+               g.id as granting_group_id, g.name as granting_group_name
+        from service_providers sp
+        join sp_group_assignments sga on sga.sp_id = sp.id
+        join group_lineage gl on gl.ancestor_id = sga.group_id
+        join group_memberships gm on gm.group_id = gl.descendant_id
+        join groups g on g.id = sga.group_id
+        where gm.user_id = :user_id
+          and sp.enabled = true
+          and sp.trust_established = true
+
+        union all
+
+        select sp.id, sp.name, sp.description, sp.entity_id,
+               true as available_to_all,
+               null as granting_group_id, null as granting_group_name
+        from service_providers sp
+        where sp.available_to_all = true
+          and sp.enabled = true
+          and sp.trust_established = true
+
+        order by name, granting_group_name
+        """,
+        {"user_id": user_id},
+    )
+
+
 def count_assignments_for_sp(tenant_id: TenantArg, sp_id: str) -> int:
     """Count group assignments for a service provider.
 

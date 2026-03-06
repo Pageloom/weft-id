@@ -8,10 +8,13 @@ import logging
 
 import database
 from schemas.service_providers import (
+    GrantingGroup,
     GroupSPAssignment,
     GroupSPAssignmentList,
     SPGroupAssignment,
     SPGroupAssignmentList,
+    UserAccessibleApp,
+    UserAccessibleAppList,
     UserApp,
     UserAppList,
 )
@@ -326,6 +329,56 @@ def check_user_sp_access(tenant_id: str, user_id: str, sp_id: str) -> bool:
     has access (is a member of an assigned group or a descendant).
     """
     return database.sp_group_assignments.user_can_access_sp(tenant_id, user_id, sp_id)
+
+
+def get_user_accessible_apps_admin(
+    requesting_user: RequestingUser,
+    target_user_id: str,
+) -> UserAccessibleAppList:
+    """Get all apps accessible to a target user, with group attribution.
+
+    Authorization: Requires admin role.
+    """
+    require_admin(requesting_user, log_failure=True, service_name="service_providers")
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    tenant_id = requesting_user["tenant_id"]
+
+    # Verify target user exists
+    user_row = database.users.get_user_by_id(tenant_id, target_user_id)
+    if user_row is None:
+        raise NotFoundError(message="User not found", code="user_not_found")
+
+    rows = database.sp_group_assignments.get_accessible_sps_with_attribution(
+        tenant_id, target_user_id
+    )
+
+    # Aggregate rows by SP id
+    apps_by_id: dict[str, UserAccessibleApp] = {}
+    for row in rows:
+        sp_id = str(row["id"])
+        if sp_id not in apps_by_id:
+            apps_by_id[sp_id] = UserAccessibleApp(
+                id=sp_id,
+                name=row["name"],
+                description=row.get("description"),
+                entity_id=row.get("entity_id"),
+                available_to_all=bool(row["available_to_all"]),
+                granting_groups=[],
+            )
+        # Add granting group if present (not for available_to_all rows)
+        if row.get("granting_group_id"):
+            group = GrantingGroup(
+                id=str(row["granting_group_id"]),
+                name=row["granting_group_name"],
+            )
+            # Avoid duplicate groups (user may be in multiple descendant groups)
+            existing_ids = {g.id for g in apps_by_id[sp_id].granting_groups}
+            if group.id not in existing_ids:
+                apps_by_id[sp_id].granting_groups.append(group)
+
+    items = sorted(apps_by_id.values(), key=lambda a: a.name.lower())
+    return UserAccessibleAppList(items=items, total=len(items))
 
 
 def get_user_accessible_apps(

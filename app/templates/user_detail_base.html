@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target_user.first_name }} {{ target_user.last_name }} - Users - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div>
+    <div class="mb-4">
+        <a href="/users/list"
+           class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Users List</a>
+    </div>
+
+    {% if success %}
+    <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+        <p class="text-sm text-green-800 dark:text-green-300">
+            {% if success == 'name_updated' %}
+            User name updated successfully.
+            {% elif success == 'role_updated' %}
+            User role updated successfully.
+            {% elif success == 'email_added' %}
+            Email address added successfully.
+            {% elif success == 'email_removed' %}
+            Email address removed successfully.
+            {% elif success == 'email_promoted' %}
+            Email promoted to primary successfully.
+            {% elif success == 'user_created' %}
+            User created successfully. An invitation email has been sent to the user.
+            {% elif success == 'user_inactivated' %}
+            User has been inactivated and can no longer sign in.
+            {% elif success == 'user_reactivated' %}
+            User has been reactivated and can now sign in.
+            {% elif success == 'user_anonymized' %}
+            User has been anonymized. Personal data has been permanently removed.
+            {% elif success == 'idp_updated' %}
+            User's IdP assignment updated successfully.
+            {% elif success == 'mfa_reset' %}
+            User's MFA has been reset. They will use email verification on next login.
+            {% elif success == 'group_added' %}
+            User added to group successfully.
+            {% elif success == 'groups_bulk_added' %}
+            User added to {{ request.query_params.get('count', '') }} group(s) successfully.
+            {% elif success == 'group_removed' %}
+            User removed from group successfully.
+            {% else %}
+            Operation completed successfully.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+        <p class="text-sm text-red-800 dark:text-red-300">
+            {% if error == 'user_not_found' %}
+            User not found.
+            {% elif error == 'name_required' %}
+            Both first and last name are required.
+            {% elif error == 'invalid_role' %}
+            Invalid role selected.
+            {% elif error == 'cannot_change_own_role' %}
+            You cannot change your own role.
+            {% elif error == 'cannot_demote_last_super_admin' %}
+            Cannot demote the last super admin.
+            {% elif error == 'invalid_email' %}
+            Invalid email address format.
+            {% elif error == 'email_exists' %}
+            This email address is already in use.
+            {% elif error == 'domain_not_privileged' %}
+            Email domain is not in the privileged domains list.
+            {% elif error == 'email_not_found' %}
+            Email address not found.
+            {% elif error == 'cannot_remove_primary' %}
+            Cannot remove the primary email address. Promote another email first.
+            {% elif error == 'must_keep_one_email' %}
+            User must have at least one email address.
+            {% elif error == 'already_primary' %}
+            This email is already the primary email.
+            {% elif error == 'email_not_verified' %}
+            Only verified emails can be promoted to primary.
+            {% elif error == 'self_inactivation' %}
+            You cannot inactivate your own account.
+            {% elif error == 'service_user_inactivation' %}
+            Cannot inactivate service user. Delete the associated OAuth2 client first.
+            {% elif error == 'already_inactivated' %}
+            User is already inactivated.
+            {% elif error == 'last_super_admin' %}
+            Cannot inactivate or anonymize the last super_admin.
+            {% elif error == 'anonymized_user' %}
+            Cannot reactivate anonymized user - anonymization is irreversible.
+            {% elif error == 'not_inactivated' %}
+            User is not currently inactivated.
+            {% elif error == 'self_anonymization' %}
+            You cannot anonymize your own account.
+            {% elif error == 'service_user_anonymization' %}
+            Cannot anonymize service user. Delete the associated OAuth2 client first.
+            {% elif error == 'already_anonymized' %}
+            User is already anonymized.
+            {% elif error == 'idp_not_found' %}
+            Selected identity provider not found.
+            {% elif error == 'already_member' %}
+            User is already a member of this group.
+            {% elif error == 'not_a_member' %}
+            User is not a member of this group.
+            {% elif error == 'idp_group_readonly' %}
+            Cannot modify membership for IdP-managed groups.
+            {% elif error == 'group_not_found' %}
+            Group not found.
+            {% else %}
+            An error occurred. Please try again.
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Account Status Banner -->
+    {% if target_user.is_anonymized %}
+    <div class="mb-6 p-4 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 rounded-md">
+        <div class="flex items-center gap-2">
+            <span class="px-2 py-1 text-xs font-semibold bg-gray-600 text-white rounded-full">ANONYMIZED</span>
+            <span class="text-sm text-gray-600 dark:text-gray-400">
+                This user's personal data has been permanently removed (GDPR).
+                Anonymized {{ fmt_datetime(target_user.anonymized_at) }}.
+            </span>
+        </div>
+    </div>
+    {% elif target_user.is_inactivated %}
+    <div class="mb-6 p-4 border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+        <div class="flex items-center gap-2">
+            <span class="px-2 py-1 text-xs font-semibold bg-yellow-600 text-white rounded-full">INACTIVATED</span>
+            <span class="text-sm text-yellow-800 dark:text-yellow-300">
+                This user cannot sign in. Inactivated {{ fmt_datetime(target_user.inactivated_at) }}.
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="flex items-center gap-3 mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ target_user.first_name }} {{ target_user.last_name }}</h1>
+        <span class="px-2 py-0.5 text-xs font-medium rounded-full
+            {% if target_user.role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
+            {% elif target_user.role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
+            {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+            {{ target_user.role }}
+        </span>
+        {% if target_user.is_anonymized %}
+        <span class="px-2 py-0.5 text-xs font-medium bg-gray-600 text-white rounded-full">Anonymized</span>
+        {% elif target_user.is_inactivated %}
+        <span class="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300 rounded-full">Inactivated</span>
+        {% endif %}
+    </div>
+
+    <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <nav class="flex space-x-6">
+            <a href="/users/{{ target_user.id }}/profile"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'profile' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Profile</a>
+            <a href="/users/{{ target_user.id }}/groups"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'groups' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Groups ({{ group_count|default(0) }})</a>
+            <a href="/users/{{ target_user.id }}/apps"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'apps' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Apps ({{ app_count|default(0) }})</a>
+            <a href="/users/{{ target_user.id }}/danger"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'danger' %}border-red-500 text-red-500 dark:border-red-400 dark:text-red-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Danger</a>
+        </nav>
+    </div>
+
+    {% block tab_content %}{% endblock %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.confirm-btn').forEach((btn) => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = this.closest('form');
+        const message = this.dataset.confirm.replace(/&#10;/g, '\n');
+        const isDestructive = this.dataset.destructive === 'true';
+        WeftUtils.confirm(message, () => { form.submit(); }, { destructive: isDestructive });
+    });
+});
+</script>
+{% block tab_scripts %}{% endblock %}
+{% endblock %}

@@ -4,6 +4,21 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Admin: User-App Access Query
+
+**Status:** Complete
+
+**Summary:** Added an "Apps" tab to the user detail page showing all service providers a user can access, with group attribution. Refactored the user detail page from a monolithic template into a tabbed layout (Profile, Groups, Apps, Danger) matching the pattern used by SP and Group detail pages. Includes database query with group lineage attribution, service function with aggregation, API endpoint, and comprehensive tests.
+
+**Acceptance Criteria:**
+- [x] User detail "Apps" tab shows all accessible SPs for the user
+- [x] Shows which groups grant each SP access (traceability via group pills)
+- [x] Available-to-all SPs shown with badge
+- [x] API endpoint: `GET /api/v1/users/{user_id}/accessible-apps`
+- [x] User detail page refactored to tabbed layout (Profile, Groups, Apps, Danger)
+
+---
+
 ## Tooling: Dead Links Compliance Check
 
 **Status:** Complete

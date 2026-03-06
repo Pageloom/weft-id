@@ -13,6 +13,7 @@ from schemas.api import (
     UserUpdate,
 )
 from schemas.saml import UserIdpAssignment
+from schemas.service_providers import UserAccessibleAppList
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
 
@@ -361,5 +362,48 @@ def assign_user_idp(
             saml_idp_id=assignment.saml_idp_id,
         )
         return None
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+
+# ============================================================================
+# Admin User Accessible Apps Endpoints
+# ============================================================================
+
+
+@router.get("/{user_id}/accessible-apps", response_model=UserAccessibleAppList)
+def get_user_accessible_apps(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    user_id: str,
+):
+    """
+    Get all applications accessible to a user, with group attribution.
+
+    Returns service providers the user can access via group membership
+    (with granting group details) or because they are available to all users.
+
+    Requires admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        items: List of accessible apps, each with:
+            - id: SP UUID
+            - name: SP display name
+            - description: SP description (nullable)
+            - entity_id: SAML entity ID (nullable)
+            - available_to_all: Whether SP is available to all users
+            - granting_groups: List of groups granting access (id, name)
+        total: Total number of accessible apps
+
+    Errors:
+        403: Insufficient permissions (admin required)
+        404: User not found
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, None)
+        return _pkg.sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
     except ServiceError as e:
         raise translate_to_http_exception(e)

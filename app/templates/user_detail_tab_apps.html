@@ -1,0 +1,51 @@
+{% extends "user_detail_base.html" %}
+
+{% block tab_content %}
+<div class="max-w-4xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Accessible Applications</h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Applications this user can access via group membership or because they are available to all users.
+        </p>
+
+        {% if accessible_apps and accessible_apps.items %}
+        <div class="space-y-3">
+            {% for app in accessible_apps.items %}
+            <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-md">
+                <div class="flex items-center gap-2">
+                    <a href="/admin/service-providers/{{ app.id }}"
+                       class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">{{ app.name }}</a>
+                    {% if app.available_to_all %}
+                    <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 rounded-full">
+                        Available to all
+                    </span>
+                    {% endif %}
+                </div>
+                {% if app.description %}
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ app.description }}</p>
+                {% endif %}
+                {% if app.granting_groups %}
+                <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">Via</span>
+                    {% for group in app.granting_groups %}
+                    <a href="/admin/groups/{{ group.id }}/applications"
+                       class="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/40">
+                        {{ group.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="border border-gray-200 dark:border-gray-700 rounded-md p-8 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">This user does not have access to any applications.</p>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                Add the user to a group with assigned applications, or configure an application as "Available to all".
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

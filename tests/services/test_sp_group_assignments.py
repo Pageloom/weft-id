@@ -1414,3 +1414,338 @@ class TestListAvailableSPsForGroup:
             sp_service.list_available_sps_for_group(requesting_user, group_id)
 
             mock_track.assert_called_once_with(tenant_id, requesting_user["id"])
+
+
+# =============================================================================
+# get_user_accessible_apps_admin
+# =============================================================================
+
+
+def _make_attribution_row(
+    sp_id: str | None = None,
+    name: str = "Test App",
+    description: str | None = "A test app",
+    entity_id: str = "https://app.example.com",
+    available_to_all: bool = False,
+    granting_group_id: str | None = None,
+    granting_group_name: str | None = None,
+) -> dict:
+    """Create a mock accessible SP with attribution row."""
+    return {
+        "id": sp_id or str(uuid4()),
+        "name": name,
+        "description": description,
+        "entity_id": entity_id,
+        "available_to_all": available_to_all,
+        "granting_group_id": granting_group_id,
+        "granting_group_name": granting_group_name,
+    }
+
+
+def _make_user_row(user_id: str | None = None) -> dict:
+    """Create a minimal mock user database row."""
+    return {"id": user_id or str(uuid4()), "email": "user@example.com"}
+
+
+class TestGetUserAccessibleAppsAdmin:
+    """Tests for get_user_accessible_apps_admin."""
+
+    def test_success_with_group_access(self, make_requesting_user):
+        """Admin can get accessible apps with group attribution."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="App One",
+                granting_group_id=group_id,
+                granting_group_name="Engineering",
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 1
+            assert result.items[0].id == sp_id
+            assert result.items[0].name == "App One"
+            assert len(result.items[0].granting_groups) == 1
+            assert result.items[0].granting_groups[0].id == group_id
+            assert result.items[0].granting_groups[0].name == "Engineering"
+            assert result.items[0].available_to_all is False
+
+    def test_success_with_available_to_all(self, make_requesting_user):
+        """Available-to-all SPs have no granting groups."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="Public App",
+                available_to_all=True,
+                granting_group_id=None,
+                granting_group_name=None,
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 1
+            assert result.items[0].available_to_all is True
+            assert result.items[0].granting_groups == []
+
+    def test_aggregates_multiple_groups_per_sp(self, make_requesting_user):
+        """Multiple rows for the same SP are aggregated into one entry."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+        group_a = str(uuid4())
+        group_b = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="Multi-Group App",
+                granting_group_id=group_a,
+                granting_group_name="Engineering",
+            ),
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="Multi-Group App",
+                granting_group_id=group_b,
+                granting_group_name="Sales",
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 1
+            assert len(result.items[0].granting_groups) == 2
+            group_names = {g.name for g in result.items[0].granting_groups}
+            assert group_names == {"Engineering", "Sales"}
+
+    def test_deduplicates_granting_groups(self, make_requesting_user):
+        """Duplicate granting group rows are deduplicated."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_id = str(uuid4())
+        group_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="App",
+                granting_group_id=group_id,
+                granting_group_name="Engineering",
+            ),
+            _make_attribution_row(
+                sp_id=sp_id,
+                name="App",
+                granting_group_id=group_id,
+                granting_group_name="Engineering",
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 1
+            assert len(result.items[0].granting_groups) == 1
+
+    def test_empty_result(self, make_requesting_user):
+        """Returns empty list when user has no accessible apps."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = []
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 0
+            assert result.items == []
+
+    def test_user_not_found(self, make_requesting_user):
+        """Raises NotFoundError when target user does not exist."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = None
+
+            with pytest.raises(NotFoundError, match="User not found"):
+                sp_service.get_user_accessible_apps_admin(requesting_user, str(uuid4()))
+
+    def test_forbidden_for_regular_user(self, make_requesting_user):
+        """Regular user cannot get another user's accessible apps."""
+        from services import service_providers as sp_service
+
+        requesting_user = make_requesting_user(role="user")
+
+        with pytest.raises(ForbiddenError):
+            sp_service.get_user_accessible_apps_admin(requesting_user, str(uuid4()))
+
+    def test_super_admin_can_access(self, make_requesting_user):
+        """Super admin can get accessible apps."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = []
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 0
+
+    def test_tracks_activity(self, make_requesting_user):
+        """Activity is tracked for this read operation."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity") as mock_track,
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = []
+
+            sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            mock_track.assert_called_once_with(tenant_id, requesting_user["id"])
+
+    def test_results_sorted_by_name(self, make_requesting_user):
+        """Results are sorted alphabetically by name."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                name="Zebra App", granting_group_id=str(uuid4()), granting_group_name="G1"
+            ),
+            _make_attribution_row(
+                name="Alpha App", granting_group_id=str(uuid4()), granting_group_name="G2"
+            ),
+            _make_attribution_row(
+                name="Middle App", granting_group_id=str(uuid4()), granting_group_name="G3"
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            names = [item.name for item in result.items]
+            assert names == ["Alpha App", "Middle App", "Zebra App"]
+
+    def test_mixed_group_and_available_to_all(self, make_requesting_user):
+        """Both group-based and available-to-all apps are returned."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        sp_group = str(uuid4())
+        sp_all = str(uuid4())
+        group_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+        rows = [
+            _make_attribution_row(
+                sp_id=sp_group,
+                name="Group App",
+                granting_group_id=group_id,
+                granting_group_name="Eng",
+            ),
+            _make_attribution_row(
+                sp_id=sp_all,
+                name="Public App",
+                available_to_all=True,
+            ),
+        ]
+
+        with (
+            patch("services.service_providers.group_assignments.database") as mock_db,
+            patch("services.service_providers.group_assignments.track_activity"),
+        ):
+            mock_db.users.get_user_by_id.return_value = _make_user_row(user_id)
+            mock_db.sp_group_assignments.get_accessible_sps_with_attribution.return_value = rows
+
+            result = sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
+
+            assert result.total == 2
+            by_id = {item.id: item for item in result.items}
+            assert by_id[sp_group].available_to_all is False
+            assert len(by_id[sp_group].granting_groups) == 1
+            assert by_id[sp_all].available_to_all is True
+            assert by_id[sp_all].granting_groups == []

@@ -3251,3 +3251,446 @@ def test_user_detail_danger_tab_denied_for_regular_user(test_user, override_auth
 
     assert response.status_code == 303
     assert response.headers["location"] == "/dashboard"
+
+
+# =============================================================================
+# User Detail Tab Error Paths
+# =============================================================================
+
+
+def test_user_detail_profile_service_error(test_admin_user, mocker, override_auth):
+    """Test profile tab returns error page on generic ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mock_get.side_effect = ServiceError(message="Internal error", code="internal_error")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/users/user-123/profile")
+
+    assert response.status_code == 500
+
+
+def test_user_detail_profile_group_count_error(test_admin_user, mocker, override_auth):
+    """Test profile tab renders even when group count service call fails."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
+    mock_groups = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
+    mock_sp = mocker.patch(f"{USERS_DETAIL}.sp_service")
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+    mock_groups.side_effect = ServiceError(message="Error", code="error")
+    mock_sp.get_user_accessible_apps_admin.return_value = type("R", (), {"total": 0, "items": []})()
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["group_count"] == 0
+
+
+def test_user_detail_profile_app_count_error(test_admin_user, mocker, override_auth):
+    """Test profile tab renders even when app count service call fails."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from schemas.groups import EffectiveMembershipList
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
+    mocker.patch(
+        f"{USERS_DETAIL}.groups_service.get_effective_memberships",
+        return_value=EffectiveMembershipList(items=[]),
+    )
+    mock_sp = mocker.patch(f"{USERS_DETAIL}.sp_service")
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+    mock_sp.get_user_accessible_apps_admin.side_effect = ServiceError(message="Error", code="error")
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["app_count"] == 0
+
+
+def test_user_detail_profile_super_admin_idp_error(test_super_admin_user, mocker, override_auth):
+    """Test profile tab renders even when IdP list fails for super_admin."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from services.exceptions import ServiceError
+
+    override_auth(test_super_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{DATABASE_SETTINGS}.list_privileged_domains", return_value=[])
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mock_idp = mocker.patch(f"{USERS_DETAIL}.saml_service.list_identity_providers")
+    mock_idp.side_effect = ServiceError(message="Error", code="error")
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/profile")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["idps"] == []
+
+
+def test_user_detail_groups_tab_not_found(test_admin_user, mocker, override_auth):
+    """Test groups tab redirects when user not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user)
+
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mock_get.side_effect = NotFoundError(message="User not found", code="user_not_found")
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/groups", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "/users/list" in response.headers["location"]
+
+
+def test_user_detail_groups_tab_memberships_error(test_admin_user, mocker, override_auth):
+    """Test groups tab renders with empty data when memberships fail."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mock_memberships = mocker.patch(f"{USERS_DETAIL}.groups_service.get_effective_memberships")
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+    mock_memberships.side_effect = ServiceError(message="Error", code="error")
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/groups")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["user_groups"] is None
+
+
+def test_user_detail_apps_tab_service_error(test_admin_user, mocker, override_auth):
+    """Test apps tab renders with None when accessible_apps service fails."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
+    mock_sp = mocker.patch(f"{USERS_DETAIL}.sp_service")
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+    mock_sp.get_user_accessible_apps_admin.side_effect = ServiceError(message="Error", code="error")
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/apps")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["accessible_apps"] is None
+
+
+def test_user_detail_danger_tab_with_idp_user(test_admin_user, mocker, override_auth):
+    """Test danger tab checks idp_requires_platform_mfa for IdP users."""
+    from datetime import UTC, datetime
+
+    from fastapi.responses import HTMLResponse
+    from schemas.api import UserDetail
+
+    override_auth(test_admin_user)
+
+    target_user = UserDetail(
+        id="user-123",
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        role="member",
+        timezone=None,
+        locale=None,
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+        last_login=None,
+        emails=[],
+        is_service_user=False,
+        saml_idp_id="idp-abc",
+    )
+
+    mock_template = mocker.patch(f"{USERS_DETAIL}.templates.TemplateResponse")
+    mock_get = mocker.patch(f"{SERVICES_USERS}.get_user")
+    mocker.patch(f"{USERS_DETAIL}.groups_service")
+    mocker.patch(f"{USERS_DETAIL}.sp_service")
+    mock_mfa = mocker.patch(f"{USERS_DETAIL}.saml_service.idp_requires_platform_mfa")
+    mock_mfa.return_value = True
+
+    mock_template.return_value = HTMLResponse(content="<html>ok</html>")
+    mock_get.return_value = target_user
+
+    client = TestClient(app)
+    response = client.get("/users/user-123/danger")
+
+    assert response.status_code == 200
+    context = mock_template.call_args[0][2]
+    assert context["idp_requires_mfa"] is True
+    mock_mfa.assert_called_once()
+
+
+# =============================================================================
+# User Groups Route Error Paths
+# =============================================================================
+
+
+def test_add_user_to_group_service_error(test_admin_user, mocker, override_auth):
+    """Test add_user_to_group renders error page on generic ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    mock_add = mocker.patch(f"{USERS_GROUPS}.groups_service.add_member")
+    mock_add.side_effect = ServiceError(message="Unexpected error", code="unexpected")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/users/user-123/groups/add",
+        data={"group_id": "group-456", "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+
+
+def test_bulk_add_user_to_groups_denied_for_regular_user(test_user, mocker, override_auth):
+    """Test regular user cannot bulk add a user to groups."""
+    override_auth(test_user)
+
+    mock_bulk = mocker.patch(f"{USERS_GROUPS}.groups_service.bulk_add_user_to_groups")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/bulk",
+        data={"group_ids": ["g1", "g2"], "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_bulk.assert_not_called()
+
+
+def test_bulk_add_user_to_groups_not_found(test_admin_user, mocker, override_auth):
+    """Test bulk add returns error when user or group not found."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_admin_user)
+
+    mock_bulk = mocker.patch(f"{USERS_GROUPS}.groups_service.bulk_add_user_to_groups")
+    mock_bulk.side_effect = NotFoundError(message="User not found", code="user_not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/bulk",
+        data={"group_ids": ["g1", "g2"], "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=user_not_found" in response.headers["location"]
+
+
+def test_bulk_add_user_to_groups_forbidden(test_admin_user, mocker, override_auth):
+    """Test bulk add returns error when user lacks permission."""
+    from services.exceptions import ForbiddenError
+
+    override_auth(test_admin_user)
+
+    mock_bulk = mocker.patch(f"{USERS_GROUPS}.groups_service.bulk_add_user_to_groups")
+    mock_bulk.side_effect = ForbiddenError(message="Not allowed", code="forbidden")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/bulk",
+        data={"group_ids": ["g1"], "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=forbidden" in response.headers["location"]
+
+
+def test_bulk_add_user_to_groups_service_error(test_admin_user, mocker, override_auth):
+    """Test bulk add renders error page on generic ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    mock_bulk = mocker.patch(f"{USERS_GROUPS}.groups_service.bulk_add_user_to_groups")
+    mock_bulk.side_effect = ServiceError(message="Unexpected", code="unexpected")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/users/user-123/groups/bulk",
+        data={"group_ids": ["g1"], "csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+
+
+def test_remove_user_from_group_denied_for_regular_user(test_user, mocker, override_auth):
+    """Test regular user cannot remove a user from a group."""
+    override_auth(test_user)
+
+    mock_remove = mocker.patch(f"{USERS_GROUPS}.groups_service.remove_member")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/user-123/groups/group-456/remove",
+        data={"csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    mock_remove.assert_not_called()
+
+
+def test_remove_user_from_group_service_error(test_admin_user, mocker, override_auth):
+    """Test remove renders error page on generic ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user)
+
+    mock_remove = mocker.patch(f"{USERS_GROUPS}.groups_service.remove_member")
+    mock_remove.side_effect = ServiceError(message="Unexpected", code="unexpected")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/users/user-123/groups/group-456/remove",
+        data={"csrf_token": "test"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500

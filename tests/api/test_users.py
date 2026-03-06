@@ -1732,3 +1732,140 @@ def test_get_user_accessible_apps_available_to_all(make_user_dict, override_api_
         data = response.json()
         assert data["items"][0]["available_to_all"] is True
         assert data["items"][0]["granting_groups"] == []
+
+
+# =============================================================================
+# User List Filter Edge Cases
+# =============================================================================
+
+
+def test_list_users_with_invalid_role_filter(make_user_dict, override_api_auth):
+    """Invalid role values are silently dropped, resulting in no filter."""
+    admin = make_user_dict(role="admin")
+    mock_response = UserListResponse(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get("/api/v1/users?role=bogus_role")
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_users.call_args[1]
+        assert call_kwargs["roles"] is None
+
+
+def test_list_users_with_invalid_status_filter(make_user_dict, override_api_auth):
+    """Invalid status values are silently dropped, resulting in no filter."""
+    admin = make_user_dict(role="admin")
+    mock_response = UserListResponse(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get("/api/v1/users?status=bogus_status")
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_users.call_args[1]
+        assert call_kwargs["statuses"] is None
+
+
+def test_list_users_with_empty_auth_method_filter(make_user_dict, override_api_auth):
+    """Empty auth_method values are silently dropped, resulting in no filter."""
+    admin = make_user_dict(role="admin")
+    mock_response = UserListResponse(items=[], total=0, page=1, limit=25)
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.return_value = mock_response
+
+        client = TestClient(app)
+        # Comma-only string produces empty items after strip
+        response = client.get("/api/v1/users?auth_method=,,,")
+
+        assert response.status_code == 200
+        call_kwargs = mock_svc.list_users.call_args[1]
+        assert call_kwargs["auth_methods"] is None
+
+
+def test_list_users_service_error(make_user_dict, override_api_auth):
+    """Service error on list returns HTTP error."""
+    admin = make_user_dict(role="admin")
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.list_users.side_effect = ForbiddenError(message="Not allowed", code="forbidden")
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/api/v1/users")
+
+        assert response.status_code == 403
+
+
+# =============================================================================
+# User Profile Update
+# =============================================================================
+
+
+def test_update_current_user_profile_success(make_user_dict, override_api_auth):
+    """User can update their own profile."""
+    from schemas.api import UserProfile
+
+    user = make_user_dict(role="member")
+
+    override_api_auth(user, level="user")
+
+    mock_profile = UserProfile(
+        id=user["id"],
+        email=user["email"],
+        first_name="Updated",
+        last_name="Name",
+        role="member",
+        timezone="America/New_York",
+        locale="en_US",
+        theme="dark",
+        mfa_enabled=False,
+        mfa_method=None,
+        created_at=datetime.now(UTC),
+    )
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.update_current_user_profile.return_value = mock_profile
+
+        client = TestClient(app)
+        response = client.patch(
+            "/api/v1/users/me",
+            json={"first_name": "Updated", "timezone": "America/New_York"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["first_name"] == "Updated"
+        assert data["timezone"] == "America/New_York"
+
+
+def test_update_current_user_profile_service_error(make_user_dict, override_api_auth):
+    """Service error on profile update returns HTTP error."""
+    user = make_user_dict(role="member")
+
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.users_service") as mock_svc:
+        mock_svc.update_current_user_profile.side_effect = ValidationError(
+            message="Invalid timezone", code="invalid_timezone"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.patch(
+            "/api/v1/users/me",
+            json={"timezone": "Invalid/Timezone"},
+        )
+
+        assert response.status_code == 400

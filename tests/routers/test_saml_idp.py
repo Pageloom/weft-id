@@ -1989,3 +1989,506 @@ class TestSPBaseNoAccessBanner:
 
         assert response.status_code == 200
         assert "No users have access" not in response.text
+
+
+# =============================================================================
+# SP Edit NameID Format
+# =============================================================================
+
+
+class TestSPEditNameIDFormat:
+    """Tests for NameID format editing."""
+
+    def test_edit_nameid_format_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful NameID format change redirects with success."""
+        with patch(
+            "services.service_providers.update_service_provider",
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+                data={"nameid_format": "persistent"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=nameid_format_updated" in response.headers["location"]
+
+    def test_edit_nameid_format_invalid(self, sp_admin_session, sp_host, sample_sp_config):
+        """Invalid NameID format redirects with error."""
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+            data={"nameid_format": "bogus_format"},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_edit_nameid_format_service_error(self, sp_admin_session, sp_host, sample_sp_config):
+        """Service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.update_service_provider",
+            side_effect=ServiceError(message="Failed", code="failed"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/edit-nameid-format",
+                data={"nameid_format": "transient"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Establish Trust - URL
+# =============================================================================
+
+
+class TestSPEstablishTrustURL:
+    """Tests for trust establishment via metadata URL."""
+
+    def test_establish_trust_url_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful trust establishment via URL redirects with success."""
+        with patch(
+            "services.service_providers.establish_trust_from_metadata_url",
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+                data={"metadata_url": "https://app.example.com/metadata"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=trust_established" in response.headers["location"]
+
+    def test_establish_trust_url_missing(self, sp_admin_session, sp_host, sample_sp_config):
+        """Missing URL redirects with error."""
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+            data={"metadata_url": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_establish_trust_url_service_error(self, sp_admin_session, sp_host, sample_sp_config):
+        """Service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.establish_trust_from_metadata_url",
+            side_effect=ServiceError(message="Failed to fetch", code="fetch_failed"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-url",
+                data={"metadata_url": "https://app.example.com/metadata"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Establish Trust - XML
+# =============================================================================
+
+
+class TestSPEstablishTrustXML:
+    """Tests for trust establishment via metadata XML."""
+
+    def test_establish_trust_xml_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful trust establishment via XML redirects with success."""
+        with patch(
+            "services.service_providers.establish_trust_from_metadata_xml",
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+                data={"metadata_xml": "<EntityDescriptor>...</EntityDescriptor>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=trust_established" in response.headers["location"]
+
+    def test_establish_trust_xml_missing(self, sp_admin_session, sp_host, sample_sp_config):
+        """Missing XML redirects with error."""
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+            data={"metadata_xml": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_establish_trust_xml_service_error(self, sp_admin_session, sp_host, sample_sp_config):
+        """Service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.establish_trust_from_metadata_xml",
+            side_effect=ServiceError(message="Invalid XML", code="invalid_xml"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-xml",
+                data={"metadata_xml": "<bad>xml</bad>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Establish Trust - Manual
+# =============================================================================
+
+
+class TestSPEstablishTrustManual:
+    """Tests for manual trust establishment."""
+
+    def test_establish_trust_manual_success(self, sp_admin_session, sp_host, sample_sp_config):
+        """Successful manual trust redirects with success."""
+        with patch(
+            "services.service_providers.establish_trust_manually",
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                data={
+                    "entity_id": "https://app.example.com",
+                    "acs_url": "https://app.example.com/acs",
+                    "slo_url": "https://app.example.com/slo",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=trust_established" in response.headers["location"]
+
+    def test_establish_trust_manual_no_slo(self, sp_admin_session, sp_host, sample_sp_config):
+        """Manual trust without SLO URL still succeeds."""
+        with patch(
+            "services.service_providers.establish_trust_manually",
+        ) as mock_trust:
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                data={
+                    "entity_id": "https://app.example.com",
+                    "acs_url": "https://app.example.com/acs",
+                    "slo_url": "",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "success=trust_established" in response.headers["location"]
+        call_kwargs = mock_trust.call_args[1]
+        assert call_kwargs["slo_url"] is None
+
+    def test_establish_trust_manual_missing_entity_id(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Missing entity_id redirects with error."""
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+            data={
+                "entity_id": "",
+                "acs_url": "https://app.example.com/acs",
+            },
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_establish_trust_manual_missing_acs_url(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Missing ACS URL redirects with error."""
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+            data={
+                "entity_id": "https://app.example.com",
+                "acs_url": "",
+            },
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_establish_trust_manual_service_error(
+        self, sp_admin_session, sp_host, sample_sp_config
+    ):
+        """Service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.establish_trust_manually",
+            side_effect=ServiceError(message="Entity exists", code="conflict"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sample_sp_config.id}/establish-trust-manual",
+                data={
+                    "entity_id": "https://app.example.com",
+                    "acs_url": "https://app.example.com/acs",
+                },
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Enable/Disable
+# =============================================================================
+
+
+class TestSPEnableDisableErrors:
+    """Tests for enable/disable service error paths."""
+
+    def test_enable_service_error(self, sp_admin_session, sp_host):
+        """Enable service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.enable_service_provider",
+            side_effect=ServiceError(message="Cannot enable", code="cannot_enable"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/enable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_disable_service_error(self, sp_admin_session, sp_host):
+        """Disable service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.disable_service_provider",
+            side_effect=ServiceError(message="Cannot disable", code="cannot_disable"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/disable",
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Import Error Paths
+# =============================================================================
+
+
+class TestSPImportErrors:
+    """Tests for SP import validation and error paths."""
+
+    def test_import_xml_missing_xml(self, sp_admin_session, sp_host):
+        """Import XML with missing XML redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/settings/service-providers/import-metadata-xml",
+            data={"name": "Test App", "metadata_xml": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_import_xml_service_error(self, sp_admin_session, sp_host):
+        """Import XML service error redirects with error."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.import_sp_from_metadata_xml",
+            side_effect=ServiceError(message="Invalid XML", code="invalid"),
+        ):
+            response = sp_admin_session.post(
+                "/admin/settings/service-providers/import-metadata-xml",
+                data={"name": "Test App", "metadata_xml": "<bad>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_import_url_missing_url(self, sp_admin_session, sp_host):
+        """Import URL with missing URL redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/settings/service-providers/import-metadata-url",
+            data={"name": "Test App", "metadata_url": ""},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_import_url_missing_name(self, sp_admin_session, sp_host):
+        """Import URL with missing name redirects with error."""
+        response = sp_admin_session.post(
+            "/admin/settings/service-providers/import-metadata-url",
+            data={"name": "", "metadata_url": "https://app.example.com/metadata"},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_import_url_service_error(self, sp_admin_session, sp_host):
+        """Import URL service error redirects with error."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.import_sp_from_metadata_url",
+            side_effect=ServiceError(message="Fetch failed", code="fetch_failed"),
+        ):
+            response = sp_admin_session.post(
+                "/admin/settings/service-providers/import-metadata-url",
+                data={"name": "Test App", "metadata_url": "https://bad.example.com"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Reimport Metadata Error Paths
+# =============================================================================
+
+
+class TestSPReimportErrors:
+    """Tests for metadata reimport error paths."""
+
+    def test_reimport_preview_service_error(self, sp_admin_session, sp_host):
+        """Reimport preview service error redirects to metadata tab."""
+        from services.exceptions import ServiceError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.preview_sp_metadata_reimport",
+            side_effect=ServiceError(message="Parse error", code="parse_error"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-preview",
+                data={"metadata_xml": "<EntityDescriptor>broken</EntityDescriptor>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_reimport_apply_service_error(self, sp_admin_session, sp_host):
+        """Reimport apply service error redirects to metadata tab."""
+        from services.exceptions import ServiceError
+
+        sp_id = str(uuid4())
+
+        with patch(
+            "services.service_providers.apply_sp_metadata_reimport",
+            side_effect=ServiceError(message="Apply failed", code="apply_failed"),
+        ):
+            response = sp_admin_session.post(
+                f"/admin/settings/service-providers/{sp_id}/reimport-metadata-apply",
+                data={"metadata_xml": "<EntityDescriptor>data</EntityDescriptor>"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP List Service Error
+# =============================================================================
+
+
+class TestSPListError:
+    """Tests for SP list service error handling."""
+
+    def test_list_service_error_shows_empty(self, sp_admin_session, sp_host, mocker):
+        """SP list renders with empty list when service fails."""
+        mock_ctx = mocker.patch(f"{ROUTER_MODULE}.get_template_context")
+        mock_tmpl = mocker.patch(f"{ROUTER_MODULE}.templates.TemplateResponse")
+        mock_ctx.return_value = {"request": MagicMock()}
+        mock_tmpl.return_value = HTMLResponse(content="<html>empty</html>")
+
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.list_service_providers",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = sp_admin_session.get(
+                "/admin/settings/service-providers",
+                headers={"Host": sp_host},
+            )
+
+        assert response.status_code == 200
+        ctx_kwargs = mock_ctx.call_args[1]
+        assert ctx_kwargs["service_providers"] == []
+
+
+# =============================================================================
+# SP Create Service Error
+# =============================================================================
+
+
+class TestSPCreateError:
+    """Tests for SP creation service error handling."""
+
+    def test_create_service_error(self, sp_admin_session, sp_host):
+        """Create service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "services.service_providers.create_service_provider",
+            side_effect=ServiceError(message="Duplicate name", code="duplicate"),
+        ):
+            response = sp_admin_session.post(
+                "/admin/settings/service-providers/create",
+                data={"name": "Duplicate App"},
+                headers={"Host": sp_host},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]

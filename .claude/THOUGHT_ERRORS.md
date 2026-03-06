@@ -24,7 +24,7 @@ Tests must be run via poetry to use the correct virtual environment. The pytest 
 ## Running Code Quality Checks
 
 **Wrong:** `ruff check` directly, or assuming pyright is available
-**Right:** `./code-quality` (or `./code-quality --fix` to auto-fix lint/format)
+**Right:** `make check` (or `make fix` to auto-fix lint/format)
 
 This runs lint (ruff), format check (ruff), type check (mypy), and compliance check in one go. It matches the CI workflow exactly. Individual tools can still be run via poetry (e.g. `poetry run ruff check`, `poetry run mypy app/`), but the script is the standard way.
 

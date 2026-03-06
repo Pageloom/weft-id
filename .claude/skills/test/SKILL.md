@@ -46,8 +46,8 @@ Ensure quality through intelligent testing. Write tests, find bugs, improve cove
 ## Running Tests
 
 ```bash
-./test                                    # Run all tests (parallel)
-./test --cov=app --cov-report=term-missing # With coverage
+make test                                 # Run all tests (parallel)
+make test ARGS="--cov=app --cov-report=term-missing"  # With coverage
 ./test --testmon                          # Run only tests affected by recent changes
 make watch-tests                          # Watch mode: auto-rerun affected tests on changes
 ```
@@ -56,17 +56,17 @@ make watch-tests                          # Watch mode: auto-rerun affected test
 
 **E2E tests (Playwright):**
 ```bash
-./test-e2e                          # Run all E2E tests (requires Docker services)
-./test-e2e --headed --slowmo=500    # Debug in visible browser
-./test-e2e -k test_sp_initiated     # Run specific test
+make e2e                            # Run all E2E tests (requires Docker services)
+make e2e ARGS="--headed --slowmo=500"  # Debug in visible browser
+make e2e ARGS="-k test_sp_initiated"   # Run specific test
 ```
 
-E2E tests are in `tests/e2e/` and excluded from `./test`. They require Docker services and MailDev running. Tests are skipped if MailDev is unreachable.
+E2E tests are in `tests/e2e/` and excluded from `make test`. They require Docker services and MailDev running. Tests are skipped if MailDev is unreachable.
 
 **Combined coverage (unit + E2E):**
 ```bash
-./test-coverage-all                 # Merged coverage report from both suites
-./test-coverage-all --html          # Also generate htmlcov/ report
+make coverage                       # Merged coverage report from both suites
+make coverage ARGS="--html"         # Also generate htmlcov/ report
 ```
 
 This runs unit tests and E2E tests separately, then uses `coverage combine` to merge the data files into a single report. The combined stat shows true coverage including SAML SSO/SLO paths that only E2E tests exercise. Requires Docker services and MailDev running.

@@ -89,10 +89,9 @@ make sh-app          # Shell into app container
 ### Testing & Code Quality
 
 ```bash
-./test                                      # Run tests (parallelized by default)
-./test --cov=app --cov-report=term-missing  # Run tests with coverage
-./code-quality                              # Run all quality checks (lint, format, types, compliance)
-./code-quality --fix                        # Auto-fix lint/format, then check types and compliance
+make test                                   # Run tests (parallelized by default)
+make check                                  # Run all quality checks (lint, format, types, compliance)
+make fix                                    # Auto-fix lint/format, then check types and compliance
 ```
 
 ### Frontend/CSS Development

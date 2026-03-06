@@ -79,8 +79,8 @@ For each PR:
 ### Phase 3: Quality check
 
 ```bash
-./code-quality     # Must pass
-./test             # Must pass
+make check         # Must pass
+make test          # Must pass
 ```
 
 If either fails: investigate root cause. If the failure is caused by a breaking change

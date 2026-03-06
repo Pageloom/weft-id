@@ -111,13 +111,13 @@ If a migration intentionally contains a breaking change (e.g., cleanup after a p
 ## Before Committing
 
 ```bash
-./code-quality --fix                    # Lint, format, type check, compliance
-./test                                  # Tests (full suite)
+make fix                                # Lint, format, type check, compliance
+make test                               # Tests (full suite)
 ```
 
 Both must pass.
 
-# Note: E2E tests (./test-e2e) are separate and not required before every commit.
+# Note: E2E tests (make e2e) are separate and not required before every commit.
 # Run them when changes affect: login flows, SAML SSO, SLO, MFA, cross-tenant behavior, or group-based SP access.
 
 ## Testing Requirements

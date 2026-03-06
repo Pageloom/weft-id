@@ -16,7 +16,7 @@ Weft-ID is a multi-tenant identity federation platform that acts as middleware b
 **Read `.claude/THOUGHT_ERRORS.md`** for common mistakes to avoid. Key gotchas:
 
 - **Tests**: Use `poetry run python -m pytest` or `./test` (not `pytest` directly)
-- **Code quality**: Run `./code-quality` (lint, format, type check, compliance)
+- **Code quality**: Run `make check` (lint, format, type check, compliance)
 - **UUIDs**: Convert to string when comparing across boundaries
 - **Background jobs**: Restart worker container, not app container
 - **Mocking sessions**: Patch `starlette.requests.Request.session`, not client cookies
@@ -281,8 +281,8 @@ Note: Tests run in parallel by default (`-n auto` configured in `pytest.ini`).
 
 **Code quality (lint, format, type check, compliance):**
 ```bash
-./code-quality                              # Run all checks (CI-equivalent)
-./code-quality --fix                        # Auto-fix lint/format, then check types and compliance
+make check                                  # Run all checks (CI-equivalent)
+make fix                                    # Auto-fix lint/format, then check types and compliance
 ```
 
 **Dependency security scanning:**
@@ -300,6 +300,14 @@ python scripts/deps_check.py --include-dev  # Include dev deps
 ```
 
 E2E tests live in `tests/e2e/` and are **excluded** from `./test` (via `--ignore=tests/e2e` in `pytest.ini`). They run sequentially (`-n 0`) and require Docker services plus MailDev to be running. Tests are skipped automatically if MailDev is not reachable.
+
+**Combined coverage (unit + E2E):**
+```bash
+./test-coverage-all                 # Merged coverage from both test suites
+./test-coverage-all --html          # Also generate htmlcov/ report
+```
+
+Runs unit tests and E2E tests separately with coverage collection, then uses `coverage combine` to merge data files into a single report. Shows true overall coverage including SAML SSO/SLO paths that only E2E tests exercise.
 
 ### Docker Infrastructure (Use Make)
 
@@ -380,7 +388,7 @@ The CSS is built during the Docker image build process, so running `make up` wil
 ### Development Workflow
 
 **Starting a development session:**
-1. Start Docker services: `make up`
+1. Start Docker services: `make dev` (builds, starts, shows status)
 2. (Optional) Start watch modes in separate terminals:
    - CSS: `make watch-css` - auto-rebuild CSS on template changes
    - Tests: `make watch-tests` - intelligently rerun only affected tests on code changes
@@ -390,8 +398,8 @@ The CSS is built during the Docker image build process, so running `make up` wil
 **Note on test watch mode**: The first run builds a coverage database. After that, only tests affected by your changes will run, making iterations much faster (e.g., changing one function might run 5 tests instead of 500).
 
 **Before committing code:**
-1. Run code quality checks: `./code-quality --fix`
-2. Run tests: `./test`
+1. Run code quality checks: `make fix`
+2. Run tests: `make test`
 3. If you modified templates and didn't use watch mode: `make build-css`
 
 All checks must pass before committing.

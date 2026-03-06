@@ -110,7 +110,7 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 ### 1. Run Automated Script First
 
 ```bash
-./code-quality                         # Full suite (lint, format, types, compliance)
+make check                              # Full suite (lint, format, types, compliance)
 python scripts/compliance_check.py     # Compliance only
 ```
 

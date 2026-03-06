@@ -1,13 +1,14 @@
 COMPOSE := docker compose
-WAIT_TIMEOUT ?= 60
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune ps restart-% logs logs-% up-% exec-% sh-% build-css watch-css watch-tests sso-testbed seed-dev
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart-% logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage
 
 help:
-	@awk 'BEGIN{FS=":.*##"; printf "\nDev targets:\n"} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo
 
+## Docker
 status: ## Show up/down for all services
 	@all="$$( $(COMPOSE) config --services )"; \
 	run="$$( $(COMPOSE) ps --services --filter status=running )"; \
@@ -42,9 +43,6 @@ migrate-onprem: ## Run pending migrations on running onprem DB
 prune: ## Docker prune (containers/images/networks not in use)
 	docker system prune -f
 
-ps: ## Show compose status
-	$(COMPOSE) ps
-
 restart-%: ## Restart a specific service. Example: make restart-app
 	$(COMPOSE) restart $*
 
@@ -60,6 +58,9 @@ up-%: ## Rebuild+start just one service (no deps). Example: make up-app
 sh-%: ## Open a shell to a service. Example: make sh-app
 	-$(COMPOSE) exec $* bash || $(COMPOSE) exec $* sh
 
+## Dev
+dev: up status ## Start all services and show status
+
 build-css: ## Build Tailwind CSS for production
 	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --minify
 
@@ -69,10 +70,24 @@ watch-css: ## Watch and rebuild CSS on changes (dev mode)
 watch-tests: ## Watch and rerun tests on changes (dev mode)
 	poetry run python -m watchfiles './test --testmon' app tests
 
-sso-testbed: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
+seed-sso: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 	$(COMPOSE) exec app python ./dev/sso_testbed.py
 
 seed-dev: ## Seed dev environment with Meridian Health sample data
 	$(COMPOSE) exec app python ./dev/seed_dev.py
 
+## Quality
+test: ## Run all tests (pass args: make test ARGS="-v -k my_test")
+	./test $(ARGS)
 
+e2e: ## Run E2E tests (pass args: make e2e ARGS="--headed")
+	./test-e2e $(ARGS)
+
+check: ## Run code quality checks (lint, format, types, compliance)
+	./code-quality
+
+fix: ## Auto-fix lint/format, then check types and compliance
+	./code-quality --fix
+
+coverage: ## Combined coverage report (unit + E2E)
+	./test-coverage-all $(ARGS)

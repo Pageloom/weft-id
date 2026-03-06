@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from main import app
+from services.exceptions import ServiceError, ValidationError
 
 # =============================================================================
 # Section Index Redirect Tests (Parametrized)
@@ -577,3 +578,207 @@ def test_deny_request_sends_email(test_admin_user, override_auth, mocker):
     mock_send_email.assert_called_once()
     call_args = mock_send_email.call_args[0]
     assert call_args[0] == user_email
+
+
+# =============================================================================
+# Error Handler Coverage Tests
+# =============================================================================
+
+
+def test_event_log_list_invalid_page_param(test_admin_user, override_auth, mocker):
+    """Test event log list falls back to page=1 when page param is non-numeric."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.event_log.list_events")
+    mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
+
+    mock_result = MagicMock()
+    mock_result.items = []
+    mock_result.total = 0
+    mock_list.return_value = mock_result
+    mock_template.return_value = HTMLResponse(content="<html>events</html>")
+
+    client = TestClient(app)
+    response = client.get("/admin/audit/events?page=abc")
+
+    assert response.status_code == 200
+    call_args = mock_list.call_args
+    assert call_args[1]["page"] == 1
+
+
+def test_event_log_list_invalid_size_param(test_admin_user, override_auth, mocker):
+    """Test event log list falls back to size=50 when size param is non-numeric."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.event_log.list_events")
+    mocker.patch("utils.template_context.get_template_context")
+    mock_template = mocker.patch("routers.admin.templates.TemplateResponse")
+
+    mock_result = MagicMock()
+    mock_result.items = []
+    mock_result.total = 0
+    mock_list.return_value = mock_result
+    mock_template.return_value = HTMLResponse(content="<html>events</html>")
+
+    client = TestClient(app)
+    response = client.get("/admin/audit/events?size=abc")
+
+    assert response.status_code == 200
+    call_args = mock_list.call_args
+    assert call_args[1]["limit"] == 50
+
+
+def test_event_log_list_service_error(test_admin_user, override_auth, mocker):
+    """Test event log list renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.event_log.list_events")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_list.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/audit/events")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_event_log_detail_service_error(test_admin_user, override_auth, mocker):
+    """Test event log detail renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_get = mocker.patch("services.event_log.get_event")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_get.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get(f"/admin/audit/events/{uuid4()}")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_trigger_export_service_error(test_admin_user, override_auth, mocker):
+    """Test trigger export renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_create = mocker.patch("services.bg_tasks.create_export_task")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_create.side_effect = ServiceError(message="Export failed", code="export_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.post("/admin/audit/events/export")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_reactivation_list_service_error(test_admin_user, override_auth, mocker):
+    """Test reactivation list renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.reactivation.list_pending_requests")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_list.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_reactivation_history_service_error(test_admin_user, override_auth, mocker):
+    """Test reactivation history renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch("services.reactivation.list_previous_requests")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_list.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/todo/reactivation/history")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_approve_request_service_error(test_admin_user, override_auth, mocker):
+    """Test approve request renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_approve = mocker.patch("services.reactivation.approve_request")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_approve.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/todo/reactivation/{uuid4()}/approve",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_deny_request_service_error(test_admin_user, override_auth, mocker):
+    """Test deny request renders error page on ServiceError."""
+    from fastapi.responses import HTMLResponse
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_deny = mocker.patch("services.reactivation.deny_request")
+    mock_error = mocker.patch("routers.admin.render_error_page")
+    mock_deny.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        f"/admin/todo/reactivation/{uuid4()}/deny",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_deny_request_validation_error(test_admin_user, override_auth):
+    """Test denying already-decided request redirects with error code."""
+    override_auth(test_admin_user, level="admin")
+
+    request_id = str(uuid4())
+
+    with patch("services.reactivation.deny_request") as mock_deny:
+        mock_deny.side_effect = ValidationError(message="Already decided", code="already_decided")
+
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/todo/reactivation/{request_id}/deny",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=already_decided" in response.headers["location"]

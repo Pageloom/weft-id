@@ -927,3 +927,320 @@ def test_background_jobs_service_error_handling(test_user, override_auth, mocker
 
     assert response.status_code == 500
     mock_error.assert_called_once()
+
+
+# =============================================================================
+# Coverage Gap Tests
+# =============================================================================
+
+
+def test_add_email_denied_by_security_setting(test_user, override_auth, mocker):
+    """Test add email is denied when security setting disallows it."""
+    override_auth(test_user)
+
+    mock_can_add = mocker.patch("services.settings.can_users_add_emails")
+    mock_add = mocker.patch("services.emails.add_user_email")
+    mock_can_add.return_value = False
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/emails/add",
+        data={"email": "new@example.com"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/emails"
+    mock_add.assert_not_called()
+
+
+def test_resend_verification_success(test_user, override_auth, mocker):
+    """Test resend verification sends email successfully."""
+    override_auth(test_user)
+
+    mock_resend = mocker.patch("services.emails.resend_verification")
+    mock_send = mocker.patch("routers.account.send_email_verification")
+    mock_resend.return_value = {
+        "email": "test@example.com",
+        "verify_nonce": 99999,
+        "email_id": "email-id",
+    }
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/emails/resend-verification/email-id",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/emails"
+    mock_send.assert_called_once()
+
+
+def test_resend_verification_not_found(test_user, override_auth, mocker):
+    """Test resend verification silently handles NotFoundError."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_user)
+
+    mock_resend = mocker.patch("services.emails.resend_verification")
+    mock_resend.side_effect = NotFoundError(message="Email not found", code="not_found")
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/emails/resend-verification/nonexistent",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/emails"
+
+
+def test_verify_email_not_found(test_user, override_auth, mocker):
+    """Test verify email redirects to login when email info is None."""
+    override_auth(test_user)
+
+    mock_get = mocker.patch("services.emails.get_email_for_verification")
+    mock_get.return_value = None
+
+    client = TestClient(app)
+    response = client.get("/account/emails/verify/email-id/12345", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_verify_email_already_verified(test_user, override_auth, mocker):
+    """Test verify email redirects when email is already verified."""
+    from datetime import UTC, datetime
+
+    override_auth(test_user)
+
+    mock_get = mocker.patch("services.emails.get_email_for_verification")
+    mock_get.return_value = {
+        "id": "email-id",
+        "user_id": test_user["id"],
+        "verified_at": datetime.now(UTC),
+        "verify_nonce": 12345,
+    }
+
+    client = TestClient(app)
+    response = client.get("/account/emails/verify/email-id/12345", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/emails"
+
+
+def test_mfa_setup_totp_verify_success(test_user, override_auth, mocker):
+    """Test TOTP verify success shows backup codes."""
+    from schemas.api import BackupCodesResponse
+
+    override_auth(test_user)
+
+    mock_verify = mocker.patch("services.mfa.verify_totp_and_enable")
+    mock_template = mocker.patch("routers.account.templates.TemplateResponse")
+    mock_verify.return_value = BackupCodesResponse(
+        codes=["code1", "code2", "code3"],
+        count=3,
+    )
+    mock_template.return_value = HTMLResponse(content="<html>Backup codes</html>")
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/mfa/setup/verify",
+        data={"code": "123456", "method": "totp"},
+    )
+
+    assert response.status_code == 200
+    assert mock_template.call_args[0][1] == "mfa_backup_codes.html"
+
+
+def test_mfa_generate_initial_backup_codes(test_user, override_auth, mocker):
+    """Test generating initial backup codes."""
+    override_auth(test_user)
+
+    mock_generate = mocker.patch("services.mfa.generate_initial_backup_codes")
+    mock_template = mocker.patch("routers.account.templates.TemplateResponse")
+    mock_generate.return_value = ["code1", "code2", "code3"]
+    mock_template.return_value = HTMLResponse(content="<html>Backup codes</html>")
+
+    client = TestClient(app)
+    response = client.post("/account/mfa/generate-backup-codes")
+
+    assert response.status_code == 200
+    mock_generate.assert_called_once_with(str(test_user["tenant_id"]), test_user["id"])
+    assert mock_template.call_args[0][1] == "mfa_backup_codes.html"
+
+
+def test_mfa_regenerate_backup_codes_no_mfa(test_user, override_auth, mocker):
+    """Test regenerate backup codes redirects when MFA not enabled."""
+    from services.exceptions import ValidationError
+
+    override_auth(test_user)
+
+    mock_regen = mocker.patch("services.mfa.regenerate_backup_codes")
+    mock_regen.side_effect = ValidationError(message="MFA not enabled", code="mfa_not_enabled")
+
+    client = TestClient(app)
+    response = client.post("/account/mfa/regenerate-backup-codes", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/mfa"
+
+
+def test_delete_background_jobs_service_error(test_user, override_auth, mocker):
+    """Test delete background jobs handles ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_user)
+
+    mock_delete = mocker.patch("routers.account.bg_tasks_service.delete_jobs")
+    mock_error = mocker.patch("routers.account.render_error_page")
+    mock_delete.side_effect = ServiceError(message="Delete failed", code="delete_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/background-jobs/delete",
+        data={"job_ids": ["job1"]},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_job_output_detail_service_error(test_user, override_auth, mocker):
+    """Test job output detail handles ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_user)
+
+    mock_get = mocker.patch("routers.account.bg_tasks_service.get_job_detail")
+    mock_error = mocker.patch("routers.account.render_error_page")
+    mock_get.side_effect = ServiceError(message="Database error", code="db_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/account/background-jobs/job1/output")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_download_file_not_found(test_user, override_auth, mocker):
+    """Test download file handles NotFoundError."""
+    from services.exceptions import NotFoundError
+
+    override_auth(test_user)
+
+    mock_get = mocker.patch("routers.account.exports_service.get_download")
+    mock_get.side_effect = NotFoundError(message="File not found", code="file_not_found")
+
+    client = TestClient(app)
+    response = client.get(
+        "/account/background-jobs/download/nonexistent",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=file_not_found" in response.headers["location"]
+
+
+def test_download_file_service_error(test_user, override_auth, mocker):
+    """Test download file handles ServiceError."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_user)
+
+    mock_get = mocker.patch("routers.account.exports_service.get_download")
+    mock_error = mocker.patch("routers.account.render_error_page")
+    mock_get.side_effect = ServiceError(message="Storage error", code="storage_error")
+    mock_error.return_value = HTMLResponse(content="<html>Error</html>", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/account/background-jobs/download/file123")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_download_local_file(test_user, override_auth, mocker, tmp_path):
+    """Test download local file returns FileResponse."""
+    override_auth(test_user)
+
+    # Create a temp file
+    test_file = tmp_path / "export.json.gz"
+    test_file.write_bytes(b"test content")
+
+    mock_get = mocker.patch("routers.account.exports_service.get_download")
+    mock_get.return_value = {
+        "storage_type": "local",
+        "path": str(test_file),
+        "filename": "export.json.gz",
+        "content_type": "application/gzip",
+    }
+
+    client = TestClient(app)
+    response = client.get("/account/background-jobs/download/file123")
+
+    assert response.status_code == 200
+
+
+def test_download_local_file_missing(test_user, override_auth, mocker):
+    """Test download local file redirects when file is missing from disk."""
+    override_auth(test_user)
+
+    mock_get = mocker.patch("routers.account.exports_service.get_download")
+    mock_get.return_value = {
+        "storage_type": "local",
+        "path": "/tmp/nonexistent-file.json.gz",
+        "filename": "export.json.gz",
+        "content_type": "application/gzip",
+    }
+
+    client = TestClient(app)
+    response = client.get(
+        "/account/background-jobs/download/file123",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=file_missing" in response.headers["location"]
+
+
+def test_mfa_setup_verify_non_totp_method(test_user, override_auth):
+    """Test MFA setup verify redirects for non-TOTP methods."""
+    override_auth(test_user)
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/mfa/setup/verify",
+        data={"code": "123456", "method": "email"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/mfa"
+
+
+def test_mfa_setup_verify_validation_no_pending(test_user, override_auth, mocker):
+    """Test TOTP verify error when no pending setup redirects to MFA page."""
+    from services.exceptions import ValidationError
+
+    override_auth(test_user)
+
+    mock_verify = mocker.patch("services.mfa.verify_totp_and_enable")
+    mock_pending = mocker.patch("services.mfa.get_pending_totp_setup")
+    mock_verify.side_effect = ValidationError(message="Invalid code", code="invalid_totp_code")
+    mock_pending.return_value = None
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/mfa/setup/verify",
+        data={"code": "000000", "method": "totp"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/account/mfa"

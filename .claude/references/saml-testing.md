@@ -4,43 +4,40 @@ This document covers SAML-specific testing considerations for the `/test` agent.
 
 ## Coverage Threshold
 
-**80%+ coverage for all SAML modules is acceptable.** Do not flag SAML coverage gaps below this threshold as issues.
+**90%+ coverage for SAML router modules** is achievable through unit tests with service mocks. The router layer (tab routes, ACS error handlers, login initiation) does not contain cryptographic logic. It delegates to the service layer, so all error branches are testable by mocking service calls.
 
-The SAML modules (`app/services/saml/`, `database/saml/`, `routers/saml/`) have intentional gaps that require true E2E tests to cover.
+**Service-layer SAML modules** (`app/services/saml/`) may have lower coverage where the code integrates with `python3-saml` for real signature validation. These paths genuinely need E2E tests.
 
-## Why SAML is Different
+## What's Fully Unit-Testable (Router Layer)
 
-SAML authentication requires cryptographic signature validation. The `python3-saml` library validates:
-- XML signatures using the IdP's certificate
-- Timing constraints (NotOnOrAfter)
-- Audience restrictions
-- Proper SAML bindings (POST/Redirect)
+SAML admin tab routes and ACS router error handlers are unit-testable with service mocks. The SAML cryptography lives in the service layer, not the routers.
 
-You cannot mock these at the HTTP level because the library performs real cryptographic validation. Mocking the entire library defeats the purpose of testing the actual SAML flow.
-
-## What's Covered (Sufficient)
-
-- SP certificate management (create, get, rotate)
 - IdP CRUD operations (create, list, update, delete, enable/disable)
-- Admin UI endpoints (list, new, edit pages)
-- Authorization checks (super_admin required)
+- Admin tab routes (details, certificates, attributes, metadata, danger)
+- Tab access control checks (`has_page_access` returns False)
+- ACS error handlers (ValidationError, NotFoundError, ServiceError branches)
+- ACS success paths (session regeneration, MFA redirect, login completion)
+- Login initiation and error handling
+- Metadata endpoints (per-IdP SP metadata, public trust page)
+- Trust establishment routes (URL, XML, manual)
+- Certificate rotation
+- SP certificate management (create, get, rotate)
 - Test mode with mocked SAML responses
 - Domain binding operations
-- Metadata URL parsing
 
 ## What Requires E2E Tests
 
-These cannot be unit/integration tested effectively:
+Only the service-layer crypto functions truly need E2E coverage:
 
-1. **Real SAML ACS flow** (`routers/saml/authentication.py`) - Error handling in the Assertion Consumer Service requires real signed SAML assertions from an IdP
+1. **SAML signature validation** (`services/saml/`) - The `python3-saml` library validates XML signatures, timing, audience restrictions. Cannot be mocked meaningfully.
 
-2. **IdP-initiated Single Logout** (`services/saml/logout.py`) - Integration tests cover the happy path; full round-trip validation (signed requests from a real IdP) requires E2E
+2. **IdP-initiated Single Logout** (`services/saml/logout.py`) - Full round-trip validation (signed requests from a real IdP) requires E2E.
 
-3. **Real metadata refresh** (`services/saml/metadata.py`) - The full update path after fetching from a real metadata URL
+3. **Real metadata refresh** (`services/saml/metadata.py`) - The full update path after fetching from a real metadata URL.
 
-4. **SAML debug cleanup** (`database/saml.py`) - Background job that cleans entries older than 24 hours
+4. **SAML debug cleanup** (`database/saml.py`) - Background job that cleans entries older than 24 hours.
 
-5. **Database failure branches** - Defensive code for impossible conditions
+5. **Database failure branches** - Defensive code for impossible conditions.
 
 ## E2E Test Suite
 

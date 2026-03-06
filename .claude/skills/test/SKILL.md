@@ -63,6 +63,14 @@ make watch-tests                          # Watch mode: auto-rerun affected test
 
 E2E tests are in `tests/e2e/` and excluded from `./test`. They require Docker services and MailDev running. Tests are skipped if MailDev is unreachable.
 
+**Combined coverage (unit + E2E):**
+```bash
+./test-coverage-all                 # Merged coverage report from both suites
+./test-coverage-all --html          # Also generate htmlcov/ report
+```
+
+This runs unit tests and E2E tests separately, then uses `coverage combine` to merge the data files into a single report. The combined stat shows true coverage including SAML SSO/SLO paths that only E2E tests exercise. Requires Docker services and MailDev running.
+
 ## Test Code Quality Standards
 
 ### No Nested Patch Pyramids
@@ -110,12 +118,11 @@ def authenticated_client(test_user):
 
 ## SAML Coverage
 
-SAML modules have intentional gaps requiring E2E tests. **80%+ coverage is acceptable.**
+SAML **router** modules are fully unit-testable with service mocks (90%+ target). Only SAML **service** modules that integrate with `python3-saml` for real cryptographic validation have legitimate gaps requiring E2E tests.
 
 See `.claude/references/saml-testing.md` for details on:
-- Why SAML is different (cryptographic validation)
-- What's covered (sufficient)
-- What requires E2E tests
+- What's unit-testable (router layer: tab routes, ACS error handlers, login)
+- What requires E2E tests (service layer: signature validation, SLO round-trips)
 
 ## Session Log
 

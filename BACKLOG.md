@@ -523,3 +523,105 @@ General:
 
 ---
 
+## Admin: Security Settings Tabbed Layout
+
+**User Story:**
+As a super admin
+I want the Security settings page organized into focused tabs
+So that related settings are grouped logically and the page is easier to navigate as more security options are added
+
+**Context:**
+
+The current Security settings page is a single long form with five sections covering sessions,
+inactivation, certificates, and user permissions. Splitting it into tabs follows the established
+Branding Settings pattern (base template with tab nav, child templates per tab) and creates
+clear homes for future security settings.
+
+**Tab structure:**
+
+1. **Sessions** (default tab): Maximum session length, keep signed in after browser close, and
+   automatic user inactivation after inactivity period
+2. **Certificates**: Signing certificate validity period and auto-rotation/grace period window
+3. **Permissions**: Allow users to edit profile details, allow users to add alternative email addresses
+
+**Acceptance Criteria:**
+
+Templates:
+- [ ] Create `settings_security_base.html` with tab navigation (Sessions, Certificates, Permissions)
+- [ ] Create `settings_security_tab_sessions.html` with session length, keep signed in, and inactivation settings
+- [ ] Create `settings_security_tab_certificates.html` with certificate lifetime and rotation window settings
+- [ ] Create `settings_security_tab_permissions.html` with user permission toggles
+- [ ] Remove old `settings_tenant_security.html`
+
+Routes:
+- [ ] `/admin/settings/security` redirects to `/admin/settings/security/sessions`
+- [ ] Each tab has its own GET route (`/sessions`, `/certificates`, `/permissions`)
+- [ ] POST update route(s) handle saves per tab (or a single route that redirects back to the originating tab)
+- [ ] Register new routes in `app/pages.py`
+
+Behavior:
+- [ ] Each tab has its own Save button (no cross-tab form submission)
+- [ ] Success/error flash messages appear on the correct tab after save
+- [ ] All existing settings continue to function identically
+
+Tests:
+- [ ] Existing security settings tests pass (update any that reference the old template/route)
+- [ ] Each tab route returns 200 with correct content
+- [ ] Form submissions on each tab persist correctly
+
+**Effort:** S
+**Value:** Medium (UX improvement, prepares for additional security settings)
+
+---
+
+## Groups: Customizable Acronym
+
+**User Story:**
+As an admin
+I want to set a custom acronym (up to 4 characters) for a group
+So that the group avatar displays a meaningful short label instead of the auto-generated initials
+
+**Context:**
+
+Group avatars currently show an auto-generated acronym derived from the group name (max 3
+characters, first letter of each word). Some group names produce unhelpful or ambiguous initials.
+A custom acronym lets the admin override this with something more recognizable (e.g., "HR",
+"ENGR", "OPS", "IT").
+
+The custom acronym appears wherever the auto-generated acronym would: group list, group detail,
+group graph nodes, and any SP or dashboard views that show group avatars. If not set, the
+existing auto-generation logic continues to apply.
+
+**Acceptance Criteria:**
+
+Database:
+- [ ] Add `acronym` column to `groups` table (nullable, max 4 Unicode characters)
+- [ ] Migration adds the column with a `CHECK` constraint on character count (`char_length <= 4`)
+- [ ] Column included in group query results
+
+Service and API:
+- [ ] `GroupUpdate` schema accepts optional `acronym` field (max 4 Unicode chars, stripped)
+- [ ] Setting acronym to empty string or null clears the override (reverts to auto-generated)
+- [ ] Group create and update services handle the field
+- [ ] API endpoints (`POST /api/v1/groups`, `PUT /api/v1/groups/{id}`) accept the field
+- [ ] Event log metadata includes acronym when set or cleared
+- [ ] IdP groups cannot have custom acronyms (read-only, same as name/description)
+
+Frontend:
+- [ ] Group Detail "Details" tab shows an acronym input field (max 4 chars) below the name field
+- [ ] Field shows placeholder text indicating it is optional (e.g., "Auto-generated if blank")
+- [ ] `generateGroupAcronym()` uses the custom acronym when `data-acronym-override` (or similar) is provided
+- [ ] Acronym avatar font size adjusts for 4-character acronyms (smaller than 3-character)
+- [ ] Group list, group graph, and any other avatar displays respect the custom acronym
+
+Tests:
+- [ ] Service tests for setting, updating, and clearing the acronym
+- [ ] Validation tests for length and character constraints
+- [ ] API integration tests for create and update with acronym
+- [ ] Verify auto-generated acronym is used when custom is null/empty
+
+**Effort:** S
+**Value:** Medium (Visual clarity, admin control over group identity)
+
+---
+

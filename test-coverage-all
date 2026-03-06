@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Combined coverage report from unit tests + E2E tests
+# Usage: ./test-coverage-all
+#
+# Runs both test suites with coverage collection, then merges
+# the data into a single report. Requires Docker services and
+# MailDev running for E2E tests.
+#
+# Output: combined coverage report to terminal
+#   Optional: htmlcov/ directory if --html flag is passed
+
+set -euo pipefail
+
+HTML_FLAG=""
+for arg in "$@"; do
+    if [ "$arg" = "--html" ]; then
+        HTML_FLAG="1"
+    fi
+done
+
+# Use a temp directory to isolate coverage files from pytest-cov's
+# internal combine step (which cleans up .coverage.* in the working dir)
+COV_DIR=$(mktemp -d)
+trap 'rm -rf "$COV_DIR"' EXIT
+
+# Clean up old coverage data in working dir
+rm -f .coverage
+
+echo "=== Running unit tests with coverage ==="
+COVERAGE_FILE="$COV_DIR/.coverage.unit" \
+    poetry run python -m pytest --cov=app --cov-report= -q --no-header
+
+echo ""
+echo "=== Running E2E tests with coverage ==="
+COVERAGE_FILE="$COV_DIR/.coverage.e2e" \
+    poetry run python -m pytest tests/e2e/ -n 0 --cov=app --cov-report= -q --no-header
+
+echo ""
+echo "=== Combining coverage data ==="
+poetry run python -m coverage combine "$COV_DIR/.coverage.unit" "$COV_DIR/.coverage.e2e"
+
+echo ""
+echo "=== Combined Coverage Report ==="
+poetry run python -m coverage report --show-missing
+
+if [ -n "$HTML_FLAG" ]; then
+    echo ""
+    echo "=== Generating HTML report ==="
+    poetry run python -m coverage html
+    echo "HTML report written to htmlcov/index.html"
+fi

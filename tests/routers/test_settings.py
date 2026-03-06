@@ -893,3 +893,649 @@ def test_security_template_has_rotation_window_field():
 
     assert 'name="rotation_window"' in template_content
     assert "Certificate Rotation Window" in template_content
+
+
+# =============================================================================
+# Privileged Domains ServiceError Test
+# =============================================================================
+
+
+def test_privileged_domains_service_error(test_admin_user, override_auth, mocker):
+    """Test privileged domains page shows error when service call fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mock_list = mocker.patch(f"{ROUTERS_SETTINGS}.settings_service.list_privileged_domains")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+
+    mock_list.side_effect = ServiceError(message="Database error")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/privileged-domains")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+# =============================================================================
+# Inactivity Threshold Validation Tests
+# =============================================================================
+
+
+def test_update_security_negative_inactivity_threshold_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with negative inactivity threshold shows error."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",
+            "persistent_sessions": "",
+            "allow_users_edit_profile": "",
+            "allow_users_add_emails": "",
+            "inactivity_threshold": "-5",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+def test_update_security_zero_inactivity_threshold_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with zero inactivity threshold shows error."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",
+            "persistent_sessions": "",
+            "allow_users_edit_profile": "",
+            "allow_users_add_emails": "",
+            "inactivity_threshold": "0",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+# =============================================================================
+# Certificate Lifetime Invalid Numeric Value Test
+# =============================================================================
+
+
+def test_update_security_invalid_certificate_lifetime_value_error(
+    test_super_admin_user, override_auth, mocker
+):
+    """Test updating security with numeric but disallowed certificate lifetime (e.g. 4)."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{UTILS_ERRORS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="Error", status_code=400),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "",
+            "persistent_sessions": "",
+            "allow_users_edit_profile": "",
+            "allow_users_add_emails": "",
+            "certificate_lifetime": "4",  # Valid int, but not in [1,2,3,5,10]
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+# =============================================================================
+# Security Settings PydanticValidationError Test
+# =============================================================================
+
+
+def test_update_security_pydantic_validation_error(test_super_admin_user, override_auth, mocker):
+    """Test PydanticValidationError during schema construction shows error page."""
+    from pydantic import BaseModel
+    from pydantic import ValidationError as PydanticValidationError
+
+    override_auth(test_super_admin_user, level="super_admin")
+
+    # Create a real PydanticValidationError to use as side_effect
+    class _Dummy(BaseModel):
+        x: int
+
+    saved_err = None
+    try:
+        _Dummy(x="bad")  # type: ignore[arg-type]
+    except PydanticValidationError as e:
+        saved_err = e
+
+    assert saved_err is not None
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.TenantSecuritySettingsUpdate",
+        side_effect=saved_err,
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/update",
+        data={
+            "session_timeout": "3600",
+            "persistent_sessions": "true",
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "true",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+# =============================================================================
+# Branding Route Tests
+# =============================================================================
+
+
+def _mock_branding_settings():
+    """Create a mock BrandingSettings response."""
+    from schemas.branding import BrandingSettings, GroupAvatarStyle, LogoMode
+
+    return BrandingSettings(
+        logo_mode=LogoMode.MANDALA,
+        use_logo_as_favicon=False,
+        site_title=None,
+        show_title_in_nav=True,
+        has_logo_light=False,
+        has_logo_dark=False,
+        group_avatar_style=GroupAvatarStyle.ACRONYM,
+    )
+
+
+def test_branding_redirect(test_admin_user, override_auth):
+    """Test /branding redirects to /branding/global."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/branding", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/branding/global"
+
+
+def test_branding_global_page(test_admin_user, override_auth, mocker):
+    """Test branding global settings page renders."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>branding</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/branding/global")
+
+    assert response.status_code == 200
+
+
+def test_branding_global_service_error(test_admin_user, override_auth, mocker):
+    """Test branding global page shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        side_effect=ServiceError(message="DB error"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/branding/global")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_branding_groups_page(test_admin_user, override_auth, mocker):
+    """Test branding groups settings page renders."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>groups branding</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/branding/groups")
+
+    assert response.status_code == 200
+
+
+def test_branding_groups_service_error(test_admin_user, override_auth, mocker):
+    """Test branding groups page shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        side_effect=ServiceError(message="DB error"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/branding/groups")
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_upload_branding_logo_success(test_admin_user, override_auth, mocker):
+    """Test uploading a branding logo redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.upload_logo",
+        return_value=_mock_branding_settings(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/upload/light",
+        files={"file": ("logo.png", b"fake-png-data", "image/png")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=logo_uploaded" in response.headers["location"]
+
+
+def test_upload_branding_logo_service_error(test_admin_user, override_auth, mocker):
+    """Test uploading a branding logo shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.upload_logo",
+        side_effect=ServiceError(message="Invalid image"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/upload/light",
+        files={"file": ("logo.png", b"bad", "image/png")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_delete_branding_logo_success(test_admin_user, override_auth, mocker):
+    """Test deleting a branding logo redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.delete_logo",
+        return_value=_mock_branding_settings(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/delete/dark",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=logo_deleted" in response.headers["location"]
+
+
+def test_delete_branding_logo_service_error(test_admin_user, override_auth, mocker):
+    """Test deleting a branding logo shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.delete_logo",
+        side_effect=ServiceError(message="Logo not found"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=404)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/delete/light",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    mock_error.assert_called_once()
+
+
+def test_update_branding_settings_success(test_admin_user, override_auth, mocker):
+    """Test updating branding settings redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/settings",
+        data={
+            "logo_mode": "custom",
+            "use_logo_as_favicon": "true",
+            "site_title": "My Site",
+            "show_title_in_nav": "true",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=settings_updated" in response.headers["location"]
+
+
+def test_update_branding_settings_invalid_logo_mode(test_admin_user, override_auth, mocker):
+    """Test updating branding with invalid logo_mode shows error."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/settings",
+        data={
+            "logo_mode": "invalid_mode",
+            "site_title": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_update_branding_settings_get_current_error(test_admin_user, override_auth, mocker):
+    """Test updating branding settings fails when fetching current settings fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        side_effect=ServiceError(message="DB error"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/settings",
+        data={"logo_mode": "mandala"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_branding_settings_update_service_error(test_admin_user, override_auth, mocker):
+    """Test updating branding settings fails when update service call fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        side_effect=ServiceError(message="Update failed"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/global/settings",
+        data={
+            "logo_mode": "mandala",
+            "site_title": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_group_avatar_style_success(test_admin_user, override_auth, mocker):
+    """Test updating group avatar style redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/settings",
+        data={"group_avatar_style": "mandala"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=style_updated" in response.headers["location"]
+
+
+def test_update_group_avatar_style_invalid_value(test_admin_user, override_auth, mocker):
+    """Test updating group avatar style with invalid value shows error."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/settings",
+        data={"group_avatar_style": "invalid_style"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_update_group_avatar_style_get_current_error(test_admin_user, override_auth, mocker):
+    """Test updating group avatar style fails when fetching current settings fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        side_effect=ServiceError(message="DB error"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/settings",
+        data={"group_avatar_style": "mandala"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_update_group_avatar_style_update_service_error(test_admin_user, override_auth, mocker):
+    """Test updating group avatar style fails when update service call fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        return_value=_mock_branding_settings(),
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        side_effect=ServiceError(message="Update failed"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=500)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/settings",
+        data={"group_avatar_style": "acronym"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 500
+    mock_error.assert_called_once()
+
+
+def test_upload_group_logo_success(test_admin_user, override_auth, mocker):
+    """Test uploading a group logo redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(f"{ROUTERS_SETTINGS}.branding_service.upload_group_logo")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/upload/group-123",
+        files={"file": ("logo.png", b"fake-png", "image/png")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=logo_uploaded" in response.headers["location"]
+
+
+def test_upload_group_logo_service_error(test_admin_user, override_auth, mocker):
+    """Test uploading a group logo shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.upload_group_logo",
+        side_effect=ServiceError(message="Invalid image"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/upload/group-123",
+        files={"file": ("logo.png", b"bad", "image/png")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_delete_group_logo_success(test_admin_user, override_auth, mocker):
+    """Test deleting a group logo redirects with success."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(f"{ROUTERS_SETTINGS}.branding_service.delete_group_logo")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/delete/group-123",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=logo_deleted" in response.headers["location"]
+
+
+def test_delete_group_logo_service_error(test_admin_user, override_auth, mocker):
+    """Test deleting a group logo shows error when service fails."""
+    from services.exceptions import ServiceError
+
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.branding_service.delete_group_logo",
+        side_effect=ServiceError(message="Group not found"),
+    )
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=404)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/branding/groups/delete/group-123",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    mock_error.assert_called_once()

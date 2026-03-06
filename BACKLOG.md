@@ -525,3 +525,49 @@ group-based access.
 
 ---
 
+## SAML: Stable URN-Based EntityIDs
+
+**User Story:**
+As a platform operator
+I want SAML entityIDs to be stable, URN-based identifiers derived from the tenant UUID
+So that entityIDs survive domain changes, subdomain renames, and path restructuring without breaking federation trust
+
+**Context:**
+
+Weft-ID currently sets `entityID = metadata URL` for both its SP and IdP roles, and generates a separate entityID per integration (per-IdP as SP, per-SP as IdP). This is non-standard and fragile:
+
+- **As IdP:** Each downstream SP gets a different entityID. Major IdPs like Entra ID use one entityID for the whole tenant. A per-SP entityID means the same IdP presents different identities to different SPs.
+- **As SP:** Each upstream IdP sees a different entityID. The SP should have one identity regardless of how many IdPs it federates with.
+- **Both roles:** EntityIDs are coupled to the metadata URL path and the tenant subdomain. Renaming a subdomain or changing URL structure breaks all federation trust relationships.
+
+The fix is to use URN-based entityIDs that are derived solely from the tenant UUID:
+- `urn:weftid:{tenant-uuid}:idp` (one per tenant, used for all downstream SPs)
+- `urn:weftid:{tenant-uuid}:sp` (one per tenant, used for all upstream IdPs)
+
+Metadata URLs remain as operational endpoints (where partners fetch metadata). The entityID inside the metadata becomes the stable URN. No migration of existing data is needed. Happy to wipe and start fresh.
+
+**Acceptance Criteria:**
+
+IdP side:
+- [ ] All downstream SPs see the same entityID: `urn:weftid:{tenant-uuid}:idp`
+- [ ] IdP metadata document (`<EntityDescriptor entityID="...">`) uses the URN
+- [ ] SAML responses (`<Issuer>`) use the URN
+- [ ] Per-SP metadata URLs remain available (partners still need a URL to fetch metadata from)
+
+SP side:
+- [ ] All upstream IdPs see the same entityID: `urn:weftid:{tenant-uuid}:sp`
+- [ ] SP metadata document uses the URN as entityID
+- [ ] SAML AuthnRequests (`<Issuer>`) use the URN
+- [ ] Per-IdP ACS URLs and metadata URLs remain functional
+
+General:
+- [ ] EntityIDs are deterministic (derived from tenant UUID, not generated or stored separately)
+- [ ] Subdomain or domain changes do not alter entityIDs
+- [ ] Existing admin UI displays the new URN-based entityIDs where entityID is shown
+- [ ] Tests cover entityID values in metadata documents, SAML requests, and SAML responses
+
+**Effort:** M
+**Value:** High (Correctness, standards compliance, operational resilience)
+
+---
+

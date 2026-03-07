@@ -6,6 +6,314 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Epic: Self-Hosting & Release Infrastructure
+
+The items below form a connected initiative to make WeftId easy to self-host with good
+security defaults, and to establish versioning, release, and upgrade practices. They are
+listed in dependency order. Items 1-3 are foundational (do once before going public),
+items 4-6 are the self-hosting deliverables, and item 7 is cleanup.
+
+---
+
+## 1. Version Management Policy
+
+**User Story:**
+As a platform operator (and as the development team)
+I want a documented versioning policy that defines what constitutes a patch, minor, and major release
+So that self-hosters can assess upgrade risk and the team has clear rules for when to bump which number
+
+**Context:**
+
+WeftId has no version number today. Before the code goes public, we need to decide on a
+starting version and document what each level of change means. Identity platforms carry
+extra weight here: a "minor improvement" to SAML assertion format can silently break every
+federated SP downstream.
+
+**Decision points to resolve during implementation:**
+
+- Starting version: `0.1.0` (signals early-but-usable, allows breaking changes before 1.0)
+  vs `1.0.0` (signals production-ready). Recommendation: start at `1.0.0` since the platform
+  is already running in production for the SaaS offering.
+- Where to store the version: `pyproject.toml` is the canonical source. A `__version__` in
+  `app/__init__.py` or `app/version.py` reads from it. The Docker image gets it as a label.
+
+**Proposed definitions:**
+
+| Level | What changes | Self-hoster impact |
+|-------|-------------|-------------------|
+| **Patch** (1.0.x) | Bug fixes, security patches. No schema migrations, no API changes, no SAML/OAuth behavior changes. | Drop-in safe. Pull and restart. |
+| **Minor** (1.x.0) | New features, additive API endpoints, non-breaking schema migrations (new columns with defaults, new tables), new env vars with sensible defaults, UI improvements. | Pull, restart, auto-migration runs. Review changelog for new features. |
+| **Major** (x.0.0) | Removed or changed API endpoints, required new env vars without defaults, SAML assertion format or attribute mapping behavior changes, SSO flow changes requiring SP/IdP reconfiguration, compose file structural changes (new required services, renamed volumes). | Read migration guide. May require SP/IdP reconfiguration. |
+
+**Identity-specific rules:**
+- Any change to SAML assertion structure, entityID format, or default attribute mappings is a **major** bump (these break federation trust silently).
+- New optional SAML/OAuth features (e.g., a new optional attribute) are **minor**.
+- Changes to the consent screen UI that don't alter what data is shared are **minor**.
+
+**Acceptance Criteria:**
+
+- [ ] Starting version chosen and set in `pyproject.toml`
+- [ ] Version accessible at runtime (e.g., `app/version.py` reads from pyproject.toml or is set at build time)
+- [ ] `VERSIONING.md` in repo root documents the policy (patch/minor/major definitions, identity-specific rules)
+- [ ] Git tag convention documented: `v1.0.0` format, tags on main only
+- [ ] Docker image labeled with version (`org.opencontainers.image.version`)
+
+**Effort:** S
+**Value:** High (Foundational for all release infrastructure)
+
+---
+
+## 2. GHCR Publish Workflow
+
+**User Story:**
+As the development team
+I want a GitHub Actions workflow that builds and publishes Docker images to GHCR when a version tag is pushed
+So that self-hosters can pull versioned images without needing the source code
+
+**Context:**
+
+Images are published to `ghcr.io/pageloom/weft-id`. The workflow triggers on tags matching
+`v*.*.*`. It produces multi-tag images so self-hosters can choose their risk tolerance.
+
+The existing Dockerfile builds everything needed (dependencies, Tailwind CSS, app code).
+The production image should NOT include dev dependencies, dev scripts, or test files.
+
+**Acceptance Criteria:**
+
+- [ ] GitHub Actions workflow triggers on push of tags matching `v*.*.*`
+- [ ] Builds the Docker image using the existing `app/Dockerfile` (or a production variant if needed)
+- [ ] Pushes to `ghcr.io/pageloom/weft-id` with these tags:
+  - Exact version: `1.2.3`
+  - Minor: `1.2`
+  - Major: `1`
+  - `latest` (points to newest stable release)
+- [ ] Image includes OCI labels: version, source URL, description, creation date
+- [ ] Image does NOT include dev scripts, test files, or dev dependencies
+- [ ] Workflow fails if the tag doesn't match the version in `pyproject.toml` (prevents mismatched tags)
+- [ ] README or docs updated with the GHCR image URL and available tags
+
+**Effort:** M
+**Value:** High (Foundation for self-hosting)
+
+---
+
+## 3. Changelog & Release Gate
+
+**User Story:**
+As the development team
+I want a helper that drafts changelog entries from git history, and a release workflow that
+refuses to publish if the changelog hasn't been updated
+So that every release ships with a human-reviewed changelog and none can slip through without one
+
+**Context:**
+
+Two pieces work together:
+
+1. **Draft helper** (local script or Claude Code skill): scans commits on main since the
+   last tag, categorizes them (features, fixes, breaking, security), and produces a draft
+   changelog entry. The developer reviews, edits, and commits the updated `CHANGELOG.md`
+   before tagging.
+
+2. **Release gate** (GitHub Action): the GHCR publish workflow (item 2) checks that
+   `CHANGELOG.md` contains a section header matching the tag being released (e.g.,
+   `## [1.2.0]`). If the section is missing, the workflow fails before building or pushing
+   anything. This makes it impossible to release without an up-to-date changelog.
+
+The changelog is human-curated, not auto-generated. The helper reduces toil but a person
+always reviews the final text. This matters because commit messages describe implementation
+("fix RLS policy on group_lineage") while changelog entries describe impact ("Fixed a bug
+where group hierarchy queries could return stale results").
+
+**Acceptance Criteria:**
+
+Draft helper:
+- [ ] Script or skill that collects commits between the last tag and HEAD
+- [ ] Categorizes commits into sections: Added, Changed, Fixed, Security, Breaking
+- [ ] Produces a draft entry in Keep a Changelog format, ready for human editing
+- [ ] Output can be appended to `CHANGELOG.md` or printed to stdout for review
+
+Changelog format:
+- [ ] `CHANGELOG.md` in repo root, following [Keep a Changelog](https://keepachangelog.com/) format
+- [ ] Each release has a section header: `## [1.2.0] - 2026-03-15`
+- [ ] Unreleased changes can accumulate under `## [Unreleased]`
+
+Release gate:
+- [ ] GHCR publish workflow (item 2) checks for a `## [x.y.z]` section matching the tag
+- [ ] Workflow fails with a clear error message if the section is missing
+- [ ] GitHub Release created automatically with the matching changelog section as release notes
+
+**Effort:** M
+**Value:** High (Transparency for self-hosters, enforced quality gate)
+
+---
+
+## 4. Production Docker Compose for Self-Hosting
+
+**User Story:**
+As a self-hoster
+I want a standalone Docker Compose file that runs WeftId with good security defaults and automatic HTTPS
+So that I can deploy WeftId on my own server without needing the source code or manual certificate management
+
+**Context:**
+
+The current onprem setup (`docker-compose.onprem.yml`) has significant gaps: it bind-mounts
+source code, hardcodes database passwords in the compose file, requires manual certbot setup,
+has no health checks, and no automatic secret generation.
+
+The new production compose file should be a self-contained artifact that a self-hoster
+downloads alongside a `.env.example`. It references the GHCR image (via `WEFT_VERSION` env
+var) and uses Caddy for automatic HTTPS (Let's Encrypt via HTTP-01, zero config). Migrations
+run automatically on startup.
+
+**Acceptance Criteria:**
+
+Compose file (`docker-compose.production.yml`):
+- [ ] References GHCR image: `ghcr.io/pageloom/weft-id:${WEFT_VERSION:-latest}`
+- [ ] Services: caddy (reverse proxy), app, worker, migrate, memcached, db
+- [ ] Caddy handles HTTPS automatically (HTTP-01 challenge, auto-renewal, no setup scripts)
+- [ ] Migrate service runs as a dependency before app starts (`condition: service_completed_successfully`)
+- [ ] No source code bind mounts (app runs from the baked image)
+- [ ] Storage volume for persistent data (uploads, etc.)
+- [ ] DB password sourced from `.env` (not hardcoded in compose)
+- [ ] Health checks on db, memcached, and app
+- [ ] `restart: unless-stopped` on all long-running services
+- [ ] Ports: only 80 and 443 exposed (everything else internal)
+
+Environment (`.env.production.example`):
+- [ ] `WEFT_VERSION` for image pinning (default: `latest`)
+- [ ] `BASE_DOMAIN` (required, no default)
+- [ ] `SECRET_KEY` with a placeholder and generation instructions
+- [ ] `POSTGRES_PASSWORD` with a placeholder and generation instructions
+- [ ] SMTP configuration section with clear comments
+- [ ] `IS_DEV=False`, `BYPASS_OTP=false`, `ENABLE_OPENAPI_DOCS=false` as defaults
+- [ ] No dev-only variables (`DEV_SUBDOMAIN`, `DEV_PASSWORD`)
+
+Security defaults:
+- [ ] No ports exposed to host except 80/443
+- [ ] Database not accessible from host
+- [ ] Memcached not accessible from host
+- [ ] All secrets must be explicitly set (no insecure defaults that "work")
+
+Caddy:
+- [ ] `Caddyfile` included, parameterized by `BASE_DOMAIN` env var
+- [ ] Handles `{$BASE_DOMAIN}` and `*.{$BASE_DOMAIN}` with automatic TLS
+- [ ] Proxies to app service on port 8000
+- [ ] Sets `X-Forwarded-Proto`, `X-Real-IP`, `X-Forwarded-For` headers
+
+**Effort:** M
+**Value:** High (Core self-hosting deliverable)
+
+---
+
+## 5. Self-Hosting Install Script
+
+**User Story:**
+As a self-hoster
+I want a single command that downloads everything I need and walks me through initial configuration
+So that I can go from zero to running WeftId in minutes
+
+**Context:**
+
+Optional convenience script. Downloads `docker-compose.production.yml`, `.env.production.example`,
+and `Caddyfile` from the latest GitHub release. Generates `SECRET_KEY` and `POSTGRES_PASSWORD`
+automatically. Prompts for domain and SMTP settings. Writes `.env` ready to go.
+
+This is a nice-to-have on top of the compose file (which should also work with manual setup).
+
+**Acceptance Criteria:**
+
+- [ ] Single command to download and run: `curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash` (or similar)
+- [ ] Downloads `docker-compose.production.yml`, `.env.production.example`, and `Caddyfile` from the latest GitHub release
+- [ ] Auto-generates `SECRET_KEY` (44-char base64 via `openssl rand -base64 32` or Python equivalent)
+- [ ] Auto-generates `POSTGRES_PASSWORD` (same method)
+- [ ] Prompts for `BASE_DOMAIN` (required)
+- [ ] Prompts for SMTP settings (optional, can be configured later)
+- [ ] Writes `.env` with all values populated
+- [ ] Prints next steps: `docker compose -f docker-compose.production.yml up -d`
+- [ ] Idempotent: re-running detects existing `.env` and asks before overwriting
+- [ ] Works on Linux (primary target) and macOS
+- [ ] No dependencies beyond `curl`, `openssl`, and a POSIX shell
+
+**Effort:** S
+**Value:** Medium (Convenience, reduces friction for first-time setup)
+
+---
+
+## 6. Self-Hosting Upgrade & Operations Documentation
+
+**User Story:**
+As a self-hoster
+I want clear documentation on how to upgrade, back up, and operate my WeftId instance
+So that I can maintain my deployment confidently over time
+
+**Context:**
+
+Upgrade path is simple (change version in .env, pull, up) but needs to be documented along
+with rollback considerations, backup strategy, and what to check in release notes.
+
+**Acceptance Criteria:**
+
+- [ ] `SELF-HOSTING.md` (or a docs section) covering:
+  - Prerequisites (Docker, Docker Compose, a domain with DNS)
+  - Quick start (referencing install script or manual setup)
+  - Upgrade procedure: edit `WEFT_VERSION` in `.env`, `docker compose pull`, `docker compose up -d`
+  - What happens on upgrade: migrate service runs automatically, new app starts after migration succeeds
+  - Rollback considerations: forward-only migrations mean rolling back the image version only works if the new schema is backward-compatible with the old app code (true within a minor version, not guaranteed across major versions)
+  - Backup strategy: database dump (`pg_dump`), storage volume, `.env` file
+  - Monitoring: health check endpoints, log locations
+  - SMTP configuration guide (including Resend/SendGrid alternatives for cloud providers that block port 25/587)
+- [ ] Linked from the main README
+- [ ] Version-specific migration guides for major version bumps (created as needed, not upfront)
+
+**Effort:** M
+**Value:** High (Trust and confidence for self-hosters)
+
+---
+
+## 7. Remove Legacy Onprem Setup
+
+**User Story:**
+As a developer
+I want to remove the old onprem files that are superseded by the new self-hosting setup
+So that the repository is clean and there is one clear path for self-hosting
+
+**Context:**
+
+Once the production compose file (item 4) is in place, the following files are obsolete:
+- `docker-compose.onprem.yml`
+- `devscripts/onprem-setup.sh`
+- `.env.onprem.example`
+- `nginx/conf.d/app.onprem.conf.template`
+- `nginx/conf.d/app.onprem.conf` (generated file)
+
+The Makefile targets `up-onprem` and `migrate-onprem` should be updated to reference the
+new production compose file, or removed if the self-hosting docs cover the commands directly.
+
+**Acceptance Criteria:**
+
+Files to remove:
+- [ ] `docker-compose.onprem.yml`
+- [ ] `devscripts/onprem-setup.sh`
+- [ ] `.env.onprem.example`
+- [ ] `nginx/conf.d/app.onprem.conf.template`
+- [ ] `nginx/conf.d/app.onprem.conf` (generated file)
+
+Makefile cleanup:
+- [ ] Remove `up-onprem` target
+- [ ] Remove `migrate-onprem` target
+- [ ] Remove both from `.PHONY` declaration
+- [ ] Add targets for the new production compose if useful (e.g., `up-prod`, `migrate-prod`), or omit if self-hosting docs cover the commands directly
+
+Documentation updates:
+- [ ] Update `CLAUDE.md` to remove all onprem references (development commands, migration section, etc.)
+- [ ] Update `BACKLOG_ARCHIVE.md` and `ISSUES_ARCHIVE.md` if they reference onprem files (informational, no action needed if just historical context)
+- [ ] Verify dev setup (`docker-compose.yml`, `make up`, `make dev`) is completely unaffected
+
+**Effort:** S
+**Value:** Low (Cleanup, depends on items 4-6 being complete)
+
+---
+
 ## Auto-assign Users to Groups Based on Privileged Email Domains
 
 **User Story:**

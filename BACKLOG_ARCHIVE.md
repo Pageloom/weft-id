@@ -4,6 +4,56 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML Entity IDs: Per-Connection Instead of Per-Tenant
+
+**Status:** Complete
+
+**Summary:** Entity IDs now embed the connection UUID instead of being shared per-tenant. SP entity IDs use `urn:weftid:{tenant}:sp:{idp_registration_id}`, IdP entity IDs use `urn:weftid:{tenant}:idp:{sp_registration_id}`. This allows the same upstream IdP to be registered multiple times at a single tenant without entity ID collisions. The tenant-level IdP metadata endpoint was removed since each SP connection has its own entity ID and metadata. A migration drops the unique constraint on upstream IdP entity_id.
+
+**Acceptance Criteria:**
+
+Helper functions:
+- [x] `make_sp_entity_id(tenant_id, idp_registration_id)` returns `urn:weftid:{tenant_id}:sp:{idp_registration_id}`
+- [x] `make_idp_entity_id(tenant_id, sp_registration_id)` returns `urn:weftid:{tenant_id}:idp:{sp_registration_id}`
+- [x] Old single-argument signatures removed (no backwards compat shim)
+
+Call site updates (~20 call sites across these files):
+- [x] `app/services/saml/auth.py` - SP entity ID in AuthnRequest uses IdP registration ID
+- [x] `app/services/saml/logout.py` - SP entity ID in LogoutRequest uses IdP registration ID
+- [x] `app/services/saml/providers.py` - SP entity ID for trust establishment
+- [x] `app/services/saml/idp_sp_certificates.py` - SP entity ID in per-IdP SP metadata
+- [x] `app/services/service_providers/sso.py` - IdP entity ID in SAML Response uses SP registration ID
+- [x] `app/services/service_providers/slo.py` - IdP entity ID in SLO uses SP registration ID
+- [x] `app/services/service_providers/metadata.py` - IdP entity ID in IdP metadata uses SP registration ID
+- [x] `app/services/service_providers/signing_certs.py` - IdP entity ID in certificate metadata
+- [x] `app/routers/saml/admin/providers.py` - SP entity URN display
+- [x] `app/routers/saml_idp/admin.py` - IdP entity ID display
+- [x] `app/routers/api/v1/service_providers.py` - Tenant-level endpoint removed (per-SP endpoint remains)
+
+Database:
+- [x] Migration `0009_drop_idp_entity_id_unique.sql` drops unique constraint on upstream IdP entity_id
+- [x] `saml_identity_providers.entity_id` stores the upstream IdP's entity ID (unchanged)
+
+Duplicate check removal:
+- [x] Removed the duplicate entity_id check in `establish_idp_trust()`
+
+Removed (no longer meaningful with per-connection IDs):
+- [x] Tenant-level IdP metadata routes (`GET /saml/idp/metadata`, `/download`)
+- [x] `get_tenant_idp_metadata_xml()` service function
+- [x] `GET /api/v1/service-providers/idp-metadata-url` API endpoint
+- [x] `IdPMetadataInfo` schema
+
+Testbed updates:
+- [x] `app/dev/sso_testbed.py` - pass registration IDs to entity ID helpers
+- [x] `app/dev/sso_chain_testbed.py` - same
+- [x] `app/dev/sso_extras_testbed.py` - same
+
+Tests:
+- [x] All 3784 unit tests pass
+- [x] Two IdP registrations with the same upstream entity ID can coexist at one tenant (new test)
+
+---
+
 ## SAML: Stable URN-Based EntityIDs
 
 **Status:** Complete

@@ -314,6 +314,89 @@ Documentation updates:
 
 ---
 
+## SAML Entity IDs: Per-Connection Instead of Per-Tenant
+
+**User Story:**
+As a platform operator managing identity federation
+I want each SAML trust relationship to have its own unique entity ID
+So that I can register the same upstream IdP or downstream SP multiple times at a single tenant (e.g., during merger consolidation) without entity ID collisions
+
+**Context:**
+
+The current design uses per-tenant entity IDs:
+- `urn:weftid:{tenant_id}:sp` (one SP entity ID for the entire tenant)
+- `urn:weftid:{tenant_id}:idp` (one IdP entity ID for the entire tenant)
+
+This means every IdP registration at a tenant shares the same SP entity ID, and every SP
+registration shares the same IdP entity ID. A tenant cannot register the same upstream IdP
+twice (e.g., two Okta connections for merging organizations) because the duplicate entity_id
+check in `establish_idp_trust()` blocks it.
+
+Weft-ID is a federation broker, not a terminal IdP/SP. Each trust relationship (IdP
+registration, SP registration) is a distinct connection with its own signing certificate,
+attribute mapping, and access policy. Entity IDs should reflect this: one per connection,
+not one per tenant.
+
+**New format:**
+- SP entity ID (presented to a specific IdP): `urn:weftid:{tenant_id}:sp:{idp_registration_id}`
+- IdP entity ID (presented to a specific SP): `urn:weftid:{tenant_id}:idp:{sp_registration_id}`
+
+The connection UUID (primary key of the registration row) is already stable, so entity IDs
+remain domain-independent and survive subdomain renames. The tenant_id prefix is retained
+for log readability and debugging.
+
+**Industry precedent:** Citrix Cloud uses "scoped entity IDs" (unique per connection).
+PingFederate uses "Virtual Server IDs" for the same purpose. Both address the same
+limitation that per-tenant entity IDs create for federation broker deployments.
+
+**Acceptance Criteria:**
+
+Helper functions:
+- [ ] `make_sp_entity_id(idp_registration_id, tenant_id)` returns `urn:weftid:{tenant_id}:sp:{idp_registration_id}`
+- [ ] `make_idp_entity_id(sp_registration_id, tenant_id)` returns `urn:weftid:{tenant_id}:idp:{sp_registration_id}`
+- [ ] Old single-argument signatures removed (no backwards compat shim)
+
+Call site updates (~20 call sites across these files):
+- [ ] `app/services/saml/auth.py` - SP entity ID in AuthnRequest uses IdP registration ID
+- [ ] `app/services/saml/logout.py` - SP entity ID in LogoutRequest uses IdP registration ID
+- [ ] `app/services/saml/providers.py` - SP entity ID for trust establishment
+- [ ] `app/services/saml/idp_sp_certificates.py` - SP entity ID in per-IdP SP metadata
+- [ ] `app/services/service_providers/sso.py` - IdP entity ID in SAML Response uses SP registration ID
+- [ ] `app/services/service_providers/slo.py` - IdP entity ID in SLO uses SP registration ID
+- [ ] `app/services/service_providers/metadata.py` - IdP entity ID in IdP metadata uses SP registration ID
+- [ ] `app/services/service_providers/signing_certs.py` - IdP entity ID in certificate metadata
+- [ ] `app/routers/saml/admin/providers.py` - SP entity URN display
+- [ ] `app/routers/saml_idp/admin.py` - IdP entity ID display
+- [ ] `app/routers/api/v1/service_providers.py` - IdP entity ID in API response
+
+Database:
+- [ ] `service_providers.entity_id` stores the per-connection IdP entity ID (already populated during trust establishment)
+- [ ] `saml_identity_providers.entity_id` stores the upstream IdP's entity ID (unchanged, this is their ID not ours)
+- [ ] No schema migration needed (entity_id columns already exist, just the values change)
+
+Duplicate check removal:
+- [ ] Remove the duplicate entity_id check in `establish_idp_trust()` (entity IDs are unique by construction since they embed the registration UUID)
+
+Testbed updates:
+- [ ] `app/dev/sso_testbed.py` - pass registration IDs to entity ID helpers
+- [ ] `app/dev/sso_chain_testbed.py` - same
+- [ ] `app/dev/sso_extras_testbed.py` - same
+
+Tests:
+- [ ] All existing unit tests pass (update mocks/assertions for new function signatures)
+- [ ] All 33 E2E tests pass
+- [ ] Verify that two IdP registrations with the same upstream entity ID can coexist at one tenant
+
+**Breaking change note:** This changes the entityID format in SAML metadata and assertions.
+Any existing SP/IdP trust relationships established with the old per-tenant URN format will
+break. This is acceptable pre-1.0 but would require a major version bump post-1.0 per the
+versioning policy (backlog item 1).
+
+**Effort:** M
+**Value:** High (Removes a fundamental architectural limitation for federation broker use cases)
+
+---
+
 ## Auto-assign Users to Groups Based on Privileged Email Domains
 
 **User Story:**

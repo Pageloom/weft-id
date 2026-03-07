@@ -52,6 +52,7 @@ So that [benefit/value]
 - Ask clarifying questions about user personas, workflows, and edge cases
 - Keep the conversation focused on the "what" and "why"
 - If user wants to implement something, suggest using `/dev` instead
+- If a backlog item changes how the system fundamentally works (entity ID scheme, tenant isolation model, authentication flow, data model invariants), flag it as needing an ADR in `docs/decisions/`. Use the next sequential number (e.g., `002-short-title.md`). The ADR should be written during implementation by `/dev`, not during planning, but the backlog item should note "Needs ADR" so it is not forgotten.
 
 ## Start Here
 

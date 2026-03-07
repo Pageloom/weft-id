@@ -68,6 +68,7 @@ Request → Router → Service → Database → PostgreSQL
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
+| `docs/decisions/` | Architectural Decision Records (ADRs) for foundational design choices |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
 ## Directory Structure
@@ -101,6 +102,7 @@ db-init/              # Database schema baseline + migration runner
   migrate.py          # Forward-only migration runner
   migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
+docs/decisions/       # Architectural Decision Records (ADRs)
 .claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
 .claude/references/   # Detailed patterns and checklists for agents
 ```

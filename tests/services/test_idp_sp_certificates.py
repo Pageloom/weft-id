@@ -375,7 +375,7 @@ class TestGetIdpSpMetadataXml:
         xml = saml_service.get_idp_sp_metadata_xml(tenant_id, idp.id, "https://test.example.com")
 
         assert "EntityDescriptor" in xml
-        assert f"https://test.example.com/saml/metadata/{idp.id}" in xml
+        assert f"urn:weftid:{tenant_id}:sp" in xml
         assert f"https://test.example.com/saml/acs/{idp.id}" in xml
         assert "-----BEGIN CERTIFICATE-----" not in xml  # cert is base64 inside XML
 
@@ -862,7 +862,7 @@ class TestPerIdpMetadataEndpoint:
         assert response.status_code == 200
         assert "application/xml" in response.headers.get("content-type", "")
         assert "EntityDescriptor" in response.text
-        assert f"/saml/metadata/{idp.id}" in response.text
+        assert f"urn:weftid:{tenant_id}:sp" in response.text
         assert f"/saml/acs/{idp.id}" in response.text
 
     def test_returns_404_for_unknown_idp(self, client, test_tenant_host):

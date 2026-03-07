@@ -15,6 +15,7 @@ from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.types import RequestingUser
 from utils.saml_assertion import SAML_ATTRIBUTE_URIS
+from utils.saml_idp import make_idp_entity_id
 from utils.template_context import get_template_context
 from utils.templates import templates
 
@@ -245,6 +246,7 @@ def sp_tab_details(
         sp=sp_config,
         group_count=group_count,
         sp_metadata_url=sp_metadata_url,
+        idp_entity_id=make_idp_entity_id(tenant_id),
         active_tab="details",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

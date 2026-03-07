@@ -10,6 +10,7 @@ import database
 import httpx
 from services.event_log import SYSTEM_ACTOR_ID, log_event
 from services.exceptions import NotFoundError, ValidationError
+from utils.saml_idp import make_idp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ def process_sp_logout_request(
     private_key_pem = decrypt_private_key(cert["private_key_pem_enc"])
 
     # Build the entity ID for this SP's metadata endpoint
-    issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
+    issuer_entity_id = make_idp_entity_id(tenant_id)
 
     # Build signed LogoutResponse
     logout_response_b64 = build_idp_logout_response(
@@ -165,7 +166,7 @@ def propagate_logout_to_sps(
                 continue
 
             private_key_pem = decrypt_private_key(cert["private_key_pem_enc"])
-            issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
+            issuer_entity_id = make_idp_entity_id(tenant_id)
 
             # Build signed LogoutRequest
             logout_request_b64 = build_idp_logout_request(

@@ -16,6 +16,7 @@ from services.auth import require_super_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
+from utils.saml_idp import make_idp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ def get_sp_metadata_url_info(
 
     return SPMetadataURLInfo(
         metadata_url=f"{base_url}/saml/idp/metadata/{sp_id}",
-        entity_id=f"{base_url}/saml/idp/metadata/{sp_id}",
+        entity_id=make_idp_entity_id(tenant_id),
         sso_url=f"{base_url}/saml/idp/sso",
         sp_id=sp_id,
         sp_name=sp_row["name"],

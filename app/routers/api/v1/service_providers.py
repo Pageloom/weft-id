@@ -28,6 +28,7 @@ from schemas.service_providers import (
 )
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
+from utils.saml_idp import make_idp_entity_id
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/service-providers", tags=["Service Providers"])
@@ -155,7 +156,7 @@ def get_idp_metadata_url(
     base_url = _get_base_url(request)
     return IdPMetadataInfo(
         metadata_url=f"{base_url}/saml/idp/metadata",
-        entity_id=f"{base_url}/saml/idp/metadata",
+        entity_id=make_idp_entity_id(tenant_id),
         sso_url=f"{base_url}/saml/idp/sso",
         slo_url=f"{base_url}/saml/idp/slo",
     )

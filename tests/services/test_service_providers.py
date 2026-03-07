@@ -577,7 +577,7 @@ class TestGetTenantIdPMetadataXML:
                 sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://idp.example.com")
 
     def test_entity_id_from_base_url(self):
-        """Entity ID is constructed from base_url + /saml/idp/metadata."""
+        """Entity ID is a stable URN derived from the tenant UUID."""
         from services import service_providers as sp_service
 
         tenant_id = str(uuid4())
@@ -589,7 +589,7 @@ class TestGetTenantIdPMetadataXML:
 
             result = sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://acme.example.com")
 
-            assert 'entityID="https://acme.example.com/saml/idp/metadata"' in result
+            assert f'entityID="urn:weftid:{tenant_id}:idp"' in result
 
     def test_sso_url_from_base_url(self):
         """SSO URL is constructed from base_url + /saml/idp/sso."""
@@ -1211,7 +1211,7 @@ class TestGetSPMetadataURLInfoNotFound:
 
             assert result.sp_id == sp_id
             assert f"/saml/idp/metadata/{sp_id}" in result.metadata_url
-            assert f"/saml/idp/metadata/{sp_id}" in result.entity_id
+            assert result.entity_id == f"urn:weftid:{tenant_id}:idp"
             assert "/saml/idp/sso" in result.sso_url
 
 

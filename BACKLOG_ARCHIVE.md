@@ -4,6 +4,34 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML: Stable URN-Based EntityIDs
+
+**Status:** Complete
+
+**Summary:** Replaced URL-based SAML entity IDs with deterministic URN identifiers derived from the tenant UUID. IdP role uses `urn:weftid:{tenant}:idp`, SP role uses `urn:weftid:{tenant}:sp`. All downstream SPs now see one IdP entity ID, all upstream IdPs see one SP entity ID. Entity IDs survive domain/subdomain changes without breaking federation trust. Metadata endpoint URLs remain unchanged.
+
+**Acceptance Criteria:**
+
+IdP side:
+- [x] All downstream SPs see the same entityID: `urn:weftid:{tenant-uuid}:idp`
+- [x] IdP metadata document (`<EntityDescriptor entityID="...">`) uses the URN
+- [x] SAML responses (`<Issuer>`) use the URN
+- [x] Per-SP metadata URLs remain available (partners still need a URL to fetch metadata from)
+
+SP side:
+- [x] All upstream IdPs see the same entityID: `urn:weftid:{tenant-uuid}:sp`
+- [x] SP metadata document uses the URN as entityID
+- [x] SAML AuthnRequests (`<Issuer>`) use the URN
+- [x] Per-IdP ACS URLs and metadata URLs remain functional
+
+General:
+- [x] EntityIDs are deterministic (derived from tenant UUID, not generated or stored separately)
+- [x] Subdomain or domain changes do not alter entityIDs
+- [x] Existing admin UI displays the new URN-based entityIDs where entityID is shown
+- [x] Tests cover entityID values in metadata documents, SAML requests, and SAML responses
+
+---
+
 ## Admin: User-App Access Query
 
 **Status:** Complete

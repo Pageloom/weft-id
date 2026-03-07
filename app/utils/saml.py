@@ -1,4 +1,4 @@
-"""SAML utilities for certificate generation and encryption."""
+"""SAML utilities for certificate generation, encryption, and entity IDs."""
 
 import base64
 import datetime
@@ -14,6 +14,16 @@ from defusedxml import ElementTree as DefusedET
 from utils.crypto import derive_fernet_key
 
 _cipher = Fernet(derive_fernet_key(b"saml-key-encryption"))
+
+
+def make_sp_entity_id(tenant_id: str) -> str:
+    """Stable URN-based SP entity ID, one per tenant.
+
+    Used as the entityID in SP metadata and as the Issuer in AuthnRequests.
+    Deterministic and domain-independent: survives subdomain renames and
+    path restructuring without breaking federation trust.
+    """
+    return f"urn:weftid:{tenant_id}:sp"
 
 
 def encrypt_private_key(private_key_pem: str) -> str:

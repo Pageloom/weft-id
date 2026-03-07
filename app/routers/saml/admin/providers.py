@@ -16,7 +16,7 @@ from routers.saml._helpers import get_base_url
 from schemas.saml import IdPCreate, IdPUpdate
 from services import saml as saml_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
-from utils.saml import extract_idp_advertised_attributes
+from utils.saml import extract_idp_advertised_attributes, make_sp_entity_id
 from utils.template_context import get_template_context
 from utils.templates import templates
 
@@ -269,6 +269,7 @@ def idp_tab_details(
         tenant_id,
         idp=idp,
         sp_certificate=sp_certificate,
+        sp_entity_urn=make_sp_entity_id(tenant_id),
         domain_bindings=domain_bindings.items,
         unbound_domains=unbound_domains,
         base_url=get_base_url(request),

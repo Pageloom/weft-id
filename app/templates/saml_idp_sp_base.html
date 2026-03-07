@@ -121,6 +121,16 @@ if (copyBtn) {
         });
     });
 }
+const copyEntityBtn = document.getElementById('copy-idp-entity-id');
+if (copyEntityBtn) {
+    copyEntityBtn.addEventListener('click', () => {
+        const eid = document.getElementById('idp-entity-id').textContent.trim();
+        navigator.clipboard.writeText(eid).then(() => {
+            copyEntityBtn.textContent = 'Copied!';
+            setTimeout(() => { copyEntityBtn.textContent = 'Copy'; }, 2000);
+        });
+    });
+}
 </script>
 {% block tab_scripts %}{% endblock %}
 {% endblock %}

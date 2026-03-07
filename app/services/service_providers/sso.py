@@ -11,6 +11,7 @@ from schemas.service_providers import SPConfig
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.service_providers._converters import _row_to_config
+from utils.saml_idp import make_idp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def build_sso_response(
     # 6. Resolve NameID value and format
     from services.service_providers.nameid import resolve_name_id
 
-    issuer_entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
+    issuer_entity_id = make_idp_entity_id(tenant_id)
     name_id_format = sp_row.get(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     )

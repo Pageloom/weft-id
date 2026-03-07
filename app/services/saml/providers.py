@@ -27,6 +27,7 @@ from services.event_log import log_event
 from services.exceptions import ConflictError, NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config, idp_row_to_list_item
 from services.types import RequestingUser
+from utils.saml import make_sp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -500,10 +501,9 @@ def get_public_trust_info(tenant_id: str, idp_id: str, base_url: str) -> dict:
     if not row:
         raise NotFoundError(message="Identity provider not found", code="idp_not_found")
 
-    sp_entity_id = row["sp_entity_id"]
-    sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
-    # Use the sp_entity_id as the metadata URL (it IS the metadata URL)
-    metadata_url = sp_entity_id
+    sp_entity_id = make_sp_entity_id(tenant_id)
+    sp_acs_url = f"{base_url}/saml/acs/{idp_id}"
+    metadata_url = f"{base_url}/saml/metadata/{idp_id}"
 
     # Build human-readable attribute mapping with requirement info
     jit_enabled = bool(row.get("jit_provisioning"))

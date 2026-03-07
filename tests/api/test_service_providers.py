@@ -436,7 +436,8 @@ class TestIdPMetadataInfoAPI:
         assert "entity_id" in data
         assert "sso_url" in data
         assert data["metadata_url"].endswith("/saml/idp/metadata")
-        assert data["entity_id"].endswith("/saml/idp/metadata")
+        assert data["entity_id"].startswith("urn:weftid:")
+        assert data["entity_id"].endswith(":idp")
         assert data["sso_url"].endswith("/saml/idp/sso")
 
     def test_unauthenticated_returns_401(self, client, api_host):
@@ -582,7 +583,7 @@ class TestGetSPMetadataURLAPI:
         sp_id = str(uuid4())
         metadata_info = SPMetadataURLInfo(
             metadata_url=f"https://test.example.com/saml/idp/metadata/{sp_id}",
-            entity_id=f"https://test.example.com/saml/idp/metadata/{sp_id}",
+            entity_id="urn:weftid:test-tenant:idp",
             sso_url="https://test.example.com/saml/idp/sso",
             sp_id=sp_id,
             sp_name="Test App",

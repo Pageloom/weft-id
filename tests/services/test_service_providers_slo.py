@@ -224,7 +224,7 @@ class TestProcessSpLogoutRequest:
 
         # Verify the entity ID passed to build_idp_logout_response
         call_kwargs = mock_build.call_args[1]
-        assert call_kwargs["issuer_entity_id"] == "https://idp.example.com/saml/idp/metadata/sp-42"
+        assert call_kwargs["issuer_entity_id"] == "urn:weftid:tenant-1:idp"
 
 
 # ============================================================================

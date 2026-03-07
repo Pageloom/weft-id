@@ -13,6 +13,7 @@ from utils.saml import (
     build_saml_settings,
     decrypt_private_key,
     extract_issuer_from_response,
+    make_sp_entity_id,
     process_logout_request,
 )
 
@@ -63,9 +64,9 @@ def initiate_sp_logout(
         # Decrypt private key
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
 
-        # Build SAML settings using IdP row's sp_entity_id
-        sp_entity_id = idp["sp_entity_id"]
-        sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
+        # Build SAML settings with stable URN entity ID
+        sp_entity_id = make_sp_entity_id(tenant_id)
+        sp_acs_url = idp["sp_entity_id"].replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 
         # Load IdP certificates for multi-cert validation
@@ -152,10 +153,10 @@ def process_idp_logout_request(
             logger.warning(f"IdP-initiated SLO: No SP certificate for tenant {tenant_id}")
             return None
 
-        # Build SAML settings using IdP row's sp_entity_id
+        # Build SAML settings with stable URN entity ID
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-        sp_entity_id = idp["sp_entity_id"]
-        sp_acs_url = sp_entity_id.replace("/saml/metadata", "/saml/acs")
+        sp_entity_id = make_sp_entity_id(tenant_id)
+        sp_acs_url = idp["sp_entity_id"].replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 
         # Load IdP certificates for multi-cert validation

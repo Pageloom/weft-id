@@ -1,4 +1,4 @@
-"""SAML IdP utilities for SP metadata parsing and fetching."""
+"""SAML IdP utilities for SP metadata parsing, fetching, and entity IDs."""
 
 from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
@@ -11,6 +11,16 @@ _XML_ATTR_ENTITIES = {'"': "&quot;", "'": "&apos;"}
 # SAML metadata namespace
 _MD_NS = "urn:oasis:names:tc:SAML:2.0:metadata"
 _DS_NS = "http://www.w3.org/2000/09/xmldsig#"
+
+
+def make_idp_entity_id(tenant_id: str) -> str:
+    """Stable URN-based IdP entity ID, one per tenant.
+
+    Used as the entityID in IdP metadata and as the Issuer in SAML responses.
+    Deterministic and domain-independent: survives subdomain renames and
+    path restructuring without breaking federation trust.
+    """
+    return f"urn:weftid:{tenant_id}:idp"
 
 
 def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:

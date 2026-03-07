@@ -7,7 +7,7 @@ import logging
 
 import database
 from services.exceptions import NotFoundError
-from utils.saml_idp import generate_idp_metadata_xml
+from utils.saml_idp import generate_idp_metadata_xml, make_idp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def get_tenant_idp_metadata_xml(tenant_id: str, base_url: str) -> str:
     """
     cert = _resolve_idp_certificate(tenant_id)
 
-    entity_id = f"{base_url}/saml/idp/metadata"
+    entity_id = make_idp_entity_id(tenant_id)
     sso_url = f"{base_url}/saml/idp/sso"
     slo_url = f"{base_url}/saml/idp/slo"
 
@@ -93,7 +93,7 @@ def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
 
     cert = _resolve_idp_certificate(tenant_id, sp_id=sp_id)
 
-    entity_id = f"{base_url}/saml/idp/metadata/{sp_id}"
+    entity_id = make_idp_entity_id(tenant_id)
     sso_url = f"{base_url}/saml/idp/sso"
     slo_url = f"{base_url}/saml/idp/slo"
 

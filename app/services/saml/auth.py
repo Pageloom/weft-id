@@ -26,7 +26,7 @@ from services.exceptions import ForbiddenError, NotFoundError, ValidationError
 from services.saml._converters import idp_row_to_config
 from services.saml._helpers import get_saml_attribute, get_saml_group_attributes
 from services.saml.idp_certificates import get_certificates_for_validation
-from utils.saml import build_saml_settings, decrypt_private_key
+from utils.saml import build_saml_settings, decrypt_private_key, make_sp_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,8 @@ def _prepare_saml_auth(
         )
 
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
+    sp_entity_id = make_sp_entity_id(tenant_id)
+    # ACS URL is per-IdP (derived from the stored metadata URL)
     sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
 
     if not idp.entity_id or not idp.sso_url:
@@ -79,7 +81,7 @@ def _prepare_saml_auth(
         idp_certs = [idp.certificate_pem]
 
     settings = build_saml_settings(
-        sp_entity_id=idp.sp_entity_id,
+        sp_entity_id=sp_entity_id,
         sp_acs_url=sp_acs_url,
         sp_certificate_pem=sp_cert["certificate_pem"],
         sp_private_key_pem=sp_private_key,

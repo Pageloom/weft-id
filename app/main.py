@@ -48,7 +48,7 @@ settings.validate_production_settings()
 
 # Log warning for BYPASS_OTP even in dev mode (helpful reminder)
 if settings.BYPASS_OTP:
-    logger.warning("BYPASS_OTP is enabled. Any 6-digit code will pass MFA verification.")
+    logger.warning("BYPASS_OTP is enabled. Any 6-digit code will pass OTP verification.")
 
 app = FastAPI(
     title="Loom Identity Platform API",

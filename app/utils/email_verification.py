@@ -99,6 +99,10 @@ def validate_verification_cookie(
     if expected_email and email != expected_email.lower():
         return False, None, None
 
+    # Bypass mode: accept any valid 6-digit code
+    if settings.BYPASS_OTP and len(entered_code) == 6 and entered_code.isdigit():
+        return True, email, payload.get("tenant_id")
+
     # Verify code using constant-time comparison
     stored_hash = payload.get("code_hash", "")
     entered_hash = _hash_code(entered_code)

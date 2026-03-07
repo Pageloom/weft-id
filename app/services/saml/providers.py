@@ -403,14 +403,6 @@ def establish_idp_trust(
     if existing is None:
         raise NotFoundError(message="Identity provider not found", code="idp_not_found")
 
-    # Check for duplicate entity_id
-    duplicate = database.saml.get_identity_provider_by_entity_id(tenant_id, entity_id)
-    if duplicate and str(duplicate["id"]) != idp_id:
-        raise ConflictError(
-            message=f"An IdP with entity ID '{entity_id}' already exists",
-            code="idp_entity_id_exists",
-        )
-
     row = database.saml.set_idp_trust_established(
         tenant_id=tenant_id,
         idp_id=idp_id,
@@ -501,7 +493,7 @@ def get_public_trust_info(tenant_id: str, idp_id: str, base_url: str) -> dict:
     if not row:
         raise NotFoundError(message="Identity provider not found", code="idp_not_found")
 
-    sp_entity_id = make_sp_entity_id(tenant_id)
+    sp_entity_id = make_sp_entity_id(tenant_id, idp_id)
     sp_acs_url = f"{base_url}/saml/acs/{idp_id}"
     metadata_url = f"{base_url}/saml/metadata/{idp_id}"
 

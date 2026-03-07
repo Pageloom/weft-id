@@ -121,15 +121,6 @@ class SPListResponse(BaseModel):
     total: int
 
 
-class IdPMetadataInfo(BaseModel):
-    """IdP metadata URL info for API consumers."""
-
-    metadata_url: str
-    entity_id: str
-    sso_url: str
-    slo_url: str
-
-
 # ============================================================================
 # SP Metadata Lifecycle Schemas
 # ============================================================================

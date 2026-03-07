@@ -246,8 +246,9 @@ def step_5_register_idp(
 ) -> str:
     """Register the IdP tenant as an Identity Provider in the SP tenant.
 
-    The IdP entity_id uses the stable URN format (urn:weftid:{tenant}:idp)
-    matching what the IdP uses as the Issuer in SAML Responses.
+    The IdP entity_id uses the per-connection URN format
+    (urn:weftid:{tenant}:idp:{sp_registration_id}) matching what the IdP
+    uses as the Issuer in SAML Responses for this specific SP.
     The sp_entity_id is set to a temporary value and updated in step_5b.
 
     Returns the IdP id (as string).
@@ -256,7 +257,7 @@ def step_5_register_idp(
 
     idp_base_url = _base_url(idp_subdomain)
     sp_base_url = _base_url(sp_subdomain)
-    idp_entity_id = make_idp_entity_id(idp_tenant_id)
+    idp_entity_id = make_idp_entity_id(idp_tenant_id, sp_id)
     sso_url = f"{idp_base_url}/saml/idp/sso"
     # Temp sp_entity_id (updated to per-IdP format in step 5b)
     temp_sp_entity_id = f"{sp_base_url}/saml/metadata"
@@ -316,14 +317,15 @@ def step_5b_update_per_idp_metadata(
 ):
     """Update SP and IdP records with final entity IDs and per-IdP ACS URL.
 
-    SP entity_id uses the stable URN format (urn:weftid:{tenant}:sp).
+    SP entity_id uses the per-connection URN format
+    (urn:weftid:{tenant}:sp:{idp_registration_id}).
     The IdP record's sp_entity_id keeps the per-IdP URL for ACS URL derivation.
     Also creates the per-IdP SP certificate used for signing AuthnRequests.
     """
     log.info("--- Step 5b: Per-IdP SP metadata ---")
 
     sp_base_url = _base_url(sp_subdomain)
-    sp_urn_entity_id = make_sp_entity_id(sp_tenant_id)
+    sp_urn_entity_id = make_sp_entity_id(sp_tenant_id, idp_id)
     per_idp_sp_url = f"{sp_base_url}/saml/metadata/{idp_id}"
     per_idp_acs_url = f"{sp_base_url}/saml/acs/{idp_id}"
 

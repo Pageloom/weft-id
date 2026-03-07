@@ -1,6 +1,6 @@
 """IdP metadata generation for downstream SPs.
 
-Generates SAML IdP metadata XML for tenant-level and per-SP endpoints.
+Generates per-SP SAML IdP metadata XML with per-connection entity IDs.
 """
 
 import logging
@@ -37,35 +37,6 @@ def _resolve_idp_certificate(tenant_id: str, sp_id: str | None = None) -> dict:
     return cert
 
 
-def get_tenant_idp_metadata_xml(tenant_id: str, base_url: str) -> str:
-    """Generate IdP metadata XML for downstream SPs to consume.
-
-    No authorization required (public endpoint).
-
-    Args:
-        tenant_id: Tenant ID
-        base_url: Base URL for the tenant
-
-    Returns:
-        XML metadata string
-
-    Raises:
-        NotFoundError: If no SP certificate is configured for the tenant
-    """
-    cert = _resolve_idp_certificate(tenant_id)
-
-    entity_id = make_idp_entity_id(tenant_id)
-    sso_url = f"{base_url}/saml/idp/sso"
-    slo_url = f"{base_url}/saml/idp/slo"
-
-    return generate_idp_metadata_xml(
-        entity_id=entity_id,
-        sso_url=sso_url,
-        certificate_pem=cert["certificate_pem"],
-        slo_url=slo_url,
-    )
-
-
 def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
     """Generate IdP metadata XML with per-SP signing certificate.
 
@@ -93,7 +64,7 @@ def get_sp_idp_metadata_xml(tenant_id: str, sp_id: str, base_url: str) -> str:
 
     cert = _resolve_idp_certificate(tenant_id, sp_id=sp_id)
 
-    entity_id = make_idp_entity_id(tenant_id)
+    entity_id = make_idp_entity_id(tenant_id, sp_id)
     sso_url = f"{base_url}/saml/idp/sso"
     slo_url = f"{base_url}/saml/idp/slo"
 

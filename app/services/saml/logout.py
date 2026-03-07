@@ -65,7 +65,7 @@ def initiate_sp_logout(
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
 
         # Build SAML settings with stable URN entity ID
-        sp_entity_id = make_sp_entity_id(tenant_id)
+        sp_entity_id = make_sp_entity_id(tenant_id, saml_idp_id)
         sp_acs_url = idp["sp_entity_id"].replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 
@@ -155,7 +155,7 @@ def process_idp_logout_request(
 
         # Build SAML settings with stable URN entity ID
         sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-        sp_entity_id = make_sp_entity_id(tenant_id)
+        sp_entity_id = make_sp_entity_id(tenant_id, idp_id)
         sp_acs_url = idp["sp_entity_id"].replace("/saml/metadata", "/saml/acs")
         sp_slo_url = f"{base_url}/saml/slo"
 

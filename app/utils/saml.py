@@ -16,14 +16,14 @@ from utils.crypto import derive_fernet_key
 _cipher = Fernet(derive_fernet_key(b"saml-key-encryption"))
 
 
-def make_sp_entity_id(tenant_id: str) -> str:
-    """Stable URN-based SP entity ID, one per tenant.
+def make_sp_entity_id(tenant_id: str, idp_registration_id: str) -> str:
+    """Stable URN-based SP entity ID, one per IdP connection.
 
     Used as the entityID in SP metadata and as the Issuer in AuthnRequests.
-    Deterministic and domain-independent: survives subdomain renames and
-    path restructuring without breaking federation trust.
+    Each upstream IdP registration gets its own entity ID so the same IdP
+    can be registered multiple times at a single tenant without collisions.
     """
-    return f"urn:weftid:{tenant_id}:sp"
+    return f"urn:weftid:{tenant_id}:sp:{idp_registration_id}"
 
 
 def encrypt_private_key(private_key_pem: str) -> str:

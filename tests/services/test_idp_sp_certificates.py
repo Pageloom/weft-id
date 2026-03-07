@@ -15,7 +15,6 @@ from uuid import uuid4
 
 import pytest
 from services.exceptions import (
-    ConflictError,
     ForbiddenError,
     NotFoundError,
     ValidationError,
@@ -655,10 +654,10 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
 
         assert exc_info.value.code == "idp_not_found"
 
-    def test_trust_duplicate_entity_id(
+    def test_trust_allows_duplicate_entity_id(
         self, test_tenant, test_super_admin_user, fast_sp_certificate
     ):
-        """Raises ConflictError when entity_id is already used by another IdP."""
+        """Two IdP registrations with the same upstream entity_id can coexist."""
         from schemas.saml import IdPCreate
         from services import saml as saml_service
 
@@ -668,7 +667,7 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
         entity_id = f"https://dup-entity-{uuid4().hex[:8]}.example.com/entity"
 
         # Create first IdP with full trust
-        saml_service.create_identity_provider(
+        first = saml_service.create_identity_provider(
             requesting_user,
             IdPCreate(
                 name="First IdP",
@@ -690,23 +689,23 @@ ADsT4qF3dPQ8QfQq9Y7q8f5Y5L3F8K9cQm7Yn3a5Y5L3F8K9cQm7Yn3a5Y5L3F8K
             "https://test.example.com",
         )
 
-        # Create second pending IdP, try to establish trust with same entity_id
+        # Create second IdP with same upstream entity_id (allowed now)
         pending = saml_service.create_identity_provider(
             requesting_user,
             IdPCreate(name="Second IdP", provider_type="okta"),
             "https://test.example.com",
         )
 
-        with pytest.raises(ConflictError) as exc_info:
-            saml_service.establish_idp_trust(
-                requesting_user,
-                idp_id=pending.id,
-                entity_id=entity_id,
-                sso_url="https://second.example.com/sso",
-                certificate_pem="fake-cert",
-            )
+        second = saml_service.establish_idp_trust(
+            requesting_user,
+            idp_id=pending.id,
+            entity_id=entity_id,
+            sso_url="https://second.example.com/sso",
+            certificate_pem="fake-cert",
+        )
 
-        assert exc_info.value.code == "idp_entity_id_exists"
+        assert first.id != second.id
+        assert second.entity_id == entity_id
 
     def test_trust_logs_event(self, test_tenant, test_super_admin_user, fast_sp_certificate):
         """Trust establishment logs saml_idp_trust_established event."""

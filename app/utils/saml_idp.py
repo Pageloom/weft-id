@@ -13,14 +13,14 @@ _MD_NS = "urn:oasis:names:tc:SAML:2.0:metadata"
 _DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 
 
-def make_idp_entity_id(tenant_id: str) -> str:
-    """Stable URN-based IdP entity ID, one per tenant.
+def make_idp_entity_id(tenant_id: str, sp_registration_id: str) -> str:
+    """Stable URN-based IdP entity ID, one per SP connection.
 
     Used as the entityID in IdP metadata and as the Issuer in SAML responses.
-    Deterministic and domain-independent: survives subdomain renames and
-    path restructuring without breaking federation trust.
+    Each downstream SP registration gets its own entity ID so the same SP
+    can be registered multiple times at a single tenant without collisions.
     """
-    return f"urn:weftid:{tenant_id}:idp"
+    return f"urn:weftid:{tenant_id}:idp:{sp_registration_id}"
 
 
 def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:

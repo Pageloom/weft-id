@@ -176,7 +176,7 @@ def get_sp_metadata_url_info(
 
     return SPMetadataURLInfo(
         metadata_url=f"{base_url}/saml/idp/metadata/{sp_id}",
-        entity_id=make_idp_entity_id(tenant_id),
+        entity_id=make_idp_entity_id(tenant_id, sp_id),
         sso_url=f"{base_url}/saml/idp/sso",
         sp_id=sp_id,
         sp_name=sp_row["name"],

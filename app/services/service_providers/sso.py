@@ -151,7 +151,7 @@ def build_sso_response(
     # 6. Resolve NameID value and format
     from services.service_providers.nameid import resolve_name_id
 
-    issuer_entity_id = make_idp_entity_id(tenant_id)
+    issuer_entity_id = make_idp_entity_id(tenant_id, sp_id)
     name_id_format = sp_row.get(
         "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     )

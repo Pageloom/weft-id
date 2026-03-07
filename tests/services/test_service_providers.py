@@ -540,74 +540,6 @@ class TestDeleteServiceProvider:
 
 
 # =============================================================================
-# get_tenant_idp_metadata_xml
-# =============================================================================
-
-
-class TestGetTenantIdPMetadataXML:
-    """Tests for get_tenant_idp_metadata_xml."""
-
-    def test_returns_xml_when_cert_exists(self):
-        """Returns XML string when tenant has a certificate."""
-        from services import service_providers as sp_service
-
-        tenant_id = str(uuid4())
-
-        with patch("services.service_providers.metadata.database") as mock_db:
-            mock_db.saml.get_sp_certificate.return_value = {
-                "certificate_pem": SAMPLE_CERT_PEM,
-            }
-
-            result = sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://idp.example.com")
-
-            assert "IDPSSODescriptor" in result
-            assert "<?xml" in result
-            mock_db.saml.get_sp_certificate.assert_called_once_with(tenant_id)
-
-    def test_raises_not_found_when_no_cert(self):
-        """Raises NotFoundError when no certificate is configured."""
-        from services import service_providers as sp_service
-
-        tenant_id = str(uuid4())
-
-        with patch("services.service_providers.metadata.database") as mock_db:
-            mock_db.saml.get_sp_certificate.return_value = None
-
-            with pytest.raises(NotFoundError, match="IdP certificate not configured"):
-                sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://idp.example.com")
-
-    def test_entity_id_from_base_url(self):
-        """Entity ID is a stable URN derived from the tenant UUID."""
-        from services import service_providers as sp_service
-
-        tenant_id = str(uuid4())
-
-        with patch("services.service_providers.metadata.database") as mock_db:
-            mock_db.saml.get_sp_certificate.return_value = {
-                "certificate_pem": SAMPLE_CERT_PEM,
-            }
-
-            result = sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://acme.example.com")
-
-            assert f'entityID="urn:weftid:{tenant_id}:idp"' in result
-
-    def test_sso_url_from_base_url(self):
-        """SSO URL is constructed from base_url + /saml/idp/sso."""
-        from services import service_providers as sp_service
-
-        tenant_id = str(uuid4())
-
-        with patch("services.service_providers.metadata.database") as mock_db:
-            mock_db.saml.get_sp_certificate.return_value = {
-                "certificate_pem": SAMPLE_CERT_PEM,
-            }
-
-            result = sp_service.get_tenant_idp_metadata_xml(tenant_id, "https://acme.example.com")
-
-            assert 'Location="https://acme.example.com/saml/idp/sso"' in result
-
-
-# =============================================================================
 # create_service_provider generates signing cert
 # =============================================================================
 
@@ -1211,7 +1143,7 @@ class TestGetSPMetadataURLInfoNotFound:
 
             assert result.sp_id == sp_id
             assert f"/saml/idp/metadata/{sp_id}" in result.metadata_url
-            assert result.entity_id == f"urn:weftid:{tenant_id}:idp"
+            assert result.entity_id == f"urn:weftid:{tenant_id}:idp:{sp_id}"
             assert "/saml/idp/sso" in result.sso_url
 
 

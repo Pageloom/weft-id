@@ -55,7 +55,6 @@ from services.service_providers.group_assignments import (
 # Re-export from metadata module
 from services.service_providers.metadata import (
     get_sp_idp_metadata_xml,
-    get_tenant_idp_metadata_xml,
 )
 
 # Re-export from metadata_sync module
@@ -122,7 +121,6 @@ __all__ = [
     "get_user_consent_info",
     # Metadata
     "get_sp_idp_metadata_xml",
-    "get_tenant_idp_metadata_xml",
     # Signing certificates
     "get_sp_metadata_url_info",
     "get_sp_signing_certificate",

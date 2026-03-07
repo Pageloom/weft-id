@@ -246,7 +246,7 @@ def sp_tab_details(
         sp=sp_config,
         group_count=group_count,
         sp_metadata_url=sp_metadata_url,
-        idp_entity_id=make_idp_entity_id(tenant_id),
+        idp_entity_id=make_idp_entity_id(tenant_id, sp_id),
         active_tab="details",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),

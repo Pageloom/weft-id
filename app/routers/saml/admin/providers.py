@@ -269,7 +269,7 @@ def idp_tab_details(
         tenant_id,
         idp=idp,
         sp_certificate=sp_certificate,
-        sp_entity_urn=make_sp_entity_id(tenant_id),
+        sp_entity_urn=make_sp_entity_id(tenant_id, idp_id),
         domain_bindings=domain_bindings.items,
         unbound_domains=unbound_domains,
         base_url=get_base_url(request),

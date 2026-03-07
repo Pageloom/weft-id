@@ -6,7 +6,6 @@ from api_dependencies import get_current_user_api, require_admin_api, require_su
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Request, status
 from schemas.service_providers import (
-    IdPMetadataInfo,
     SPConfig,
     SPCreate,
     SPEstablishTrustManual,
@@ -28,7 +27,6 @@ from schemas.service_providers import (
 )
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
-from utils.saml_idp import make_idp_entity_id
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter(prefix="/api/v1/service-providers", tags=["Service Providers"])
@@ -138,28 +136,6 @@ def _get_base_url(request: Request) -> str:
     """Get base URL from request for building SAML URLs (always HTTPS)."""
     host = request.headers.get("x-forwarded-host", request.url.netloc)
     return f"https://{host}"
-
-
-@router.get("/idp-metadata-url", response_model=IdPMetadataInfo)
-def get_idp_metadata_url(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    admin: Annotated[dict, Depends(require_super_admin_api)],
-):
-    """Get the IdP metadata URL and related endpoints.
-
-    Requires super_admin role.
-
-    Returns the metadata URL, entity ID, and SSO URL that downstream
-    SPs need for SAML integration.
-    """
-    base_url = _get_base_url(request)
-    return IdPMetadataInfo(
-        metadata_url=f"{base_url}/saml/idp/metadata",
-        entity_id=make_idp_entity_id(tenant_id),
-        sso_url=f"{base_url}/saml/idp/sso",
-        slo_url=f"{base_url}/saml/idp/slo",
-    )
 
 
 @router.get("/{sp_id}", response_model=SPConfig)

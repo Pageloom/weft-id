@@ -206,7 +206,7 @@ def get_idp_sp_metadata_xml(
             code="idp_sp_certificate_not_found",
         )
 
-    entity_id = make_sp_entity_id(tenant_id)
+    entity_id = make_sp_entity_id(tenant_id, idp_id)
     acs_url = f"{base_url}/saml/acs/{idp_id}"
 
     previous_cert = cert.get("previous_certificate_pem")

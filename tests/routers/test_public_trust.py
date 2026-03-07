@@ -122,7 +122,7 @@ class TestGetPublicTrustInfo:
         assert result["name"] == "Trust Page Test IdP"
         assert result["provider_type"] == "okta"
         # URN-based entity ID, URL-based ACS and metadata URLs
-        assert result["sp_entity_id"] == f"urn:weftid:{test_tenant['id']}:sp"
+        assert result["sp_entity_id"] == f"urn:weftid:{test_tenant['id']}:sp:{enabled_idp.id}"
         assert result["sp_acs_url"] == f"https://test.example.com/saml/acs/{enabled_idp.id}"
         assert result["metadata_url"] == f"https://test.example.com/saml/metadata/{enabled_idp.id}"
         assert result["attribute_mapping"]["email"] == "email"

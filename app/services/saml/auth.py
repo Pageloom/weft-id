@@ -60,7 +60,7 @@ def _prepare_saml_auth(
         )
 
     sp_private_key = decrypt_private_key(sp_cert["private_key_pem_enc"])
-    sp_entity_id = make_sp_entity_id(tenant_id)
+    sp_entity_id = make_sp_entity_id(tenant_id, idp_id)
     # ACS URL is per-IdP (derived from the stored metadata URL)
     sp_acs_url = idp.sp_entity_id.replace("/saml/metadata", "/saml/acs")
 

@@ -416,53 +416,6 @@ class TestDeleteAPI:
 
 
 # =============================================================================
-# IdP Metadata Info Endpoint
-# =============================================================================
-
-
-class TestIdPMetadataInfoAPI:
-    """Tests for GET /api/v1/service-providers/idp-metadata-url."""
-
-    def test_returns_metadata_info(self, sp_api_client, api_host):
-        """Super admin gets IdP metadata info."""
-        response = sp_api_client.get(
-            "/api/v1/service-providers/idp-metadata-url",
-            headers={"Host": api_host},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "metadata_url" in data
-        assert "entity_id" in data
-        assert "sso_url" in data
-        assert data["metadata_url"].endswith("/saml/idp/metadata")
-        assert data["entity_id"].startswith("urn:weftid:")
-        assert data["entity_id"].endswith(":idp")
-        assert data["sso_url"].endswith("/saml/idp/sso")
-
-    def test_unauthenticated_returns_401(self, client, api_host):
-        """Unauthenticated requests return 401."""
-        response = client.get(
-            "/api/v1/service-providers/idp-metadata-url",
-            headers={"Host": api_host},
-        )
-
-        assert response.status_code == 401
-
-    def test_non_super_admin_rejected(self, client, api_admin_user, api_host, override_api_auth):
-        """Non-super_admin role is rejected (no super_admin override applied)."""
-        override_api_auth(api_admin_user, level="admin")
-
-        response = client.get(
-            "/api/v1/service-providers/idp-metadata-url",
-            headers={"Host": api_host},
-        )
-
-        # Returns 401 because require_super_admin_api dependency is not overridden
-        assert response.status_code == 401
-
-
-# =============================================================================
 # Per-SP Signing Certificate Endpoints
 # =============================================================================
 

@@ -197,7 +197,7 @@ def wire_idp_to_sp(
         log.info("Created SP certificate at %s", sp_subdomain)
 
     # --- Register IdP in SP tenant (temp sp_entity_id, updated below) ---
-    idp_entity_id = make_idp_entity_id(idp_tenant_id)
+    idp_entity_id = make_idp_entity_id(idp_tenant_id, sp_id)
     sso_url = f"{idp_base}/saml/idp/sso"
     temp_sp_entity_id = f"{sp_base}/saml/metadata"
 
@@ -239,7 +239,7 @@ def wire_idp_to_sp(
         )
 
     # --- Update to per-IdP SP metadata URLs ---
-    sp_urn_entity_id = make_sp_entity_id(sp_tenant_id)
+    sp_urn_entity_id = make_sp_entity_id(sp_tenant_id, idp_id)
     per_idp_sp_url = f"{sp_base}/saml/metadata/{idp_id}"
     per_idp_acs_url = f"{sp_base}/saml/acs/{idp_id}"
 

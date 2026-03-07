@@ -25,6 +25,7 @@ import database
 import database.groups
 import database.sp_group_assignments
 from dev.users import add_user
+from utils.saml import make_sp_entity_id
 
 DEV_PASSWORD = os.environ.get("DEV_PASSWORD", "devpass123")
 
@@ -187,14 +188,11 @@ def main(
     # --- 2. Group hierarchy test ---
     log.info("--- Group hierarchy test ---")
 
-    # Get the existing SP ID at IdP tenant (entity_id uses per-IdP format)
-    sp_base = f"https://{sp_subdomain}.pageloom.localhost"
-    per_idp_entity_id = f"{sp_base}/saml/metadata/{sp_idp_id}" if sp_idp_id else None
-    sp_record = None
-    if per_idp_entity_id:
-        sp_record = database.service_providers.get_service_provider_by_entity_id(
-            idp_tid, per_idp_entity_id
-        )
+    # Get the existing SP ID at IdP tenant (entity_id uses stable URN format)
+    sp_urn_entity_id = make_sp_entity_id(sp_tid)
+    sp_record = database.service_providers.get_service_provider_by_entity_id(
+        idp_tid, sp_urn_entity_id
+    )
     sp_id = str(sp_record["id"]) if sp_record else None
 
     # Create parent group "All Staff"

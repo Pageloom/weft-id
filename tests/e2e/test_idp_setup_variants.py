@@ -13,19 +13,22 @@ from helpers.maildev import clear_emails, extract_otp_code, get_latest_email
 class TestIdpRegistrationViaUrl:
     """SP admin registers an IdP via metadata URL import."""
 
-    def test_sp_admin_registers_idp_via_url(self, page, login, idp_config, sp_config):
-        """Create a new SP at IdP for a unique metadata URL, then import it.
+    def test_sp_admin_registers_idp_via_url(self, page, login, sp_config, upstream_config):
+        """Import an IdP from a per-SP metadata URL.
+
+        Uses the chain upstream tenant as IdP source (different entity_id
+        from the testbed IdP to avoid URN conflicts).
 
         Flow:
-          1. At IdP: create new SP (name only) → get per-SP metadata URL
-          2. At SP: create new IdP (name only) → import from that URL → trust established
+          1. At upstream: create new SP (name only) → get per-SP metadata URL
+          2. At SP: create new IdP (name only) → import from that URL
         """
-        idp_base = idp_config["base_url"]
+        upstream_base = upstream_config["base_url"]
         sp_base = sp_config["base_url"]
 
-        # --- Step 1: Create a new SP at IdP tenant to get a metadata URL ---
-        login(idp_base, idp_config["admin_email"])
-        page.goto(f"{idp_base}/admin/settings/service-providers/new")
+        # --- Step 1: Create a new SP at upstream tenant to get a metadata URL ---
+        login(upstream_base, upstream_config["admin_email"])
+        page.goto(f"{upstream_base}/admin/settings/service-providers/new")
         page.locator("#sp-name").fill("URL Import Test SP")
         page.get_by_role("button", name="Create").click()
 
@@ -35,11 +38,10 @@ class TestIdpRegistrationViaUrl:
             timeout=10000,
         )
         sp_detail_url = page.url
-        # URL: .../service-providers/{sp_id}/details?success=created
         sp_id = sp_detail_url.split("/service-providers/")[1].split("/")[0]
 
         # The per-SP IdP metadata URL (serves IDPSSODescriptor XML)
-        metadata_url = f"{idp_base}/saml/idp/metadata/{sp_id}"
+        metadata_url = f"{upstream_base}/saml/idp/metadata/{sp_id}"
 
         # --- Step 2: Create a new IdP at SP tenant and import from URL ---
         login(sp_base, sp_config["admin_email"])

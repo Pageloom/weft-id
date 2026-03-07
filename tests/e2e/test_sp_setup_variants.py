@@ -16,25 +16,24 @@ _MANUAL_ACS_URL = "https://manual-test-sp.example.com/saml/acs"
 class TestSpRegistrationViaUrl:
     """IdP admin registers an SP via per-IdP SP metadata URL import."""
 
-    def test_idp_admin_registers_sp_via_url(self, page, login, idp_config, sp_config):
+    def test_idp_admin_registers_sp_via_url(self, page, login, idp_config, mid_config):
         """Import an SP from a live per-IdP SP metadata URL.
 
-        SP metadata URLs are per-IdP: /saml/metadata/{idp_id}. Each IdP
-        relationship gets its own unique entity_id, ACS URL, and signing
-        certificate.
+        Uses the chain mid tenant as SP source (different entity_id from
+        the testbed SP to avoid URN conflicts).
 
         Flow:
-          1. At SP: create new IdP (name only) to get a per-IdP SP metadata URL
-          2. At IdP: create new SP (name only) and import from that URL
+          1. At mid (acting as SP): create new IdP → get per-IdP SP metadata URL
+          2. At IdP: create new SP and import from that URL
         """
         idp_base = idp_config["base_url"]
-        sp_base = sp_config["base_url"]
+        mid_base = mid_config["base_url"]
 
-        # Step 1: Create a new IdP at SP tenant to get a per-IdP SP metadata URL.
+        # Step 1: Create a new IdP at mid tenant to get a per-IdP SP metadata URL.
         # Creating an IdP auto-generates a per-IdP SP certificate, so the
         # metadata endpoint serves valid XML immediately.
-        login(sp_base, sp_config["admin_email"])
-        page.goto(f"{sp_base}/admin/settings/identity-providers/new")
+        login(mid_base, mid_config["admin_email"])
+        page.goto(f"{mid_base}/admin/settings/identity-providers/new")
         page.locator("#name").fill("URL Import Source IdP")
         page.locator("#provider_type").select_option("generic")
         page.get_by_role("button", name="Create Identity Provider").click()
@@ -47,7 +46,7 @@ class TestSpRegistrationViaUrl:
         # Extract IdP ID from redirect URL to build per-IdP SP metadata URL
         idp_detail_url = page.url
         new_idp_id = idp_detail_url.split("/identity-providers/")[1].split("/")[0]
-        sp_metadata_url = f"{sp_base}/saml/metadata/{new_idp_id}"
+        sp_metadata_url = f"{mid_base}/saml/metadata/{new_idp_id}"
 
         # Step 2: At IdP tenant, create a new SP and import from that URL
         login(idp_base, idp_config["admin_email"])
@@ -65,12 +64,12 @@ class TestSpRegistrationViaUrl:
         page.locator("#trust-metadata-url").fill(sp_metadata_url)
         page.locator("#tab-trust-url button[type='submit']").click()
 
-        # Verify trust established: SP base URL visible in the entity_id
+        # Verify trust established: URN entity_id visible on details page
         page.wait_for_url(
             "**/admin/settings/service-providers/*/details**",
             timeout=10000,
         )
-        page.get_by_text(sp_base).first.wait_for(timeout=5000)
+        page.get_by_text("urn:weftid:").first.wait_for(timeout=5000)
 
         # Verify SP appears in the list
         page.goto(f"{idp_base}/admin/settings/service-providers")

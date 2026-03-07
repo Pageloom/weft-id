@@ -29,6 +29,8 @@ import database.sp_group_assignments
 import utils.saml
 from dev.tenants import provision_tenant
 from dev.users import add_user
+from utils.saml import make_sp_entity_id
+from utils.saml_idp import make_idp_entity_id
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -195,7 +197,7 @@ def wire_idp_to_sp(
         log.info("Created SP certificate at %s", sp_subdomain)
 
     # --- Register IdP in SP tenant (temp sp_entity_id, updated below) ---
-    idp_entity_id = f"{idp_base}/saml/idp/metadata/{sp_id}"
+    idp_entity_id = make_idp_entity_id(idp_tenant_id)
     sso_url = f"{idp_base}/saml/idp/sso"
     temp_sp_entity_id = f"{sp_base}/saml/metadata"
 
@@ -237,12 +239,15 @@ def wire_idp_to_sp(
         )
 
     # --- Update to per-IdP SP metadata URLs ---
-    per_idp_entity_id = f"{sp_base}/saml/metadata/{idp_id}"
+    sp_urn_entity_id = make_sp_entity_id(sp_tenant_id)
+    per_idp_sp_url = f"{sp_base}/saml/metadata/{idp_id}"
     per_idp_acs_url = f"{sp_base}/saml/acs/{idp_id}"
 
+    # sp_entity_id keeps per-IdP URL (used for ACS URL derivation)
     database.saml.providers.update_identity_provider(
-        sp_tenant_id, idp_id, sp_entity_id=per_idp_entity_id
+        sp_tenant_id, idp_id, sp_entity_id=per_idp_sp_url
     )
+    # service_providers.entity_id uses stable URN
     database.execute(
         idp_tenant_id,
         """
@@ -250,9 +255,9 @@ def wire_idp_to_sp(
         set entity_id = :entity_id, acs_url = :acs_url, updated_at = now()
         where id = cast(:sp_id as uuid)
         """,
-        {"entity_id": per_idp_entity_id, "acs_url": per_idp_acs_url, "sp_id": sp_id},
+        {"entity_id": sp_urn_entity_id, "acs_url": per_idp_acs_url, "sp_id": sp_id},
     )
-    log.info("Updated to per-IdP entity_id: %s", per_idp_entity_id)
+    log.info("Updated SP entity_id to %s, ACS to %s", sp_urn_entity_id, per_idp_acs_url)
 
     # --- Per-IdP SP certificate (needs system_context for event logging) ---
     from services.saml.idp_sp_certificates import get_or_create_idp_sp_certificate

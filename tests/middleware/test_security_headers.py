@@ -96,6 +96,17 @@ def test_hsts_not_added_on_http(client, test_tenant_host):
     assert "Strict-Transport-Security" not in response.headers
 
 
+def test_hsts_added_when_forwarded_proto_is_https(client, test_tenant_host):
+    """Test that HSTS header is added when X-Forwarded-Proto indicates HTTPS."""
+    response = client.get(
+        "/login",
+        headers={"Host": test_tenant_host, "X-Forwarded-Proto": "https"},
+    )
+
+    assert "Strict-Transport-Security" in response.headers
+    assert "max-age=" in response.headers["Strict-Transport-Security"]
+
+
 def test_security_headers_on_redirects(client, test_tenant_host):
     """Test that security headers are present on redirect responses."""
     # Request a page that redirects (unauthenticated access to protected route)

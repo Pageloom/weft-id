@@ -135,9 +135,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = self.x_content_type_options
         response.headers["Referrer-Policy"] = self.referrer_policy
 
-        # Only add HSTS header if the connection is HTTPS
-        # In development (HTTP), we skip HSTS to avoid browser warnings
-        scheme = request.url.scheme
+        # Only add HSTS header if the client connection is HTTPS.
+        # Behind a reverse proxy, the internal scheme is always HTTP,
+        # so check X-Forwarded-Proto for the real client scheme.
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
         if scheme == "https":
             response.headers["Strict-Transport-Security"] = self.hsts
 

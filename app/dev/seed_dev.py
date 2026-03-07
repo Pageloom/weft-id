@@ -26,7 +26,7 @@ from settings import IS_DEV
 # Constants
 # ---------------------------------------------------------------------------
 
-DEV_PASSWORD = "DevSeed123!"
+DEV_PASSWORD = "devpass123"
 SUBDOMAIN = "meridian-health"
 TENANT_NAME = "Meridian Health"
 EMAIL_DOMAIN = "meridian-health.dev"

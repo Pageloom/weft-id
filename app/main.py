@@ -55,8 +55,8 @@ app = FastAPI(
     version="1.0.0",
     description="Multi-tenant identity platform with OAuth2 and RESTful API",
     openapi_url="/openapi.json" if settings.ENABLE_OPENAPI_DOCS else None,
-    docs_url="/docs" if settings.ENABLE_OPENAPI_DOCS else None,
-    redoc_url="/redoc" if settings.ENABLE_OPENAPI_DOCS else None,
+    docs_url="/api/docs" if settings.ENABLE_OPENAPI_DOCS else None,
+    redoc_url="/api/redoc" if settings.ENABLE_OPENAPI_DOCS else None,
 )
 
 # Reject requests without a tenant subdomain (outermost, runs first)
@@ -93,6 +93,13 @@ async def redirect_error_handler(request: Request, exc: RedirectError):
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mount documentation site (built by MkDocs)
+# Local dev: site/ is next to app/. Docker: site/ is at /site.
+for _docs_candidate in [Path(__file__).resolve().parent.parent / "site", Path("/site")]:
+    if _docs_candidate.is_dir():
+        app.mount("/docs", StaticFiles(directory=str(_docs_candidate), html=True), name="docs")
+        break
 
 # Infrastructure routes (no tenant context required)
 app.include_router(health_router.router)

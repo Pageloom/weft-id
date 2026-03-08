@@ -1,5 +1,55 @@
 # Tech Writer Log
 
+## 2026-03-08 - Documentation Site Scaffold
+
+**Starting commit:** 2ca23e9
+**Mode:** Documentation
+
+### Changes Made
+
+1. **Moved OpenAPI docs** from `/docs` → `/api/docs` and `/redoc` → `/api/redoc` (app/main.py, 2 test files)
+2. **Moved developer docs** from `docs/` to `docs/internal/` (3 files: api-baseline, api-implementation-plan, manual-testing-saml)
+3. **Created `mkdocs.yml`** at project root with Material theme, dark/light toggle, navigation sections, code copy, admonitions
+4. **Scaffolded 37 Markdown pages** across 6 sections: Getting Started (4), Admin Guide (21), User Guide (5), API (1), Self-Hosting (1), Home (1)
+5. **Created `docs/assets/screenshots/`** directory for future screenshots
+6. **Updated references** in CLAUDE.md (key files, directory structure), tech-writer SKILL.md (`docs/site/` → `docs/`, OpenAPI paths), .gitignore (added `site/` build output)
+7. **Added `exclude_docs`** in mkdocs.yml to suppress warnings for `docs/internal/` and `docs/decisions/`
+
+### Site Structure
+
+```
+mkdocs.yml
+docs/
+  index.md
+  getting-started/    (4 pages)
+  admin-guide/        (21 pages across users, groups, idps, sps, security, branding, audit)
+  user-guide/         (5 pages)
+  api/                (1 page)
+  self-hosting/       (1 page)
+  internal/           (3 moved developer docs)
+  decisions/          (unchanged ADRs)
+  assets/screenshots/ (empty, for future use)
+```
+
+### Pages With Content
+
+- `docs/index.md` — Overview with section links
+- All section index pages — Section descriptions with child page links
+- `docs/api/index.md` — API auth, conventions, OpenAPI doc links
+
+### Pages Still Stubs
+
+All leaf pages (first-login, creating-users, saml-setup, etc.) contain only a title and "under construction" note. Priority fill-in candidates:
+- Getting Started section (first-login, connecting-an-idp, adding-an-application)
+- Roles and Permissions (foundational concept referenced by many pages)
+- SSO Flow (key value proposition)
+
+### Screenshots Requested
+
+None.
+
+---
+
 ## 2026-03-08 - Copy Review (Full Scan + Tightening Pass)
 
 **Starting commit:** a9fd870

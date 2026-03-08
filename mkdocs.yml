@@ -1,0 +1,93 @@
+site_name: WeftId Documentation
+site_description: Documentation for the WeftId identity federation platform
+site_url: https://docs.weftid.com
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font: false
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - toc:
+      permalink: true
+
+exclude_docs: |
+  internal/
+  decisions/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/index.md
+    - First Login: getting-started/first-login.md
+    - Connecting an Identity Provider: getting-started/connecting-an-idp.md
+    - Adding an Application: getting-started/adding-an-application.md
+  - Admin Guide:
+    - admin-guide/index.md
+    - Users:
+      - admin-guide/users/index.md
+      - Creating Users: admin-guide/users/creating-users.md
+      - User Lifecycle: admin-guide/users/user-lifecycle.md
+      - Roles and Permissions: admin-guide/users/roles-and-permissions.md
+    - Groups:
+      - admin-guide/groups/index.md
+      - Creating Groups: admin-guide/groups/creating-groups.md
+      - Group Hierarchy: admin-guide/groups/group-hierarchy.md
+      - Membership Management: admin-guide/groups/membership-management.md
+      - Group-Based Access: admin-guide/groups/group-based-access.md
+    - Identity Providers:
+      - admin-guide/identity-providers/index.md
+      - SAML Setup: admin-guide/identity-providers/saml-setup.md
+      - Privileged Domains: admin-guide/identity-providers/privileged-domains.md
+    - Service Providers:
+      - admin-guide/service-providers/index.md
+      - Registering a Service Provider: admin-guide/service-providers/registering-an-sp.md
+      - Signing Certificates: admin-guide/service-providers/sp-certificates.md
+      - Attribute Mapping: admin-guide/service-providers/attribute-mapping.md
+      - SSO Flow: admin-guide/service-providers/sso-flow.md
+    - Security:
+      - admin-guide/security/index.md
+      - Sessions: admin-guide/security/sessions.md
+      - Certificates: admin-guide/security/certificates.md
+      - Permissions: admin-guide/security/permissions.md
+      - Multi-Factor Authentication: admin-guide/security/mfa.md
+    - Branding:
+      - admin-guide/branding/index.md
+    - Audit:
+      - admin-guide/audit/index.md
+  - User Guide:
+    - user-guide/index.md
+    - Dashboard: user-guide/dashboard.md
+    - Profile: user-guide/profile.md
+    - Multi-Factor Authentication: user-guide/mfa.md
+    - Signing In: user-guide/signing-in.md
+  - API:
+    - api/index.md
+  - Self-Hosting:
+    - self-hosting/index.md

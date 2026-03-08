@@ -31,7 +31,7 @@ Events cover all areas of the platform:
 | Service providers | Created, updated, deleted, SSO assertions issued |
 | Certificates | Created, rotated |
 | Settings | Session, certificate, permission, and branding changes |
-| MFA | Enabled, disabled, backup codes regenerated, admin resets |
+| Two-step verification | Method changed, backup codes regenerated, admin resets |
 
 ## Activity tracking
 

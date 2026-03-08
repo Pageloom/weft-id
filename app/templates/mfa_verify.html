@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Two-Factor Authentication - {{ site_title }}{% endblock %}
+{% block title %}Two-Step Verification - {{ site_title }}{% endblock %}
 
 {% block content %}
 <div class="flex justify-center">
     <div class="w-full max-w-md">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-            <h1 class="text-2xl font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">Two-Factor Authentication</h1>
-            <p class="text-gray-600 dark:text-gray-400 text-center mb-6">Enter your authentication code</p>
+            <h1 class="text-2xl font-semibold text-center mb-2 text-gray-900 dark:text-gray-100">Two-Step Verification</h1>
+            <p class="text-gray-600 dark:text-gray-400 text-center mb-6">Enter your verification code</p>
 
             {% if error %}
             <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded mb-6" role="alert">

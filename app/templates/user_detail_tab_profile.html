@@ -31,11 +31,11 @@
                     <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ target_user.locale or 'Not set' }}</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">MFA Enabled</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Two-Step Verification</p>
                     <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ 'Yes' if target_user.mfa_enabled else 'No' }}</p>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">MFA Method</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Verification Method</p>
                     <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">
                         {% if target_user.mfa_method %}
                         {{ target_user.mfa_method.upper() }}

@@ -28,7 +28,7 @@ WeftId is configured through environment variables.
 
 | Variable | Description |
 |----------|-------------|
-| `SECRET_KEY` | Master encryption key. All derived keys (sessions, MFA, SAML, email) use HKDF from this value. Generate a random 64-character string. |
+| `SECRET_KEY` | Master encryption key. All derived keys (sessions, two-step verification, SAML, email) use HKDF from this value. Generate a random 64-character string. |
 | `BASE_DOMAIN` | Base domain for tenant subdomains (e.g., `weftid.example.com`) |
 | `POSTGRES_USER` | Database user |
 | `POSTGRES_PASSWORD` | Database password |

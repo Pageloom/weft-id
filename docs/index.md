@@ -8,7 +8,7 @@ The [Admin Guide](admin-guide/index.md) covers user management, group hierarchie
 
 ## For end users
 
-The [User Guide](user-guide/index.md) covers your dashboard, profile settings, and multi-factor authentication.
+The [User Guide](user-guide/index.md) covers your dashboard, profile settings, and two-step verification.
 
 ## For developers
 

@@ -105,7 +105,7 @@ PAGES = [
             ),
             Page(
                 path="/account/mfa",
-                title="MFA Settings",
+                title="Two-Step Verification",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
                 children=[
@@ -118,7 +118,7 @@ PAGES = [
                     ),
                     Page(
                         path="/account/mfa/downgrade-verify",
-                        title="Verify MFA Downgrade",
+                        title="Verify Method Change",
                         permission=PagePermission.AUTHENTICATED,
                         show_in_nav=False,
                         creates_nav_level=False,
@@ -479,16 +479,16 @@ PAGES = [
             ),
         ],
     ),
-    # MFA routes (under /mfa prefix) - these are workflow pages
+    # Two-step verification routes (under /mfa prefix) - these are workflow pages
     Page(
         path="/mfa",
-        title="MFA",
+        title="Two-Step Verification",
         permission=PagePermission.PUBLIC,
         show_in_nav=False,
         children=[
             Page(
                 path="/mfa/verify",
-                title="MFA Verification",
+                title="Verification",
                 permission=PagePermission.PUBLIC,
                 show_in_nav=False,
                 creates_nav_level=False,

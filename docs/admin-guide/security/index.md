@@ -1,8 +1,8 @@
 # Security Settings
 
-Configure session behavior, certificate lifecycle, user permissions, and multi-factor authentication policy for your tenant.
+Configure session behavior, certificate lifecycle, user permissions, and two-step verification for your tenant.
 
 - [Sessions](sessions.md) — Session timeout, persistent sessions, inactivation thresholds
 - [Certificates](certificates.md) — Certificate validity and rotation windows
 - [Permissions](permissions.md) — User self-service permissions
-- [Multi-Factor Authentication](mfa.md) — MFA enrollment policy
+- [Two-Step Verification](two-step-verification.md) — Verification method and policy

@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://docs.weftid.com/user-guide/signing-in/">
       
       
-        <link rel="prev" href="../mfa/">
+        <link rel="prev" href="../two-step-verification/">
       
       
         <link rel="next" href="../../api/">
@@ -1352,14 +1352,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../admin-guide/security/mfa/" class="md-nav__link">
+      <a href="../../admin-guide/security/two-step-verification/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Multi-Factor Authentication
+    Two-Step Verification
   
 
     
@@ -1666,14 +1666,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../mfa/" class="md-nav__link">
+      <a href="../two-step-verification/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Multi-Factor Authentication
+    Two-Step Verification
   
 
     
@@ -1754,15 +1754,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#password-sign-in" class="md-nav__link">
+  <a href="#step-1-email-verification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Password sign-in
+        Step 1: Email verification
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Password sign-in">
+    <nav class="md-nav" aria-label="Step 1: Email verification">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1782,10 +1782,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#identity-provider-sign-in" class="md-nav__link">
+  <a href="#step-2-password-or-identity-provider" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Identity provider sign-in
+        Step 2: Password or identity provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-two-step-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Two-step verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-two-codes-on-first-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why two codes on first sign-in?
       
     </span>
   </a>
@@ -1988,15 +2010,15 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#password-sign-in" class="md-nav__link">
+  <a href="#step-1-email-verification" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Password sign-in
+        Step 1: Email verification
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Password sign-in">
+    <nav class="md-nav" aria-label="Step 1: Email verification">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2016,10 +2038,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#identity-provider-sign-in" class="md-nav__link">
+  <a href="#step-2-password-or-identity-provider" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Identity provider sign-in
+        Step 2: Password or identity provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-two-step-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Two-step verification
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-two-codes-on-first-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why two codes on first sign-in?
       
     </span>
   </a>
@@ -2055,20 +2099,27 @@
 
 
 <h1 id="signing-in">Signing In<a class="headerlink" href="#signing-in" title="Permanent link">&para;</a></h1>
-<p>WeftId uses an email-first sign-in flow.</p>
-<h2 id="password-sign-in">Password sign-in<a class="headerlink" href="#password-sign-in" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Enter your email address</li>
-<li>WeftId sends a verification code to your email</li>
-<li>Enter the verification code</li>
-<li>Enter your password</li>
-<li>If MFA is enabled, enter your MFA code (authenticator app or email)</li>
-</ol>
+<p>WeftId uses an email-first sign-in flow with two-step verification.</p>
+<h2 id="step-1-email-verification">Step 1: Email verification<a class="headerlink" href="#step-1-email-verification" title="Permanent link">&para;</a></h2>
+<p>Every sign-in begins by proving you own the email address you entered. WeftId sends a one-time code to that address.</p>
+<p>This step lets WeftId identify you securely before revealing anything about your account. Without it, anyone could type your email and learn whether you have an account, which identity provider you use, or that you don't exist in the system at all. With email verification, WeftId can safely guide you to the right sign-in method, or tell you "You don't have an account with this organization."</p>
 <h3 id="trust-cookies">Trust cookies<a class="headerlink" href="#trust-cookies" title="Permanent link">&para;</a></h3>
-<p>After verifying your email once, WeftId sets a trust cookie that lasts 7 days. During this time, you can skip the email verification step and go directly to the password prompt.</p>
-<h2 id="identity-provider-sign-in">Identity provider sign-in<a class="headerlink" href="#identity-provider-sign-in" title="Permanent link">&para;</a></h2>
-<p>If your email domain is linked to an identity provider, you may be redirected to your organization's sign-in page (Okta, Entra ID, Google Workspace, etc.) instead of entering a WeftId password.</p>
-<p>After authenticating with your IdP, you are returned to WeftId. If your administrator requires WeftId MFA, you complete that step before reaching your dashboard.</p>
+<p>After verifying your email once, WeftId sets a trust cookie that lasts 7 days. On subsequent sign-ins from the same browser, you skip straight to the password or identity provider step.</p>
+<h2 id="step-2-password-or-identity-provider">Step 2: Password or identity provider<a class="headerlink" href="#step-2-password-or-identity-provider" title="Permanent link">&para;</a></h2>
+<p>After email verification, WeftId routes you based on your account type:</p>
+<ul>
+<li><strong>Password users</strong> see the password prompt, then proceed to two-step verification (step 3).</li>
+<li><strong>IdP users</strong> are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.). After authenticating with the IdP, you are returned to WeftId. If your administrator requires WeftId two-step verification for that IdP, you complete that step before reaching your dashboard.</li>
+</ul>
+<h2 id="step-3-two-step-verification">Step 3: Two-step verification<a class="headerlink" href="#step-3-two-step-verification" title="Permanent link">&para;</a></h2>
+<p>After your password is accepted, you enter a verification code from your authenticator app or email. This protects your account even if your password is compromised. See <a href="../two-step-verification/">Two-Step Verification</a> to configure your verification method.</p>
+<h2 id="why-two-codes-on-first-sign-in">Why two codes on first sign-in?<a class="headerlink" href="#why-two-codes-on-first-sign-in" title="Permanent link">&para;</a></h2>
+<p>On your first sign-in (or when your trust cookie has expired), you enter a code twice. These serve different purposes:</p>
+<ul>
+<li><strong>Email verification code</strong> (step 1) proves you own the email address. This is an identity check so WeftId can route you correctly.</li>
+<li><strong>Two-step verification code</strong> (step 3) proves your identity after your password is accepted. This is a security measure.</li>
+</ul>
+<p>Once your trust cookie is set, future sign-ins skip step 1 and you only enter one code.</p>
 <h2 id="signing-out">Signing out<a class="headerlink" href="#signing-out" title="Permanent link">&para;</a></h2>
 <p>Click <strong>Sign Out</strong> in the navigation bar. Your session is terminated and you are returned to the sign-in page.</p>
 

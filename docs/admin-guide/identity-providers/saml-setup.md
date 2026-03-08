@@ -41,7 +41,7 @@ After trust is established, you can configure additional settings on the IdP det
 | Setting | Description |
 |---------|-------------|
 | **Enabled** | Toggle the IdP on or off without deleting it. |
-| **Require platform MFA** | Force users to complete WeftId MFA after SAML sign-in. |
+| **Require platform two-step verification** | Force users to complete WeftId two-step verification after SAML sign-in. |
 | **JIT provisioning** | Automatically create user accounts on first SAML sign-in. |
 | **SLO URL** | Single Logout URL for sending logout requests to the IdP. |
 

@@ -13,7 +13,7 @@ Full access to all settings and management features. Super admins can:
 - Manage privileged domains
 - View audit logs
 - Configure branding
-- Reset user MFA
+- Reset user two-step verification
 - Anonymize users (GDPR)
 
 There must always be at least one super admin. The last super admin cannot be inactivated or deleted.
@@ -38,7 +38,7 @@ Standard access for end users. Users can:
 - View their dashboard and launch applications
 - Edit their profile (name, theme, timezone), if permitted by admin settings
 - Add email addresses to their account, if permitted by admin settings
-- Set up and manage their own MFA
+- Set up and manage their own two-step verification method
 
 Users cannot access any administrative pages.
 

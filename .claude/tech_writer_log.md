@@ -259,3 +259,67 @@ None. Pages were written to be useful without screenshots. Screenshots would enh
 
 - API error response messages (app/routers/api/) -- copy review pending
 - Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-08 - Rename MFA to Two-Step Verification
+
+**Starting commit:** a4d8565
+**Mode:** Both (copy review + documentation)
+
+### Changes Made
+
+Renamed all user-facing references from "MFA" / "Multi-Factor Authentication" / "Two-Factor Authentication" to "Two-Step Verification" across templates, navigation, and documentation. Rewrote the signing-in documentation to explain email verification vs two-step verification.
+
+### Template Changes (8 files)
+
+1. **settings_mfa.html** -- Title "MFA Settings" → "Two-Step Verification", heading "Multi-Factor Authentication" → "Two-Step Verification", backup codes text updated
+2. **mfa_verify.html** -- Title and heading "Two-Factor Authentication" → "Two-Step Verification"
+3. **mfa_backup_codes.html** -- Heading "Two-Factor Authentication Enabled!" → "Authenticator App Enabled!"
+4. **mfa_downgrade_verify.html** -- Title/text "Disable MFA" → "Switch to Email Verification", button "Verify and Disable MFA" → "Verify and Switch to Email"
+5. **user_detail_tab_danger.html** -- Section heading, descriptive text, button label, confirmation dialog all updated
+6. **user_detail_tab_profile.html** -- Labels "MFA Enabled" → "Two-Step Verification", "MFA Method" → "Verification Method"
+7. **user_detail_base.html** -- Success message for MFA reset updated
+8. **saml_idp_tab_details.html** -- Label "Require Platform MFA" → "Require Platform Two-Step Verification"
+
+### Navigation Changes (pages.py)
+
+- "MFA Settings" → "Two-Step Verification"
+- "Verify MFA Downgrade" → "Verify Method Change"
+- "MFA" → "Two-Step Verification"
+- "MFA Verification" → "Verification"
+
+### Documentation Changes
+
+**Renamed files:**
+- `docs/user-guide/mfa.md` → `docs/user-guide/two-step-verification.md`
+- `docs/admin-guide/security/mfa.md` → `docs/admin-guide/security/two-step-verification.md`
+
+**Rewrote signing-in page** (`docs/user-guide/signing-in.md`):
+- Restructured as 3 steps: email verification, password/IdP, two-step verification
+- Added "Why two codes on first sign-in?" section explaining the difference between email possession verification and two-step verification
+- Explained that email verification exists so WeftId can safely identify users before revealing account details
+
+**Updated cross-references in 9 docs files:**
+- `mkdocs.yml` (2 nav entries)
+- `docs/index.md`, `docs/user-guide/index.md`, `docs/admin-guide/index.md`
+- `docs/admin-guide/security/index.md`
+- `docs/admin-guide/users/roles-and-permissions.md` (2 references)
+- `docs/admin-guide/users/user-lifecycle.md`
+- `docs/admin-guide/identity-providers/saml-setup.md`
+- `docs/admin-guide/audit/index.md`
+- `docs/admin-guide/service-providers/sso-flow.md`
+- `docs/self-hosting/index.md`
+
+### Not Changed (Intentional)
+
+- Internal developer docs (`docs/internal/`) -- developer-facing, use technical terminology
+- File names for templates (`settings_mfa.html`, `mfa_verify.html`, etc.) -- internal implementation
+- URL paths (`/account/mfa`, `/mfa/verify`) -- internal implementation
+- Python variable/column names (`mfa_enabled`, `mfa_method`, `require_platform_mfa`) -- internal implementation
+- HTML comments referencing MFA -- not user-facing
+
+### Areas Not Yet Reviewed
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending

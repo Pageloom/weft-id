@@ -34,4 +34,8 @@ Once your trust cookie is set, future sign-ins skip step 1 and you only enter on
 
 ## Signing out
 
-Click **Sign Out** in the navigation bar. Your session is terminated and you are returned to the sign-in page.
+Click **Sign Out** in the navigation bar. WeftId terminates your session and notifies each application you accessed during the session so they can end their sessions too. This is called Single Logout (SLO).
+
+If you signed in through an identity provider (Okta, Entra ID, etc.) that supports SLO, WeftId also redirects you to the identity provider's sign-out page so your IdP session is terminated.
+
+Logout propagation to applications is best-effort. If an application is unreachable, your WeftId session is still terminated and you are returned to the sign-in page. The application's local session expires on its own.

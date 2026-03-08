@@ -10,36 +10,36 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/admin-guide/security/sessions/">
+        <link rel="canonical" href="https://docs.weftid.com/user-guide/background-jobs/">
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../signing-in/">
       
       
-        <link rel="next" href="../certificates/">
+        <link rel="next" href="../../api/">
       
       
         
       
       
-      <link rel="icon" href="../../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="zensical-0.0.24">
     
     
       
-        <title>Sessions - WeftId Documentation</title>
+        <title>Background Jobs - WeftId Documentation</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="../../../assets/stylesheets/modern/main.28978c9b.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.28978c9b.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
       
       
 
@@ -52,7 +52,7 @@
       
     
     
-    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -77,7 +77,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sessions" class="md-skip">
+        <a href="#background-jobs" class="md-skip">
           Skip to content
         </a>
       
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sessions
+              Background Jobs
             
           </span>
         </div>
@@ -192,7 +192,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -210,7 +210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../.." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -268,7 +268,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../getting-started/" class="md-nav__link ">
+            <a href="../../getting-started/" class="md-nav__link ">
               
   
   
@@ -312,7 +312,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../getting-started/first-login/" class="md-nav__link">
+      <a href="../../getting-started/first-login/" class="md-nav__link">
         
   
   
@@ -340,7 +340,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../getting-started/connecting-an-idp/" class="md-nav__link">
+      <a href="../../getting-started/connecting-an-idp/" class="md-nav__link">
         
   
   
@@ -368,7 +368,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../getting-started/adding-an-application/" class="md-nav__link">
+      <a href="../../getting-started/adding-an-application/" class="md-nav__link">
         
   
   
@@ -400,8 +400,6 @@
       
   
   
-    
-  
   
   
     
@@ -436,15 +434,17 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../" class="md-nav__link ">
+            <a href="../../admin-guide/" class="md-nav__link ">
               
   
   
@@ -468,7 +468,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -516,7 +516,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../users/" class="md-nav__link ">
+            <a href="../../admin-guide/users/" class="md-nav__link ">
               
   
   
@@ -560,7 +560,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/creating-users/" class="md-nav__link">
+      <a href="../../admin-guide/users/creating-users/" class="md-nav__link">
         
   
   
@@ -588,7 +588,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/user-lifecycle/" class="md-nav__link">
+      <a href="../../admin-guide/users/user-lifecycle/" class="md-nav__link">
         
   
   
@@ -616,7 +616,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../users/roles-and-permissions/" class="md-nav__link">
+      <a href="../../admin-guide/users/roles-and-permissions/" class="md-nav__link">
         
   
   
@@ -682,7 +682,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../groups/" class="md-nav__link ">
+            <a href="../../admin-guide/groups/" class="md-nav__link ">
               
   
   
@@ -726,7 +726,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../groups/creating-groups/" class="md-nav__link">
+      <a href="../../admin-guide/groups/creating-groups/" class="md-nav__link">
         
   
   
@@ -754,7 +754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../groups/group-hierarchy/" class="md-nav__link">
+      <a href="../../admin-guide/groups/group-hierarchy/" class="md-nav__link">
         
   
   
@@ -782,7 +782,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../groups/membership-management/" class="md-nav__link">
+      <a href="../../admin-guide/groups/membership-management/" class="md-nav__link">
         
   
   
@@ -810,7 +810,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../groups/group-based-access/" class="md-nav__link">
+      <a href="../../admin-guide/groups/group-based-access/" class="md-nav__link">
         
   
   
@@ -872,7 +872,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../identity-providers/" class="md-nav__link ">
+            <a href="../../admin-guide/identity-providers/" class="md-nav__link ">
               
   
   
@@ -916,7 +916,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../identity-providers/saml-setup/" class="md-nav__link">
+      <a href="../../admin-guide/identity-providers/saml-setup/" class="md-nav__link">
         
   
   
@@ -944,7 +944,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../identity-providers/privileged-domains/" class="md-nav__link">
+      <a href="../../admin-guide/identity-providers/privileged-domains/" class="md-nav__link">
         
   
   
@@ -1012,7 +1012,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../service-providers/" class="md-nav__link ">
+            <a href="../../admin-guide/service-providers/" class="md-nav__link ">
               
   
   
@@ -1056,7 +1056,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/registering-an-sp/" class="md-nav__link">
+      <a href="../../admin-guide/service-providers/registering-an-sp/" class="md-nav__link">
         
   
   
@@ -1084,7 +1084,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/sp-certificates/" class="md-nav__link">
+      <a href="../../admin-guide/service-providers/sp-certificates/" class="md-nav__link">
         
   
   
@@ -1112,7 +1112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/attribute-mapping/" class="md-nav__link">
+      <a href="../../admin-guide/service-providers/attribute-mapping/" class="md-nav__link">
         
   
   
@@ -1140,7 +1140,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/sso-flow/" class="md-nav__link">
+      <a href="../../admin-guide/service-providers/sso-flow/" class="md-nav__link">
         
   
   
@@ -1168,7 +1168,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/slo/" class="md-nav__link">
+      <a href="../../admin-guide/service-providers/slo/" class="md-nav__link">
         
   
   
@@ -1230,7 +1230,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../integrations/" class="md-nav__link ">
+            <a href="../../admin-guide/integrations/" class="md-nav__link ">
               
   
   
@@ -1274,7 +1274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../integrations/apps/" class="md-nav__link">
+      <a href="../../admin-guide/integrations/apps/" class="md-nav__link">
         
   
   
@@ -1302,7 +1302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../integrations/b2b/" class="md-nav__link">
+      <a href="../../admin-guide/integrations/b2b/" class="md-nav__link">
         
   
   
@@ -1335,8 +1335,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1360,15 +1358,17 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../admin-guide/security/" class="md-nav__link ">
               
   
   
@@ -1392,7 +1392,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1409,37 +1409,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sessions
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/sessions/" class="md-nav__link">
         
   
   
@@ -1455,60 +1428,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Maximum session length
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Persistent sessions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automatic inactivation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1521,7 +1440,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../certificates/" class="md-nav__link">
+      <a href="../../admin-guide/security/certificates/" class="md-nav__link">
         
   
   
@@ -1549,7 +1468,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../admin-guide/security/permissions/" class="md-nav__link">
         
   
   
@@ -1577,7 +1496,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../two-step-verification/" class="md-nav__link">
+      <a href="../../admin-guide/security/two-step-verification/" class="md-nav__link">
         
   
   
@@ -1635,7 +1554,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../branding/" class="md-nav__link ">
+            <a href="../../admin-guide/branding/" class="md-nav__link ">
               
   
   
@@ -1704,7 +1623,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../audit/" class="md-nav__link ">
+            <a href="../../admin-guide/audit/" class="md-nav__link ">
               
   
   
@@ -1755,6 +1674,8 @@
       
   
   
+    
+  
   
   
     
@@ -1783,17 +1704,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../user-guide/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1817,7 +1736,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1837,7 +1756,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/dashboard/" class="md-nav__link">
+      <a href="../dashboard/" class="md-nav__link">
         
   
   
@@ -1865,7 +1784,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/profile/" class="md-nav__link">
+      <a href="../profile/" class="md-nav__link">
         
   
   
@@ -1893,7 +1812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/two-step-verification/" class="md-nav__link">
+      <a href="../two-step-verification/" class="md-nav__link">
         
   
   
@@ -1921,7 +1840,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/signing-in/" class="md-nav__link">
+      <a href="../signing-in/" class="md-nav__link">
         
   
   
@@ -1946,10 +1865,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../../user-guide/background-jobs/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background Jobs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1965,6 +1911,71 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#job-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job list
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#downloading-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Downloading files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting jobs
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2009,7 +2020,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../api/" class="md-nav__link ">
+            <a href="../../api/" class="md-nav__link ">
               
   
   
@@ -2080,7 +2091,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../self-hosting/" class="md-nav__link ">
+            <a href="../../self-hosting/" class="md-nav__link ">
               
   
   
@@ -2147,10 +2158,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
+  <a href="#job-list" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Maximum session length
+        Job list
       
     </span>
   </a>
@@ -2158,10 +2169,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
+  <a href="#viewing-output" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistent sessions
+        Viewing output
       
     </span>
   </a>
@@ -2169,10 +2180,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
+  <a href="#downloading-files" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic inactivation
+        Downloading files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting jobs
       
     </span>
   </a>
@@ -2194,78 +2216,44 @@
                 
                   
 
-<h1 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">&para;</a></h1>
-<p>Configure how long user sessions last and how WeftId handles inactive accounts.</p>
-<p>Navigate to <strong>Settings &gt; Security &gt; Sessions</strong>.</p>
-<h2 id="maximum-session-length">Maximum session length<a class="headerlink" href="#maximum-session-length" title="Permanent link">&para;</a></h2>
-<p>How long a user can remain signed in before they must re-authenticate.</p>
+<h1 id="background-jobs">Background Jobs<a class="headerlink" href="#background-jobs" title="Permanent link">&para;</a></h1>
+<p>Some operations in WeftId run in the background, such as exporting the event log. You can check the status of these jobs and download their output from the Background Jobs page.</p>
+<p>Navigate to your account menu and select <strong>Background Jobs</strong>.</p>
+<h2 id="job-list">Job list<a class="headerlink" href="#job-list" title="Permanent link">&para;</a></h2>
+<p>The page shows all jobs you have created, with their type, status, and available actions.</p>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Status</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Indefinitely (no time limit)</td>
+<td>Requested</td>
+<td>Job is queued and waiting to be processed</td>
 </tr>
 <tr>
-<td>8 hours</td>
+<td>Ongoing</td>
+<td>Job is currently running</td>
 </tr>
 <tr>
-<td>1 day</td>
+<td>Completed</td>
+<td>Job finished successfully</td>
 </tr>
 <tr>
-<td>2 days</td>
-</tr>
-<tr>
-<td>3 days</td>
-</tr>
-<tr>
-<td>4 days</td>
-</tr>
-<tr>
-<td>5 days</td>
-</tr>
-<tr>
-<td>6 days</td>
-</tr>
-<tr>
-<td>1 week</td>
-</tr>
-<tr>
-<td>2 weeks</td>
+<td>Failed</td>
+<td>Job encountered an error</td>
 </tr>
 </tbody>
 </table>
-<h2 id="persistent-sessions">Persistent sessions<a class="headerlink" href="#persistent-sessions" title="Permanent link">&para;</a></h2>
-<p>When enabled, sessions survive browser restarts. When disabled, users must sign in again each time they open their browser.</p>
-<h2 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h2>
-<p>Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them before they can sign in again.</p>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Disabled</td>
-</tr>
-<tr>
-<td>After 14 days</td>
-</tr>
-<tr>
-<td>After 30 days</td>
-</tr>
-<tr>
-<td>After 60 days</td>
-</tr>
-<tr>
-<td>After 90 days</td>
-</tr>
-</tbody>
-</table>
+<p>If any jobs are still running, the page refreshes automatically every 10 seconds.</p>
+<h2 id="viewing-output">Viewing output<a class="headerlink" href="#viewing-output" title="Permanent link">&para;</a></h2>
+<p>Click <strong>View Output</strong> on a completed or failed job to see its details: when it was created, started, and completed, along with any output or error message.</p>
+<h2 id="downloading-files">Downloading files<a class="headerlink" href="#downloading-files" title="Permanent link">&para;</a></h2>
+<p>Jobs that produce a file (such as event exports) show a <strong>Download</strong> link. Export files are retained for 24 hours. After that, the link shows "File expired" and a new export must be created.</p>
+<h2 id="deleting-jobs">Deleting jobs<a class="headerlink" href="#deleting-jobs" title="Permanent link">&para;</a></h2>
+<p>Select completed or failed jobs using the checkboxes and click <strong>Delete</strong> to remove them from the list. Active jobs (requested or ongoing) cannot be deleted.</p>
 
 
 
@@ -2318,10 +2306,10 @@
       
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["navigation.sections","navigation.expand","navigation.indexes","search.suggest","content.code.copy"],"search":"../../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.sections","navigation.expand","navigation.indexes","search.suggest","content.code.copy"],"search":"../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      <script src="../../assets/javascripts/bundle.16f8adc2.min.js"></script>
       
     
   </body>

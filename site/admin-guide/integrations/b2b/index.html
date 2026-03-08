@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/admin-guide/security/sessions/">
+        <link rel="canonical" href="https://docs.weftid.com/admin-guide/integrations/b2b/">
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../apps/">
       
       
-        <link rel="next" href="../certificates/">
+        <link rel="next" href="../../security/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Sessions - WeftId Documentation</title>
+        <title>B2B Service Accounts - WeftId Documentation</title>
       
     
     
@@ -77,7 +77,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sessions" class="md-skip">
+        <a href="#b2b-service-accounts" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sessions
+              B2B Service Accounts
             
           </span>
         </div>
@@ -1201,6 +1201,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1220,17 +1222,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../integrations/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1254,7 +1254,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1274,7 +1274,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../integrations/apps/" class="md-nav__link">
+      <a href="../apps/" class="md-nav__link">
         
   
   
@@ -1293,116 +1293,6 @@
     </li>
   
 
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../integrations/b2b/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    B2B Service Accounts
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Security
-  
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3_7">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    Security
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
               
             
               
@@ -1428,7 +1318,7 @@
   <span class="md-ellipsis">
     
   
-    Sessions
+    B2B Service Accounts
   
 
     
@@ -1446,7 +1336,7 @@
   <span class="md-ellipsis">
     
   
-    Sessions
+    B2B Service Accounts
   
 
     
@@ -1473,10 +1363,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
+  <a href="#creating-a-b2b-client" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Maximum session length
+        Creating a B2B client
       
     </span>
   </a>
@@ -1484,10 +1374,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
+  <a href="#client-credentials-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistent sessions
+        Client credentials flow
       
     </span>
   </a>
@@ -1495,10 +1385,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
+  <a href="#service-roles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic inactivation
+        Service roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-a-b2b-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing a B2B client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access requirements
       
     </span>
   </a>
@@ -1514,6 +1426,88 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../security/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
               
                 
   
@@ -1521,7 +1515,35 @@
   
   
     <li class="md-nav__item">
-      <a href="../certificates/" class="md-nav__link">
+      <a href="../../security/sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../security/certificates/" class="md-nav__link">
         
   
   
@@ -1549,7 +1571,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../security/permissions/" class="md-nav__link">
         
   
   
@@ -1577,7 +1599,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../two-step-verification/" class="md-nav__link">
+      <a href="../../security/two-step-verification/" class="md-nav__link">
         
   
   
@@ -2147,10 +2169,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
+  <a href="#creating-a-b2b-client" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Maximum session length
+        Creating a B2B client
       
     </span>
   </a>
@@ -2158,10 +2180,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
+  <a href="#client-credentials-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistent sessions
+        Client credentials flow
       
     </span>
   </a>
@@ -2169,10 +2191,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
+  <a href="#service-roles" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic inactivation
+        Service roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-a-b2b-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing a B2B client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access requirements
       
     </span>
   </a>
@@ -2194,78 +2238,87 @@
                 
                   
 
-<h1 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">&para;</a></h1>
-<p>Configure how long user sessions last and how WeftId handles inactive accounts.</p>
-<p>Navigate to <strong>Settings &gt; Security &gt; Sessions</strong>.</p>
-<h2 id="maximum-session-length">Maximum session length<a class="headerlink" href="#maximum-session-length" title="Permanent link">&para;</a></h2>
-<p>How long a user can remain signed in before they must re-authenticate.</p>
+<h1 id="b2b-service-accounts">B2B Service Accounts<a class="headerlink" href="#b2b-service-accounts" title="Permanent link">&para;</a></h1>
+<p>B2B clients are OAuth2 clients that use the client credentials flow. They're designed for service-to-service communication where no user interaction is involved. Each B2B client has a dedicated service user that determines what the client can access.</p>
+<h2 id="creating-a-b2b-client">Creating a B2B client<a class="headerlink" href="#creating-a-b2b-client" title="Permanent link">&para;</a></h2>
+<p>Navigate to <strong>Admin &gt; Integrations &gt; B2B</strong> and click <strong>Create B2B Client</strong>.</p>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Indefinitely (no time limit)</td>
+<td>Name</td>
+<td>Yes</td>
+<td>Display name for the service account (max 255 characters)</td>
 </tr>
 <tr>
-<td>8 hours</td>
+<td>Description</td>
+<td>No</td>
+<td>Internal description (max 500 characters)</td>
 </tr>
 <tr>
-<td>1 day</td>
-</tr>
-<tr>
-<td>2 days</td>
-</tr>
-<tr>
-<td>3 days</td>
-</tr>
-<tr>
-<td>4 days</td>
-</tr>
-<tr>
-<td>5 days</td>
-</tr>
-<tr>
-<td>6 days</td>
-</tr>
-<tr>
-<td>1 week</td>
-</tr>
-<tr>
-<td>2 weeks</td>
+<td>Service Role</td>
+<td>Yes</td>
+<td>The role assigned to the service user: <strong>Member</strong>, <strong>Admin</strong>, or <strong>Super Admin</strong>. This determines the client's API permissions.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="persistent-sessions">Persistent sessions<a class="headerlink" href="#persistent-sessions" title="Permanent link">&para;</a></h2>
-<p>When enabled, sessions survive browser restarts. When disabled, users must sign in again each time they open their browser.</p>
-<h2 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h2>
-<p>Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them before they can sign in again.</p>
+<p>After creation, WeftId displays the <strong>client ID</strong> and <strong>client secret</strong> in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.</p>
+<p>WeftId automatically creates a service user linked to the client. This user has the role you specified and acts as the identity for all API requests made with the client's tokens.</p>
+<h2 id="client-credentials-flow">Client credentials flow<a class="headerlink" href="#client-credentials-flow" title="Permanent link">&para;</a></h2>
+<p>B2B clients authenticate directly with their credentials. No user consent is needed.</p>
+<div class="highlight"><pre><span></span><code>POST /oauth2/token
+grant_type=client_credentials&amp;client_id=...&amp;client_secret=...
+</code></pre></div>
+<p>WeftId returns an access token:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;expires_in&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">86400</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>B2B access tokens are valid for 24 hours. No refresh tokens are issued. Request a new token when the current one expires.</p>
+<h2 id="service-roles">Service roles<a class="headerlink" href="#service-roles" title="Permanent link">&para;</a></h2>
+<p>The service role determines what the B2B client can do through the API:</p>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Role</th>
+<th>Capabilities</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Disabled</td>
+<td>Member</td>
+<td>Read own profile, list accessible applications</td>
 </tr>
 <tr>
-<td>After 14 days</td>
+<td>Admin</td>
+<td>Manage users, groups, service providers, identity providers, and settings</td>
 </tr>
 <tr>
-<td>After 30 days</td>
-</tr>
-<tr>
-<td>After 60 days</td>
-</tr>
-<tr>
-<td>After 90 days</td>
+<td>Super Admin</td>
+<td>Full access, including tenant-level operations and user anonymization</td>
 </tr>
 </tbody>
 </table>
+<p>The service role can be changed after creation from the client's detail page.</p>
+<h2 id="managing-a-b2b-client">Managing a B2B client<a class="headerlink" href="#managing-a-b2b-client" title="Permanent link">&para;</a></h2>
+<p>Click the client name in the list to open its detail page. From there you can:</p>
+<ul>
+<li><strong>Edit</strong> the name and description</li>
+<li><strong>Change the service role</strong> -- Updates the linked service user's role</li>
+<li><strong>Regenerate the client secret</strong> -- Immediately invalidates the old secret. A new secret is shown once.</li>
+<li><strong>Deactivate</strong> -- Disables the client and revokes all active tokens. The client can be reactivated later.</li>
+<li><strong>Reactivate</strong> -- Re-enables a deactivated client.</li>
+</ul>
+<h2 id="access-requirements">Access requirements<a class="headerlink" href="#access-requirements" title="Permanent link">&para;</a></h2>
+<p>Admin or super admin role required to manage B2B clients.</p>
 
 
 

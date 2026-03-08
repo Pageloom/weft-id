@@ -8,7 +8,9 @@ The top of the dashboard displays your name, email address, role, user ID, tenan
 
 ## My Apps
 
-Lists the applications you can access through single sign-on. Click an application to launch it. You are signed in automatically using your WeftId identity.
+Lists the applications you can access through single sign-on. Click an application to launch it. WeftId shows a consent screen confirming your identity, then sends a signed SAML assertion to the application. You are signed in automatically without entering separate credentials.
+
+This is called IdP-initiated SSO. For details on how the sign-on flow works, see [SSO Flow](../admin-guide/service-providers/sso-flow.md).
 
 If no applications are assigned to your groups, this section is empty. Contact your administrator to request access.
 

@@ -70,6 +70,18 @@
         <loc>https://docs.weftid.com/admin-guide/service-providers/sso-flow/</loc>
       </url>
       <url>
+        <loc>https://docs.weftid.com/admin-guide/service-providers/slo/</loc>
+      </url>
+      <url>
+        <loc>https://docs.weftid.com/admin-guide/integrations/</loc>
+      </url>
+      <url>
+        <loc>https://docs.weftid.com/admin-guide/integrations/apps/</loc>
+      </url>
+      <url>
+        <loc>https://docs.weftid.com/admin-guide/integrations/b2b/</loc>
+      </url>
+      <url>
         <loc>https://docs.weftid.com/admin-guide/security/</loc>
       </url>
       <url>
@@ -104,6 +116,9 @@
       </url>
       <url>
         <loc>https://docs.weftid.com/user-guide/signing-in/</loc>
+      </url>
+      <url>
+        <loc>https://docs.weftid.com/user-guide/background-jobs/</loc>
       </url>
       <url>
         <loc>https://docs.weftid.com/api/</loc>

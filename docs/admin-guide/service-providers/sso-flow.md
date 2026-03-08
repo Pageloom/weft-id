@@ -41,5 +41,5 @@ The SAML assertion contains:
 - **Issuer** -- WeftId's entity ID (unique per SP connection)
 - **NameID** -- User identifier in the configured format (email, persistent, or transient)
 - **Attributes** -- Email, first name, last name, display name, and optionally group memberships
-- **Session index** -- Unique session identifier for Single Logout correlation
+- **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation
 - **Signature** -- Signed with the SP's per-SP signing certificate

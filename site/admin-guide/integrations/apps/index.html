@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/admin-guide/security/sessions/">
+        <link rel="canonical" href="https://docs.weftid.com/admin-guide/integrations/apps/">
       
       
         <link rel="prev" href="../">
       
       
-        <link rel="next" href="../certificates/">
+        <link rel="next" href="../b2b/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Sessions - WeftId Documentation</title>
+        <title>Apps - WeftId Documentation</title>
       
     
     
@@ -77,7 +77,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sessions" class="md-skip">
+        <a href="#apps" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sessions
+              Apps
             
           </span>
         </div>
@@ -1201,6 +1201,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1220,17 +1222,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../integrations/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1254,7 +1254,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1271,10 +1271,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../integrations/apps/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Apps
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1290,6 +1317,99 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#creating-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating an app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authorization-code-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authorization code flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authorization code flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pkce-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PKCE support
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#token-lifetimes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token lifetimes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing an app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1302,7 +1422,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../integrations/b2b/" class="md-nav__link">
+      <a href="../b2b/" class="md-nav__link">
         
   
   
@@ -1335,8 +1455,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1360,15 +1478,17 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../security/" class="md-nav__link ">
               
   
   
@@ -1392,7 +1512,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1409,37 +1529,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sessions
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../security/sessions/" class="md-nav__link">
         
   
   
@@ -1455,60 +1548,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Maximum session length
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Persistent sessions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automatic inactivation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1521,7 +1560,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../certificates/" class="md-nav__link">
+      <a href="../../security/certificates/" class="md-nav__link">
         
   
   
@@ -1549,7 +1588,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../security/permissions/" class="md-nav__link">
         
   
   
@@ -1577,7 +1616,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../two-step-verification/" class="md-nav__link">
+      <a href="../../security/two-step-verification/" class="md-nav__link">
         
   
   
@@ -2147,10 +2186,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
+  <a href="#creating-an-app" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Maximum session length
+        Creating an app
       
     </span>
   </a>
@@ -2158,10 +2197,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
+  <a href="#authorization-code-flow" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistent sessions
+        Authorization code flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authorization code flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pkce-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PKCE support
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#token-lifetimes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token lifetimes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing an app
       
     </span>
   </a>
@@ -2169,10 +2247,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
+  <a href="#access-requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic inactivation
+        Access requirements
       
     </span>
   </a>
@@ -2194,78 +2272,108 @@
                 
                   
 
-<h1 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">&para;</a></h1>
-<p>Configure how long user sessions last and how WeftId handles inactive accounts.</p>
-<p>Navigate to <strong>Settings &gt; Security &gt; Sessions</strong>.</p>
-<h2 id="maximum-session-length">Maximum session length<a class="headerlink" href="#maximum-session-length" title="Permanent link">&para;</a></h2>
-<p>How long a user can remain signed in before they must re-authenticate.</p>
+<h1 id="apps">Apps<a class="headerlink" href="#apps" title="Permanent link">&para;</a></h1>
+<p>Apps are OAuth2 clients that use the authorization code flow. They're designed for web applications, mobile apps, and other interactive applications where a user authorizes access through a consent screen.</p>
+<h2 id="creating-an-app">Creating an app<a class="headerlink" href="#creating-an-app" title="Permanent link">&para;</a></h2>
+<p>Navigate to <strong>Admin &gt; Integrations &gt; Apps</strong> and click <strong>Create App</strong>.</p>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Indefinitely (no time limit)</td>
+<td>Name</td>
+<td>Yes</td>
+<td>Display name shown to users on the consent screen (max 255 characters)</td>
 </tr>
 <tr>
-<td>8 hours</td>
+<td>Description</td>
+<td>No</td>
+<td>Internal description (max 500 characters)</td>
 </tr>
 <tr>
-<td>1 day</td>
-</tr>
-<tr>
-<td>2 days</td>
-</tr>
-<tr>
-<td>3 days</td>
-</tr>
-<tr>
-<td>4 days</td>
-</tr>
-<tr>
-<td>5 days</td>
-</tr>
-<tr>
-<td>6 days</td>
-</tr>
-<tr>
-<td>1 week</td>
-</tr>
-<tr>
-<td>2 weeks</td>
+<td>Redirect URIs</td>
+<td>Yes</td>
+<td>One URI per line. Exact match required, no wildcards. These are the URLs the user is redirected to after authorization.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="persistent-sessions">Persistent sessions<a class="headerlink" href="#persistent-sessions" title="Permanent link">&para;</a></h2>
-<p>When enabled, sessions survive browser restarts. When disabled, users must sign in again each time they open their browser.</p>
-<h2 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h2>
-<p>Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them before they can sign in again.</p>
+<p>After creation, WeftId displays the <strong>client ID</strong> and <strong>client secret</strong> in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.</p>
+<h2 id="authorization-code-flow">Authorization code flow<a class="headerlink" href="#authorization-code-flow" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p>Your application redirects the user to WeftId's authorization endpoint:</p>
+<div class="highlight"><pre><span></span><code>GET /oauth2/authorize?client_id=...&amp;redirect_uri=...&amp;state=...
+</code></pre></div>
+</li>
+<li>
+<p>The user sees a consent screen showing your application's name and their identity. They click <strong>Allow</strong> or <strong>Deny</strong>.</p>
+</li>
+<li>
+<p>If allowed, WeftId redirects to your <code>redirect_uri</code> with an authorization code:</p>
+<div class="highlight"><pre><span></span><code>https://your-app.com/callback?code=...&amp;state=...
+</code></pre></div>
+</li>
+<li>
+<p>Your application exchanges the code for tokens at the token endpoint:</p>
+<div class="highlight"><pre><span></span><code>POST /oauth2/token
+grant_type=authorization_code&amp;code=...&amp;redirect_uri=...&amp;client_id=...&amp;client_secret=...
+</code></pre></div>
+</li>
+<li>
+<p>WeftId returns an access token and refresh token:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;expires_in&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3600</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;refresh_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+</li>
+</ol>
+<h3 id="pkce-support">PKCE support<a class="headerlink" href="#pkce-support" title="Permanent link">&para;</a></h3>
+<p>WeftId supports Proof Key for Code Exchange (PKCE) for public clients that cannot securely store a client secret. Include <code>code_challenge</code> and <code>code_challenge_method</code> in the authorization request, and <code>code_verifier</code> in the token exchange. Supported methods: <code>S256</code> (recommended) and <code>plain</code>.</p>
+<h3 id="token-lifetimes">Token lifetimes<a class="headerlink" href="#token-lifetimes" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Token</th>
+<th>Lifetime</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Disabled</td>
+<td>Authorization code</td>
+<td>10 minutes</td>
 </tr>
 <tr>
-<td>After 14 days</td>
+<td>Access token</td>
+<td>1 hour</td>
 </tr>
 <tr>
-<td>After 30 days</td>
-</tr>
-<tr>
-<td>After 60 days</td>
-</tr>
-<tr>
-<td>After 90 days</td>
+<td>Refresh token</td>
+<td>90 days</td>
 </tr>
 </tbody>
 </table>
+<p>Use the refresh token to obtain new access tokens without requiring the user to re-authorize:</p>
+<div class="highlight"><pre><span></span><code>POST /oauth2/token
+grant_type=refresh_token&amp;refresh_token=...&amp;client_id=...&amp;client_secret=...
+</code></pre></div>
+<h2 id="managing-an-app">Managing an app<a class="headerlink" href="#managing-an-app" title="Permanent link">&para;</a></h2>
+<p>Click the app name in the list to open its detail page. From there you can:</p>
+<ul>
+<li><strong>Edit</strong> the name, description, and redirect URIs</li>
+<li><strong>Regenerate the client secret</strong> -- Immediately invalidates the old secret. A new secret is shown once.</li>
+<li><strong>Deactivate</strong> -- Disables the client and revokes all active tokens. The app can be reactivated later.</li>
+<li><strong>Reactivate</strong> -- Re-enables a deactivated app. Users will need to re-authorize.</li>
+</ul>
+<h2 id="access-requirements">Access requirements<a class="headerlink" href="#access-requirements" title="Permanent link">&para;</a></h2>
+<p>Admin or super admin role required to manage apps.</p>
 
 
 

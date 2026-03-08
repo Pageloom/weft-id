@@ -2,7 +2,7 @@ COMPOSE := docker compose
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart-% logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,8 +43,8 @@ migrate-onprem: ## Run pending migrations on running onprem DB
 prune: ## Docker prune (containers/images/networks not in use)
 	docker system prune -f
 
-restart-%: ## Restart a specific service. Example: make restart-app
-	$(COMPOSE) restart $*
+restart: ## Restart all containers
+	make down && make up
 
 logs: ## Tail logs for all services
 	$(COMPOSE) logs -f --tail=200

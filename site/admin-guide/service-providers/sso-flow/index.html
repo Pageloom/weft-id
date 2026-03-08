@@ -1443,14 +1443,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../security/mfa/" class="md-nav__link">
+      <a href="../../security/two-step-verification/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Multi-Factor Authentication
+    Two-Step Verification
   
 
     
@@ -1757,14 +1757,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../user-guide/mfa/" class="md-nav__link">
+      <a href="../../../user-guide/two-step-verification/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Multi-Factor Authentication
+    Two-Step Verification
   
 
     
@@ -2049,7 +2049,7 @@
 <ol>
 <li><strong>User visits the application.</strong> The application generates a SAML AuthnRequest and redirects the user to WeftId's SSO endpoint.</li>
 <li><strong>WeftId authenticates the user.</strong> If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).</li>
-<li><strong>MFA challenge.</strong> If the SP or IdP requires MFA, the user must complete the MFA step.</li>
+<li><strong>Two-step verification.</strong> If the IdP requires platform two-step verification, the user must complete that step.</li>
 <li><strong>Consent.</strong> WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.</li>
 <li><strong>Access check.</strong> WeftId verifies the user has access to the SP (via group assignment or "available to all").</li>
 <li><strong>Assertion issued.</strong> WeftId builds a signed SAML response containing the user's attributes and posts it to the application's ACS URL.</li>

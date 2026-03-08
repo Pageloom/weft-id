@@ -35,7 +35,7 @@ Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgot
 
 - Their name is replaced with "[Anonymized] User"
 - All email addresses are anonymized
-- MFA data is deleted
+- Two-step verification data is deleted
 - Password is cleared
 
 The user's ID and audit trail are preserved for compliance, but all personally identifiable information is removed.

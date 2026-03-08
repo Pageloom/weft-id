@@ -57,15 +57,15 @@
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://docs.weftid.com/admin-guide/security/mfa/</loc>
-         <lastmod>2026-03-08</lastmod>
-    </url>
-    <url>
          <loc>https://docs.weftid.com/admin-guide/security/permissions/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
          <loc>https://docs.weftid.com/admin-guide/security/sessions/</loc>
+         <lastmod>2026-03-08</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.weftid.com/admin-guide/security/two-step-verification/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
@@ -137,15 +137,15 @@
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://docs.weftid.com/user-guide/mfa/</loc>
-         <lastmod>2026-03-08</lastmod>
-    </url>
-    <url>
          <loc>https://docs.weftid.com/user-guide/profile/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
          <loc>https://docs.weftid.com/user-guide/signing-in/</loc>
+         <lastmod>2026-03-08</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.weftid.com/user-guide/two-step-verification/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
 </urlset>

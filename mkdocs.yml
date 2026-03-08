@@ -76,7 +76,7 @@ nav:
       - Sessions: admin-guide/security/sessions.md
       - Certificates: admin-guide/security/certificates.md
       - Permissions: admin-guide/security/permissions.md
-      - Multi-Factor Authentication: admin-guide/security/mfa.md
+      - Two-Step Verification: admin-guide/security/two-step-verification.md
     - Branding:
       - admin-guide/branding/index.md
     - Audit:
@@ -85,7 +85,7 @@ nav:
     - user-guide/index.md
     - Dashboard: user-guide/dashboard.md
     - Profile: user-guide/profile.md
-    - Multi-Factor Authentication: user-guide/mfa.md
+    - Two-Step Verification: user-guide/two-step-verification.md
     - Signing In: user-guide/signing-in.md
   - API:
     - api/index.md

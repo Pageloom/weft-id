@@ -8,7 +8,7 @@ This is the most common flow. The user starts at the application and is redirect
 
 1. **User visits the application.** The application generates a SAML AuthnRequest and redirects the user to WeftId's SSO endpoint.
 2. **WeftId authenticates the user.** If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).
-3. **MFA challenge.** If the SP or IdP requires MFA, the user must complete the MFA step.
+3. **Two-step verification.** If the IdP requires platform two-step verification, the user must complete that step.
 4. **Consent.** WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.
 5. **Access check.** WeftId verifies the user has access to the SP (via group assignment or "available to all").
 6. **Assertion issued.** WeftId builds a signed SAML response containing the user's attributes and posts it to the application's ACS URL.

@@ -71,6 +71,11 @@ nav:
       - Signing Certificates: admin-guide/service-providers/sp-certificates.md
       - Attribute Mapping: admin-guide/service-providers/attribute-mapping.md
       - SSO Flow: admin-guide/service-providers/sso-flow.md
+      - Single Logout: admin-guide/service-providers/slo.md
+    - Integrations:
+      - admin-guide/integrations/index.md
+      - Apps: admin-guide/integrations/apps.md
+      - B2B Service Accounts: admin-guide/integrations/b2b.md
     - Security:
       - admin-guide/security/index.md
       - Sessions: admin-guide/security/sessions.md
@@ -87,6 +92,7 @@ nav:
     - Profile: user-guide/profile.md
     - Two-Step Verification: user-guide/two-step-verification.md
     - Signing In: user-guide/signing-in.md
+    - Background Jobs: user-guide/background-jobs.md
   - API:
     - api/index.md
   - Self-Hosting:

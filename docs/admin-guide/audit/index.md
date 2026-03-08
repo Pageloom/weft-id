@@ -16,7 +16,9 @@ Click any event to see its full details, including metadata and request informat
 
 ### Export
 
-Click **Export** to generate a CSV file of the event log. The export runs as a background job. Check **Background Jobs** to download the file when ready.
+Click **Export All Events** to generate a compressed JSON export of the entire event log. The export runs as a background job. You are redirected to [Background Jobs](../../user-guide/background-jobs.md) where you can track progress and download the file when ready.
+
+The export file is a gzipped JSON archive containing all events, event type descriptions, and export metadata. Files are retained for 24 hours, after which they are automatically deleted. Admin role is required to export.
 
 ## Event types
 

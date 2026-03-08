@@ -6,3 +6,4 @@ Register downstream applications as SAML service providers. WeftId acts as the i
 - [Signing Certificates](sp-certificates.md) — Per-SP signing certificates and rotation
 - [Attribute Mapping](attribute-mapping.md) — Configure SAML assertion attributes
 - [SSO Flow](sso-flow.md) — How single sign-on works end to end
+- [Single Logout](slo.md) — How sign-out propagates to applications

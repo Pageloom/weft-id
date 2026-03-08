@@ -323,3 +323,57 @@ Renamed all user-facing references from "MFA" / "Multi-Factor Authentication" / 
 
 - API error response messages (app/routers/api/) -- copy review pending
 - Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-08 - Full Documentation Gap Scan
+
+**Starting commit:** 8aa8fde
+**Mode:** Documentation (full gap analysis)
+
+### Gap Analysis
+
+Compared the complete application feature inventory (routers, templates, pages.py, API endpoints, background jobs) against all 34 documentation pages. Identified 6 gaps:
+
+1. **Single Logout (SLO)** -- Critical. No documentation despite full implementation (SP-initiated, IdP-initiated propagation, HTTP-Redirect/POST bindings, signed messages).
+2. **OAuth2 / Integrations** -- Critical. Complete OAuth2 system (authorization code + client credentials flows, PKCE, client management UI) with zero documentation. API index referenced a non-existent Integrations section.
+3. **Event Export + Background Jobs** -- Medium. Audit docs mentioned export but referenced a non-existent Background Jobs page. No details on format, retention, or the jobs UI.
+4. **Admin Reactivation Workflow** -- Medium. User lifecycle mentioned reactivation requests but didn't document the admin pending requests page, approve/deny flows, email notifications, or denial behavior.
+5. **Sign-out / SLO propagation** -- Minor. One sentence about sign-out with no mention of SLO propagation to downstream SPs or upstream IdP.
+6. **My Apps launch flow** -- Minor. Dashboard docs didn't connect app launch to IdP-initiated SSO.
+
+### New Pages Created (5)
+
+1. **`docs/admin-guide/service-providers/slo.md`** -- Single Logout: SP-initiated and IdP-initiated flows, SLO URL configuration (SP and IdP sides), metadata advertising, signing, best-effort propagation, audit events.
+2. **`docs/admin-guide/integrations/index.md`** -- Integrations overview: two client types, common operations, client secret handling.
+3. **`docs/admin-guide/integrations/apps.md`** -- Apps: creation fields, authorization code flow (step-by-step), PKCE support, token lifetimes, management operations.
+4. **`docs/admin-guide/integrations/b2b.md`** -- B2B Service Accounts: creation fields, client credentials flow, service roles table, management operations.
+5. **`docs/user-guide/background-jobs.md`** -- Background Jobs: job statuses, viewing output, downloading files, retention, deleting old jobs.
+
+### Pages Updated (8)
+
+1. **`docs/admin-guide/service-providers/index.md`** -- Added SLO link
+2. **`docs/admin-guide/service-providers/sso-flow.md`** -- Cross-referenced SLO from session index
+3. **`docs/admin-guide/index.md`** -- Added Integrations section link
+4. **`docs/admin-guide/audit/index.md`** -- Expanded export section: format (gzipped JSON), retention (24h), admin requirement
+5. **`docs/admin-guide/users/user-lifecycle.md`** -- Expanded reactivation: admin notification, pending requests page, approve/deny flow, email notifications, denial behavior, super admin self-reactivation
+6. **`docs/user-guide/index.md`** -- Added Background Jobs link
+7. **`docs/user-guide/signing-in.md`** -- Expanded sign-out: SLO propagation to downstream SPs, IdP SLO redirect, best-effort behavior
+8. **`docs/user-guide/dashboard.md`** -- Connected My Apps launch to IdP-initiated SSO flow with cross-reference
+
+### Navigation Updated
+
+- **`mkdocs.yml`** -- Added Single Logout under Service Providers, added Integrations section (index + Apps + B2B), added Background Jobs under User Guide
+
+### Config/Links Fixed
+
+- **`docs/api/index.md`** -- Fixed broken Integrations link (pointed to admin-guide/index.md, now points to admin-guide/integrations/index.md). Added client credentials flow mention.
+
+### Screenshots Requested
+
+None.
+
+### Areas Not Yet Reviewed
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending

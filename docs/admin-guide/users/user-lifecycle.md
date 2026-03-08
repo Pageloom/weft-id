@@ -18,12 +18,22 @@ An admin can inactivate any user except themselves, service users (linked to OAu
 
 ### Reactivation
 
-There are two ways to reactivate a user:
+There are three ways to reactivate a user:
 
-- **Admin-initiated** -- An admin reactivates the user directly from the user's detail page.
-- **User-requested** -- The inactivated user submits a reactivation request. An admin must approve or deny it. Denied users cannot submit further requests.
+**Admin-initiated.** An admin reactivates the user directly from the user's detail page. No request or approval needed.
 
-Super admins have a special self-reactivation path: they prove email ownership to reactivate themselves without admin approval.
+**User-requested.** An inactivated user who tries to sign in sees a message explaining their account is inactivated. They can click **Request Reactivation** to submit a request. When they do:
+
+1. All admins receive an email notification with the user's name and email.
+2. The request appears under **Admin > Todo > Reactivation**.
+3. An admin reviews the request and clicks **Approve** or **Deny**.
+4. The user receives an email with the decision.
+
+Approved users can sign in immediately. Denied users cannot submit another request. They must contact their administrator, who can still reactivate them manually from the user detail page.
+
+Past decisions are visible in the reactivation history view (**Admin > Todo > Reactivation > View History**).
+
+**Super admin self-reactivation.** Super admins can reactivate themselves by verifying their email address. No admin approval is needed. After verification, the super admin can sign in immediately if they have a password, or must contact another admin to set one up.
 
 ### Automatic inactivation
 

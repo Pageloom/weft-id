@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/admin-guide/security/sessions/">
+        <link rel="canonical" href="https://docs.weftid.com/admin-guide/service-providers/slo/">
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../sso-flow/">
       
       
-        <link rel="next" href="../certificates/">
+        <link rel="next" href="../../integrations/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Sessions - WeftId Documentation</title>
+        <title>Single Logout - WeftId Documentation</title>
       
     
     
@@ -77,7 +77,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sessions" class="md-skip">
+        <a href="#single-logout" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Sessions
+              Single Logout
             
           </span>
         </div>
@@ -977,6 +977,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1002,17 +1004,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../service-providers/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1036,7 +1036,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1056,7 +1056,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/registering-an-sp/" class="md-nav__link">
+      <a href="../registering-an-sp/" class="md-nav__link">
         
   
   
@@ -1084,7 +1084,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/sp-certificates/" class="md-nav__link">
+      <a href="../sp-certificates/" class="md-nav__link">
         
   
   
@@ -1112,7 +1112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/attribute-mapping/" class="md-nav__link">
+      <a href="../attribute-mapping/" class="md-nav__link">
         
   
   
@@ -1140,7 +1140,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../service-providers/sso-flow/" class="md-nav__link">
+      <a href="../sso-flow/" class="md-nav__link">
         
   
   
@@ -1165,10 +1165,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../service-providers/slo/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single Logout
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1184,6 +1211,132 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-slo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuring SLO
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring SLO">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a service provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#on-an-identity-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On an identity provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slo-in-weftids-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SLO in WeftId's metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user-signs-out-of-weftid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User signs out of WeftId
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#application-sends-a-logoutrequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application sends a LogoutRequest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1335,8 +1488,6 @@
                 
   
   
-    
-  
   
   
     
@@ -1360,15 +1511,17 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../" class="md-nav__link ">
+            <a href="../../security/" class="md-nav__link ">
               
   
   
@@ -1392,7 +1545,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1409,37 +1562,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Sessions
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../security/sessions/" class="md-nav__link">
         
   
   
@@ -1455,60 +1581,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Maximum session length
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Persistent sessions
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Automatic inactivation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1521,7 +1593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../certificates/" class="md-nav__link">
+      <a href="../../security/certificates/" class="md-nav__link">
         
   
   
@@ -1549,7 +1621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../permissions/" class="md-nav__link">
+      <a href="../../security/permissions/" class="md-nav__link">
         
   
   
@@ -1577,7 +1649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../two-step-verification/" class="md-nav__link">
+      <a href="../../security/two-step-verification/" class="md-nav__link">
         
   
   
@@ -2147,10 +2219,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#maximum-session-length" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Maximum session length
+        How it works
       
     </span>
   </a>
@@ -2158,10 +2230,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistent-sessions" class="md-nav__link">
+  <a href="#configuring-slo" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistent sessions
+        Configuring SLO
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuring SLO">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#on-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On a service provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#on-an-identity-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On an identity provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slo-in-weftids-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SLO in WeftId's metadata
       
     </span>
   </a>
@@ -2169,10 +2280,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#automatic-inactivation" class="md-nav__link">
+  <a href="#user-signs-out-of-weftid" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Automatic inactivation
+        User signs out of WeftId
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#application-sends-a-logoutrequest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application sends a LogoutRequest
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events
       
     </span>
   </a>
@@ -2194,75 +2338,72 @@
                 
                   
 
-<h1 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">&para;</a></h1>
-<p>Configure how long user sessions last and how WeftId handles inactive accounts.</p>
-<p>Navigate to <strong>Settings &gt; Security &gt; Sessions</strong>.</p>
-<h2 id="maximum-session-length">Maximum session length<a class="headerlink" href="#maximum-session-length" title="Permanent link">&para;</a></h2>
-<p>How long a user can remain signed in before they must re-authenticate.</p>
+<h1 id="single-logout">Single Logout<a class="headerlink" href="#single-logout" title="Permanent link">&para;</a></h1>
+<p>Single Logout (SLO) ends a user's session across WeftId and their connected applications. When a user signs out, WeftId notifies each application they accessed during the session so those applications can terminate their local sessions too.</p>
+<p>SLO is optional. Applications that don't support it simply keep their local session until it expires naturally.</p>
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>WeftId supports SLO in two directions:</p>
+<ul>
+<li><strong>User signs out of WeftId</strong> -- WeftId sends a LogoutRequest to each application the user accessed during the session. This is best-effort: if an application is unreachable or slow, the sign-out still completes.</li>
+<li><strong>Application signs out the user</strong> -- The application sends a LogoutRequest to WeftId. WeftId terminates the user's session and returns a LogoutResponse.</li>
+</ul>
+<p>Both directions use signed SAML messages. WeftId advertises both HTTP-Redirect and HTTP-POST bindings for its SLO endpoint.</p>
+<h2 id="configuring-slo">Configuring SLO<a class="headerlink" href="#configuring-slo" title="Permanent link">&para;</a></h2>
+<h3 id="on-a-service-provider">On a service provider<a class="headerlink" href="#on-a-service-provider" title="Permanent link">&para;</a></h3>
+<p>When <a href="../registering-an-sp/">registering a service provider</a>, set the <strong>SLO URL</strong> field to the application's Single Logout endpoint. This is the URL where WeftId sends LogoutRequests when the user signs out.</p>
+<p>If the application's SAML metadata includes a <code>SingleLogoutService</code> element, WeftId imports the SLO URL automatically. Otherwise, enter it manually.</p>
+<p>Applications without an SLO URL are silently skipped during logout propagation.</p>
+<h3 id="on-an-identity-provider">On an identity provider<a class="headerlink" href="#on-an-identity-provider" title="Permanent link">&para;</a></h3>
+<p>When <a href="../../identity-providers/saml-setup/">connecting an identity provider</a>, you can set the <strong>SLO URL</strong> to the IdP's Single Logout endpoint. When a user who authenticated via that IdP signs out of WeftId, WeftId redirects them to the IdP's SLO endpoint so the IdP can terminate its session too.</p>
+<p>If the IdP's metadata includes a <code>SingleLogoutService</code> element, WeftId imports the SLO URL automatically.</p>
+<h2 id="slo-in-weftids-metadata">SLO in WeftId's metadata<a class="headerlink" href="#slo-in-weftids-metadata" title="Permanent link">&para;</a></h2>
+<p>WeftId's IdP metadata (available on the SP's <strong>Metadata</strong> tab) advertises the SLO endpoint:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">&lt;md:SingleLogoutService</span>
+<span class="w">    </span><span class="na">Binding=</span><span class="s">&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect&quot;</span>
+<span class="w">    </span><span class="na">Location=</span><span class="s">&quot;https://your-domain.com/saml/idp/slo&quot;</span><span class="w"> </span><span class="nt">/&gt;</span>
+<span class="nt">&lt;md:SingleLogoutService</span>
+<span class="w">    </span><span class="na">Binding=</span><span class="s">&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST&quot;</span>
+<span class="w">    </span><span class="na">Location=</span><span class="s">&quot;https://your-domain.com/saml/idp/slo&quot;</span><span class="w"> </span><span class="nt">/&gt;</span>
+</code></pre></div>
+<p>Share this metadata with the application so it knows where to send LogoutRequests.</p>
+<h2 id="user-signs-out-of-weftid">User signs out of WeftId<a class="headerlink" href="#user-signs-out-of-weftid" title="Permanent link">&para;</a></h2>
+<p>When a user clicks <strong>Sign Out</strong>:</p>
+<ol>
+<li>WeftId clears the user's session immediately.</li>
+<li>For each application the user accessed during the session that has an SLO URL configured, WeftId builds a signed LogoutRequest containing the user's NameID and session index from the original assertion.</li>
+<li>Each LogoutRequest is sent via HTTP POST to the application's SLO URL with a 5-second timeout.</li>
+<li>If the user authenticated via a SAML identity provider that has an SLO URL, WeftId redirects the user to the IdP's SLO endpoint.</li>
+<li>The user is returned to the sign-in page.</li>
+</ol>
+<p>Logout propagation is best-effort. If an application is unreachable or returns an error, the sign-out still completes. The event log records how many applications were notified successfully.</p>
+<h2 id="application-sends-a-logoutrequest">Application sends a LogoutRequest<a class="headerlink" href="#application-sends-a-logoutrequest" title="Permanent link">&para;</a></h2>
+<p>When an application initiates logout:</p>
+<ol>
+<li>The application sends a signed SAML LogoutRequest to WeftId's SLO endpoint (<code>/saml/idp/slo</code>) via HTTP-Redirect or HTTP-POST.</li>
+<li>WeftId validates the request: the issuer must match a registered, enabled service provider with an SLO URL configured.</li>
+<li>WeftId clears the user's session.</li>
+<li>WeftId builds a signed LogoutResponse and returns it to the application's SLO URL via HTTP-POST (auto-submitted form).</li>
+<li>The application receives the LogoutResponse and completes its local logout.</li>
+</ol>
+<p>If the LogoutRequest is invalid or comes from an unregistered application, WeftId redirects to the sign-in page without processing the request.</p>
+<h2 id="signing">Signing<a class="headerlink" href="#signing" title="Permanent link">&para;</a></h2>
+<p>All SLO messages (LogoutRequest and LogoutResponse) are signed using RSA-SHA256. WeftId uses the same signing certificate as for SSO assertions: the per-SP signing certificate if one exists, otherwise the tenant-level SAML certificate.</p>
+<h2 id="audit-events">Audit events<a class="headerlink" href="#audit-events" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Option</th>
+<th>Event</th>
+<th>When</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Indefinitely (no time limit)</td>
+<td><code>slo_sp_initiated</code></td>
+<td>An application sent a LogoutRequest to WeftId</td>
 </tr>
 <tr>
-<td>8 hours</td>
-</tr>
-<tr>
-<td>1 day</td>
-</tr>
-<tr>
-<td>2 days</td>
-</tr>
-<tr>
-<td>3 days</td>
-</tr>
-<tr>
-<td>4 days</td>
-</tr>
-<tr>
-<td>5 days</td>
-</tr>
-<tr>
-<td>6 days</td>
-</tr>
-<tr>
-<td>1 week</td>
-</tr>
-<tr>
-<td>2 weeks</td>
-</tr>
-</tbody>
-</table>
-<h2 id="persistent-sessions">Persistent sessions<a class="headerlink" href="#persistent-sessions" title="Permanent link">&para;</a></h2>
-<p>When enabled, sessions survive browser restarts. When disabled, users must sign in again each time they open their browser.</p>
-<h2 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h2>
-<p>Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them before they can sign in again.</p>
-<table>
-<thead>
-<tr>
-<th>Option</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Disabled</td>
-</tr>
-<tr>
-<td>After 14 days</td>
-</tr>
-<tr>
-<td>After 30 days</td>
-</tr>
-<tr>
-<td>After 60 days</td>
-</tr>
-<tr>
-<td>After 90 days</td>
+<td><code>slo_idp_propagated</code></td>
+<td>WeftId sent LogoutRequests to applications during user sign-out</td>
 </tr>
 </tbody>
 </table>

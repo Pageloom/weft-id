@@ -246,6 +246,52 @@ def count_assignments_for_sp(tenant_id: TenantArg, sp_id: str) -> int:
     return row["cnt"] if row else 0
 
 
+def count_user_access_for_sps(tenant_id: TenantArg) -> dict[str, int]:
+    """Get unique user access counts for all SPs in a tenant.
+
+    Uses the group_lineage closure table to count users who have access
+    through any assigned group or its descendants. Only counts active
+    (non-inactivated, non-anonymized) users.
+
+    Returns:
+        Dict mapping sp_id (str) to unique user count.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        select sga.sp_id, count(distinct gm.user_id) as cnt
+        from sp_group_assignments sga
+        join group_lineage gl on gl.ancestor_id = sga.group_id
+        join group_memberships gm on gm.group_id = gl.descendant_id
+        join users u on u.id = gm.user_id
+        where u.is_inactivated = false and u.is_anonymized = false
+        group by sga.sp_id
+        """,
+        {},
+    )
+    return {str(row["sp_id"]): row["cnt"] for row in rows}
+
+
+def count_active_users(tenant_id: TenantArg) -> int:
+    """Count all active (non-inactivated, non-anonymized) users in a tenant.
+
+    Used to determine user access count for SPs with available_to_all=true.
+
+    Returns:
+        Number of active users.
+    """
+    row = fetchone(
+        tenant_id,
+        """
+        select count(*) as cnt
+        from users
+        where is_inactivated = false and is_anonymized = false
+        """,
+        {},
+    )
+    return row["cnt"] if row else 0
+
+
 def count_assignments_for_sps(tenant_id: TenantArg) -> dict[str, int]:
     """Get assignment counts for all SPs in a tenant.
 

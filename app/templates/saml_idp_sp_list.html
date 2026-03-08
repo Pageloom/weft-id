@@ -64,6 +64,9 @@
                             Groups
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Users
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Certificate Expiry
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -94,6 +97,15 @@
                             <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">All users</span>
                             {% elif sp.assigned_group_count > 0 %}
                             <span class="text-sm text-gray-900 dark:text-gray-100">{{ sp.assigned_group_count }}</span>
+                            {% else %}
+                            <span class="text-sm text-gray-400 dark:text-gray-500">0</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if sp.available_to_all %}
+                            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">All users</span>
+                            {% elif sp.user_access_count > 0 %}
+                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ sp.user_access_count }}</span>
                             {% else %}
                             <span class="text-sm text-gray-400 dark:text-gray-500">0</span>
                             {% endif %}

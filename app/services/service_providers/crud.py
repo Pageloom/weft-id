@@ -169,20 +169,31 @@ def list_service_providers(
     tenant_id = requesting_user["tenant_id"]
     rows = database.service_providers.list_service_providers(tenant_id)
 
-    # Batch-fetch assignment counts for all SPs
+    # Batch-fetch assignment counts and user access counts for all SPs
     assignment_counts = database.sp_group_assignments.count_assignments_for_sps(tenant_id)
+    user_access_counts = database.sp_group_assignments.count_user_access_for_sps(tenant_id)
 
-    # Enrich each SP with signing cert expiry and assignment count
+    # For available_to_all SPs, use total active user count
+    active_user_count: int | None = None
+    if any(row.get("available_to_all") for row in rows):
+        active_user_count = database.sp_group_assignments.count_active_users(tenant_id)
+
+    # Enrich each SP with signing cert expiry, assignment count, and user access count
     items = []
     for row in rows:
         sp_id = str(row["id"])
         cert = database.sp_signing_certificates.get_signing_certificate(tenant_id, sp_id)
         cert_expires = cert["expires_at"] if cert else None
+        if row.get("available_to_all"):
+            user_count = active_user_count or 0
+        else:
+            user_count = user_access_counts.get(sp_id, 0)
         items.append(
             _row_to_list_item(
                 row,
                 signing_cert_expires_at=cert_expires,
                 assigned_group_count=assignment_counts.get(sp_id, 0),
+                user_access_count=user_count,
             )
         )
 

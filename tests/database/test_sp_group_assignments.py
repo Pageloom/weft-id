@@ -446,3 +446,107 @@ def test_count_assignments_for_sps_empty(test_tenant):
     counts = database.sp_group_assignments.count_assignments_for_sps(tid)
 
     assert counts == {}
+
+
+# -- count_user_access_for_sps ------------------------------------------------
+
+
+def test_count_user_access_direct(test_tenant, test_user):
+    """Test counting users with direct group membership."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="User Count Direct SP")
+    group = _create_group(tid, name="User Count Direct Group")
+
+    database.sp_group_assignments.create_assignment(tid, str(tid), sp["id"], group["id"], str(uid))
+    database.groups.add_group_member(tid, str(tid), group["id"], str(uid))
+
+    counts = database.sp_group_assignments.count_user_access_for_sps(tid)
+
+    assert counts[str(sp["id"])] == 1
+
+
+def test_count_user_access_inherited(test_tenant, test_user, test_admin_user):
+    """Test counting users with inherited access via group hierarchy."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    admin_uid = test_admin_user["id"]
+    sp = _create_sp(tid, uid, name="User Count Inherited SP")
+    parent = _create_group(tid, name="User Count Parent")
+    child = _create_group(tid, name="User Count Child")
+
+    # Build hierarchy: parent -> child
+    database.groups.add_group_relationship(tid, str(tid), parent["id"], child["id"])
+
+    # Assign SP to parent group
+    database.sp_group_assignments.create_assignment(tid, str(tid), sp["id"], parent["id"], str(uid))
+
+    # Add users to different levels
+    database.groups.add_group_member(tid, str(tid), parent["id"], str(uid))
+    database.groups.add_group_member(tid, str(tid), child["id"], str(admin_uid))
+
+    counts = database.sp_group_assignments.count_user_access_for_sps(tid)
+
+    # Both users should be counted (parent direct + child inherited)
+    assert counts[str(sp["id"])] == 2
+
+
+def test_count_user_access_deduplicates(test_tenant, test_user):
+    """Test that a user in multiple assigned groups is counted once."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="User Count Dedup SP")
+    group_a = _create_group(tid, name="User Count Dedup A")
+    group_b = _create_group(tid, name="User Count Dedup B")
+
+    # Assign both groups to the SP
+    database.sp_group_assignments.create_assignment(
+        tid, str(tid), sp["id"], group_a["id"], str(uid)
+    )
+    database.sp_group_assignments.create_assignment(
+        tid, str(tid), sp["id"], group_b["id"], str(uid)
+    )
+
+    # Add same user to both groups
+    database.groups.add_group_member(tid, str(tid), group_a["id"], str(uid))
+    database.groups.add_group_member(tid, str(tid), group_b["id"], str(uid))
+
+    counts = database.sp_group_assignments.count_user_access_for_sps(tid)
+
+    assert counts[str(sp["id"])] == 1
+
+
+def test_count_user_access_no_members(test_tenant, test_user):
+    """Test SP with assigned groups but no members returns 0."""
+    tid = test_tenant["id"]
+    uid = test_user["id"]
+    sp = _create_sp(tid, uid, name="User Count No Members SP")
+    group = _create_group(tid, name="User Count Empty Group")
+
+    database.sp_group_assignments.create_assignment(tid, str(tid), sp["id"], group["id"], str(uid))
+
+    counts = database.sp_group_assignments.count_user_access_for_sps(tid)
+
+    assert counts.get(str(sp["id"]), 0) == 0
+
+
+def test_count_user_access_empty(test_tenant):
+    """Test counting user access when no assignments exist returns empty dict."""
+    tid = test_tenant["id"]
+
+    counts = database.sp_group_assignments.count_user_access_for_sps(tid)
+
+    assert counts == {}
+
+
+# -- count_active_users --------------------------------------------------------
+
+
+def test_count_active_users(test_tenant, test_user, test_admin_user):
+    """Test counting active users in a tenant."""
+    tid = test_tenant["id"]
+
+    count = database.sp_group_assignments.count_active_users(tid)
+
+    # test_user and test_admin_user are both active
+    assert count >= 2

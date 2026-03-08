@@ -116,6 +116,51 @@ class TestListServiceProviders:
             assert result.total == 0
             assert result.items == []
 
+    def test_includes_user_access_count(self, make_requesting_user):
+        """SP list includes user access count from group-based access."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        sp_id = str(uuid4())
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {sp_id: 2}
+            mock_db.sp_group_assignments.count_user_access_for_sps.return_value = {sp_id: 5}
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].user_access_count == 5
+            assert result.items[0].assigned_group_count == 2
+
+    def test_available_to_all_uses_active_user_count(self, make_requesting_user):
+        """SPs with available_to_all use total active user count."""
+        from services import service_providers as sp_service
+
+        tenant_id = str(uuid4())
+        requesting_user = make_requesting_user(tenant_id=tenant_id, role="super_admin")
+        sp_id = str(uuid4())
+        row = _make_sp_row(tenant_id=tenant_id, sp_id=sp_id, available_to_all=True)
+
+        with (
+            patch("services.service_providers.crud.database") as mock_db,
+            patch("services.service_providers.crud.track_activity"),
+        ):
+            mock_db.service_providers.list_service_providers.return_value = [row]
+            mock_db.sp_group_assignments.count_assignments_for_sps.return_value = {}
+            mock_db.sp_group_assignments.count_user_access_for_sps.return_value = {}
+            mock_db.sp_group_assignments.count_active_users.return_value = 42
+
+            result = sp_service.list_service_providers(requesting_user)
+
+            assert result.items[0].user_access_count == 42
+            mock_db.sp_group_assignments.count_active_users.assert_called_once_with(tenant_id)
+
     def test_forbidden_for_admin(self, make_requesting_user):
         """Admin role cannot list SPs."""
         from services import service_providers as sp_service

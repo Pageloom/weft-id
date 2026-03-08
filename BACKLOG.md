@@ -1097,3 +1097,33 @@ WeftID serves three primary deployment scenarios, and the wizard should adapt to
 **Value:** High
 
 ---
+
+## Standardize Product Name to "Weft ID"
+
+**User Story:**
+As a user or administrator
+I want the product name to be consistently written as "Weft ID" everywhere I see it
+So that the branding matches the official name and feels polished
+
+**Context:**
+
+The official product name on pageloom.com is "Weft ID" (two words, capital ID). The codebase currently drifts between several variants:
+
+- "WeftId" (camelCase) in docs and most templates
+- "WeftID" (capital ID, no space) in group type badges
+- "Weft ID" (correct form) used inconsistently
+
+Only user-facing prose needs updating. Code identifiers (variable names, enum values, localStorage keys, group type strings) should remain as-is since they are internal.
+
+**Acceptance Criteria:**
+- [ ] All documentation files in `docs/` use "Weft ID" in prose
+- [ ] All template copy (page titles, labels, help text, badges) uses "Weft ID"
+- [ ] `base.html` default title and branding placeholder use "Weft ID"
+- [ ] Group type badges display "Weft ID" instead of "WeftID"
+- [ ] Code identifiers (`weftid`, `WeftId`) are unchanged
+- [ ] Documentation site is rebuilt (`make docs`)
+
+**Effort:** S
+**Value:** Medium
+
+---

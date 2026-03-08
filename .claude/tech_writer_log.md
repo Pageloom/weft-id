@@ -184,3 +184,78 @@ All 82 templates reviewed for:
 ### Screenshots Requested
 
 None.
+
+---
+
+## 2026-03-08 - Documentation Content (All Leaf Pages)
+
+**Starting commit:** d74f440
+**Mode:** Documentation
+
+### Changes Made
+
+Wrote content for all 25 stub pages and expanded 2 section pages (branding, audit). Every page was written from source code research (templates, routers, services) to ensure accuracy.
+
+### Pages Written
+
+**Getting Started (3 pages):**
+- `first-login.md` -- Email verification, password setup, dashboard overview, next steps
+- `connecting-an-idp.md` -- Create connection, share metadata, establish trust (3 methods)
+- `adding-an-application.md` -- Create SP, share metadata, import app metadata, configure access
+
+**Admin Guide - Users (3 pages):**
+- `creating-users.md` -- Manual creation, JIT provisioning, auto-assignment to groups
+- `user-lifecycle.md` -- Active, inactivated (reactivation flows), anonymized (GDPR)
+- `roles-and-permissions.md` -- Super admin, admin, user capabilities and assignment rules
+
+**Admin Guide - Groups (4 pages):**
+- `creating-groups.md` -- Creation flow, WeftId vs IdP group types
+- `group-hierarchy.md` -- DAG model, parent-child management, graph visualization
+- `membership-management.md` -- Add/remove members, IdP groups, inherited membership
+- `group-based-access.md` -- SP group assignments, access enforcement, hierarchy
+
+**Admin Guide - Identity Providers (2 pages):**
+- `saml-setup.md` -- 3-step setup, connection settings, attribute mapping, metadata refresh, deletion
+- `privileged-domains.md` -- Add domain, bind IdP, link groups, example workflow
+
+**Admin Guide - Service Providers (4 pages):**
+- `registering-an-sp.md` -- 4-step registration, settings table, deletion
+- `sp-certificates.md` -- Auto-generation, viewing, rotation with grace period
+- `attribute-mapping.md` -- Default attributes, group claims, custom mappings, NameID formats
+- `sso-flow.md` -- SP-initiated and IdP-initiated flows, consent screen, assertion contents
+
+**Admin Guide - Security (4 pages):**
+- `sessions.md` -- Max session length, persistent sessions, auto-inactivation (all options listed)
+- `certificates.md` -- Validity period and rotation window (all options listed)
+- `permissions.md` -- Profile edit and email add toggles
+- `mfa.md` -- Per-IdP MFA requirement, admin MFA reset
+
+**Admin Guide - Section Pages Updated (2 pages):**
+- `branding/index.md` -- Expanded with site title, display mode, logo upload details, group branding
+- `audit/index.md` -- Expanded with filtering, event detail, export, event types table, activity tracking
+
+**User Guide (4 pages):**
+- `dashboard.md` -- Identity display, My Apps, My Groups
+- `profile.md` -- Name, theme, regional settings, email management, account info
+- `mfa.md` -- TOTP setup, backup codes, email MFA, switching/disabling
+- `signing-in.md` -- Email-first flow, trust cookies, IdP sign-in, sign-out
+
+**Self-Hosting (1 page):**
+- `self-hosting/index.md` -- Requirements, services table, env vars (required, email, optional), database, getting started
+
+### Documentation Principles Applied
+
+- Task-oriented (each page answers "how do I do X?")
+- Audience-appropriate (admin guide assumes federation knowledge, user guide assumes nothing)
+- Mirrors the UI navigation structure
+- Tables for options/settings, numbered lists for step-by-step flows
+- Cross-linked between related pages
+
+### Screenshots Requested
+
+None. Pages were written to be useful without screenshots. Screenshots would enhance the Getting Started section and SSO Flow page in particular.
+
+### Areas Not Yet Reviewed
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending

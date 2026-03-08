@@ -1277,6 +1277,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1293,6 +1311,58 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#maximum-session-length" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maximum session length
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistent-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistent sessions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-inactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic inactivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1964,47 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#maximum-session-length" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maximum session length
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistent-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistent sessions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-inactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic inactivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2021,77 @@
 
 
 <h1 id="sessions">Sessions<a class="headerlink" href="#sessions" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Configure how long user sessions last and how WeftId handles inactive accounts.</p>
+<p>Navigate to <strong>Settings &gt; Security &gt; Sessions</strong>.</p>
+<h2 id="maximum-session-length">Maximum session length<a class="headerlink" href="#maximum-session-length" title="Permanent link">&para;</a></h2>
+<p>How long a user can remain signed in before they must re-authenticate.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Indefinitely (no time limit)</td>
+</tr>
+<tr>
+<td>8 hours</td>
+</tr>
+<tr>
+<td>1 day</td>
+</tr>
+<tr>
+<td>2 days</td>
+</tr>
+<tr>
+<td>3 days</td>
+</tr>
+<tr>
+<td>4 days</td>
+</tr>
+<tr>
+<td>5 days</td>
+</tr>
+<tr>
+<td>6 days</td>
+</tr>
+<tr>
+<td>1 week</td>
+</tr>
+<tr>
+<td>2 weeks</td>
+</tr>
+</tbody>
+</table>
+<h2 id="persistent-sessions">Persistent sessions<a class="headerlink" href="#persistent-sessions" title="Permanent link">&para;</a></h2>
+<p>When enabled, sessions survive browser restarts. When disabled, users must sign in again each time they open their browser.</p>
+<h2 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h2>
+<p>Automatically inactivate users who haven't been active for a set period. Once inactivated, an admin must reactivate them before they can sign in again.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Disabled</td>
+</tr>
+<tr>
+<td>After 14 days</td>
+</tr>
+<tr>
+<td>After 30 days</td>
+</tr>
+<tr>
+<td>After 60 days</td>
+</tr>
+<tr>
+<td>After 90 days</td>
+</tr>
+</tbody>
+</table>
 
 
 

@@ -1111,6 +1111,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing Certificates
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1127,6 +1145,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-the-certificate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing the certificate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metadata-refresh-after-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata refresh after rotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-the-certificate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing the certificate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metadata-refresh-after-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata refresh after rotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,22 @@
 
 
 <h1 id="signing-certificates">Signing Certificates<a class="headerlink" href="#signing-certificates" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Each service provider gets its own X.509 signing certificate. WeftId uses this certificate to sign the SAML assertions it sends to the application.</p>
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>When you register a service provider, WeftId automatically generates a signing certificate. The certificate's public key is included in the IdP metadata URL, so the application can verify assertion signatures.</p>
+<p>The certificate validity period is controlled by the tenant-wide <a href="../../security/certificates/">certificate settings</a>.</p>
+<h2 id="viewing-the-certificate">Viewing the certificate<a class="headerlink" href="#viewing-the-certificate" title="Permanent link">&para;</a></h2>
+<p>The SP's <strong>Certificates</strong> tab shows the current signing certificate, including its expiration date and PEM-encoded public certificate.</p>
+<h2 id="rotation">Rotation<a class="headerlink" href="#rotation" title="Permanent link">&para;</a></h2>
+<p>When a certificate approaches expiry (based on the configured <a href="../../security/certificates/">rotation window</a>), you can rotate it:</p>
+<ol>
+<li>Go to the SP's <strong>Certificates</strong> tab</li>
+<li>Click <strong>Rotate Certificate</strong></li>
+<li>Set a grace period (default: 7 days)</li>
+</ol>
+<p>During the grace period, both the old and new certificates are valid. This gives the application time to update its trust configuration with the new certificate. After the grace period ends, only the new certificate is valid.</p>
+<h2 id="metadata-refresh-after-rotation">Metadata refresh after rotation<a class="headerlink" href="#metadata-refresh-after-rotation" title="Permanent link">&para;</a></h2>
+<p>After rotating a certificate, the application needs to pick up the new certificate. If the application imports WeftId's metadata by URL, it will get the new certificate automatically on its next metadata refresh.</p>
 
 
 

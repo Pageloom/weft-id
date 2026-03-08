@@ -1675,6 +1675,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Factor Authentication
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1691,6 +1709,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-an-authenticator-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up an authenticator app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#email-based-mfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email-based MFA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#switching-or-disabling-mfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching or disabling MFA
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setting-up-an-authenticator-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up an authenticator app
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#email-based-mfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email-based MFA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#switching-or-disabling-mfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching or disabling MFA
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,33 @@
 
 
 <h1 id="multi-factor-authentication">Multi-Factor Authentication<a class="headerlink" href="#multi-factor-authentication" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Add a second factor to your account for stronger security. WeftId supports authenticator apps (TOTP) and email-based codes.</p>
+<h2 id="setting-up-an-authenticator-app">Setting up an authenticator app<a class="headerlink" href="#setting-up-an-authenticator-app" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Go to <strong>Account &gt; MFA</strong></li>
+<li>Click <strong>Set up TOTP</strong> (or switch to TOTP if email is currently active)</li>
+<li>Scan the QR code with your authenticator app (Google Authenticator, 1Password, Authy, etc.)</li>
+<li>Enter the 6-digit code from your app to verify</li>
+<li>Save the backup codes shown on the next screen</li>
+</ol>
+<p>Your authenticator app is now active. You will be prompted for a code on each sign-in.</p>
+<h2 id="backup-codes">Backup codes<a class="headerlink" href="#backup-codes" title="Permanent link">&para;</a></h2>
+<p>Backup codes let you sign in if you lose access to your authenticator app. Ten codes are generated when you enable TOTP. Each code can only be used once.</p>
+<ul>
+<li>View your remaining backup codes on the MFA settings page</li>
+<li>Click <strong>Regenerate</strong> to create a new set (this invalidates all existing codes)</li>
+</ul>
+<p>Store backup codes in a safe place. If you run out and lose your authenticator, you will need an admin to reset your MFA.</p>
+<h2 id="email-based-mfa">Email-based MFA<a class="headerlink" href="#email-based-mfa" title="Permanent link">&para;</a></h2>
+<p>Email MFA sends a one-time code to your email address on each sign-in. It is simpler than TOTP but depends on access to your email.</p>
+<h2 id="switching-or-disabling-mfa">Switching or disabling MFA<a class="headerlink" href="#switching-or-disabling-mfa" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Go to <strong>Account &gt; MFA</strong></li>
+<li>Select the method you want to switch to, or choose to disable</li>
+<li>Verify your current MFA code</li>
+<li>The change takes effect immediately</li>
+</ol>
+<p>Switching from TOTP to email (or disabling MFA) deletes your backup codes.</p>
 
 
 

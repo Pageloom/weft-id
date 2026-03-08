@@ -1305,6 +1305,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificates
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1321,6 +1339,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#validity-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validity period
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation window
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1953,36 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#validity-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validity period
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation window
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +1999,57 @@
 
 
 <h1 id="certificates">Certificates<a class="headerlink" href="#certificates" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Configure how long newly generated certificates remain valid and when rotation begins.</p>
+<p>Navigate to <strong>Settings &gt; Security &gt; Certificates</strong>.</p>
+<h2 id="validity-period">Validity period<a class="headerlink" href="#validity-period" title="Permanent link">&para;</a></h2>
+<p>How long newly generated certificates remain valid. This applies to all certificate types: SP signing certificates and IdP connection certificates. Changing this setting does not affect existing certificates.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 year</td>
+</tr>
+<tr>
+<td>2 years</td>
+</tr>
+<tr>
+<td>3 years</td>
+</tr>
+<tr>
+<td>5 years</td>
+</tr>
+<tr>
+<td>10 years (default)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rotation-window">Rotation window<a class="headerlink" href="#rotation-window" title="Permanent link">&para;</a></h2>
+<p>How far before expiry a new certificate is generated. During this window, both old and new certificates are valid so downstream services can update their trust configuration.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14 days</td>
+</tr>
+<tr>
+<td>30 days</td>
+</tr>
+<tr>
+<td>60 days</td>
+</tr>
+<tr>
+<td>90 days (default)</td>
+</tr>
+</tbody>
+</table>
 
 
 

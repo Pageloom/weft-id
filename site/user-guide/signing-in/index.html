@@ -1703,6 +1703,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing In
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1719,6 +1737,75 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#password-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Password sign-in
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Password sign-in">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust-cookies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust cookies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identity-provider-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity provider sign-in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signing-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing out
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1981,64 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#password-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Password sign-in
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Password sign-in">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust-cookies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust cookies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identity-provider-sign-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity provider sign-in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signing-out" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing out
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2055,22 @@
 
 
 <h1 id="signing-in">Signing In<a class="headerlink" href="#signing-in" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>WeftId uses an email-first sign-in flow.</p>
+<h2 id="password-sign-in">Password sign-in<a class="headerlink" href="#password-sign-in" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Enter your email address</li>
+<li>WeftId sends a verification code to your email</li>
+<li>Enter the verification code</li>
+<li>Enter your password</li>
+<li>If MFA is enabled, enter your MFA code (authenticator app or email)</li>
+</ol>
+<h3 id="trust-cookies">Trust cookies<a class="headerlink" href="#trust-cookies" title="Permanent link">&para;</a></h3>
+<p>After verifying your email once, WeftId sets a trust cookie that lasts 7 days. During this time, you can skip the email verification step and go directly to the password prompt.</p>
+<h2 id="identity-provider-sign-in">Identity provider sign-in<a class="headerlink" href="#identity-provider-sign-in" title="Permanent link">&para;</a></h2>
+<p>If your email domain is linked to an identity provider, you may be redirected to your organization's sign-in page (Okta, Entra ID, Google Workspace, etc.) instead of entering a WeftId password.</p>
+<p>After authenticating with your IdP, you are returned to WeftId. If your administrator requires WeftId MFA, you complete that step before reaching your dashboard.</p>
+<h2 id="signing-out">Signing out<a class="headerlink" href="#signing-out" title="Permanent link">&para;</a></h2>
+<p>Click <strong>Sign Out</strong> in the navigation bar. Your session is terminated and you are returned to the sign-in page.</p>
 
 
 

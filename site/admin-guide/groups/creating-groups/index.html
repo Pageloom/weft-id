@@ -755,6 +755,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Groups
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -771,6 +789,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#create-a-group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create a group
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group types
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1953,36 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#create-a-group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create a group
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group types
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +1999,21 @@
 
 
 <h1 id="creating-groups">Creating Groups<a class="headerlink" href="#creating-groups" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<h2 id="create-a-group">Create a group<a class="headerlink" href="#create-a-group" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Groups</strong></li>
+<li>Click <strong>Create Group</strong></li>
+<li>Enter a name and optional description</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<p>The new group starts with no members and no parent-child relationships.</p>
+<h2 id="group-types">Group types<a class="headerlink" href="#group-types" title="Permanent link">&para;</a></h2>
+<p>Groups have one of two types:</p>
+<ul>
+<li><strong>WeftId</strong> -- Manually managed. Admins add and remove members directly.</li>
+<li><strong>IdP</strong> -- Synced from an external identity provider. Membership is read-only in WeftId and updates automatically during SAML sign-in.</li>
+</ul>
+<p>IdP groups are created automatically when an identity provider sends group assertions during SSO. You cannot create IdP groups manually.</p>
 
 
 

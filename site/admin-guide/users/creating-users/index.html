@@ -589,6 +589,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Users
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -605,6 +623,58 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#manual-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual creation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#just-in-time-provisioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Just-in-time provisioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-assignment-to-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-assignment to groups
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1964,47 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#manual-creation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual creation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#just-in-time-provisioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Just-in-time provisioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-assignment-to-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-assignment to groups
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2021,20 @@
 
 
 <h1 id="creating-users">Creating Users<a class="headerlink" href="#creating-users" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<h2 id="manual-creation">Manual creation<a class="headerlink" href="#manual-creation" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Users</strong></li>
+<li>Click <strong>Create User</strong></li>
+<li>Enter the user's first name, last name, and email address</li>
+<li>Select a role: super admin, admin, or user</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<p>The user receives an invitation email with a verification link. After verifying their email, they set a password and can sign in.</p>
+<h2 id="just-in-time-provisioning">Just-in-time provisioning<a class="headerlink" href="#just-in-time-provisioning" title="Permanent link">&para;</a></h2>
+<p>When an identity provider has JIT provisioning enabled, users are created automatically on their first SAML sign-in. WeftId maps the SAML assertion attributes (email, first name, last name) to create the user account.</p>
+<p>JIT-provisioned users are assigned the <strong>user</strong> role by default.</p>
+<h2 id="auto-assignment-to-groups">Auto-assignment to groups<a class="headerlink" href="#auto-assignment-to-groups" title="Permanent link">&para;</a></h2>
+<p>If the user's email domain matches a <a href="../../identity-providers/privileged-domains/">privileged domain</a> with linked groups, the user is automatically added to those groups at creation time. This applies to both manually created users and JIT-provisioned users.</p>
 
 
 

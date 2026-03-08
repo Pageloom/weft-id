@@ -371,6 +371,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connecting an Identity Provider
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -387,6 +405,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#create-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the connection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#share-weftids-metadata-with-your-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Share WeftId's metadata with your IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#establish-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Establish trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optional-bind-email-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: Bind email domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#create-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create the connection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#share-weftids-metadata-with-your-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Share WeftId's metadata with your IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#establish-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Establish trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optional-bind-email-domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional: Bind email domains
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,33 @@
 
 
 <h1 id="connecting-an-identity-provider">Connecting an Identity Provider<a class="headerlink" href="#connecting-an-identity-provider" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Connect a SAML identity provider (Okta, Entra ID, Google Workspace, or any SAML 2.0 IdP) to allow users to sign in with their existing credentials.</p>
+<h2 id="create-the-connection">Create the connection<a class="headerlink" href="#create-the-connection" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Settings &gt; Identity Providers</strong></li>
+<li>Click <strong>Add Identity Provider</strong></li>
+<li>Enter a display name (e.g., "Corporate Okta")</li>
+<li>Select the provider type: Okta, Azure AD, Google Workspace, or Generic SAML</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<h2 id="share-weftids-metadata-with-your-idp">Share WeftId's metadata with your IdP<a class="headerlink" href="#share-weftids-metadata-with-your-idp" title="Permanent link">&para;</a></h2>
+<p>After creation, WeftId generates a metadata URL for your new connection. This URL contains the information your IdP needs to trust WeftId as a service provider.</p>
+<p>Copy the metadata URL and configure it in your identity provider's admin console. Each provider has a different setup process:</p>
+<ul>
+<li><strong>Okta</strong> -- Create a new SAML application and paste the metadata URL</li>
+<li><strong>Entra ID</strong> -- Register an enterprise application with the SAML metadata</li>
+<li><strong>Google Workspace</strong> -- Configure a custom SAML app with the metadata URL</li>
+</ul>
+<h2 id="establish-trust">Establish trust<a class="headerlink" href="#establish-trust" title="Permanent link">&para;</a></h2>
+<p>Once your IdP is configured, return to WeftId and complete the trust relationship. You can do this in three ways:</p>
+<ul>
+<li><strong>Metadata URL</strong> -- Paste your IdP's metadata URL. WeftId fetches the certificate, SSO URL, and entity ID automatically.</li>
+<li><strong>Metadata XML</strong> -- Paste the full SAML metadata XML from your IdP.</li>
+<li><strong>Manual entry</strong> -- Enter the entity ID and SSO URL, and upload the IdP's signing certificate.</li>
+</ul>
+<p>After trust is established, users can sign in through this identity provider.</p>
+<h2 id="optional-bind-email-domains">Optional: Bind email domains<a class="headerlink" href="#optional-bind-email-domains" title="Permanent link">&para;</a></h2>
+<p>You can route users to this IdP automatically based on their email domain. See <a href="../../admin-guide/identity-providers/privileged-domains/">Privileged Domains</a> for details.</p>
 
 
 

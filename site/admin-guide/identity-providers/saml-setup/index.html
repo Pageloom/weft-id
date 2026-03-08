@@ -945,6 +945,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SAML Setup
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -961,6 +979,102 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the connection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-configure-your-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Configure your IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-establish-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Establish trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attribute-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribute mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metadata-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-an-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting an IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +2008,91 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-the-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the connection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-configure-your-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Configure your IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-establish-trust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Establish trust
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connection-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attribute-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attribute mapping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metadata-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-an-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting an IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2109,110 @@
 
 
 <h1 id="saml-setup">SAML Setup<a class="headerlink" href="#saml-setup" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Connect a SAML 2.0 identity provider to WeftId. This enables users to sign in with their existing credentials from Okta, Entra ID, Google Workspace, or any SAML-compliant IdP.</p>
+<h2 id="step-1-create-the-connection">Step 1: Create the connection<a class="headerlink" href="#step-1-create-the-connection" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Settings &gt; Identity Providers</strong></li>
+<li>Click <strong>Add Identity Provider</strong></li>
+<li>Enter a display name</li>
+<li>Select the provider type (Okta, Azure AD, Google Workspace, or Generic SAML)</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<p>Selecting a provider type pre-fills attribute mappings for known providers.</p>
+<h2 id="step-2-configure-your-idp">Step 2: Configure your IdP<a class="headerlink" href="#step-2-configure-your-idp" title="Permanent link">&para;</a></h2>
+<p>After creation, WeftId generates a per-connection metadata URL. This URL contains:</p>
+<ul>
+<li>WeftId's entity ID (unique per IdP connection)</li>
+<li>Assertion Consumer Service (ACS) URL</li>
+<li>WeftId's SP signing certificate</li>
+</ul>
+<p>Share this metadata URL with your IdP. In your IdP's admin console, create a new SAML application using WeftId's metadata.</p>
+<h2 id="step-3-establish-trust">Step 3: Establish trust<a class="headerlink" href="#step-3-establish-trust" title="Permanent link">&para;</a></h2>
+<p>Return to WeftId and complete the trust relationship using one of three methods:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Metadata URL</strong></td>
+<td>Your IdP publishes a metadata URL. WeftId fetches everything automatically.</td>
+</tr>
+<tr>
+<td><strong>Metadata XML</strong></td>
+<td>You have the IdP's metadata as an XML file or string.</td>
+</tr>
+<tr>
+<td><strong>Manual entry</strong></td>
+<td>Enter the entity ID, SSO URL, and upload the certificate individually.</td>
+</tr>
+</tbody>
+</table>
+<p>Once trust is established, the connection is active and users can sign in through this IdP.</p>
+<h2 id="connection-settings">Connection settings<a class="headerlink" href="#connection-settings" title="Permanent link">&para;</a></h2>
+<p>After trust is established, you can configure additional settings on the IdP detail page:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Enabled</strong></td>
+<td>Toggle the IdP on or off without deleting it.</td>
+</tr>
+<tr>
+<td><strong>Require platform MFA</strong></td>
+<td>Force users to complete WeftId MFA after SAML sign-in.</td>
+</tr>
+<tr>
+<td><strong>JIT provisioning</strong></td>
+<td>Automatically create user accounts on first SAML sign-in.</td>
+</tr>
+<tr>
+<td><strong>SLO URL</strong></td>
+<td>Single Logout URL for sending logout requests to the IdP.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="attribute-mapping">Attribute mapping<a class="headerlink" href="#attribute-mapping" title="Permanent link">&para;</a></h2>
+<p>WeftId maps SAML assertion attributes to user fields. Default mappings are pre-filled based on the provider type:</p>
+<table>
+<thead>
+<tr>
+<th>WeftId field</th>
+<th>Typical attribute</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Email</td>
+<td><code>emailaddress</code> claim or NameID</td>
+</tr>
+<tr>
+<td>First name</td>
+<td><code>givenname</code> claim</td>
+</tr>
+<tr>
+<td>Last name</td>
+<td><code>surname</code> claim</td>
+</tr>
+<tr>
+<td>Groups</td>
+<td><code>groups</code> claim</td>
+</tr>
+</tbody>
+</table>
+<p>You can customize these mappings on the IdP's <strong>Attributes</strong> tab.</p>
+<h2 id="metadata-refresh">Metadata refresh<a class="headerlink" href="#metadata-refresh" title="Permanent link">&para;</a></h2>
+<p>If your IdP has a metadata URL configured, you can refresh it to pick up certificate rotations or configuration changes. Click <strong>Refresh Metadata</strong> on the IdP detail page.</p>
+<h2 id="deleting-an-idp">Deleting an IdP<a class="headerlink" href="#deleting-an-idp" title="Permanent link">&para;</a></h2>
+<p>An IdP cannot be deleted while it has email domain bindings. Remove all domain bindings first, then delete. Any IdP-synced groups will be marked as invalid but preserved for audit purposes.</p>
 
 
 

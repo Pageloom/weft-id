@@ -645,6 +645,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roles and Permissions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -661,6 +679,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#super-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Super admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#role-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role assignment
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#super-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Super admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#role-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role assignment
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,43 @@
 
 
 <h1 id="roles-and-permissions">Roles and Permissions<a class="headerlink" href="#roles-and-permissions" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>WeftId has three roles, each with a different level of access.</p>
+<h2 id="super-admin">Super admin<a class="headerlink" href="#super-admin" title="Permanent link">&para;</a></h2>
+<p>Full access to all settings and management features. Super admins can:</p>
+<ul>
+<li>Manage all users, including creating other admins and super admins</li>
+<li>Configure identity providers</li>
+<li>Register and manage service providers</li>
+<li>Change security settings (sessions, certificates, permissions)</li>
+<li>Manage privileged domains</li>
+<li>View audit logs</li>
+<li>Configure branding</li>
+<li>Reset user MFA</li>
+<li>Anonymize users (GDPR)</li>
+</ul>
+<p>There must always be at least one super admin. The last super admin cannot be inactivated or deleted.</p>
+<h2 id="admin">Admin<a class="headerlink" href="#admin" title="Permanent link">&para;</a></h2>
+<p>Management access for day-to-day operations. Admins can:</p>
+<ul>
+<li>Create and manage users (but cannot create super admin accounts)</li>
+<li>Manage groups and group membership</li>
+<li>Configure branding</li>
+<li>Manage privileged domains</li>
+<li>View audit logs</li>
+<li>Approve or deny reactivation requests</li>
+</ul>
+<p>Admins cannot change security settings or manage identity providers.</p>
+<h2 id="user">User<a class="headerlink" href="#user" title="Permanent link">&para;</a></h2>
+<p>Standard access for end users. Users can:</p>
+<ul>
+<li>View their dashboard and launch applications</li>
+<li>Edit their profile (name, theme, timezone), if permitted by admin settings</li>
+<li>Add email addresses to their account, if permitted by admin settings</li>
+<li>Set up and manage their own MFA</li>
+</ul>
+<p>Users cannot access any administrative pages.</p>
+<h2 id="role-assignment">Role assignment<a class="headerlink" href="#role-assignment" title="Permanent link">&para;</a></h2>
+<p>Roles are set when a user is created and can be changed later by an admin. Only super admins can promote users to the super admin role. Admins can assign the admin or user role.</p>
 
 
 

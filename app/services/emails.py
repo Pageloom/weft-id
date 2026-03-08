@@ -625,4 +625,11 @@ def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
         },
     )
 
+    # Auto-assign to domain-linked groups
+    from services import settings as settings_service
+
+    settings_service.auto_assign_user_to_domain_groups(
+        tenant_id, str(email["user_id"]), email["email"], str(email["user_id"])
+    )
+
     return True

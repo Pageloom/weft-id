@@ -1,4 +1,4 @@
-"""General settings database operations (privileged domains, etc.)."""
+"""General settings database operations (privileged domains, domain-group links, etc.)."""
 
 from ._core import TenantArg, execute, fetchall, fetchone
 
@@ -98,4 +98,139 @@ def get_privileged_domain_by_id(tenant_id: TenantArg, domain_id: str) -> dict | 
         where id = :domain_id
         """,
         {"domain_id": domain_id},
+    )
+
+
+# =============================================================================
+# Domain-Group Links
+# =============================================================================
+
+
+def get_all_domain_group_links(tenant_id: TenantArg) -> list[dict]:
+    """
+    Get all domain-group links for a tenant.
+
+    Returns:
+        List of dicts with id, domain_id, group_id, group_name, created_at,
+        first_name, last_name
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select dgl.id, dgl.domain_id, dgl.group_id, g.name as group_name,
+               dgl.created_at, u.first_name, u.last_name
+        from domain_group_links dgl
+        join groups g on dgl.group_id = g.id
+        left join users u on dgl.created_by = u.id
+        order by dgl.created_at desc
+        """,
+    )
+
+
+def get_domain_group_links(tenant_id: TenantArg, domain_id: str) -> list[dict]:
+    """
+    Get all group links for a specific domain.
+
+    Returns:
+        List of dicts with id, domain_id, group_id, group_name, created_at,
+        first_name, last_name
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select dgl.id, dgl.domain_id, dgl.group_id, g.name as group_name,
+               dgl.created_at, u.first_name, u.last_name
+        from domain_group_links dgl
+        join groups g on dgl.group_id = g.id
+        left join users u on dgl.created_by = u.id
+        where dgl.domain_id = :domain_id
+        order by dgl.created_at desc
+        """,
+        {"domain_id": domain_id},
+    )
+
+
+def add_domain_group_link(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    domain_id: str,
+    group_id: str,
+    created_by: str,
+) -> dict | None:
+    """
+    Link a group to a privileged domain.
+
+    Returns:
+        Dict with id on success, None if link already exists
+    """
+    return fetchone(
+        tenant_id,
+        """
+        insert into domain_group_links (tenant_id, domain_id, group_id, created_by)
+        values (:tenant_id, :domain_id, :group_id, :created_by)
+        on conflict (domain_id, group_id) do nothing
+        returning id
+        """,
+        {
+            "tenant_id": tenant_id_value,
+            "domain_id": domain_id,
+            "group_id": group_id,
+            "created_by": created_by,
+        },
+    )
+
+
+def delete_domain_group_link(tenant_id: TenantArg, link_id: str) -> int:
+    """
+    Delete a domain-group link by ID.
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "delete from domain_group_links where id = :link_id",
+        {"link_id": link_id},
+    )
+
+
+def get_domain_group_link_by_id(tenant_id: TenantArg, link_id: str) -> dict | None:
+    """
+    Get a domain-group link by ID.
+
+    Returns:
+        Dict with id, domain_id, group_id, or None if not found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select dgl.id, dgl.domain_id, dgl.group_id, g.name as group_name
+        from domain_group_links dgl
+        join groups g on dgl.group_id = g.id
+        where dgl.id = :link_id
+        """,
+        {"link_id": link_id},
+    )
+
+
+def get_group_ids_for_domain(tenant_id: TenantArg, domain: str) -> list[dict]:
+    """
+    Get group IDs linked to a domain string, filtering for weftid groups only.
+
+    Joins through tenant_privileged_domains to resolve domain string to links.
+
+    Returns:
+        List of dicts with group_id, group_name
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select dgl.group_id, g.name as group_name
+        from domain_group_links dgl
+        join tenant_privileged_domains pd on dgl.domain_id = pd.id
+        join groups g on dgl.group_id = g.id
+        where pd.domain = :domain
+          and g.group_type = 'weftid'
+        """,
+        {"domain": domain.lower()},
     )

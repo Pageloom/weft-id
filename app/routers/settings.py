@@ -14,8 +14,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child
 from pydantic import ValidationError as PydanticValidationError
 from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode, LogoSlot
-from schemas.settings import PrivilegedDomainCreate, TenantSecuritySettingsUpdate
+from schemas.settings import (
+    DomainGroupLinkCreate,
+    PrivilegedDomainCreate,
+    TenantSecuritySettingsUpdate,
+)
 from services import branding as branding_service
+from services import groups as groups_service
 from services import saml as saml_service
 from services import settings as settings_service
 from services.exceptions import ServiceError, ValidationError
@@ -63,6 +68,10 @@ def privileged_domains(
         idps = []
         if user.get("role") == "super_admin":
             idps = saml_service.list_identity_providers(requesting_user).items
+        # Get WeftId groups for link dropdown
+        weftid_groups = groups_service.list_groups(
+            requesting_user, group_type="weftid", page_size=500
+        ).items
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
@@ -77,6 +86,7 @@ def privileged_domains(
             tenant_id,
             domains=domains,
             idps=idps,
+            weftid_groups=weftid_groups,
             error=error,
             success=success,
         ),
@@ -118,6 +128,51 @@ def delete_privileged_domain(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/admin/settings/privileged-domains", status_code=303)
+
+
+@router.post("/privileged-domains/{domain_id}/link-group")
+def link_group_to_domain(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+    group_id: Annotated[str, Form()],
+):
+    """Link a group to a privileged domain for auto-assignment."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+
+    try:
+        settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/privileged-domains?success=group_linked",
+        status_code=303,
+    )
+
+
+@router.post("/privileged-domains/{domain_id}/unlink-group/{link_id}")
+def unlink_group_from_domain(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    domain_id: str,
+    link_id: str,
+):
+    """Unlink a group from a privileged domain."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        settings_service.delete_domain_group_link(requesting_user, domain_id, link_id)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url="/admin/settings/privileged-domains?success=group_unlinked",
+        status_code=303,
+    )
 
 
 @router.post(

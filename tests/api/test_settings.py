@@ -406,3 +406,167 @@ def test_update_certificate_lifetime_invalid_value(
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# Domain-Group Links
+# =============================================================================
+
+
+@pytest.fixture
+def domain_and_group(test_tenant, test_admin_user):
+    """Create a privileged domain and group for link testing."""
+    from uuid import uuid4
+
+    import database
+
+    unique = str(uuid4())[:8]
+    domain_name = f"api-dgl-{unique}.example.com"
+
+    domain_row = database.fetchone(
+        test_tenant["id"],
+        """
+        insert into tenant_privileged_domains (tenant_id, domain, created_by)
+        values (:tenant_id, :domain, :created_by) returning id
+        """,
+        {
+            "tenant_id": str(test_tenant["id"]),
+            "domain": domain_name,
+            "created_by": str(test_admin_user["id"]),
+        },
+    )
+
+    group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name=f"API DGL Group {unique}",
+        group_type="weftid",
+        created_by=str(test_admin_user["id"]),
+    )
+
+    return {
+        "domain_id": str(domain_row["id"]),
+        "group_id": str(group["id"]),
+        "domain_name": domain_name,
+    }
+
+
+def test_list_domain_group_links(
+    client, test_tenant_host, oauth2_admin_authorization_header, domain_and_group
+):
+    """Admin can list group links for a domain."""
+    domain_id = domain_and_group["domain_id"]
+
+    response = client.get(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_add_domain_group_link(
+    client, test_tenant_host, oauth2_admin_authorization_header, domain_and_group
+):
+    """Admin can link a group to a domain."""
+    domain_id = domain_and_group["domain_id"]
+    group_id = domain_and_group["group_id"]
+
+    response = client.post(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"group_id": group_id},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["group_id"] == group_id
+    assert data["domain_id"] == domain_id
+    assert "id" in data
+
+
+def test_delete_domain_group_link(
+    client, test_tenant_host, oauth2_admin_authorization_header, domain_and_group
+):
+    """Admin can delete a domain-group link."""
+    domain_id = domain_and_group["domain_id"]
+    group_id = domain_and_group["group_id"]
+
+    # Create a link first
+    create_response = client.post(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"group_id": group_id},
+    )
+    link_id = create_response.json()["id"]
+
+    # Delete it
+    response = client.delete(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links/{link_id}",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 204
+
+
+def test_domain_group_link_as_member_forbidden(
+    client, test_tenant_host, oauth2_authorization_header, domain_and_group
+):
+    """Regular member cannot manage domain-group links."""
+    domain_id = domain_and_group["domain_id"]
+
+    # List
+    response = client.get(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+    assert response.status_code == 403
+
+    # Create
+    response = client.post(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+        json={"group_id": domain_and_group["group_id"]},
+    )
+    assert response.status_code == 403
+
+
+def test_domain_group_link_domain_not_found(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Operations on non-existent domain return 404."""
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    response = client.get(
+        f"/api/v1/settings/privileged-domains/{fake_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+    assert response.status_code == 404
+
+
+def test_privileged_domains_list_includes_linked_groups(
+    client, test_tenant_host, oauth2_admin_authorization_header, domain_and_group
+):
+    """GET /privileged-domains returns linked_groups in each domain."""
+    domain_id = domain_and_group["domain_id"]
+    group_id = domain_and_group["group_id"]
+
+    # Link a group
+    client.post(
+        f"/api/v1/settings/privileged-domains/{domain_id}/group-links",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"group_id": group_id},
+    )
+
+    # List domains
+    response = client.get(
+        "/api/v1/settings/privileged-domains",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    domain = next(d for d in data if d["id"] == domain_id)
+    assert len(domain["linked_groups"]) == 1
+    assert domain["linked_groups"][0]["group_id"] == group_id

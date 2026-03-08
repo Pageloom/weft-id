@@ -3,12 +3,15 @@
 This test file covers all settings service operations for the services/settings.py module.
 Tests include:
 - Privileged domains management (list, add, delete)
+- Domain-group links (list, add, delete, auto-assign)
 - Tenant security settings (get, update)
 - Utility functions (domain checking, session settings)
 - Authorization checks
 - Event logging
 - Activity tracking
 """
+
+from uuid import uuid4
 
 import database
 import pytest
@@ -878,3 +881,539 @@ def test_rotation_window_valid_values():
     for days in [14, 30, 60, 90]:
         update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=days)
         assert update.certificate_rotation_window_days == days
+
+
+# =============================================================================
+# Domain-Group Links - Helpers
+# =============================================================================
+
+
+def _create_domain_and_group(tenant_id, admin_user_id):
+    """Create a privileged domain and a weftid group for testing. Returns (domain_id, group_id)."""
+    unique = str(uuid4())[:8]
+    domain_name = f"dgl-{unique}.example.com"
+
+    # Create privileged domain
+    domain_row = database.fetchone(
+        tenant_id,
+        """
+        insert into tenant_privileged_domains (tenant_id, domain, created_by)
+        values (:tenant_id, :domain, :created_by)
+        returning id
+        """,
+        {"tenant_id": str(tenant_id), "domain": domain_name, "created_by": str(admin_user_id)},
+    )
+    domain_id = str(domain_row["id"])
+
+    # Create weftid group
+    group = database.groups.create_group(
+        tenant_id=tenant_id,
+        tenant_id_value=str(tenant_id),
+        name=f"DGL Test Group {unique}",
+        description="Test group for domain-group link tests",
+        group_type="weftid",
+        created_by=str(admin_user_id),
+    )
+    group_id = str(group["id"])
+
+    return domain_id, group_id, domain_name
+
+
+# =============================================================================
+# Domain-Group Links - List Tests
+# =============================================================================
+
+
+def test_list_domain_group_links_empty(test_tenant, test_admin_user):
+    """Test listing links for a domain with no links."""
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, _, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    result = settings_service.list_domain_group_links(requesting_user, domain_id)
+
+    assert result == []
+
+
+def test_list_domain_group_links_with_links(test_tenant, test_admin_user):
+    """Test listing links returns created links."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    # Create a link
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+    settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    result = settings_service.list_domain_group_links(requesting_user, domain_id)
+
+    assert len(result) == 1
+    assert result[0].group_id == group_id
+    assert result[0].domain_id == domain_id
+
+
+def test_list_domain_group_links_domain_not_found(test_tenant, test_admin_user):
+    """Test listing links for a non-existent domain raises NotFoundError."""
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+
+    with pytest.raises(NotFoundError) as exc_info:
+        settings_service.list_domain_group_links(
+            requesting_user, "00000000-0000-0000-0000-000000000000"
+        )
+
+    assert exc_info.value.code == "domain_not_found"
+
+
+def test_list_domain_group_links_as_member_forbidden(test_tenant, test_user):
+    """Test that regular members cannot list domain-group links."""
+    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+    with pytest.raises(ForbiddenError):
+        settings_service.list_domain_group_links(
+            requesting_user, "00000000-0000-0000-0000-000000000000"
+        )
+
+
+# =============================================================================
+# Domain-Group Links - Add Tests
+# =============================================================================
+
+
+def test_add_domain_group_link_as_admin(test_tenant, test_admin_user):
+    """Test that an admin can link a group to a domain."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, domain_name = _create_domain_and_group(
+        test_tenant["id"], test_admin_user["id"]
+    )
+
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+    result = settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    assert result.domain_id == domain_id
+    assert result.group_id == group_id
+    assert result.id is not None
+
+    # Verify event logged
+    _verify_event_logged(test_tenant["id"], "domain_group_link_created", result.id)
+
+
+def test_add_domain_group_link_domain_not_found(test_tenant, test_admin_user):
+    """Test that linking to a non-existent domain raises NotFoundError."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    _, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+    with pytest.raises(NotFoundError) as exc_info:
+        settings_service.add_domain_group_link(
+            requesting_user, "00000000-0000-0000-0000-000000000000", link_data
+        )
+
+    assert exc_info.value.code == "domain_not_found"
+
+
+def test_add_domain_group_link_group_not_found(test_tenant, test_admin_user):
+    """Test that linking a non-existent group raises NotFoundError."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, _, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    link_data = DomainGroupLinkCreate(group_id="00000000-0000-0000-0000-000000000000")
+    with pytest.raises(NotFoundError) as exc_info:
+        settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    assert exc_info.value.code == "group_not_found"
+
+
+def test_add_domain_group_link_rejects_idp_group(test_tenant, test_admin_user):
+    """Test that linking an IdP group raises ValidationError."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, _, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    # Create an idp group
+    idp_group = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name=f"IdP Group {str(uuid4())[:8]}",
+        group_type="idp",
+    )
+
+    link_data = DomainGroupLinkCreate(group_id=str(idp_group["id"]))
+    with pytest.raises(ValidationError) as exc_info:
+        settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    assert exc_info.value.code == "invalid_group_type"
+
+
+def test_add_domain_group_link_duplicate_conflict(test_tenant, test_admin_user):
+    """Test that duplicate link raises ConflictError."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+
+    # Create once
+    settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    # Try again
+    with pytest.raises(ConflictError) as exc_info:
+        settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    assert exc_info.value.code == "link_exists"
+
+
+def test_add_domain_group_link_as_member_forbidden(test_tenant, test_user):
+    """Test that regular members cannot create domain-group links."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+    with pytest.raises(ForbiddenError):
+        settings_service.add_domain_group_link(
+            requesting_user,
+            "00000000-0000-0000-0000-000000000000",
+            DomainGroupLinkCreate(group_id="00000000-0000-0000-0000-000000000000"),
+        )
+
+
+def test_add_domain_group_link_retroactive_assignment(test_tenant, test_admin_user):
+    """Test that creating a link retroactively adds existing users to the group."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = test_tenant["id"]
+
+    unique = str(uuid4())[:8]
+    domain_name = f"retro-{unique}.example.com"
+
+    # Create domain
+    domain_row = database.fetchone(
+        tenant_id,
+        """
+        insert into tenant_privileged_domains (tenant_id, domain, created_by)
+        values (:tenant_id, :domain, :created_by) returning id
+        """,
+        {
+            "tenant_id": str(tenant_id),
+            "domain": domain_name,
+            "created_by": str(test_admin_user["id"]),
+        },
+    )
+    domain_id = str(domain_row["id"])
+
+    # Create a user with a verified email on this domain
+    user_row = database.fetchone(
+        tenant_id,
+        """
+        insert into users (tenant_id, first_name, last_name, role)
+        values (:tenant_id, 'Retro', 'User', 'member') returning id
+        """,
+        {"tenant_id": str(tenant_id)},
+    )
+    user_id = str(user_row["id"])
+
+    database.execute(
+        tenant_id,
+        """
+        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
+        values (:tenant_id, :user_id, :email, true, now())
+        """,
+        {"tenant_id": str(tenant_id), "user_id": user_id, "email": f"retro@{domain_name}"},
+    )
+
+    # Create group
+    group = database.groups.create_group(
+        tenant_id=tenant_id,
+        tenant_id_value=str(tenant_id),
+        name=f"Retro Group {unique}",
+        group_type="weftid",
+        created_by=str(test_admin_user["id"]),
+    )
+    group_id = str(group["id"])
+
+    # Link domain to group: should retroactively add the user
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+    settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    # Verify user was added to the group
+    assert database.groups.is_group_member(tenant_id, group_id, user_id) is True
+
+
+# =============================================================================
+# Domain-Group Links - Delete Tests
+# =============================================================================
+
+
+def test_delete_domain_group_link(test_tenant, test_admin_user):
+    """Test that an admin can unlink a group from a domain."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    # Create link
+    link_data = DomainGroupLinkCreate(group_id=group_id)
+    link = settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+
+    # Delete it
+    settings_service.delete_domain_group_link(requesting_user, domain_id, link.id)
+
+    # Verify it's gone
+    links = settings_service.list_domain_group_links(requesting_user, domain_id)
+    assert len(links) == 0
+
+    # Verify event logged
+    _verify_event_logged(test_tenant["id"], "domain_group_link_deleted", link.id)
+
+
+def test_delete_domain_group_link_not_found(test_tenant, test_admin_user):
+    """Test deleting a non-existent link raises NotFoundError."""
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, _, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    with pytest.raises(NotFoundError) as exc_info:
+        settings_service.delete_domain_group_link(
+            requesting_user, domain_id, "00000000-0000-0000-0000-000000000000"
+        )
+
+    assert exc_info.value.code == "link_not_found"
+
+
+def test_delete_domain_group_link_wrong_domain(test_tenant, test_admin_user):
+    """Test deleting a link with wrong domain_id raises NotFoundError."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+    other_domain_id, _, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    # Create link on domain_id
+    link = settings_service.add_domain_group_link(
+        requesting_user, domain_id, DomainGroupLinkCreate(group_id=group_id)
+    )
+
+    # Try to delete via other_domain_id
+    with pytest.raises(NotFoundError):
+        settings_service.delete_domain_group_link(requesting_user, other_domain_id, link.id)
+
+
+def test_delete_domain_group_link_preserves_memberships(test_tenant, test_admin_user):
+    """Test that unlinking does NOT remove existing group memberships."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+    tenant_id = test_tenant["id"]
+
+    # Add the admin user to the group
+    database.groups.add_group_member(
+        tenant_id=tenant_id,
+        tenant_id_value=str(tenant_id),
+        group_id=group_id,
+        user_id=str(test_admin_user["id"]),
+    )
+
+    # Create and then delete the link
+    link = settings_service.add_domain_group_link(
+        requesting_user, domain_id, DomainGroupLinkCreate(group_id=group_id)
+    )
+    settings_service.delete_domain_group_link(requesting_user, domain_id, link.id)
+
+    # User should still be in the group
+    assert database.groups.is_group_member(tenant_id, group_id, str(test_admin_user["id"]))
+
+
+# =============================================================================
+# Domain-Group Links - Enriched List Tests
+# =============================================================================
+
+
+def test_list_privileged_domains_includes_linked_groups(test_tenant, test_admin_user):
+    """Test that list_privileged_domains includes linked_groups field."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, _ = _create_domain_and_group(test_tenant["id"], test_admin_user["id"])
+
+    # Link a group
+    settings_service.add_domain_group_link(
+        requesting_user, domain_id, DomainGroupLinkCreate(group_id=group_id)
+    )
+
+    # List domains
+    domains = settings_service.list_privileged_domains(requesting_user)
+    domain = next(d for d in domains if d.id == domain_id)
+
+    assert len(domain.linked_groups) == 1
+    assert domain.linked_groups[0].group_id == group_id
+
+
+# =============================================================================
+# Auto-Assign Utility
+# =============================================================================
+
+
+def test_auto_assign_user_to_domain_groups(test_tenant, test_admin_user):
+    """Test auto-assigning a user to domain-linked groups."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, domain_name = _create_domain_and_group(
+        test_tenant["id"], test_admin_user["id"]
+    )
+    tenant_id = test_tenant["id"]
+
+    # Link group to domain
+    settings_service.add_domain_group_link(
+        requesting_user, domain_id, DomainGroupLinkCreate(group_id=group_id)
+    )
+
+    # Create a new user with email on this domain
+    user_row = database.fetchone(
+        tenant_id,
+        """
+        insert into users (tenant_id, first_name, last_name, role)
+        values (:tenant_id, 'Auto', 'Assign', 'member') returning id
+        """,
+        {"tenant_id": str(tenant_id)},
+    )
+    user_id = str(user_row["id"])
+
+    # Auto-assign
+    count = settings_service.auto_assign_user_to_domain_groups(
+        str(tenant_id), user_id, f"autotest@{domain_name}", str(test_admin_user["id"])
+    )
+
+    assert count == 1
+    assert database.groups.is_group_member(tenant_id, group_id, user_id)
+
+    # Verify event logged
+    _verify_event_logged(tenant_id, "domain_group_auto_assigned", user_id)
+
+
+def test_auto_assign_no_links_returns_zero(test_tenant, test_admin_user):
+    """Test auto-assign returns 0 when no links exist for the domain."""
+    count = settings_service.auto_assign_user_to_domain_groups(
+        str(test_tenant["id"]),
+        str(test_admin_user["id"]),
+        "nobody@nonexistent-domain.com",
+    )
+
+    assert count == 0
+
+
+def test_auto_assign_idempotent(test_tenant, test_admin_user):
+    """Test auto-assign is idempotent (doesn't fail on duplicate membership)."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    domain_id, group_id, domain_name = _create_domain_and_group(
+        test_tenant["id"], test_admin_user["id"]
+    )
+    tenant_id = test_tenant["id"]
+
+    # Link group
+    settings_service.add_domain_group_link(
+        requesting_user, domain_id, DomainGroupLinkCreate(group_id=group_id)
+    )
+
+    user_row = database.fetchone(
+        tenant_id,
+        """
+        insert into users (tenant_id, first_name, last_name, role)
+        values (:tenant_id, 'Idem', 'Potent', 'member') returning id
+        """,
+        {"tenant_id": str(tenant_id)},
+    )
+    user_id = str(user_row["id"])
+    email = f"idem@{domain_name}"
+
+    # First call adds
+    count1 = settings_service.auto_assign_user_to_domain_groups(str(tenant_id), user_id, email)
+    assert count1 == 1
+
+    # Second call is no-op
+    count2 = settings_service.auto_assign_user_to_domain_groups(str(tenant_id), user_id, email)
+    assert count2 == 0
+
+
+def test_auto_assign_invalid_email(test_tenant, test_admin_user):
+    """Test auto-assign handles invalid emails gracefully."""
+    count = settings_service.auto_assign_user_to_domain_groups(
+        str(test_tenant["id"]), str(test_admin_user["id"]), "no-at-sign"
+    )
+    assert count == 0
+
+    count2 = settings_service.auto_assign_user_to_domain_groups(
+        str(test_tenant["id"]), str(test_admin_user["id"]), ""
+    )
+    assert count2 == 0
+
+
+def test_auto_assign_multiple_groups(test_tenant, test_admin_user):
+    """Test auto-assign adds user to multiple linked groups."""
+    from schemas.settings import DomainGroupLinkCreate
+
+    requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+    tenant_id = test_tenant["id"]
+
+    unique = str(uuid4())[:8]
+    domain_name = f"multi-{unique}.example.com"
+
+    # Create domain
+    domain_row = database.fetchone(
+        tenant_id,
+        """
+        insert into tenant_privileged_domains (tenant_id, domain, created_by)
+        values (:tenant_id, :domain, :created_by) returning id
+        """,
+        {
+            "tenant_id": str(tenant_id),
+            "domain": domain_name,
+            "created_by": str(test_admin_user["id"]),
+        },
+    )
+    domain_id = str(domain_row["id"])
+
+    # Create two groups and link both
+    group_ids = []
+    for i in range(2):
+        group = database.groups.create_group(
+            tenant_id=tenant_id,
+            tenant_id_value=str(tenant_id),
+            name=f"Multi Group {unique}-{i}",
+            group_type="weftid",
+            created_by=str(test_admin_user["id"]),
+        )
+        gid = str(group["id"])
+        group_ids.append(gid)
+        settings_service.add_domain_group_link(
+            requesting_user, domain_id, DomainGroupLinkCreate(group_id=gid)
+        )
+
+    # Create user
+    user_row = database.fetchone(
+        tenant_id,
+        """
+        insert into users (tenant_id, first_name, last_name, role)
+        values (:tenant_id, 'Multi', 'User', 'member') returning id
+        """,
+        {"tenant_id": str(tenant_id)},
+    )
+    user_id = str(user_row["id"])
+
+    count = settings_service.auto_assign_user_to_domain_groups(
+        str(tenant_id), user_id, f"multi@{domain_name}"
+    )
+
+    assert count == 2
+    for gid in group_ids:
+        assert database.groups.is_group_member(tenant_id, gid, user_id)

@@ -97,6 +97,11 @@ def jit_provision_user(
         tenant_id, user_id, email, saml_result.idp_id, idp["name"]
     )
 
+    # Auto-assign to domain-linked groups
+    from services import settings as settings_service
+
+    settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user_id)
+
     # Log JIT provisioning event
     log_event(
         tenant_id=tenant_id,

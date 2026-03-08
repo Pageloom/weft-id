@@ -201,6 +201,13 @@ def create_user(
             is_primary=True,
         )
 
+        # Auto-assign to domain-linked groups
+        from services import settings as settings_service
+
+        settings_service.auto_assign_user_to_domain_groups(
+            tenant_id, user_id, user_data.email, requesting_user["id"]
+        )
+
     # Fetch created user
     user = database.users.get_user_by_id(tenant_id, user_id)
     if not user:

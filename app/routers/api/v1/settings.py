@@ -6,6 +6,8 @@ from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends
 from schemas.settings import (
+    DomainGroupLink,
+    DomainGroupLinkCreate,
     PrivilegedDomain,
     PrivilegedDomainCreate,
     TenantSecuritySettings,
@@ -90,6 +92,108 @@ def delete_privileged_domain(
 
     try:
         settings_service.delete_privileged_domain(requesting_user, domain_id)
+        return None
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# Domain-Group Links (Admin access)
+# =============================================================================
+
+
+@router.get(
+    "/privileged-domains/{domain_id}/group-links",
+    response_model=list[DomainGroupLink],
+)
+def list_domain_group_links(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    domain_id: str,
+):
+    """
+    List groups linked to a privileged domain for auto-assignment.
+
+    Requires admin role.
+
+    Path Parameters:
+        domain_id: Privileged domain UUID
+
+    Returns:
+        List of domain-group links with group names
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    try:
+        return settings_service.list_domain_group_links(requesting_user, domain_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.post(
+    "/privileged-domains/{domain_id}/group-links",
+    response_model=DomainGroupLink,
+    status_code=201,
+)
+def add_domain_group_link(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    domain_id: str,
+    link_data: DomainGroupLinkCreate,
+):
+    """
+    Link a group to a privileged domain for auto-assignment.
+
+    When created, existing users with verified emails matching the domain
+    are retroactively added to the group.
+
+    Requires admin role.
+
+    Path Parameters:
+        domain_id: Privileged domain UUID
+
+    Request Body:
+        group_id: UUID of the WeftId group to link
+
+    Returns:
+        The created domain-group link
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    try:
+        return settings_service.add_domain_group_link(requesting_user, domain_id, link_data)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete(
+    "/privileged-domains/{domain_id}/group-links/{link_id}",
+    status_code=204,
+)
+def delete_domain_group_link(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    domain_id: str,
+    link_id: str,
+):
+    """
+    Remove a group link from a privileged domain.
+
+    Does not remove existing group memberships.
+
+    Requires admin role.
+
+    Path Parameters:
+        domain_id: Privileged domain UUID
+        link_id: Domain-group link UUID
+
+    Returns:
+        204 No Content on success
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+
+    try:
+        settings_service.delete_domain_group_link(requesting_user, domain_id, link_id)
         return None
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

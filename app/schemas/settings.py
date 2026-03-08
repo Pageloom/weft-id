@@ -10,6 +10,23 @@ from pydantic import BaseModel, Field
 # =============================================================================
 
 
+class DomainGroupLink(BaseModel):
+    """Response schema for a domain-group link."""
+
+    id: str = Field(..., description="Link UUID")
+    domain_id: str = Field(..., description="Privileged domain UUID")
+    group_id: str = Field(..., description="Group UUID")
+    group_name: str = Field(..., description="Group name")
+    created_at: datetime = Field(..., description="When the link was created")
+    created_by_name: str | None = Field(None, description="Name of user who created the link")
+
+
+class DomainGroupLinkCreate(BaseModel):
+    """Request schema for linking a group to a privileged domain."""
+
+    group_id: str = Field(..., max_length=50, description="Group UUID to link")
+
+
 class PrivilegedDomain(BaseModel):
     """Response schema for a privileged domain."""
 
@@ -19,6 +36,9 @@ class PrivilegedDomain(BaseModel):
     created_by_name: str | None = Field(None, description="Name of user who added the domain")
     bound_idp_id: str | None = Field(None, description="ID of bound IdP, if any")
     bound_idp_name: str | None = Field(None, description="Name of bound IdP, if any")
+    linked_groups: list[DomainGroupLink] = Field(
+        default_factory=list, description="Groups linked for auto-assignment"
+    )
 
 
 class PrivilegedDomainCreate(BaseModel):

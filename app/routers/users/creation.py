@@ -135,6 +135,9 @@ def create_new_user(
         email_id = email_result["id"]
         password_set_url = f"{request.base_url}set-password?email_id={email_id}"
         send_new_user_privileged_domain_notification(email, admin_name, org_name, password_set_url)
+
+        # Auto-assign to domain-linked groups
+        settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user["id"])
     else:
         # Add unverified email for non-privileged domains
         email_result = users_service.add_unverified_email_with_nonce(

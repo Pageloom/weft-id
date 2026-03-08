@@ -892,6 +892,56 @@ def step_10_idp_assertion_groups(
     log.info("IdP assertion groups ready")
 
 
+def step_11_domain_group_links(
+    log: logging.Logger,
+    tenant_id: str,
+    super_admin_id: str,
+    groups: dict[str, str],
+) -> None:
+    """Link a group to the privileged domain for auto-assignment testing."""
+    log.info("--- Step 11: Domain-group links ---")
+
+    domain_row = database.fetchone(
+        tenant_id,
+        "select id from tenant_privileged_domains where domain = :domain",
+        {"domain": EMAIL_DOMAIN},
+    )
+    if not domain_row:
+        log.info("Privileged domain not found, skipping domain-group links")
+        return
+
+    domain_id = str(domain_row["id"])
+    group_name = "All Staff"
+    group_id = groups.get(group_name)
+    if not group_id:
+        log.info("Group '%s' not found, skipping domain-group links", group_name)
+        return
+
+    existing = database.fetchone(
+        tenant_id,
+        "select id from domain_group_links where domain_id = :domain_id and group_id = :group_id",
+        {"domain_id": domain_id, "group_id": group_id},
+    )
+    if existing:
+        log.info("Domain-group link exists: %s -> %s", EMAIL_DOMAIN, group_name)
+        return
+
+    database.execute(
+        tenant_id,
+        """
+        insert into domain_group_links (tenant_id, domain_id, group_id, created_by)
+        values (:tenant_id, :domain_id, :group_id, :created_by)
+        """,
+        {
+            "tenant_id": tenant_id,
+            "domain_id": domain_id,
+            "group_id": group_id,
+            "created_by": super_admin_id,
+        },
+    )
+    log.info("Linked domain '%s' to group '%s'", EMAIL_DOMAIN, group_name)
+
+
 def _print_summary(log: logging.Logger, tenant_id: str) -> None:
     user_count = database.fetchone(tenant_id, "select count(*) as n from users", {})
     group_count = database.fetchone(tenant_id, "select count(*) as n from groups", {})
@@ -951,6 +1001,7 @@ def main() -> None:
     step_8_sp_group_assignments(log, tenant_id, sp_ids, groups, super_admin_id)
     step_9_identity_providers(log, tenant_id, super_admin_id)
     step_10_idp_assertion_groups(log, tenant_id, dept_user_ids)
+    step_11_domain_group_links(log, tenant_id, super_admin_id, groups)
     _print_summary(log, tenant_id)
 
 

@@ -1,0 +1,68 @@
+{% extends "settings_security_base.html" %}
+
+{% set active_tab = 'permissions' %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Permissions</h1>
+
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        Control what users can do in their own accounts. Super admins are exempt from these restrictions.
+    </p>
+
+    <form method="post" action="/admin/settings/security/permissions/update">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div class="mb-6">
+                <label class="flex items-start">
+                    <input
+                        type="checkbox"
+                        name="allow_users_edit_profile"
+                        value="true"
+                        {% if allow_users_edit_profile %}checked{% endif %}
+                        class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                    >
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Allow users to edit their profile
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Users can change their own name on the profile page.
+                        </span>
+                    </span>
+                </label>
+            </div>
+
+            <div class="mb-6">
+                <label class="flex items-start">
+                    <input
+                        type="checkbox"
+                        name="allow_users_add_emails"
+                        value="true"
+                        {% if allow_users_add_emails %}checked{% endif %}
+                        class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                    >
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Allow users to add email addresses
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Users can add and verify additional email addresses on their account.
+                        </span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

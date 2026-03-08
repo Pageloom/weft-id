@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Admin: Security Settings Tabbed Layout
+
+**Status:** Complete
+
+**Summary:** The single-page security settings form has been split into three focused tabs (Sessions, Certificates, Permissions) following the established Branding Settings tabbed layout pattern. Each tab has its own form and POST endpoint, so changes are saved per-tab. The `/admin/settings/security` route now redirects to `/admin/settings/security/sessions`.
+
+**Acceptance Criteria:**
+
+- [x] Base template `settings_security_base.html` with tab navigation (Sessions, Certificates, Permissions)
+- [x] `settings_security_tab_sessions.html` with session length, persistent sessions, and inactivation settings
+- [x] `settings_security_tab_certificates.html` with certificate validity period and rotation window settings
+- [x] `settings_security_tab_permissions.html` with user permission toggles
+- [x] Old `settings_tenant_security.html` removed
+- [x] `/admin/settings/security` redirects to `/admin/settings/security/sessions`
+- [x] Each tab has its own GET route and POST update route
+- [x] New routes registered in `app/pages.py` as children of the security page
+- [x] Each tab has its own Save button
+- [x] Success messages appear on the correct tab after save
+- [x] All existing settings continue to function identically
+- [x] All existing tests updated and passing (3815 tests)
+
+---
+
 ## Reusable SVG Icon System
 
 **Status:** Complete

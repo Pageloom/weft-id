@@ -1,0 +1,99 @@
+{% extends "settings_security_base.html" %}
+
+{% set active_tab = 'sessions' %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Sessions</h1>
+
+    <form method="post" action="/admin/settings/security/sessions/update">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div class="mb-6">
+                <label for="session_timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Maximum session length
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    How long users can remain signed in before they must re-authenticate.
+                </p>
+
+                <select
+                    name="session_timeout"
+                    id="session_timeout"
+                    class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="" {% if current_timeout is none %}selected{% endif %}>Indefinitely (no time limit)</option>
+                    <option value="28800" {% if current_timeout == 28800 %}selected{% endif %}>8 hours</option>
+                    <option value="86400" {% if current_timeout == 86400 %}selected{% endif %}>1 day</option>
+                    <option value="172800" {% if current_timeout == 172800 %}selected{% endif %}>2 days</option>
+                    <option value="259200" {% if current_timeout == 259200 %}selected{% endif %}>3 days</option>
+                    <option value="345600" {% if current_timeout == 345600 %}selected{% endif %}>4 days</option>
+                    <option value="432000" {% if current_timeout == 432000 %}selected{% endif %}>5 days</option>
+                    <option value="518400" {% if current_timeout == 518400 %}selected{% endif %}>6 days</option>
+                    <option value="604800" {% if current_timeout == 604800 %}selected{% endif %}>1 week</option>
+                    <option value="1209600" {% if current_timeout == 1209600 %}selected{% endif %}>2 weeks</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="flex items-start">
+                    <input
+                        type="checkbox"
+                        name="persistent_sessions"
+                        value="true"
+                        {% if persistent_sessions %}checked{% endif %}
+                        class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
+                    >
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Keep users signed in after browser is closed
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            When disabled, users must sign in again each time they open their browser.
+                        </span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="mb-6">
+                <label for="inactivity_threshold" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Automatic inactivation
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Inactivate users who haven't been active for this period. An admin must reactivate them before they can sign in again.
+                </p>
+
+                <select
+                    name="inactivity_threshold"
+                    id="inactivity_threshold"
+                    class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="" {% if inactivity_threshold_days is none %}selected{% endif %}>Disabled</option>
+                    <option value="14" {% if inactivity_threshold_days == 14 %}selected{% endif %}>After 14 days</option>
+                    <option value="30" {% if inactivity_threshold_days == 30 %}selected{% endif %}>After 30 days</option>
+                    <option value="60" {% if inactivity_threshold_days == 60 %}selected{% endif %}>After 60 days</option>
+                    <option value="90" {% if inactivity_threshold_days == 90 %}selected{% endif %}>After 90 days</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <div class="mt-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <p class="text-sm text-blue-800 dark:text-blue-300">
+            <strong>Note:</strong> Timeout changes apply immediately. Users whose sessions exceed the new limit will be signed out on their next request.
+        </p>
+    </div>
+</div>
+{% endblock %}

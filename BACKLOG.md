@@ -318,57 +318,6 @@ Documentation updates:
 
 ---
 
-## Admin: Security Settings Tabbed Layout
-
-**User Story:**
-As a super admin
-I want the Security settings page organized into focused tabs
-So that related settings are grouped logically and the page is easier to navigate as more security options are added
-
-**Context:**
-
-The current Security settings page is a single long form with five sections covering sessions,
-inactivation, certificates, and user permissions. Splitting it into tabs follows the established
-Branding Settings pattern (base template with tab nav, child templates per tab) and creates
-clear homes for future security settings.
-
-**Tab structure:**
-
-1. **Sessions** (default tab): Maximum session length, keep signed in after browser close, and
-   automatic user inactivation after inactivity period
-2. **Certificates**: Signing certificate validity period and auto-rotation/grace period window
-3. **Permissions**: Allow users to edit profile details, allow users to add alternative email addresses
-
-**Acceptance Criteria:**
-
-Templates:
-- [ ] Create `settings_security_base.html` with tab navigation (Sessions, Certificates, Permissions)
-- [ ] Create `settings_security_tab_sessions.html` with session length, keep signed in, and inactivation settings
-- [ ] Create `settings_security_tab_certificates.html` with certificate lifetime and rotation window settings
-- [ ] Create `settings_security_tab_permissions.html` with user permission toggles
-- [ ] Remove old `settings_tenant_security.html`
-
-Routes:
-- [ ] `/admin/settings/security` redirects to `/admin/settings/security/sessions`
-- [ ] Each tab has its own GET route (`/sessions`, `/certificates`, `/permissions`)
-- [ ] POST update route(s) handle saves per tab (or a single route that redirects back to the originating tab)
-- [ ] Register new routes in `app/pages.py`
-
-Behavior:
-- [ ] Each tab has its own Save button (no cross-tab form submission)
-- [ ] Success/error flash messages appear on the correct tab after save
-- [ ] All existing settings continue to function identically
-
-Tests:
-- [ ] Existing security settings tests pass (update any that reference the old template/route)
-- [ ] Each tab route returns 200 with correct content
-- [ ] Form submissions on each tab persist correctly
-
-**Effort:** S
-**Value:** Medium (UX improvement, prepares for additional security settings)
-
----
-
 ## Service Provider List: User Access Count
 
 **User Story:**

@@ -1,0 +1,67 @@
+{% extends "settings_security_base.html" %}
+
+{% set active_tab = 'certificates' %}
+
+{% block tab_content %}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+    <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Certificates</h1>
+
+    <form method="post" action="/admin/settings/security/certificates/update">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div class="mb-6">
+                <label for="certificate_lifetime" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Validity period
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    How long newly generated certificates remain valid. Applies to all certificate types (signing and encryption, SP and IdP). Does not affect existing certificates.
+                </p>
+
+                <select
+                    name="certificate_lifetime"
+                    id="certificate_lifetime"
+                    class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="1" {% if max_certificate_lifetime_years == 1 %}selected{% endif %}>1 year</option>
+                    <option value="2" {% if max_certificate_lifetime_years == 2 %}selected{% endif %}>2 years</option>
+                    <option value="3" {% if max_certificate_lifetime_years == 3 %}selected{% endif %}>3 years</option>
+                    <option value="5" {% if max_certificate_lifetime_years == 5 %}selected{% endif %}>5 years</option>
+                    <option value="10" {% if max_certificate_lifetime_years == 10 or max_certificate_lifetime_years is none %}selected{% endif %}>10 years</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="mb-6">
+                <label for="rotation_window" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Rotation window
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    How far before expiry a new certificate is generated. The old certificate remains valid for this period so downstream services can update their trust configuration.
+                </p>
+
+                <select
+                    name="rotation_window"
+                    id="rotation_window"
+                    class="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="14" {% if certificate_rotation_window_days == 14 %}selected{% endif %}>14 days</option>
+                    <option value="30" {% if certificate_rotation_window_days == 30 %}selected{% endif %}>30 days</option>
+                    <option value="60" {% if certificate_rotation_window_days == 60 %}selected{% endif %}>60 days</option>
+                    <option value="90" {% if certificate_rotation_window_days == 90 or certificate_rotation_window_days is none %}selected{% endif %}>90 days</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

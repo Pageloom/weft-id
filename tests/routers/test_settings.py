@@ -277,15 +277,26 @@ def test_delete_privileged_domain_not_found_shows_error(test_admin_user, overrid
     mock_template.assert_called_once()
 
 
-def test_tenant_security_page(test_super_admin_user, override_auth, mocker):
-    """Test tenant security settings page."""
+def test_tenant_security_redirects_to_sessions(test_super_admin_user, override_auth):
+    """Test /security redirects to /security/sessions."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/security", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/security/sessions"
+
+
+def test_tenant_security_sessions_page(test_super_admin_user, override_auth, mocker):
+    """Test tenant security sessions tab page."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mock_get = mocker.patch(f"{DB_SECURITY}.get_security_settings")
     mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
     mocker.patch(
         f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
-        return_value=HTMLResponse(content="<html>security</html>"),
+        return_value=HTMLResponse(content="<html>security sessions</html>"),
     )
 
     mock_get.return_value = {
@@ -296,14 +307,48 @@ def test_tenant_security_page(test_super_admin_user, override_auth, mocker):
     }
 
     client = TestClient(app)
-    response = client.get("/admin/settings/security")
+    response = client.get("/admin/settings/security/sessions")
 
     assert response.status_code == 200
     mock_get.assert_called_once_with(str(test_super_admin_user["tenant_id"]))
 
 
-def test_tenant_security_page_no_settings(test_super_admin_user, override_auth, mocker):
-    """Test tenant security page when no settings exist (defaults)."""
+def test_tenant_security_certificates_page(test_super_admin_user, override_auth, mocker):
+    """Test tenant security certificates tab page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>security certificates</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/security/certificates")
+
+    assert response.status_code == 200
+
+
+def test_tenant_security_permissions_page(test_super_admin_user, override_auth, mocker):
+    """Test tenant security permissions tab page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>security permissions</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/security/permissions")
+
+    assert response.status_code == 200
+
+
+def test_tenant_security_sessions_page_no_settings(test_super_admin_user, override_auth, mocker):
+    """Test tenant security sessions page when no settings exist (defaults)."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
@@ -314,13 +359,13 @@ def test_tenant_security_page_no_settings(test_super_admin_user, override_auth, 
     )
 
     client = TestClient(app)
-    response = client.get("/admin/settings/security")
+    response = client.get("/admin/settings/security/sessions")
 
     assert response.status_code == 200
 
 
-def test_update_tenant_security(test_super_admin_user, override_auth, mocker):
-    """Test updating tenant security settings."""
+def test_update_tenant_security_sessions(test_super_admin_user, override_auth, mocker):
+    """Test updating tenant session security settings."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
@@ -328,12 +373,10 @@ def test_update_tenant_security(test_super_admin_user, override_auth, mocker):
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "3600",
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "",  # Unchecked
         },
         follow_redirects=False,
     )
@@ -343,8 +386,8 @@ def test_update_tenant_security(test_super_admin_user, override_auth, mocker):
     mock_update.assert_called_once()
 
 
-def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth, mocker):
-    """Test updating security with no timeout (indefinite)."""
+def test_update_tenant_security_sessions_no_timeout(test_super_admin_user, override_auth, mocker):
+    """Test updating sessions with no timeout (indefinite)."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
@@ -352,12 +395,10 @@ def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth,
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "",  # Empty = indefinite
             "persistent_sessions": "",
-            "allow_users_edit_profile": "",
-            "allow_users_add_emails": "",
         },
         follow_redirects=False,
     )
@@ -369,10 +410,10 @@ def test_update_tenant_security_no_timeout(test_super_admin_user, override_auth,
     assert call_kwargs["timeout_seconds"] is None
 
 
-def test_update_tenant_security_invalid_timeout_shows_error_page(
+def test_update_tenant_security_sessions_invalid_timeout_shows_error_page(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with invalid timeout shows error page."""
+    """Test updating sessions with invalid timeout shows error page."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mock_template = mocker.patch(
@@ -384,12 +425,10 @@ def test_update_tenant_security_invalid_timeout_shows_error_page(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "0",  # Zero is invalid
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
         },
         follow_redirects=False,
     )
@@ -399,28 +438,51 @@ def test_update_tenant_security_invalid_timeout_shows_error_page(
     mock_template.assert_called_once()
 
 
-def test_tenant_security_form_action_url_is_correct():
-    """Test that the security settings template form posts to the correct URL.
+def test_update_tenant_security_permissions(test_super_admin_user, override_auth, mocker):
+    """Test updating tenant permission security settings."""
+    override_auth(test_super_admin_user, level="super_admin")
 
-    This test reads the template file directly and verifies the form
-    action attribute points to the correct endpoint.
+    mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/permissions/update",
+        data={
+            "allow_users_edit_profile": "true",
+            "allow_users_add_emails": "",  # Unchecked
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "success=1" in response.headers["location"]
+    mock_update.assert_called_once()
+
+
+def test_security_tab_form_action_urls_are_correct():
+    """Test that each security tab template form posts to the correct URL.
+
     Regression test for bug where form posted to wrong URL causing 404.
     """
     import os
 
-    # Read the template file directly
-    template_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
-    )
-    with open(template_path) as f:
-        template_content = f.read()
+    templates_dir = os.path.join(os.path.dirname(__file__), "..", "..", "app", "templates")
 
-    # Verify the form action points to the correct route
-    assert 'action="/admin/settings/security/update"' in template_content, (
-        "Form should POST to /admin/settings/security/update to match the route at "
-        "app/routers/settings.py:143 (router prefix='/admin', route='/security/update'). "
-        "Found form action does not match the actual route endpoint."
-    )
+    # Sessions tab
+    with open(os.path.join(templates_dir, "settings_security_tab_sessions.html")) as f:
+        content = f.read()
+    assert 'action="/admin/settings/security/sessions/update"' in content
+
+    # Certificates tab
+    with open(os.path.join(templates_dir, "settings_security_tab_certificates.html")) as f:
+        content = f.read()
+    assert 'action="/admin/settings/security/certificates/update"' in content
+
+    # Permissions tab
+    with open(os.path.join(templates_dir, "settings_security_tab_permissions.html")) as f:
+        content = f.read()
+    assert 'action="/admin/settings/security/permissions/update"' in content
 
 
 # =============================================================================
@@ -596,8 +658,8 @@ def test_privileged_domains_regular_admin_no_idps(test_admin_user, override_auth
 # =============================================================================
 
 
-def test_admin_security_service_error(test_super_admin_user, override_auth, mocker):
-    """Test security settings page shows error when service fails."""
+def test_admin_security_sessions_service_error(test_super_admin_user, override_auth, mocker):
+    """Test security sessions page shows error when service fails."""
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
@@ -609,14 +671,14 @@ def test_admin_security_service_error(test_super_admin_user, override_auth, mock
     mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
     client = TestClient(app)
-    response = client.get("/admin/settings/security")
+    response = client.get("/admin/settings/security/sessions")
 
     assert response.status_code == 500
     mock_error.assert_called_once()
 
 
 def test_update_security_non_numeric_timeout_error(test_super_admin_user, override_auth, mocker):
-    """Test updating security with non-numeric timeout shows error."""
+    """Test updating sessions with non-numeric timeout shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -626,12 +688,10 @@ def test_update_security_non_numeric_timeout_error(test_super_admin_user, overri
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "not-a-number",  # Non-numeric
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
         },
         follow_redirects=False,
     )
@@ -640,7 +700,7 @@ def test_update_security_non_numeric_timeout_error(test_super_admin_user, overri
 
 
 def test_update_security_non_numeric_inactivity_error(test_super_admin_user, override_auth, mocker):
-    """Test updating security with non-numeric inactivity threshold shows error."""
+    """Test updating sessions with non-numeric inactivity threshold shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -650,13 +710,11 @@ def test_update_security_non_numeric_inactivity_error(test_super_admin_user, ove
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "3600",
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
-            "inactivity_threshold": "not-a-number",  # Correct field name
+            "inactivity_threshold": "not-a-number",
         },
         follow_redirects=False,
     )
@@ -664,8 +722,8 @@ def test_update_security_non_numeric_inactivity_error(test_super_admin_user, ove
     assert response.status_code == 400
 
 
-def test_update_security_service_error(test_super_admin_user, override_auth, mocker):
-    """Test updating security with service error shows error page."""
+def test_update_security_sessions_service_error(test_super_admin_user, override_auth, mocker):
+    """Test updating sessions with service error shows error page."""
     from services.exceptions import ServiceError
 
     override_auth(test_super_admin_user, level="super_admin")
@@ -678,12 +736,10 @@ def test_update_security_service_error(test_super_admin_user, override_auth, moc
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "3600",
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
         },
         follow_redirects=False,
     )
@@ -700,7 +756,7 @@ def test_update_security_service_error(test_super_admin_user, override_auth, moc
 def test_update_tenant_security_with_certificate_lifetime(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with certificate lifetime form field."""
+    """Test updating certificates with certificate lifetime form field."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
@@ -708,12 +764,8 @@ def test_update_tenant_security_with_certificate_lifetime(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "3600",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "certificate_lifetime": "3",
         },
         follow_redirects=False,
@@ -737,12 +789,8 @@ def test_update_tenant_security_empty_certificate_lifetime(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "certificate_lifetime": "",  # Empty = keep default
         },
         follow_redirects=False,
@@ -758,7 +806,7 @@ def test_update_tenant_security_empty_certificate_lifetime(
 def test_update_tenant_security_non_numeric_certificate_lifetime_error(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with non-numeric certificate lifetime shows error."""
+    """Test updating certificates with non-numeric certificate lifetime shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -768,12 +816,8 @@ def test_update_tenant_security_non_numeric_certificate_lifetime_error(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "3600",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "certificate_lifetime": "not-a-number",
         },
         follow_redirects=False,
@@ -782,18 +826,23 @@ def test_update_tenant_security_non_numeric_certificate_lifetime_error(
     assert response.status_code == 400
 
 
-def test_security_template_has_certificate_lifetime_field():
-    """Test that the security settings template includes certificate lifetime dropdown."""
+def test_security_certificates_template_has_certificate_lifetime_field():
+    """Test that the certificates tab template includes certificate lifetime dropdown."""
     import os
 
     template_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "app",
+        "templates",
+        "settings_security_tab_certificates.html",
     )
     with open(template_path) as f:
         template_content = f.read()
 
     assert 'name="certificate_lifetime"' in template_content
-    assert "Certificate Lifetime" in template_content
+    assert "Validity period" in template_content
 
 
 # =============================================================================
@@ -802,7 +851,7 @@ def test_security_template_has_certificate_lifetime_field():
 
 
 def test_update_tenant_security_with_rotation_window(test_super_admin_user, override_auth, mocker):
-    """Test updating security with rotation window form field."""
+    """Test updating certificates with rotation window form field."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(f"{DB_SECURITY}.get_security_settings", return_value=None)
@@ -810,12 +859,8 @@ def test_update_tenant_security_with_rotation_window(test_super_admin_user, over
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "3600",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "rotation_window": "30",
         },
         follow_redirects=False,
@@ -837,12 +882,8 @@ def test_update_tenant_security_empty_rotation_window(test_super_admin_user, ove
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "rotation_window": "",  # Empty = keep default
         },
         follow_redirects=False,
@@ -857,7 +898,7 @@ def test_update_tenant_security_empty_rotation_window(test_super_admin_user, ove
 def test_update_tenant_security_invalid_rotation_window_error(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with invalid rotation window shows error."""
+    """Test updating certificates with invalid rotation window shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -867,12 +908,8 @@ def test_update_tenant_security_invalid_rotation_window_error(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "3600",
-            "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
             "rotation_window": "45",  # Invalid: not in [14, 30, 60, 90]
         },
         follow_redirects=False,
@@ -881,18 +918,23 @@ def test_update_tenant_security_invalid_rotation_window_error(
     assert response.status_code == 400
 
 
-def test_security_template_has_rotation_window_field():
-    """Test that the security settings template includes rotation window dropdown."""
+def test_security_certificates_template_has_rotation_window_field():
+    """Test that the certificates tab template includes rotation window dropdown."""
     import os
 
     template_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "app", "templates", "settings_tenant_security.html"
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "app",
+        "templates",
+        "settings_security_tab_certificates.html",
     )
     with open(template_path) as f:
         template_content = f.read()
 
     assert 'name="rotation_window"' in template_content
-    assert "Certificate Rotation Window" in template_content
+    assert "Rotation window" in template_content
 
 
 # =============================================================================
@@ -927,7 +969,7 @@ def test_privileged_domains_service_error(test_admin_user, override_auth, mocker
 def test_update_security_negative_inactivity_threshold_error(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with negative inactivity threshold shows error."""
+    """Test updating sessions with negative inactivity threshold shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -937,12 +979,10 @@ def test_update_security_negative_inactivity_threshold_error(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "",
             "persistent_sessions": "",
-            "allow_users_edit_profile": "",
-            "allow_users_add_emails": "",
             "inactivity_threshold": "-5",
         },
         follow_redirects=False,
@@ -954,7 +994,7 @@ def test_update_security_negative_inactivity_threshold_error(
 def test_update_security_zero_inactivity_threshold_error(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with zero inactivity threshold shows error."""
+    """Test updating sessions with zero inactivity threshold shows error."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -964,12 +1004,10 @@ def test_update_security_zero_inactivity_threshold_error(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "",
             "persistent_sessions": "",
-            "allow_users_edit_profile": "",
-            "allow_users_add_emails": "",
             "inactivity_threshold": "0",
         },
         follow_redirects=False,
@@ -986,7 +1024,7 @@ def test_update_security_zero_inactivity_threshold_error(
 def test_update_security_invalid_certificate_lifetime_value_error(
     test_super_admin_user, override_auth, mocker
 ):
-    """Test updating security with numeric but disallowed certificate lifetime (e.g. 4)."""
+    """Test updating certificates with numeric but disallowed certificate lifetime (e.g. 4)."""
     override_auth(test_super_admin_user, level="super_admin")
 
     mocker.patch(
@@ -996,12 +1034,8 @@ def test_update_security_invalid_certificate_lifetime_value_error(
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/certificates/update",
         data={
-            "session_timeout": "",
-            "persistent_sessions": "",
-            "allow_users_edit_profile": "",
-            "allow_users_add_emails": "",
             "certificate_lifetime": "4",  # Valid int, but not in [1,2,3,5,10]
         },
         follow_redirects=False,
@@ -1043,12 +1077,10 @@ def test_update_security_pydantic_validation_error(test_super_admin_user, overri
 
     client = TestClient(app)
     response = client.post(
-        "/admin/settings/security/update",
+        "/admin/settings/security/sessions/update",
         data={
             "session_timeout": "3600",
             "persistent_sessions": "true",
-            "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "true",
         },
         follow_redirects=False,
     )

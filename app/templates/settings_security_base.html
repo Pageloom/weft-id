@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Security Settings - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    {% if success %}
+    <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
+        <p class="text-sm text-green-800 dark:text-green-300">
+            Security settings have been updated successfully.
+        </p>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="mb-6 p-4 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-md">
+        <p class="text-sm text-red-800 dark:text-red-300">
+            An error occurred while updating settings. Please try again.
+        </p>
+    </div>
+    {% endif %}
+
+    {# Tab Bar #}
+    <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <nav class="flex space-x-6">
+            <a href="/admin/settings/security/sessions"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'sessions' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Sessions</a>
+            <a href="/admin/settings/security/certificates"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'certificates' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Certificates</a>
+            <a href="/admin/settings/security/permissions"
+               class="pb-3 border-b-2 text-sm font-medium {% if active_tab == 'permissions' %}border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400{% else %}border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300{% endif %}">
+                Permissions</a>
+        </nav>
+    </div>
+
+    {% block tab_content %}{% endblock %}
+</div>
+{% endblock %}

@@ -178,8 +178,8 @@ def test_get_first_accessible_child_settings_admin():
 def test_get_first_accessible_child_settings_super_admin():
     """Test getting first accessible child for admin menu as super_admin."""
     first_child = get_first_accessible_child("/admin", "super_admin")
-    # Super admin sees security first (it's listed first in children)
-    assert first_child == "/admin/settings/security"
+    # Super admin sees security first, which recurses to sessions tab
+    assert first_child == "/admin/settings/security/sessions"
 
 
 def test_get_first_accessible_child_no_permission():

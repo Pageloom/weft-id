@@ -162,6 +162,26 @@ PAGES = [
                         title="Security",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
+                        children=[
+                            Page(
+                                path="/admin/settings/security/sessions",
+                                title="Sessions",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=True,
+                            ),
+                            Page(
+                                path="/admin/settings/security/certificates",
+                                title="Certificates",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=True,
+                            ),
+                            Page(
+                                path="/admin/settings/security/permissions",
+                                title="Permissions",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=True,
+                            ),
+                        ],
                     ),
                     Page(
                         path="/admin/settings/privileged-domains",

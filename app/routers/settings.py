@@ -232,12 +232,20 @@ def unbind_domain_from_idp(
 
 
 @router.get("/security", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)])
-def admin_security(
+def admin_security_redirect(
     request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Display security settings for the tenant."""
+    """Redirect to security sessions tab."""
+    return RedirectResponse(url="/admin/settings/security/sessions", status_code=303)
+
+
+def _get_security_template_context(
+    request: Request,
+    tenant_id: str,
+    user: dict,
+    template_name: str,
+):
+    """Shared helper to load security settings and render a tab template."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
@@ -250,7 +258,7 @@ def admin_security(
 
     return templates.TemplateResponse(
         request,
-        "settings_tenant_security.html",
+        template_name,
         get_template_context(
             request,
             tenant_id,
@@ -267,20 +275,62 @@ def admin_security(
     )
 
 
-@router.post("/security/update", dependencies=[Depends(require_super_admin)])
-def update_admin_security(
+@router.get(
+    "/security/sessions", response_class=HTMLResponse, dependencies=[Depends(require_super_admin)]
+)
+def admin_security_sessions(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display sessions security settings tab."""
+    return _get_security_template_context(
+        request, tenant_id, user, "settings_security_tab_sessions.html"
+    )
+
+
+@router.get(
+    "/security/certificates",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def admin_security_certificates(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display certificates security settings tab."""
+    return _get_security_template_context(
+        request, tenant_id, user, "settings_security_tab_certificates.html"
+    )
+
+
+@router.get(
+    "/security/permissions",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def admin_security_permissions(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display permissions security settings tab."""
+    return _get_security_template_context(
+        request, tenant_id, user, "settings_security_tab_permissions.html"
+    )
+
+
+@router.post("/security/sessions/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security_sessions(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     session_timeout: Annotated[str, Form()] = "",
     persistent_sessions: Annotated[str, Form()] = "",
-    allow_users_edit_profile: Annotated[str, Form()] = "",
-    allow_users_add_emails: Annotated[str, Form()] = "",
     inactivity_threshold: Annotated[str, Form()] = "",
-    certificate_lifetime: Annotated[str, Form()] = "",
-    rotation_window: Annotated[str, Form()] = "",
 ):
-    """Update security settings for the tenant."""
+    """Update session security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     # Parse session timeout (empty string means indefinite/NULL)
@@ -289,7 +339,6 @@ def update_admin_security(
         try:
             timeout_seconds = int(session_timeout)
             if timeout_seconds <= 0:
-                # Invalid timeout - show error page
                 exc = ValidationError(
                     message="Session timeout must be positive",
                     code="invalid_timeout",
@@ -297,7 +346,6 @@ def update_admin_security(
                 )
                 return render_error_page(request, tenant_id, exc)
         except ValueError:
-            # Non-numeric value - show error page
             exc = ValidationError(
                 message="Session timeout must be a number",
                 code="invalid_timeout",
@@ -324,6 +372,38 @@ def update_admin_security(
                 field="inactivity_threshold_days",
             )
             return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_update = TenantSecuritySettingsUpdate(
+            session_timeout_seconds=timeout_seconds,
+            persistent_sessions=persistent_sessions == "true",
+            inactivity_threshold_days=inactivity_days,
+        )
+    except PydanticValidationError as e:
+        exc = ValidationError(
+            message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/admin/settings/security/sessions?success=1", status_code=303)
+
+
+@router.post("/security/certificates/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security_certificates(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    certificate_lifetime: Annotated[str, Form()] = "",
+    rotation_window: Annotated[str, Form()] = "",
+):
+    """Update certificate security settings for the tenant."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
 
     # Parse certificate lifetime (empty string means keep current)
     cert_lifetime_years: Literal[1, 2, 3, 5, 10] | None = None
@@ -357,19 +437,12 @@ def update_admin_security(
             )
             return render_error_page(request, tenant_id, exc)
 
-    # Parse checkboxes (checked = "true", unchecked = "")
     try:
         settings_update = TenantSecuritySettingsUpdate(
-            session_timeout_seconds=timeout_seconds,
-            persistent_sessions=persistent_sessions == "true",
-            allow_users_edit_profile=allow_users_edit_profile == "true",
-            allow_users_add_emails=allow_users_add_emails == "true",
-            inactivity_threshold_days=inactivity_days,
             max_certificate_lifetime_years=cert_lifetime_years,
             certificate_rotation_window_days=rotation_window_days,
         )
     except PydanticValidationError as e:
-        # Convert Pydantic validation error to service error
         exc = ValidationError(
             message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
             code="validation_error",
@@ -381,7 +454,38 @@ def update_admin_security(
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 
-    return RedirectResponse(url="/admin/settings/security?success=1", status_code=303)
+    return RedirectResponse(url="/admin/settings/security/certificates?success=1", status_code=303)
+
+
+@router.post("/security/permissions/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security_permissions(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    allow_users_edit_profile: Annotated[str, Form()] = "",
+    allow_users_add_emails: Annotated[str, Form()] = "",
+):
+    """Update permission security settings for the tenant."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    try:
+        settings_update = TenantSecuritySettingsUpdate(
+            allow_users_edit_profile=allow_users_edit_profile == "true",
+            allow_users_add_emails=allow_users_add_emails == "true",
+        )
+    except PydanticValidationError as e:
+        exc = ValidationError(
+            message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/admin/settings/security/permissions?success=1", status_code=303)
 
 
 # =============================================================================

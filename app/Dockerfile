@@ -49,5 +49,8 @@ COPY static/css/input.css /app/static/css/
 RUN mkdir -p /app/static/css \
  && tailwindcss -i /app/static/css/input.css -o /app/static/css/output.css --minify
 
+# Copy pre-built documentation site
+COPY site/ /site/
+
 EXPOSE 8000
 ENTRYPOINT ["./dev-docker-entrypoint.sh"]

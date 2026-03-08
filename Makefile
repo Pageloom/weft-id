@@ -2,7 +2,7 @@ COMPOSE := docker compose
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart-% logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage
+.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart-% logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -75,6 +75,10 @@ seed-sso: ## Set up cross-tenant SSO test bed (dev <-> sp-test)
 
 seed-dev: ## Seed dev environment with Meridian Health sample data
 	$(COMPOSE) exec app python ./dev/seed_dev.py
+
+## Docs
+docs: ## Build documentation site (output in site/)
+	poetry run mkdocs build --strict
 
 ## Quality
 test: ## Run all tests (pass args: make test ARGS="-v -k my_test")

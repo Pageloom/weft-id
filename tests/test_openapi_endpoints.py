@@ -2,9 +2,9 @@
 
 
 def test_docs_endpoint_accessible_when_enabled(client, test_tenant_host):
-    """Test that /docs is accessible when ENABLE_OPENAPI_DOCS=True."""
+    """Test that /api/docs is accessible when ENABLE_OPENAPI_DOCS=True."""
     # Current test environment has ENABLE_OPENAPI_DOCS=true in .env
-    response = client.get("/docs", headers={"Host": test_tenant_host})
+    response = client.get("/api/docs", headers={"Host": test_tenant_host})
 
     # Should return 200 (Swagger UI HTML)
     assert response.status_code == 200
@@ -12,8 +12,8 @@ def test_docs_endpoint_accessible_when_enabled(client, test_tenant_host):
 
 
 def test_redoc_endpoint_accessible_when_enabled(client, test_tenant_host):
-    """Test that /redoc is accessible when ENABLE_OPENAPI_DOCS=True."""
-    response = client.get("/redoc", headers={"Host": test_tenant_host})
+    """Test that /api/redoc is accessible when ENABLE_OPENAPI_DOCS=True."""
+    response = client.get("/api/redoc", headers={"Host": test_tenant_host})
 
     # Should return 200 (ReDoc UI HTML)
     assert response.status_code == 200

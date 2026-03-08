@@ -69,6 +69,9 @@ Request → Router → Service → Database → PostgreSQL
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
+| `mkdocs.yml` | MkDocs documentation site configuration |
+| `docs/` | Documentation site source (Markdown) |
+| `site/` | Built documentation site (checked in, served at `/docs`) |
 | `docs/decisions/` | Architectural Decision Records (ADRs) for foundational design choices |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
@@ -103,7 +106,15 @@ db-init/              # Database schema baseline + migration runner
   migrate.py          # Forward-only migration runner
   migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
-docs/decisions/       # Architectural Decision Records (ADRs)
+docs/                 # Documentation site (MkDocs source)
+  internal/           # Developer planning docs
+  decisions/          # Architectural Decision Records (ADRs)
+  getting-started/    # Getting started guide
+  admin-guide/        # Administrator documentation
+  user-guide/         # End-user documentation
+  api/                # API documentation
+  self-hosting/       # Self-hosting guide
+site/                 # Built documentation site (served at /docs)
 .claude/skills/       # Skill definitions (/pm, /dev, /test, etc.)
 .claude/references/   # Detailed patterns and checklists for agents
 ```
@@ -350,6 +361,13 @@ make sh-app      # Open shell in service container
 make build-css   # Build Tailwind CSS (run after modifying templates)
 make watch-css   # Watch templates and auto-rebuild CSS (recommended for active development)
 ```
+
+**Documentation site:**
+```bash
+make docs        # Build docs from docs/ into site/ (must be committed)
+```
+
+The documentation site is built from Markdown sources in `docs/` using MkDocs with the Material theme. The built output in `site/` is checked into git and served by the app at `/docs`. To update the docs: edit files in `docs/`, run `make docs`, and commit both `docs/` and `site/`.
 
 **Quick reference:**
 ```bash

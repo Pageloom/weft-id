@@ -84,7 +84,7 @@ def test_all_non_public_routes_have_authentication():
                 continue
 
             # Skip docs/health check paths
-            if path in ["/docs", "/redoc", "/openapi.json", "/health"]:
+            if path in ["/api/docs", "/api/redoc", "/openapi.json", "/health"]:
                 continue
 
             # Check if route has ANY authentication dependency

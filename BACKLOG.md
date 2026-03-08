@@ -11,7 +11,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 The items below form a connected initiative to make WeftId easy to self-host with good
 security defaults, and to establish versioning, release, and upgrade practices. They are
 listed in dependency order. Items 1-3 are foundational (do once before going public),
-items 4-6 are the self-hosting deliverables, and item 7 is cleanup.
+items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
 
 ---
 
@@ -239,7 +239,75 @@ This is a nice-to-have on top of the compose file (which should also work with m
 
 ---
 
-## 6. Self-Hosting Upgrade & Operations Documentation
+## 6. Tenant Provisioning CLI
+
+**User Story:**
+As a platform operator with shell access
+I want a CLI command that creates a new tenant and its first super admin
+So that I can provision new tenants on a running instance without direct database manipulation
+
+**Context:**
+
+After the install script (item 5) gets the infrastructure running, the operator needs a way to
+create the first tenant and super admin. Today this requires direct SQL or the dev seed script
+(which is gated behind `IS_DEV=true`). This item provides a production-safe CLI command that
+creates the tenant, creates the super admin user record, and sends the standard invitation
+email so the super admin can verify their email, set a password, and complete MFA setup.
+
+The command reuses existing infrastructure: `provision_tenant()` for tenant creation,
+`users_service.create_user()` for the user, and `emails_service.add_email()` for the email
+record. The super admin goes through the standard non-privileged-domain onboarding path
+(verify email, set password, MFA), which also validates that email delivery is working
+before the admin gains access.
+
+The invitation email is distinct from the standard user invitation. A normal user gets
+"You've been invited to join {org_name}." The provisioning super admin is setting up the
+organization, not just joining it. The email should convey that they are the founding
+administrator, that they will configure the identity layer for their organization, and
+that the first step is to verify their email and set a password.
+
+If the tenant already exists, the command adds a new super admin to it (allows provisioning
+additional super admins or recovering from a failed first attempt).
+
+**Acceptance Criteria:**
+
+CLI interface:
+- [ ] Management command runnable via `python -m app.cli.provision_tenant` (or similar)
+- [ ] Required arguments: `--subdomain`, `--tenant-name`, `--email`, `--first-name`, `--last-name`
+- [ ] All arguments validated before any database writes (subdomain format, email format, name length)
+- [ ] Clear error messages for validation failures
+
+Tenant creation:
+- [ ] Creates tenant via existing `provision_tenant()` if subdomain does not exist
+- [ ] If tenant with subdomain already exists, uses the existing tenant (logs that it was found)
+- [ ] Prints tenant ID and subdomain on success
+
+Super admin creation:
+- [ ] Creates user with `role=super_admin`, no password
+- [ ] Adds email as unverified (standard non-privileged flow)
+- [ ] If a user with that email already exists in the tenant, aborts with a clear error
+- [ ] Event logged: `user_created` with metadata indicating CLI provisioning
+
+Invitation email:
+- [ ] New email template distinct from the standard user invitation
+- [ ] Subject conveys ownership, not just membership (e.g., "Set up your organization on WeftId")
+- [ ] Body communicates that the recipient is the founding super admin, responsible for configuring the identity layer
+- [ ] Includes the same verification link mechanism as the standard flow (verify email, then set password)
+- [ ] If email delivery fails, prints error but does not roll back user creation (operator can retry or check SMTP config)
+- [ ] Prints confirmation that invitation was sent, with the super admin's email
+
+Safety:
+- [ ] Works in production (no `IS_DEV` gate)
+- [ ] Does not expose passwords, tokens, or activation links in CLI output
+- [ ] Idempotent on tenant (safe to re-run with same subdomain)
+- [ ] Not idempotent on user (duplicate email in same tenant is an error, not a silent skip)
+
+**Effort:** S
+**Value:** High (Required for self-hosting setup, blocks first-time use of any new instance)
+
+---
+
+## 7. Self-Hosting Upgrade & Operations Documentation
 
 **User Story:**
 As a self-hoster
@@ -270,7 +338,7 @@ with rollback considerations, backup strategy, and what to check in release note
 
 ---
 
-## 7. Remove Legacy Onprem Setup
+## 8. Remove Legacy Onprem Setup
 
 **User Story:**
 As a developer
@@ -869,6 +937,111 @@ when present. Pages without a `docs_path` simply show no icon.
 
 **Effort:** S
 **Value:** Medium
+
+---
+
+## Consolidate Tenant Name and Site Title
+
+**User Story:**
+As a platform operator
+I want one name for my tenant, not two
+So that the display name in the nav bar, emails, and everywhere else is always the organization name
+
+**Context:**
+
+Today the tenant has two name fields: `tenants.name` (the organization name, e.g., "Meridian
+Health") and `tenant_branding.site_title` (a display name shown in the nav bar, max 30 chars,
+defaults to "WeftId"). There is no good reason for these to differ. The split is an artifact
+of branding settings being built separately from tenant creation.
+
+Consolidation means removing `site_title` from `tenant_branding` and using `tenants.name`
+everywhere. The nav bar shows the tenant name. Emails use the tenant name. The "WeftId"
+default goes away. The `show_title_in_nav` toggle remains (controls whether to show the name
+next to the logo, regardless of what the name is).
+
+Admins can rename their tenant from the branding settings page (same place they currently
+edit `site_title`), which updates `tenants.name`.
+
+**Acceptance Criteria:**
+
+Database:
+- [ ] Migration removes `site_title` from `tenant_branding` (or marks it unused)
+- [ ] Migration copies any non-default `site_title` values into `tenants.name` for tenants
+      where `site_title` differs from the default "WeftId" (preserves admin customizations)
+- [ ] `tenants.name` gains a `CHECK` constraint on length (max 30 chars, matching current
+      `site_title` limit) if it doesn't already have one
+
+Service layer:
+- [ ] `get_branding_for_template()` returns `tenants.name` where it previously returned `site_title`
+- [ ] `update_branding_settings()` updates `tenants.name` when the name field is changed
+- [ ] `get_tenant_name()` utility continues to work (already reads from `tenants.name`)
+
+Templates:
+- [ ] Nav bar renders `tenants.name` where it previously rendered `site_title`
+- [ ] Branding settings page edits `tenants.name` instead of `site_title`
+- [ ] Any other template references to `site_title` are updated
+
+API:
+- [ ] Branding API endpoints reflect the change (no `site_title` field, name comes from tenant)
+
+Tests:
+- [ ] Existing branding tests updated to use tenant name
+- [ ] Migration tested for correct data preservation
+
+**Effort:** S
+**Value:** Medium (Eliminates confusion, prerequisite for branded emails)
+
+---
+
+## Branded Email Headers
+
+**User Story:**
+As a user receiving an email from WeftId
+I want the email to show my organization's logo and name
+So that the email looks like it comes from my organization, not a generic system
+
+**Context:**
+
+All outbound emails (invitations, MFA codes, verification links, notifications) currently use
+a plain HTML layout with no tenant branding. Each of the 12 email functions in `app/utils/email.py`
+rebuilds its HTML from scratch with hardcoded styles.
+
+This item adds a shared email header with the tenant's logo and name to all outbound emails.
+The logo is the tenant's custom upload (light variant) or the generated mandala if no custom
+logo exists. The name is the tenant name (after the consolidation item above removes the
+`site_title` split).
+
+For the logo in emails: the mandala is generated as SVG and can be rendered to a PNG for
+email embedding (inline as a CID attachment or base64 data URI). Custom logos may be PNG or
+SVG. Email clients have inconsistent SVG support, so SVG logos (both mandala and custom)
+should be rasterized to PNG for the email context.
+
+**Acceptance Criteria:**
+
+Shared email structure:
+- [ ] Extract a shared email header/footer builder used by all email functions
+- [ ] Header includes tenant logo (left-aligned or centered) and tenant name
+- [ ] Footer remains as-is (existing disclaimer text)
+- [ ] All 12 email functions use the shared structure
+
+Logo handling:
+- [ ] Custom PNG logos embedded directly (CID attachment or base64 data URI)
+- [ ] Custom SVG logos rasterized to PNG before embedding
+- [ ] Mandala SVG generated and rasterized to PNG when no custom logo exists
+- [ ] Logo sized appropriately for email context (e.g., 48px height, auto width)
+
+Tenant context:
+- [ ] Email functions receive `tenant_id` (or equivalent context) to fetch branding
+- [ ] Tenant name displayed next to or below the logo
+- [ ] Branding data cached per-send or passed in (no N+1 queries for batch operations)
+
+Compatibility:
+- [ ] Tested in major email clients (Gmail, Outlook, Apple Mail) for logo rendering
+- [ ] Graceful fallback if images are blocked (alt text shows tenant name)
+- [ ] Dark mode consideration: use light logo variant (most email backgrounds are white)
+
+**Effort:** M
+**Value:** Medium (Professional appearance, tenant identity in all communications)
 
 ---
 

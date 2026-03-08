@@ -164,7 +164,7 @@ If you find inconsistencies in the glossary vs. actual usage, flag them.
 ### Site Structure
 
 The documentation source lives at `docs/` and is organized hierarchically by audience and topic.
-The site is built with MkDocs (`make docs`) into `site/`, which is checked into git and served
+The site is built with Zensical (`make docs`) into `site/`, which is checked into git and served
 by the app at `/docs`. After editing Markdown files in `docs/`, run `make docs` and commit both
 `docs/` and `site/`.
 

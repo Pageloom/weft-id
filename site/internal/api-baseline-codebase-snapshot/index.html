@@ -1,0 +1,3454 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the WeftId identity federation platform">
+      
+      
+      
+        <link rel="canonical" href="https://docs.weftid.com/internal/api-baseline-codebase-snapshot/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.24">
+    
+    
+      
+        <title>Codebase Baseline Snapshot - WeftId Documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.28978c9b.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#codebase-baseline-snapshot" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            WeftId Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Codebase Baseline Snapshot
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    WeftId Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/connecting-an-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connecting an Identity Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/adding-an-application/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding an Application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Admin Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Admin Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/users/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Users
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/creating-users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/user-lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/roles-and-permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roles and Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/groups/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Groups
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Groups
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/creating-groups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Groups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/group-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/membership-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Membership Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/group-based-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group-Based Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/identity-providers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity Providers
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Identity Providers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/identity-providers/saml-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SAML Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/identity-providers/privileged-domains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privileged Domains
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/service-providers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service Providers
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Service Providers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/registering-an-sp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registering a Service Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/sp-certificates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing Certificates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/attribute-mapping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribute Mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/sso-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSO Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/security/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/certificates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/two-step-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two-Step Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/branding/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branding
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Branding
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/audit/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Audit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/two-step-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two-Step Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/signing-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../self-hosting/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Self-Hosting
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Self-Hosting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-routing-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Routing Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Routing Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authentication-router-approutersauthpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication Router (app/routers/auth.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mfa-router-approutersmfapy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MFA Router (app/routers/mfa.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#account-router-approutersaccountpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Account Router (app/routers/account.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings-router-approuterssettingspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings Router (app/routers/settings.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#users-router-approutersuserspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Users Router (app/routers/users.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tenants-router-approuterstenantspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tenants Router (app/routers/tenants.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication System
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Authentication System">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current-implementation-session-based" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Implementation: Session-Based
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authentication-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authorization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authorization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-factor-authentication-mfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Factor Authentication (MFA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#password-security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Password Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Database Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#connection-multi-tenancy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection &amp; Multi-Tenancy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tables-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tables &amp; Modules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tables &amp; Modules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tenants-appdatabasetenantspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tenants (app/database/tenants.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#users-appdatabaseuserspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Users (app/database/users.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-emails-appdatabaseuser_emailspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Emails (app/database/user_emails.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mfa-appdatabasemfapy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MFA (app/database/mfa.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-settings-appdatabasesecuritypy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Settings (app/database/security.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings-appdatabasesettingspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings (app/database/settings.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#database-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Migrations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependencies
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dependencies">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#production-dependencies-pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production Dependencies (pyproject.toml)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#development-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notable-absences-for-api-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notable Absences (for API implementation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#application-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Application Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Application Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entry-point-appmainpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entry Point (app/main.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#template-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template System
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Infrastructure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Infrastructure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Framework
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Database
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#core-fixtures-testsconftestpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Fixtures (tests/conftest.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Organization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-limitations-pre-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Limitations (Pre-API)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current Limitations (Pre-API)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#no-json-apis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No JSON APIs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-token-based-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No Token-Based Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-api-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No API Documentation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-external-integration-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No External Integration Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strengths-to-preserve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strengths (To Preserve)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Strengths (To Preserve)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#security" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-experience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Experience
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integration-points-for-api-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration Points for API Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Integration Points for API Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-apis-will-hook-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where APIs Will Hook In
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+<h1 id="codebase-baseline-snapshot">Codebase Baseline Snapshot<a class="headerlink" href="#codebase-baseline-snapshot" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2025-11-16
+<strong>Purpose:</strong> Point-in-time snapshot of codebase state before API implementation
+<strong>Context:</strong> Reference for API-First Architecture implementation</p>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>This document captures the state of the codebase before implementing the RESTful API layer. It serves as a baseline reference for understanding design decisions and integration points.</p>
+<p><strong>Current State:</strong>
+- Multi-tenant identity platform
+- Session-based authentication with mandatory MFA
+- Server-side rendered pages (Jinja2 templates)
+- 90% test coverage
+- PostgreSQL with Row-Level Security (RLS)
+- ~4,245 lines of Python code in <code>app/</code></p>
+<hr />
+<h2 id="current-routing-structure">Current Routing Structure<a class="headerlink" href="#current-routing-structure" title="Permanent link">&para;</a></h2>
+<p>All current endpoints return HTML responses. No JSON API endpoints exist.</p>
+<h3 id="authentication-router-approutersauthpy">Authentication Router (<code>app/routers/auth.py</code>)<a class="headerlink" href="#authentication-router-approutersauthpy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>""</code> (root)
+<strong>Tag:</strong> <code>auth</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Auth Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/login</code></td>
+<td>Login page</td>
+<td>No</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/login</code></td>
+<td>Login form submission</td>
+<td>No</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/logout</code></td>
+<td>Logout handler</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/verify-email/{email_id}/{nonce}</code></td>
+<td>Email verification (public)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/set-password</code></td>
+<td>Set password page (new users)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/set-password</code></td>
+<td>Set password submission</td>
+<td>No</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/dashboard</code></td>
+<td>Dashboard page</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mfa-router-approutersmfapy">MFA Router (<code>app/routers/mfa.py</code>)<a class="headerlink" href="#mfa-router-approutersmfapy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>/mfa</code>
+<strong>Tag:</strong> <code>mfa</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Auth Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/mfa/verify</code></td>
+<td>MFA verification page</td>
+<td>Partial (pending)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/mfa/verify</code></td>
+<td>MFA verification submission</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/mfa/verify/send-email</code></td>
+<td>Send email OTP fallback</td>
+<td>Partial</td>
+</tr>
+</tbody>
+</table>
+<h3 id="account-router-approutersaccountpy">Account Router (<code>app/routers/account.py</code>)<a class="headerlink" href="#account-router-approutersaccountpy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>/account</code>
+<strong>Tag:</strong> <code>account</code>
+<strong>Auth:</strong> All endpoints require authenticated user</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Role Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/account/</code></td>
+<td>Redirect to first accessible page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/profile</code></td>
+<td>Profile settings page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/profile</code></td>
+<td>Update profile</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/profile/update-timezone</code></td>
+<td>Update timezone</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/profile/update-regional</code></td>
+<td>Update timezone &amp; locale</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/emails</code></td>
+<td>Email management page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/emails/add</code></td>
+<td>Add email</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/emails/set-primary/{email_id}</code></td>
+<td>Set primary email</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/emails/delete/{email_id}</code></td>
+<td>Delete email</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/emails/resend-verification/{email_id}</code></td>
+<td>Resend verification</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/emails/verify/{email_id}/{nonce}</code></td>
+<td>Verify email</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/mfa</code></td>
+<td>MFA settings page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/mfa/setup/totp</code></td>
+<td>TOTP setup page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/setup/totp</code></td>
+<td>TOTP setup handler</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/setup/email</code></td>
+<td>Enable email MFA</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/setup/verify</code></td>
+<td>Verify TOTP setup</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/regenerate-backup-codes</code></td>
+<td>Regenerate backup codes</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/generate-backup-codes</code></td>
+<td>Generate initial backup codes</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/account/mfa/downgrade-verify</code></td>
+<td>MFA downgrade verification page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/account/mfa/downgrade-verify</code></td>
+<td>Complete MFA downgrade</td>
+<td>User</td>
+</tr>
+</tbody>
+</table>
+<h3 id="settings-router-approuterssettingspy">Settings Router (<code>app/routers/settings.py</code>)<a class="headerlink" href="#settings-router-approuterssettingspy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>/settings</code>
+<strong>Tag:</strong> <code>settings</code>
+<strong>Auth:</strong> Admin or Super Admin required</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Role Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/settings/</code></td>
+<td>Redirect to first accessible page</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/settings/privileged-domains</code></td>
+<td>Privileged domains management</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/settings/privileged-domains/add</code></td>
+<td>Add privileged domain</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/settings/privileged-domains/delete/{domain_id}</code></td>
+<td>Delete privileged domain</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/settings/tenant-security</code></td>
+<td>Tenant security settings</td>
+<td>Super Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/settings/tenant-security/update</code></td>
+<td>Update tenant security</td>
+<td>Super Admin</td>
+</tr>
+</tbody>
+</table>
+<h3 id="users-router-approutersuserspy">Users Router (<code>app/routers/users.py</code>)<a class="headerlink" href="#users-router-approutersuserspy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>/users</code>
+<strong>Tag:</strong> <code>users</code>
+<strong>Auth:</strong> Authenticated user (specific endpoints require admin)</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Role Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/users/</code></td>
+<td>Redirect to first accessible page</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/users/list</code></td>
+<td>Users list (pagination/sort/search)</td>
+<td>User</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/users/new</code></td>
+<td>New user form</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/new</code></td>
+<td>Create new user</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/users/{user_id}</code></td>
+<td>User detail page</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/{user_id}/update-name</code></td>
+<td>Update user name</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/{user_id}/update-role</code></td>
+<td>Update user role</td>
+<td>Super Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/{user_id}/add-email</code></td>
+<td>Add email to user</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/{user_id}/remove-email/{email_id}</code></td>
+<td>Remove email from user</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/users/{user_id}/promote-email/{email_id}</code></td>
+<td>Promote email to primary</td>
+<td>Admin</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tenants-router-approuterstenantspy">Tenants Router (<code>app/routers/tenants.py</code>)<a class="headerlink" href="#tenants-router-approuterstenantspy" title="Permanent link">&para;</a></h3>
+<p><strong>Prefix:</strong> <code>""</code> (root)
+<strong>Tag:</strong> <code>tenants</code></p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+<th>Auth Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/</code></td>
+<td>Root redirect (based on auth state)</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="authentication-system">Authentication System<a class="headerlink" href="#authentication-system" title="Permanent link">&para;</a></h2>
+<h3 id="current-implementation-session-based">Current Implementation: Session-Based<a class="headerlink" href="#current-implementation-session-based" title="Permanent link">&para;</a></h3>
+<p><strong>Middleware:</strong>
+- <code>DynamicSessionMiddleware</code> (custom, extends Starlette's <code>SessionMiddleware</code>)
+- Server-side session storage
+- Configurable <code>max_age</code> per tenant
+- Secret key: Derived from <code>SECRET_KEY</code> via HKDF (<code>utils/crypto.py</code>)</p>
+<p><strong>Session Data:</strong>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+    <span class="s2">&quot;user_id&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>              <span class="c1"># Authenticated user ID</span>
+    <span class="s2">&quot;session_start&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>        <span class="c1"># Unix timestamp</span>
+    <span class="s2">&quot;_max_age&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>            <span class="c1"># Custom max_age for session</span>
+    <span class="c1"># Temporary MFA state (during login):</span>
+    <span class="s2">&quot;pending_mfa_user_id&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="s2">&quot;pending_mfa_method&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="s2">&quot;pending_timezone&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="s2">&quot;pending_locale&quot;</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">}</span>
+</code></pre></div></p>
+<h3 id="authentication-flow">Authentication Flow<a class="headerlink" href="#authentication-flow" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Login</strong>: <code>POST /login</code></li>
+<li>User submits email/password</li>
+<li><code>verify_login()</code> validates credentials (Argon2 password hashing)</li>
+<li>Session stores <code>pending_mfa_user_id</code></li>
+<li>
+<p>Redirect to MFA verification</p>
+</li>
+<li>
+<p><strong>MFA Verification</strong>: <code>POST /mfa/verify</code></p>
+</li>
+<li>Validates TOTP, email OTP, or backup code</li>
+<li>Session updated with <code>user_id</code> and <code>session_start</code></li>
+<li>
+<p>MFA is <strong>mandatory</strong> for all users</p>
+</li>
+<li>
+<p><strong>Session Validation</strong>:</p>
+</li>
+<li>Tenant security settings control timeout</li>
+<li><code>session_timeout_seconds</code>: Max session duration</li>
+<li><code>persistent_sessions</code>: Whether sessions persist across browser close</li>
+</ol>
+<h3 id="authorization">Authorization<a class="headerlink" href="#authorization" title="Permanent link">&para;</a></h3>
+<p><strong>Dependency Functions</strong> (<code>app/dependencies.py</code>):
+- <code>get_current_user()</code> → Returns user dict or None
+- <code>require_current_user()</code> → Redirects to <code>/login</code> if not authenticated
+- <code>require_admin()</code> → Requires <code>admin</code> or <code>super_admin</code> role
+- <code>require_super_admin()</code> → Requires <code>super_admin</code> role</p>
+<p><strong>Roles</strong> (PostgreSQL ENUM):
+- <code>member</code> - Regular user
+- <code>admin</code> - Tenant administrator
+- <code>super_admin</code> - Full tenant control</p>
+<p><strong>Page-Level Permissions</strong> (<code>app/pages.py</code>):
+- Central registry of all pages and their access requirements
+- <code>has_page_access(user, page_id)</code> validates access
+- Ensures navigational integrity (users only see accessible links)</p>
+<h3 id="multi-factor-authentication-mfa">Multi-Factor Authentication (MFA)<a class="headerlink" href="#multi-factor-authentication-mfa" title="Permanent link">&para;</a></h3>
+<p><strong>Mandatory for all users</strong></p>
+<p><strong>Methods:</strong>
+- <strong>TOTP</strong> (Time-based One-Time Password) - Authenticator apps
+- <strong>Email OTP</strong> - Time-limited codes sent via email
+- <strong>Backup Codes</strong> - Single-use emergency codes</p>
+<p><strong>Implementation:</strong>
+- TOTP secrets: Encrypted with key derived from <code>SECRET_KEY</code> via HKDF (<code>utils/crypto.py</code>)
+- Email OTP codes: SHA-256 hashed, time-limited
+- Backup codes: SHA-256 hashed, single-use</p>
+<p><strong>Database Tables:</strong>
+- <code>mfa_totp</code> - Encrypted TOTP secrets
+- <code>mfa_email_codes</code> - Hashed email OTP codes
+- <code>mfa_backup_codes</code> - Hashed backup codes</p>
+<h3 id="password-security">Password Security<a class="headerlink" href="#password-security" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Hashing</strong>: Argon2-CFFI</li>
+<li><strong>Minimum Length</strong>: 8 characters</li>
+<li><strong>Password-less Users</strong>: Supported (new user invitations, set via email verification)</li>
+</ul>
+<hr />
+<h2 id="database-structure">Database Structure<a class="headerlink" href="#database-structure" title="Permanent link">&para;</a></h2>
+<h3 id="connection-multi-tenancy">Connection &amp; Multi-Tenancy<a class="headerlink" href="#connection-multi-tenancy" title="Permanent link">&para;</a></h3>
+<p><strong>Database:</strong> PostgreSQL
+<strong>Driver:</strong> psycopg3 with connection pooling (<code>psycopg-pool</code>)
+<strong>Isolation:</strong> Row-Level Security (RLS) enforced via <code>SET LOCAL app.tenant_id</code></p>
+<p><strong>Core Database Layer</strong> (<code>app/database/_core.py</code>):
+<div class="highlight"><pre><span></span><code><span class="c1"># All queries automatically scoped by tenant_id</span>
+<span class="k">with</span> <span class="n">get_connection</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="c1"># RLS enforced: SET LOCAL app.tenant_id = &#39;&lt;tenant_id&gt;&#39;</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div></p>
+<h3 id="tables-modules">Tables &amp; Modules<a class="headerlink" href="#tables-modules" title="Permanent link">&para;</a></h3>
+<h4 id="tenants-appdatabasetenantspy">Tenants (<code>app/database/tenants.py</code>)<a class="headerlink" href="#tenants-appdatabasetenantspy" title="Permanent link">&para;</a></h4>
+<p><strong>Table:</strong> <code>tenants</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tenants</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">subdomain</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="p">);</span>
+</code></pre></div>
+<p><strong>Purpose:</strong> Tenant registry for subdomain-based routing
+<strong>RLS:</strong> Disabled (needed for subdomain lookup)</p>
+<h4 id="users-appdatabaseuserspy">Users (<code>app/database/users.py</code>)<a class="headerlink" href="#users-appdatabaseuserspy" title="Permanent link">&para;</a></h4>
+<p><strong>Table:</strong> <code>users</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">first_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">last_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="k">role</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;member&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">last_login</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">password_hash</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">mfa_enabled</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">FALSE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">mfa_method</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">tz</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;UTC&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="n">locale</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="s1">&#39;en&#39;</span>
+<span class="p">);</span>
+</code></pre></div>
+<p><strong>Operations:</strong>
+- CRUD operations
+- Authentication (<code>verify_login</code>)
+- Profile updates
+- Role management
+- Timezone/locale settings</p>
+<p><strong>RLS Policy:</strong> <code>users_tenant_isolation</code></p>
+<h4 id="user-emails-appdatabaseuser_emailspy">User Emails (<code>app/database/user_emails.py</code>)<a class="headerlink" href="#user-emails-appdatabaseuser_emailspy" title="Permanent link">&para;</a></h4>
+<p><strong>Table:</strong> <code>user_emails</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">user_emails</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">email</span><span class="w"> </span><span class="n">CITEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">is_primary</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">FALSE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">verified_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="p">,</span>
+<span class="w">    </span><span class="n">verify_nonce</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="p">);</span>
+
+<span class="c1">-- One primary email per user</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">user_emails_primary_unique</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">user_emails</span><span class="w"> </span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">is_primary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">TRUE</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>Operations:</strong>
+- Add/verify/delete emails
+- Primary email management
+- Verification nonce generation</p>
+<p><strong>RLS Policy:</strong> <code>user_emails_tenant_isolation</code></p>
+<h4 id="mfa-appdatabasemfapy">MFA (<code>app/database/mfa.py</code>)<a class="headerlink" href="#mfa-appdatabasemfapy" title="Permanent link">&para;</a></h4>
+<p><strong>Tables:</strong></p>
+<ol>
+<li><strong><code>mfa_totp</code></strong> - TOTP secrets</li>
+<li>
+<p><code>user_id</code>, <code>encrypted_secret</code>, <code>verified</code>, <code>created_at</code></p>
+</li>
+<li>
+<p><strong><code>mfa_email_codes</code></strong> - Email OTP codes</p>
+</li>
+<li>
+<p><code>user_id</code>, <code>code_hash</code>, <code>expires_at</code>, <code>created_at</code></p>
+</li>
+<li>
+<p><strong><code>mfa_backup_codes</code></strong> - Backup codes</p>
+</li>
+<li><code>user_id</code>, <code>code_hash</code>, <code>used_at</code>, <code>created_at</code></li>
+</ol>
+<p><strong>Operations:</strong>
+- Enable/disable MFA
+- TOTP setup and verification
+- Email OTP generation and verification
+- Backup code generation and verification</p>
+<h4 id="security-settings-appdatabasesecuritypy">Security Settings (<code>app/database/security.py</code>)<a class="headerlink" href="#security-settings-appdatabasesecuritypy" title="Permanent link">&para;</a></h4>
+<p><strong>Table:</strong> <code>tenant_security_settings</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tenant_security_settings</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">session_timeout_seconds</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">3600</span><span class="p">,</span>
+<span class="w">    </span><span class="n">persistent_sessions</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">TRUE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">allow_users_edit_profile</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">TRUE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">allow_users_add_emails</span><span class="w"> </span><span class="nb">BOOLEAN</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="k">TRUE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">updated_by</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">updated_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="p">);</span>
+</code></pre></div>
+<p><strong>Purpose:</strong> Tenant-wide security policies</p>
+<h4 id="settings-appdatabasesettingspy">Settings (<code>app/database/settings.py</code>)<a class="headerlink" href="#settings-appdatabasesettingspy" title="Permanent link">&para;</a></h4>
+<p><strong>Table:</strong> <code>tenant_privileged_domains</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">tenant_privileged_domains</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="k">domain</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_by</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">(),</span>
+<span class="w">    </span><span class="k">UNIQUE</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="p">,</span><span class="w"> </span><span class="k">domain</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre></div>
+<p><strong>Purpose:</strong> Auto-verify emails from trusted domains</p>
+<h3 id="database-migrations">Database Migrations<a class="headerlink" href="#database-migrations" title="Permanent link">&para;</a></h3>
+<p><strong>Location:</strong> <code>db-init/</code>
+<strong>Current Migration:</strong> <code>00008_*.sql</code> (8 migrations total)
+<strong>Pattern:</strong> Sequential numbered migrations</p>
+<hr />
+<h2 id="dependencies">Dependencies<a class="headerlink" href="#dependencies" title="Permanent link">&para;</a></h2>
+<h3 id="production-dependencies-pyprojecttoml">Production Dependencies (<code>pyproject.toml</code>)<a class="headerlink" href="#production-dependencies-pyprojecttoml" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^3.12&quot;</span>
+<span class="n">fastapi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.115.0&quot;</span><span class="w">          </span><span class="c1"># API framework</span>
+<span class="n">uvicorn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.32.0&quot;</span><span class="w">           </span><span class="c1"># ASGI server</span>
+<span class="n">psycopg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^3.2.0&quot;</span><span class="w">            </span><span class="c1"># PostgreSQL adapter</span>
+<span class="n">psycopg-pool</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^3.2.0&quot;</span><span class="w">       </span><span class="c1"># Connection pooling</span>
+<span class="n">argh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.31.0&quot;</span><span class="w">              </span><span class="c1"># CLI framework</span>
+<span class="n">argon2-cffi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^23.1.0&quot;</span><span class="w">       </span><span class="c1"># Password hashing</span>
+<span class="n">jinja2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^3.1.0&quot;</span><span class="w">             </span><span class="c1"># Template engine</span>
+<span class="n">python-multipart</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.0.9&quot;</span><span class="w">   </span><span class="c1"># Form parsing</span>
+<span class="n">itsdangerous</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^2.2.0&quot;</span><span class="w">       </span><span class="c1"># Session signing</span>
+<span class="n">pyotp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^2.9.0&quot;</span><span class="w">              </span><span class="c1"># TOTP generation/verification</span>
+<span class="n">cryptography</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^41.0.0&quot;</span><span class="w">      </span><span class="c1"># MFA secret encryption</span>
+<span class="n">babel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^2.17.0&quot;</span><span class="w">             </span><span class="c1"># Internationalization</span>
+</code></pre></div>
+<h3 id="development-dependencies">Development Dependencies<a class="headerlink" href="#development-dependencies" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="n">pytest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^8.3.0&quot;</span><span class="w">             </span><span class="c1"># Test framework</span>
+<span class="n">pytest-asyncio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.24.0&quot;</span><span class="w">    </span><span class="c1"># Async test support</span>
+<span class="n">httpx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.27.0&quot;</span><span class="w">             </span><span class="c1"># Async HTTP client for testing</span>
+<span class="n">black</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^24.10.0&quot;</span><span class="w">            </span><span class="c1"># Code formatter</span>
+<span class="n">ruff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^0.7.0&quot;</span><span class="w">               </span><span class="c1"># Linter</span>
+<span class="n">mypy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^1.13.0&quot;</span><span class="w">              </span><span class="c1"># Type checker</span>
+<span class="n">pytest-cov</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;^7.0.0&quot;</span><span class="w">         </span><span class="c1"># Coverage reporting</span>
+</code></pre></div>
+<h3 id="notable-absences-for-api-implementation">Notable Absences (for API implementation)<a class="headerlink" href="#notable-absences-for-api-implementation" title="Permanent link">&para;</a></h3>
+<p>❌ No JWT libraries (<code>python-jose</code>, <code>pyjwt</code>)
+❌ No OAuth2 libraries beyond FastAPI built-ins
+✅ Argon2 already available for token hashing
+✅ FastAPI has OAuth2 utilities built-in</p>
+<hr />
+<h2 id="application-structure">Application Structure<a class="headerlink" href="#application-structure" title="Permanent link">&para;</a></h2>
+<h3 id="entry-point-appmainpy">Entry Point (<code>app/main.py</code>)<a class="headerlink" href="#entry-point-appmainpy" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.staticfiles</span><span class="w"> </span><span class="kn">import</span> <span class="n">StaticFiles</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">&quot;Loom&quot;</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span>
+    <span class="n">DynamicSessionMiddleware</span><span class="p">,</span>
+    <span class="n">secret_key</span><span class="o">=</span><span class="n">derive_session_key</span><span class="p">()</span>
+<span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="s2">&quot;/static&quot;</span><span class="p">,</span> <span class="n">StaticFiles</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s2">&quot;static&quot;</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;static&quot;</span><span class="p">)</span>
+
+<span class="c1"># Route registration</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">auth</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">mfa</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">account_router</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">settings_router</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">tenants</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">users</span><span class="o">.</span><span class="n">router</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Current Response Types:</strong>
+- <code>HTMLResponse</code> (via Jinja2 templates)
+- <code>RedirectResponse</code>
+- <code>PlainTextResponse</code> (rare)</p>
+<p><strong>No JSON responses</strong> - Everything is server-side rendered</p>
+<h3 id="template-system">Template System<a class="headerlink" href="#template-system" title="Permanent link">&para;</a></h3>
+<p><strong>Engine:</strong> Jinja2
+<strong>Location:</strong> <code>templates/</code> directory
+<strong>Pattern:</strong> One template per page</p>
+<p><strong>Template Utilities:</strong>
+- <code>has_page_access(user, page_id)</code> - Authorization checks
+- Timezone-aware date formatting (Babel)
+- Locale-aware text (Babel)</p>
+<h3 id="static-files">Static Files<a class="headerlink" href="#static-files" title="Permanent link">&para;</a></h3>
+<p><strong>Location:</strong> <code>static/</code> directory
+<strong>Served at:</strong> <code>/static/*</code>
+<strong>Contents:</strong> CSS, JavaScript, images</p>
+<hr />
+<h2 id="testing-infrastructure">Testing Infrastructure<a class="headerlink" href="#testing-infrastructure" title="Permanent link">&para;</a></h2>
+<h3 id="test-framework">Test Framework<a class="headerlink" href="#test-framework" title="Permanent link">&para;</a></h3>
+<p><strong>Framework:</strong> pytest
+<strong>Config:</strong> <code>pytest.ini</code>
+<strong>Coverage:</strong> 90% (tracked in <code>.coveragerc</code>)</p>
+<h3 id="test-database">Test Database<a class="headerlink" href="#test-database" title="Permanent link">&para;</a></h3>
+<p><strong>Connection:</strong> <code>localhost:5432</code>
+<strong>User:</strong> <code>appuser</code> (non-superuser to enforce RLS)
+<strong>Approach:</strong> Each test gets isolated tenant</p>
+<h3 id="core-fixtures-testsconftestpy">Core Fixtures (<code>tests/conftest.py</code>)<a class="headerlink" href="#core-fixtures-testsconftestpy" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">client</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TestClient</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;FastAPI TestClient for HTTP requests&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_subdomain</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test subdomain (&#39;dev&#39;)&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_host</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test host header&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_tenant</span><span class="p">(</span><span class="n">test_subdomain</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create isolated test tenant with cleanup&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_user</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create test user (member role)&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_admin_user</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create admin user&quot;&quot;&quot;</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_super_admin_user</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create super_admin user&quot;&quot;&quot;</span>
+</code></pre></div>
+<h3 id="test-organization">Test Organization<a class="headerlink" href="#test-organization" title="Permanent link">&para;</a></h3>
+<p><strong>Test Files:</strong> 24 modules</p>
+<p><strong>Categories:</strong>
+1. <strong>API Tests</strong> (<code>test_api.py</code>) - Basic endpoint tests
+2. <strong>Authentication</strong> (<code>test_auth_coverage.py</code>) - Auth edge cases
+3. <strong>Database Layer</strong> (<code>test_database_*.py</code>) - 7 modules for DB operations
+4. <strong>Dependencies</strong> (<code>test_dependencies.py</code>) - Dependency injection
+5. <strong>Middleware</strong> (<code>test_middleware_session.py</code>) - Session handling
+6. <strong>Page Access</strong> (<code>test_pages.py</code>) - Authorization
+7. <strong>Routers</strong> (<code>test_routers_*.py</code>) - 5 modules for endpoint tests
+8. <strong>Utilities</strong> (<code>test_utils_*.py</code>) - 7 modules for utility functions</p>
+<h3 id="test-patterns">Test Patterns<a class="headerlink" href="#test-patterns" title="Permanent link">&para;</a></h3>
+<p><strong>Isolation:</strong>
+- Each test creates own tenant
+- Database transactions with RLS enforcement
+- Cleanup after each test</p>
+<p><strong>Authentication Testing:</strong>
+- Login via TestClient
+- Session cookie management
+- Role-based access tests</p>
+<p><strong>Coverage Requirements:</strong>
+- 90% minimum coverage
+- Branch coverage enabled
+- CI/CD enforcement</p>
+<hr />
+<h2 id="code-metrics">Code Metrics<a class="headerlink" href="#code-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="size">Size<a class="headerlink" href="#size" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Total Python Lines</strong>: ~4,245 lines in <code>app/</code></li>
+<li><strong>Test Lines</strong>: Extensive test suite</li>
+<li><strong>Documentation</strong>: Inline docstrings</li>
+</ul>
+<h3 id="code-quality">Code Quality<a class="headerlink" href="#code-quality" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Type Hints</strong>: Used throughout</li>
+<li><strong>Linting</strong>: Ruff configured</li>
+<li><strong>Formatting</strong>: Black configured</li>
+<li><strong>Type Checking</strong>: mypy configured</li>
+</ul>
+<h3 id="architecture-patterns">Architecture Patterns<a class="headerlink" href="#architecture-patterns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Separation of Concerns</strong>: Clear router/database/utility separation</li>
+<li><strong>Dependency Injection</strong>: FastAPI dependencies for auth</li>
+<li><strong>Template Rendering</strong>: Jinja2 for HTML</li>
+<li><strong>Database Abstraction</strong>: Centralized database layer</li>
+</ul>
+<hr />
+<h2 id="current-limitations-pre-api">Current Limitations (Pre-API)<a class="headerlink" href="#current-limitations-pre-api" title="Permanent link">&para;</a></h2>
+<h3 id="no-json-apis">No JSON APIs<a class="headerlink" href="#no-json-apis" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All endpoints return HTML</li>
+<li>No RESTful API structure</li>
+<li>No API versioning</li>
+<li>No JSON request/response validation</li>
+</ul>
+<h3 id="no-token-based-authentication">No Token-Based Authentication<a class="headerlink" href="#no-token-based-authentication" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Session cookies only</li>
+<li>No Bearer token support</li>
+<li>No OAuth2 flows</li>
+<li>No API keys</li>
+</ul>
+<h3 id="no-api-documentation">No API Documentation<a class="headerlink" href="#no-api-documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>No OpenAPI spec exposure</li>
+<li>No <code>/docs</code> endpoint</li>
+<li>No Pydantic request/response models</li>
+</ul>
+<h3 id="no-external-integration-support">No External Integration Support<a class="headerlink" href="#no-external-integration-support" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Can't integrate with external services</li>
+<li>No B2B client support</li>
+<li>No programmatic access</li>
+<li>Browser-only access</li>
+</ul>
+<hr />
+<h2 id="strengths-to-preserve">Strengths (To Preserve)<a class="headerlink" href="#strengths-to-preserve" title="Permanent link">&para;</a></h2>
+<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
+<p>✅ Argon2 password hashing
+✅ Encrypted MFA secrets
+✅ Row-Level Security (RLS)
+✅ Session timeouts configurable
+✅ Mandatory MFA</p>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p>✅ Clean separation of concerns
+✅ Multi-tenant from ground up
+✅ Type-safe codebase
+✅ Comprehensive test coverage
+✅ Database transaction management</p>
+<h3 id="user-experience">User Experience<a class="headerlink" href="#user-experience" title="Permanent link">&para;</a></h3>
+<p>✅ Timezone-aware
+✅ Locale support
+✅ Email verification flow
+✅ MFA with multiple methods
+✅ Profile management</p>
+<hr />
+<h2 id="integration-points-for-api-implementation">Integration Points for API Implementation<a class="headerlink" href="#integration-points-for-api-implementation" title="Permanent link">&para;</a></h2>
+<h3 id="where-apis-will-hook-in">Where APIs Will Hook In<a class="headerlink" href="#where-apis-will-hook-in" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Authentication Layer</strong> (<code>app/dependencies.py</code>)</li>
+<li>Add <code>get_current_user_api()</code> for Bearer token support</li>
+<li>
+<p>Reuse existing user dict structure</p>
+</li>
+<li>
+<p><strong>Database Layer</strong> (<code>app/database/*</code>)</p>
+</li>
+<li>Leverage existing CRUD operations</li>
+<li>Add OAuth2 token operations</li>
+<li>
+<p>No changes to existing tables (new tables only)</p>
+</li>
+<li>
+<p><strong>Routing</strong> (<code>app/main.py</code>)</p>
+</li>
+<li>Add new <code>/api/v1/*</code> routes</li>
+<li>Keep existing HTML routes unchanged</li>
+<li>
+<p>Add <code>/oauth2/*</code> routes for OAuth2 flows</p>
+</li>
+<li>
+<p><strong>Testing</strong> (<code>tests/</code>)</p>
+</li>
+<li>Extend existing fixtures</li>
+<li>Add API-specific test modules</li>
+<li>
+<p>Maintain 90%+ coverage</p>
+</li>
+<li>
+<p><strong>OpenAPI</strong></p>
+</li>
+<li>FastAPI auto-generates spec</li>
+<li>Configure at <code>app/main.py</code></li>
+<li>Expose at <code>/openapi.json</code> and <code>/docs</code></li>
+</ol>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p><strong>Current State:</strong>
+- Mature session-based authentication system
+- Multi-tenant with RLS enforcement
+- Server-side rendered pages only
+- 90% test coverage
+- Production-ready security (Argon2, MFA, encryption)</p>
+<p><strong>Ready for API Layer:</strong>
+- Clean architecture supports parallel API development
+- Database layer can be reused directly
+- Authentication can be extended (not replaced)
+- Testing infrastructure supports API tests
+- No breaking changes needed to existing functionality</p>
+<p><strong>Next Step:</strong> Implement API-First Architecture per <code>docs/api-implementation-plan.md</code></p>
+<hr />
+<p><strong>Document End</strong> - Snapshot taken 2025-11-16</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.sections","navigation.expand","navigation.indexes","search.suggest","content.code.copy"],"search":"../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      
+    
+  </body>
+</html>

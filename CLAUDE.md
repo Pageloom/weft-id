@@ -69,7 +69,7 @@ Request → Router → Service → Database → PostgreSQL
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
-| `mkdocs.yml` | MkDocs documentation site configuration |
+| `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
 | `site/` | Built documentation site (checked in, served at `/docs`) |
 | `docs/decisions/` | Architectural Decision Records (ADRs) for foundational design choices |
@@ -106,7 +106,7 @@ db-init/              # Database schema baseline + migration runner
   migrate.py          # Forward-only migration runner
   migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
-docs/                 # Documentation site (MkDocs source)
+docs/                 # Documentation site (Zensical source)
   internal/           # Developer planning docs
   decisions/          # Architectural Decision Records (ADRs)
   getting-started/    # Getting started guide
@@ -367,7 +367,7 @@ make watch-css   # Watch templates and auto-rebuild CSS (recommended for active 
 make docs        # Build docs from docs/ into site/ (must be committed)
 ```
 
-The documentation site is built from Markdown sources in `docs/` using MkDocs with the Material theme. The built output in `site/` is checked into git and served by the app at `/docs`. To update the docs: edit files in `docs/`, run `make docs`, and commit both `docs/` and `site/`.
+The documentation site is built from Markdown sources in `docs/` using Zensical (reads `mkdocs.yml` for configuration). The built output in `site/` is checked into git and served by the app at `/docs`. To update the docs: edit files in `docs/`, run `make docs`, and commit both `docs/` and `site/`.
 
 **Quick reference:**
 ```bash

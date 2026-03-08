@@ -1,0 +1,3189 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the WeftId identity federation platform">
+      
+      
+      
+        <link rel="canonical" href="https://docs.weftid.com/internal/api-implementation-plan/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.24">
+    
+    
+      
+        <title>API-First Architecture: Implementation Plan - WeftId Documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.28978c9b.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-first-architecture-implementation-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            WeftId Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API-First Architecture: Implementation Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    WeftId Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/connecting-an-idp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connecting an Identity Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/adding-an-application/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding an Application
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Admin Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Admin Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/users/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Users
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/creating-users/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/user-lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/users/roles-and-permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roles and Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/groups/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Groups
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Groups
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/creating-groups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating Groups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/group-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/membership-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Membership Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/groups/group-based-access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group-Based Access
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/identity-providers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity Providers
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Identity Providers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/identity-providers/saml-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SAML Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/identity-providers/privileged-domains/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privileged Domains
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/service-providers/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service Providers
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Service Providers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/registering-an-sp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registering a Service Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/sp-certificates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing Certificates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/attribute-mapping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attribute Mapping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/service-providers/sso-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSO Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/security/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Security
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/certificates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Certificates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/permissions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Permissions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../admin-guide/security/two-step-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two-Step Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/branding/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Branding
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Branding
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../admin-guide/audit/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Audit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/profile/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Profile
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/two-step-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Two-Step Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/signing-in/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signing In
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../self-hosting/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Self-Hosting
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Self-Hosting
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#oauth2-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 Design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="OAuth2 Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#client-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#token-types-expiry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Token Types &amp; Expiry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pkce-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PKCE Support
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Database Schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oauth2_clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        oauth2_clients
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oauth2_authorization_codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        oauth2_authorization_codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oauth2_tokens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        oauth2_tokens
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-oauth2-infrastructure-core-authentication-week-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: OAuth2 Infrastructure &amp; Core Authentication (Week 1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1: OAuth2 Infrastructure &amp; Core Authentication (Week 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-add-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Add Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-database-migration-db-init00009_oauth2sql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Database Migration (db-init/00009_oauth2.sql)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-oauth2-core-module-appoauth2py" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: OAuth2 Core Module (app/oauth2.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-oauth2-database-layer-appdatabaseoauth2py" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: OAuth2 Database Layer (app/database/oauth2.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-oauth2-endpoints-approutersoauth2py" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 5: OAuth2 Endpoints (app/routers/oauth2.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-6-dual-authentication-dependency-appapi_dependenciespy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 6: Dual Authentication Dependency (app/api_dependencies.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-7-oauth2-client-management-api-approutersapiv1oauth2_clientspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 7: OAuth2 Client Management API (app/routers/api/v1/oauth2_clients.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-8-first-api-endpoints-approutersapiv1userspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 8: First API Endpoints (app/routers/api/v1/users.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-9-openapi-configuration-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 9: OpenAPI Configuration &amp; Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-core-api-endpoints-week-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Core API Endpoints (Week 2)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2: Core API Endpoints (Week 2)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-10-user-management-api-approutersapiv1userspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 10: User Management API (app/routers/api/v1/users.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-11-email-management-api-approutersapiv1emailspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 11: Email Management API (app/routers/api/v1/emails.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-12-settings-management-api-approutersapiv1settingspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 12: Settings Management API (app/routers/api/v1/settings.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-13-mfa-management-api-approutersapiv1mfapy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 13: MFA Management API (app/routers/api/v1/mfa.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-14-testing-phase-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 14: Testing Phase 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-api-testing-strategy-documentation-week-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: API Testing Strategy &amp; Documentation (Week 3)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3: API Testing Strategy &amp; Documentation (Week 3)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-15-spec-based-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 15: Spec-Based Testing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-16-error-handling-response-formatting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 16: Error Handling &amp; Response Formatting
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-17-service-user-protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 17: Service User Protection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-18-documentation-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 18: Documentation &amp; Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-api-endpoint-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete API Endpoint Summary
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Complete API Endpoint Summary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oauth2-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OAuth2 &amp; Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-profile-self-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Profile (Self-Service)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#email-management-self-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email Management (Self-Service)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mfa-management-self-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MFA Management (Self-Service)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-management-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Management (Admin)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings-management-admin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings Management (Admin)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deliverables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deliverables
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+<h1 id="api-first-architecture-implementation-plan">API-First Architecture: Implementation Plan<a class="headerlink" href="#api-first-architecture-implementation-plan" title="Permanent link">&para;</a></h1>
+<p>This document provides a detailed implementation plan for the <strong>API-First Architecture</strong> backlog item.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Implement a comprehensive RESTful API layer with OAuth2 authentication and OpenAPI specification. The API will support <strong>three authentication methods</strong>:
+- <strong>Session cookie authentication</strong> for browser-based access
+- <strong>OAuth2 Authorization Code Flow</strong> for user-delegated access (3-way: tenant ↔ user ↔ external app)
+- <strong>OAuth2 Client Credentials Flow</strong> for B2B integrations (2-way: tenant ↔ external tenant)</p>
+<p>All tokens are <strong>opaque database-backed tokens</strong> (not JWTs) for instant revocation capability.</p>
+<hr />
+<h2 id="oauth2-design">OAuth2 Design<a class="headerlink" href="#oauth2-design" title="Permanent link">&para;</a></h2>
+<h3 id="client-types">Client Types<a class="headerlink" href="#client-types" title="Permanent link">&para;</a></h3>
+<p><strong>1. Normal OAuth2 Client</strong>
+- <code>client_type = 'normal'</code>
+- <strong>Allowed flows</strong>: Authorization Code Flow ONLY
+- <strong>Authentication</strong>: Can authenticate any user in the same tenant
+- <strong>Token grants</strong>: User authorizes, token acts AS that user (inherits user's permissions)
+- <strong>No scopes</strong>: Access is determined by the user's role
+- <strong>Configuration</strong>: Name, redirect URIs (exact match only)
+- <strong>Use case</strong>: "Slack Integration", "Mobile App", "Analytics Dashboard"</p>
+<p><strong>2. B2B OAuth2 Client</strong>
+- <code>client_type = 'b2b'</code>
+- <strong>Allowed flows</strong>: Client Credentials Flow ONLY
+- <strong>Authentication</strong>: Hard-wired to a specific service user
+- <strong>Token grants</strong>: Token always acts AS the service user
+- <strong>Service user</strong>: Automatically created with <code>first_name = client_name</code>, configurable role
+- <strong>Configuration</strong>: Name, role (member/admin/super_admin)
+- <strong>Use case</strong>: "HR System", "Provisioning Service", "External IdP Sync"
+- <strong>Lifecycle</strong>: Service user and B2B client are coupled - deleting one affects the other</p>
+<h3 id="token-types-expiry">Token Types &amp; Expiry<a class="headerlink" href="#token-types-expiry" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Token Type</th>
+<th>Expiry</th>
+<th>Renewable</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Authorization Code</td>
+<td>5 minutes</td>
+<td>No</td>
+<td>Exchange for access token</td>
+</tr>
+<tr>
+<td>Access Token (auth code)</td>
+<td>1 hour</td>
+<td>Via refresh</td>
+<td>User-delegated API access</td>
+</tr>
+<tr>
+<td>Refresh Token</td>
+<td>30 days</td>
+<td>No</td>
+<td>Renew access token</td>
+</tr>
+<tr>
+<td>Access Token (client creds)</td>
+<td>24 hours</td>
+<td>Request new</td>
+<td>B2B API access</td>
+</tr>
+</tbody>
+</table>
+<p>All tokens are:
+- <strong>Opaque</strong> (random strings, not JWTs)
+- <strong>Hashed</strong> before storage (using Argon2)
+- <strong>Database-backed</strong> (can be instantly revoked)</p>
+<h3 id="pkce-support">PKCE Support<a class="headerlink" href="#pkce-support" title="Permanent link">&para;</a></h3>
+<p><strong>Proof Key for Code Exchange (RFC 7636)</strong>
+- <strong>Support</strong>: Optional (not required)
+- <strong>Methods</strong>: S256 (SHA-256) and plain
+- <strong>Purpose</strong>: Prevents authorization code interception attacks
+- <strong>Required for</strong>: Mobile apps, SPAs, any public client</p>
+<hr />
+<h2 id="database-schema">Database Schema<a class="headerlink" href="#database-schema" title="Permanent link">&para;</a></h2>
+<h3 id="oauth2_clients"><code>oauth2_clients</code><a class="headerlink" href="#oauth2_clients" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">gen_random_uuid</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">client_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">client_secret_hash</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">client_type</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">client_type</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;normal&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;b2b&#39;</span><span class="p">)),</span>
+<span class="w">    </span><span class="n">name</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">redirect_uris</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">[],</span><span class="w"> </span><span class="c1">-- NULL for b2b clients</span>
+<span class="w">    </span><span class="n">service_user_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">RESTRICT</span><span class="p">,</span><span class="w"> </span><span class="c1">-- NULL for normal clients</span>
+<span class="w">    </span><span class="n">created_by</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_clients_tenant</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_clients_service_user</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="p">(</span><span class="n">service_user_id</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">service_user_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+
+<span class="c1">-- RLS policy for tenant isolation</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="w"> </span><span class="n">ENABLE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">POLICY</span><span class="w"> </span><span class="n">oauth2_clients_tenant_isolation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_clients</span>
+<span class="w">    </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="p">::</span><span class="nb">text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">&#39;app.tenant_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">true</span><span class="p">));</span>
+</code></pre></div>
+<p><strong>Fields:</strong>
+- <code>client_id</code>: Public identifier (e.g., <code>loom_client_abc123</code>)
+- <code>client_secret_hash</code>: Argon2 hash of client secret
+- <code>client_type</code>: <code>'normal'</code> or <code>'b2b'</code>
+- <code>redirect_uris</code>: Array of exact redirect URIs (normal clients only)
+- <code>service_user_id</code>: Links to service user (B2B clients only)</p>
+<p><strong>Constraints:</strong>
+- Service user deletion is RESTRICTED (must delete client first)
+- This forces explicit decision-making when removing B2B integrations</p>
+<h3 id="oauth2_authorization_codes"><code>oauth2_authorization_codes</code><a class="headerlink" href="#oauth2_authorization_codes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_authorization_codes</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">gen_random_uuid</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">code_hash</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">client_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">redirect_uri</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">code_challenge</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="c1">-- for PKCE</span>
+<span class="w">    </span><span class="n">code_challenge_method</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">code_challenge_method</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;S256&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;plain&#39;</span><span class="p">)),</span>
+<span class="w">    </span><span class="n">expires_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">()</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_codes_tenant</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_authorization_codes</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_codes_expires</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_authorization_codes</span><span class="p">(</span><span class="n">expires_at</span><span class="p">);</span>
+
+<span class="c1">-- RLS policy</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_authorization_codes</span><span class="w"> </span><span class="n">ENABLE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">POLICY</span><span class="w"> </span><span class="n">oauth2_codes_tenant_isolation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_authorization_codes</span>
+<span class="w">    </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="p">::</span><span class="nb">text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">&#39;app.tenant_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">true</span><span class="p">));</span>
+</code></pre></div>
+<p><strong>Fields:</strong>
+- <code>code_hash</code>: Argon2 hash of authorization code
+- <code>code_challenge</code>: PKCE code challenge (optional)
+- <code>code_challenge_method</code>: <code>'S256'</code> or <code>'plain'</code> (optional)
+- <code>redirect_uri</code>: Must match exactly during token exchange</p>
+<p><strong>Lifecycle:</strong>
+- Very short-lived (5 minutes)
+- One-time use (deleted after exchange)
+- Auto-cleanup of expired codes</p>
+<h3 id="oauth2_tokens"><code>oauth2_tokens</code><a class="headerlink" href="#oauth2_tokens" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">gen_random_uuid</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">tenant_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">tenants</span><span class="p">(</span><span class="n">id</span><span class="p">),</span>
+<span class="w">    </span><span class="n">token_hash</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">token_type</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">token_type</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;access&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;refresh&#39;</span><span class="p">)),</span>
+<span class="w">    </span><span class="n">client_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">oauth2_clients</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">user_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">expires_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">    </span><span class="n">created_at</span><span class="w"> </span><span class="k">TIMESTAMP</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="n">NOW</span><span class="p">(),</span>
+<span class="w">    </span><span class="n">parent_token_id</span><span class="w"> </span><span class="n">UUID</span><span class="w"> </span><span class="k">REFERENCES</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="k">DELETE</span><span class="w"> </span><span class="k">CASCADE</span><span class="w"> </span><span class="c1">-- access tokens link to refresh token</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_tokens_tenant</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_tokens_user</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="p">(</span><span class="n">user_id</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_tokens_expires</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="p">(</span><span class="n">expires_at</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_oauth2_tokens_hash</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="p">(</span><span class="n">token_hash</span><span class="p">);</span><span class="w"> </span><span class="c1">-- for fast lookups</span>
+
+<span class="c1">-- RLS policy</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">oauth2_tokens</span><span class="w"> </span><span class="n">ENABLE</span><span class="w"> </span><span class="k">ROW</span><span class="w"> </span><span class="k">LEVEL</span><span class="w"> </span><span class="k">SECURITY</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="n">POLICY</span><span class="w"> </span><span class="n">oauth2_tokens_tenant_isolation</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">oauth2_tokens</span>
+<span class="w">    </span><span class="k">USING</span><span class="w"> </span><span class="p">(</span><span class="n">tenant_id</span><span class="p">::</span><span class="nb">text</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">current_setting</span><span class="p">(</span><span class="s1">&#39;app.tenant_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">true</span><span class="p">));</span>
+</code></pre></div>
+<p><strong>Fields:</strong>
+- <code>token_hash</code>: Argon2 hash of opaque token
+- <code>token_type</code>: <code>'access'</code> or <code>'refresh'</code>
+- <code>user_id</code>: The user this token acts as
+- <code>parent_token_id</code>: For access tokens, links to the refresh token that created it</p>
+<p><strong>Cascade Behavior:</strong>
+- Deleting a refresh token deletes all its access tokens
+- Deleting a client deletes all its tokens
+- Deleting a user deletes all their tokens</p>
+<hr />
+<h2 id="phase-1-oauth2-infrastructure-core-authentication-week-1">Phase 1: OAuth2 Infrastructure &amp; Core Authentication (Week 1)<a class="headerlink" href="#phase-1-oauth2-infrastructure-core-authentication-week-1" title="Permanent link">&para;</a></h2>
+<h3 id="step-1-add-dependencies">Step 1: Add Dependencies<a class="headerlink" href="#step-1-add-dependencies" title="Permanent link">&para;</a></h3>
+<p>Update <code>pyproject.toml</code>:
+<div class="highlight"><pre><span></span><code><span class="c1"># No new dependencies needed!</span>
+<span class="c1"># We&#39;re using opaque tokens, not JWTs</span>
+<span class="c1"># Argon2 already available for hashing</span>
+<span class="c1"># FastAPI already has OAuth2 utilities</span>
+</code></pre></div></p>
+<h3 id="step-2-database-migration-db-init00009_oauth2sql">Step 2: Database Migration (<code>db-init/00009_oauth2.sql</code>)<a class="headerlink" href="#step-2-database-migration-db-init00009_oauth2sql" title="Permanent link">&para;</a></h3>
+<p>Create all three tables:
+- <code>oauth2_clients</code>
+- <code>oauth2_authorization_codes</code>
+- <code>oauth2_tokens</code></p>
+<p>Include:
+- RLS policies for tenant isolation
+- Indexes for performance
+- Cascade delete rules
+- Check constraints</p>
+<h3 id="step-3-oauth2-core-module-appoauth2py">Step 3: OAuth2 Core Module (<code>app/oauth2.py</code>)<a class="headerlink" href="#step-3-oauth2-core-module-appoauth2py" title="Permanent link">&para;</a></h3>
+<p><strong>Token utilities:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">generate_opaque_token</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;loom&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate cryptographically secure random token&quot;&quot;&quot;</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">hash_token</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Hash token with Argon2 (same as passwords)&quot;&quot;&quot;</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">verify_token_hash</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">token_hash</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify token against stored hash&quot;&quot;&quot;</span>
+</code></pre></div></p>
+<p><strong>PKCE utilities:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">verify_pkce_challenge</span><span class="p">(</span>
+    <span class="n">code_verifier</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">code_challenge</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Verify PKCE code challenge&quot;&quot;&quot;</span>
+</code></pre></div></p>
+<p><strong>Constants:</strong>
+<div class="highlight"><pre><span></span><code><span class="n">AUTHORIZATION_CODE_EXPIRY</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">ACCESS_TOKEN_EXPIRY</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">REFRESH_TOKEN_EXPIRY</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">CLIENT_CREDENTIALS_TOKEN_EXPIRY</span> <span class="o">=</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">hours</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+</code></pre></div></p>
+<h3 id="step-4-oauth2-database-layer-appdatabaseoauth2py">Step 4: OAuth2 Database Layer (<code>app/database/oauth2.py</code>)<a class="headerlink" href="#step-4-oauth2-database-layer-appdatabaseoauth2py" title="Permanent link">&para;</a></h3>
+<p><strong>Client operations:</strong>
+- <code>create_normal_client(tenant_id, name, redirect_uris, created_by) -&gt; dict</code>
+- <code>create_b2b_client(tenant_id, name, role, created_by) -&gt; dict</code>
+  - Creates service user first
+  - Links client to service user
+  - Returns client details + client_secret (plain text, shown once)
+- <code>get_client_by_client_id(tenant_id, client_id) -&gt; dict | None</code>
+- <code>delete_client(tenant_id, client_id)</code>
+- <code>regenerate_client_secret(tenant_id, client_id) -&gt; str</code></p>
+<p><strong>Authorization code operations:</strong>
+- <code>create_authorization_code(tenant_id, client_id, user_id, redirect_uri, code_challenge, code_challenge_method) -&gt; str</code>
+- <code>validate_and_consume_code(tenant_id, code_hash, client_id, redirect_uri, code_verifier) -&gt; dict | None</code>
+- <code>cleanup_expired_codes()</code></p>
+<p><strong>Token operations:</strong>
+- <code>create_access_token(tenant_id, client_id, user_id, parent_token_id=None) -&gt; str</code>
+- <code>create_refresh_token(tenant_id, client_id, user_id) -&gt; str</code>
+- <code>validate_token(token: str) -&gt; dict | None</code> (returns user_id, tenant_id, expires_at)
+- <code>revoke_token(token_hash)</code>
+- <code>revoke_all_client_tokens(client_id)</code>
+- <code>cleanup_expired_tokens()</code></p>
+<h3 id="step-5-oauth2-endpoints-approutersoauth2py">Step 5: OAuth2 Endpoints (<code>app/routers/oauth2.py</code>)<a class="headerlink" href="#step-5-oauth2-endpoints-approutersoauth2py" title="Permanent link">&para;</a></h3>
+<p><strong>Authorization endpoints:</strong></p>
+<p><strong><code>GET /oauth2/authorize</code></strong>
+- Query params: <code>client_id</code>, <code>redirect_uri</code>, <code>state</code>, <code>code_challenge</code> (optional), <code>code_challenge_method</code> (optional)
+- Requires: User logged in (session cookie)
+- Validates: Client exists, client_type='normal', redirect_uri matches exactly
+- Response: HTML authorization page "Allow [Client Name] to access your account?"</p>
+<p><strong><code>POST /oauth2/authorize</code></strong>
+- Form data: <code>client_id</code>, <code>redirect_uri</code>, <code>state</code>, <code>code_challenge</code>, <code>code_challenge_method</code>, <code>action</code> ('allow' or 'deny')
+- Validates: Same as GET
+- If allowed: Create authorization code, redirect to <code>redirect_uri?code=...&amp;state=...</code>
+- If denied: Redirect to <code>redirect_uri?error=access_denied&amp;state=...</code></p>
+<p><strong>Token endpoint:</strong></p>
+<p><strong><code>POST /oauth2/token</code></strong></p>
+<p>Multiple grant types supported:</p>
+<p><strong>Grant type: <code>authorization_code</code></strong>
+- Request: <code>grant_type</code>, <code>code</code>, <code>client_id</code>, <code>client_secret</code>, <code>redirect_uri</code>, <code>code_verifier</code> (if PKCE)
+- Validates:
+  - Client credentials
+  - Authorization code (not expired, matches client, matches redirect_uri)
+  - PKCE code_verifier (if code_challenge was provided)
+- Response: <code>{access_token, refresh_token, token_type: "Bearer", expires_in: 3600}</code>
+- Side effects: Delete authorization code (one-time use)</p>
+<p><strong>Grant type: <code>refresh_token</code></strong>
+- Request: <code>grant_type</code>, <code>refresh_token</code>, <code>client_id</code>, <code>client_secret</code>
+- Validates: Client credentials, refresh token valid and not expired
+- Response: <code>{access_token, token_type: "Bearer", expires_in: 3600}</code></p>
+<p><strong>Grant type: <code>client_credentials</code></strong>
+- Request: <code>grant_type</code>, <code>client_id</code>, <code>client_secret</code>
+- Validates: Client credentials, client_type='b2b'
+- Response: <code>{access_token, token_type: "Bearer", expires_in: 86400}</code>
+- Note: No refresh token (just request a new one)</p>
+<h3 id="step-6-dual-authentication-dependency-appapi_dependenciespy">Step 6: Dual Authentication Dependency (<code>app/api_dependencies.py</code>)<a class="headerlink" href="#step-6-dual-authentication-dependency-appapi_dependenciespy" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_current_user_api</span><span class="p">(</span>
+    <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+    <span class="n">authorization</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Header</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;Authorization&quot;</span><span class="p">)</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Accepts EITHER:</span>
+<span class="sd">    - Bearer token in Authorization header</span>
+<span class="sd">    - Session cookie</span>
+
+<span class="sd">    Returns user dict or raises HTTPException 401</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Try Bearer token first</span>
+    <span class="k">if</span> <span class="n">authorization</span> <span class="ow">and</span> <span class="n">authorization</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;Bearer &quot;</span><span class="p">):</span>
+        <span class="n">token</span> <span class="o">=</span> <span class="n">authorization</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">token_data</span> <span class="o">=</span> <span class="n">validate_token</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>  <span class="c1"># DB lookup</span>
+        <span class="k">if</span> <span class="n">token_data</span> <span class="ow">and</span> <span class="n">token_data</span><span class="p">[</span><span class="s1">&#39;expires_at&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">():</span>
+            <span class="c1"># Get user from token&#39;s user_id</span>
+            <span class="n">user</span> <span class="o">=</span> <span class="n">get_user_by_id</span><span class="p">(</span><span class="n">token_data</span><span class="p">[</span><span class="s1">&#39;tenant_id&#39;</span><span class="p">],</span> <span class="n">token_data</span><span class="p">[</span><span class="s1">&#39;user_id&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">user</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">user</span>
+
+    <span class="c1"># Fall back to session cookie</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">get_current_user</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">user</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">user</span>
+
+    <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">401</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">&quot;Not authenticated&quot;</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">require_admin_api</span><span class="p">(</span><span class="n">user</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_current_user_api</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Admin or super_admin required&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">user</span><span class="p">[</span><span class="s1">&#39;role&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;admin&#39;</span><span class="p">,</span> <span class="s1">&#39;super_admin&#39;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">&quot;Admin access required&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">user</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">require_super_admin_api</span><span class="p">(</span><span class="n">user</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_current_user_api</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Super admin required&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">user</span><span class="p">[</span><span class="s1">&#39;role&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;super_admin&#39;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">&quot;Super admin access required&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">user</span>
+</code></pre></div>
+<h3 id="step-7-oauth2-client-management-api-approutersapiv1oauth2_clientspy">Step 7: OAuth2 Client Management API (<code>app/routers/api/v1/oauth2_clients.py</code>)<a class="headerlink" href="#step-7-oauth2-client-management-api-approutersapiv1oauth2_clientspy" title="Permanent link">&para;</a></h3>
+<p><strong>Pydantic Models:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">NormalClientCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">redirect_uris</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">B2BClientCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># &#39;member&#39;, &#39;admin&#39;, &#39;super_admin&#39;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ClientResponse</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">client_type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">redirect_uris</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">service_user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ClientWithSecret</span><span class="p">(</span><span class="n">ClientResponse</span><span class="p">):</span>
+    <span class="n">client_secret</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># Only returned on creation</span>
+</code></pre></div></p>
+<p><strong>Endpoints:</strong></p>
+<p><strong><code>GET /api/v1/oauth2/clients</code></strong>
+- Auth: Admin required
+- Response: List of all OAuth2 clients for the tenant
+- Includes service user info for B2B clients</p>
+<p><strong><code>POST /api/v1/oauth2/clients</code></strong>
+- Auth: Admin required
+- Request: <code>NormalClientCreate</code>
+- Response: <code>ClientWithSecret</code> (client_secret shown only once!)
+- Creates normal OAuth2 client</p>
+<p><strong><code>POST /api/v1/oauth2/clients/b2b</code></strong>
+- Auth: Admin required
+- Request: <code>B2BClientCreate</code>
+- Response: <code>ClientWithSecret</code>
+- Creates:
+  1. Service user with <code>first_name=name</code>, specified role
+  2. B2B OAuth2 client linked to service user</p>
+<p><strong><code>DELETE /api/v1/oauth2/clients/{client_id}</code></strong>
+- Auth: Admin required
+- Deletes client and all associated tokens
+- For B2B clients: Service user remains (admin must delete separately if desired)</p>
+<p><strong><code>POST /api/v1/oauth2/clients/{client_id}/regenerate-secret</code></strong>
+- Auth: Admin required
+- Generates new client_secret, invalidates old one
+- Response: New <code>client_secret</code> (shown once)</p>
+<h3 id="step-8-first-api-endpoints-approutersapiv1userspy">Step 8: First API Endpoints (<code>app/routers/api/v1/users.py</code>)<a class="headerlink" href="#step-8-first-api-endpoints-approutersapiv1userspy" title="Permanent link">&para;</a></h3>
+<p><strong><code>GET /api/v1/users/me</code></strong>
+- Auth: Any authenticated user (cookie or Bearer)
+- Response: Current user profile
+- Works with:
+  - Session cookie
+  - OAuth2 access token (normal client)
+  - OAuth2 access token (B2B client - returns service user)</p>
+<p><strong><code>PATCH /api/v1/users/me</code></strong>
+- Auth: Any authenticated user
+- Request: <code>{first_name?, last_name?, timezone?, locale?}</code>
+- Response: Updated user profile</p>
+<p><strong>Pydantic Models:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">UserProfile</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">last_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">timezone</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">locale</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">mfa_enabled</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">mfa_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+    <span class="n">last_login</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserProfileUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">last_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">timezone</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">locale</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div></p>
+<h3 id="step-9-openapi-configuration-testing">Step 9: OpenAPI Configuration &amp; Testing<a class="headerlink" href="#step-9-openapi-configuration-testing" title="Permanent link">&para;</a></h3>
+<p><strong>Update <code>app/main.py</code>:</strong>
+<div class="highlight"><pre><span></span><code><span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Loom Identity Platform API&quot;</span><span class="p">,</span>
+    <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span>
+    <span class="n">openapi_url</span><span class="o">=</span><span class="s2">&quot;/openapi.json&quot;</span><span class="p">,</span>
+    <span class="n">docs_url</span><span class="o">=</span><span class="s2">&quot;/docs&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Configure OAuth2 security schemes</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.openapi.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_openapi</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">custom_openapi</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">openapi_schema</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">app</span><span class="o">.</span><span class="n">openapi_schema</span>
+
+    <span class="n">openapi_schema</span> <span class="o">=</span> <span class="n">get_openapi</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Loom Identity Platform API&quot;</span><span class="p">,</span>
+        <span class="n">version</span><span class="o">=</span><span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span>
+        <span class="n">routes</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">routes</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Add security schemes</span>
+    <span class="n">openapi_schema</span><span class="p">[</span><span class="s2">&quot;components&quot;</span><span class="p">][</span><span class="s2">&quot;securitySchemes&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;OAuth2AuthorizationCode&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;oauth2&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;flows&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;authorizationCode&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;authorizationUrl&quot;</span><span class="p">:</span> <span class="s2">&quot;/oauth2/authorize&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;tokenUrl&quot;</span><span class="p">:</span> <span class="s2">&quot;/oauth2/token&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;scopes&quot;</span><span class="p">:</span> <span class="p">{}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;OAuth2ClientCredentials&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;oauth2&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;flows&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;clientCredentials&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;tokenUrl&quot;</span><span class="p">:</span> <span class="s2">&quot;/oauth2/token&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;scopes&quot;</span><span class="p">:</span> <span class="p">{}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;SessionCookie&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;apiKey&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;in&quot;</span><span class="p">:</span> <span class="s2">&quot;cookie&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;session&quot;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="n">app</span><span class="o">.</span><span class="n">openapi_schema</span> <span class="o">=</span> <span class="n">openapi_schema</span>
+    <span class="k">return</span> <span class="n">app</span><span class="o">.</span><span class="n">openapi_schema</span>
+
+<span class="n">app</span><span class="o">.</span><span class="n">openapi</span> <span class="o">=</span> <span class="n">custom_openapi</span>
+</code></pre></div></p>
+<p><strong>Test fixtures (<code>tests/conftest.py</code>):</strong>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">normal_oauth2_client</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">,</span> <span class="n">test_admin_user</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create normal OAuth2 client for testing&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">create_normal_client</span><span class="p">(</span>
+        <span class="n">tenant_id</span><span class="o">=</span><span class="n">test_tenant</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Test Client&quot;</span><span class="p">,</span>
+        <span class="n">redirect_uris</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;http://localhost:3000/callback&quot;</span><span class="p">],</span>
+        <span class="n">created_by</span><span class="o">=</span><span class="n">test_admin_user</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+    <span class="p">)</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">b2b_oauth2_client</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">,</span> <span class="n">test_admin_user</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create B2B OAuth2 client for testing&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">create_b2b_client</span><span class="p">(</span>
+        <span class="n">tenant_id</span><span class="o">=</span><span class="n">test_tenant</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Test B2B Client&quot;</span><span class="p">,</span>
+        <span class="n">role</span><span class="o">=</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span>
+        <span class="n">created_by</span><span class="o">=</span><span class="n">test_admin_user</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+    <span class="p">)</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">user_access_token</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">,</span> <span class="n">normal_oauth2_client</span><span class="p">,</span> <span class="n">test_user</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create access token for normal client acting as user&quot;&quot;&quot;</span>
+    <span class="c1"># Simulate authorization code flow</span>
+    <span class="n">code</span> <span class="o">=</span> <span class="n">create_authorization_code</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">exchange_code_for_token</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">token</span>
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">b2b_access_token</span><span class="p">(</span><span class="n">test_tenant</span><span class="p">,</span> <span class="n">b2b_oauth2_client</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create access token for B2B client&quot;&quot;&quot;</span>
+    <span class="c1"># Simulate client credentials flow</span>
+    <span class="k">return</span> <span class="n">create_client_credentials_token</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>Test files:</strong>
+- <code>tests/api/test_oauth2_authorization_code.py</code> - Authorization code flow tests
+- <code>tests/api/test_oauth2_pkce.py</code> - PKCE flow tests
+- <code>tests/api/test_oauth2_client_credentials.py</code> - Client credentials flow tests
+- <code>tests/api/test_oauth2_clients.py</code> - Client management API tests
+- <code>tests/api/test_dual_auth.py</code> - Cookie vs Bearer token tests</p>
+<hr />
+<h2 id="phase-2-core-api-endpoints-week-2">Phase 2: Core API Endpoints (Week 2)<a class="headerlink" href="#phase-2-core-api-endpoints-week-2" title="Permanent link">&para;</a></h2>
+<h3 id="step-10-user-management-api-approutersapiv1userspy">Step 10: User Management API (<code>app/routers/api/v1/users.py</code>)<a class="headerlink" href="#step-10-user-management-api-approutersapiv1userspy" title="Permanent link">&para;</a></h3>
+<p><strong><code>GET /api/v1/users</code></strong>
+- Auth: Admin required
+- Query params: <code>page</code>, <code>limit</code>, <code>search</code>, <code>sort_by</code>, <code>sort_order</code>
+- Response: <code>{items: UserProfile[], total: int, page: int, limit: int}</code>
+- Note: Service users marked with indicator</p>
+<p><strong><code>GET /api/v1/users/{user_id}</code></strong>
+- Auth: Admin required
+- Response: Detailed user profile including all emails, MFA status
+- Shows if user is a service user (has associated B2B client)</p>
+<p><strong><code>POST /api/v1/users</code></strong>
+- Auth: Admin required
+- Request: <code>{first_name, last_name, email, role?, privileged_domain?}</code>
+- Response: Created user
+- Same logic as existing user creation</p>
+<p><strong><code>PATCH /api/v1/users/{user_id}</code></strong>
+- Auth: Admin required (role changes: super_admin only)
+- Request: <code>{first_name?, last_name?, role?}</code>
+- Response: Updated user
+- Validation: Cannot delete service user (shows error)</p>
+<p><strong>Pydantic Models:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">UserList</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">UserProfile</span><span class="p">]</span>
+    <span class="n">total</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">page</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserDetail</span><span class="p">(</span><span class="n">UserProfile</span><span class="p">):</span>
+    <span class="n">emails</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EmailInfo</span><span class="p">]</span>
+    <span class="n">is_service_user</span><span class="p">:</span> <span class="nb">bool</span>  <span class="c1"># Derived from oauth2_clients relationship</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">last_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;member&#39;</span>
+    <span class="n">privileged_domain</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserUpdate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">first_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">last_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div></p>
+<h3 id="step-11-email-management-api-approutersapiv1emailspy">Step 11: Email Management API (<code>app/routers/api/v1/emails.py</code>)<a class="headerlink" href="#step-11-email-management-api-approutersapiv1emailspy" title="Permanent link">&para;</a></h3>
+<p><strong><code>GET /api/v1/users/me/emails</code></strong>
+- Auth: Any authenticated user
+- Response: List of user's emails with verification status</p>
+<p><strong><code>POST /api/v1/users/me/emails</code></strong>
+- Auth: Any authenticated user
+- Request: <code>{email: str}</code>
+- Response: Created email with verification sent
+- Respects tenant security settings</p>
+<p><strong><code>DELETE /api/v1/users/me/emails/{email_id}</code></strong>
+- Auth: Any authenticated user
+- Validates: Not deleting primary email, not last email</p>
+<p><strong><code>POST /api/v1/users/me/emails/{email_id}/set-primary</code></strong>
+- Auth: Any authenticated user
+- Validates: Email is verified
+- Updates primary email</p>
+<p><strong><code>POST /api/v1/users/me/emails/{email_id}/resend-verification</code></strong>
+- Auth: Any authenticated user
+- Sends new verification email</p>
+<p><strong>Pydantic Models:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">EmailInfo</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">is_primary</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">verified_at</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EmailList</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">EmailInfo</span><span class="p">]</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EmailCreate</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">email</span><span class="p">:</span> <span class="nb">str</span>
+</code></pre></div></p>
+<h3 id="step-12-settings-management-api-approutersapiv1settingspy">Step 12: Settings Management API (<code>app/routers/api/v1/settings.py</code>)<a class="headerlink" href="#step-12-settings-management-api-approutersapiv1settingspy" title="Permanent link">&para;</a></h3>
+<p><strong><code>GET /api/v1/settings/privileged-domains</code></strong>
+- Auth: Admin required
+- Response: List of privileged domains</p>
+<p><strong><code>POST /api/v1/settings/privileged-domains</code></strong>
+- Auth: Admin required
+- Request: <code>{domain: str}</code>
+- Response: Created domain</p>
+<p><strong><code>DELETE /api/v1/settings/privileged-domains/{domain_id}</code></strong>
+- Auth: Admin required</p>
+<p><strong><code>GET /api/v1/settings/security</code></strong>
+- Auth: Super admin required
+- Response: Tenant security settings</p>
+<p><strong><code>PATCH /api/v1/settings/security</code></strong>
+- Auth: Super admin required
+- Request: Security settings update
+- Response: Updated settings</p>
+<h3 id="step-13-mfa-management-api-approutersapiv1mfapy">Step 13: MFA Management API (<code>app/routers/api/v1/mfa.py</code>)<a class="headerlink" href="#step-13-mfa-management-api-approutersapiv1mfapy" title="Permanent link">&para;</a></h3>
+<p>All endpoints require authenticated user (acts on current user only).</p>
+<p><strong><code>GET /api/v1/mfa/status</code></strong>
+- Response: <code>{enabled: bool, method: str | null, backup_codes_remaining: int}</code></p>
+<p><strong><code>POST /api/v1/mfa/setup/totp</code></strong>
+- Response: <code>{secret: str, qr_uri: str, backup_codes: str[]}</code>
+- Note: Not yet enabled, must verify first</p>
+<p><strong><code>POST /api/v1/mfa/setup/verify</code></strong>
+- Request: <code>{code: str}</code>
+- Validates TOTP code, enables MFA</p>
+<p><strong><code>POST /api/v1/mfa/setup/email</code></strong>
+- Enables email-based MFA
+- Response: <code>{backup_codes: str[]}</code></p>
+<p><strong><code>POST /api/v1/mfa/backup-codes/regenerate</code></strong>
+- Requires MFA verification first
+- Response: New backup codes</p>
+<p><strong><code>POST /api/v1/mfa/downgrade</code></strong>
+- Downgrade from TOTP to email MFA
+- Requires MFA verification</p>
+<h3 id="step-14-testing-phase-2">Step 14: Testing Phase 2<a class="headerlink" href="#step-14-testing-phase-2" title="Permanent link">&para;</a></h3>
+<p><strong>Comprehensive test coverage:</strong>
+- All CRUD operations
+- Role-based access control (member/admin/super_admin)
+- Tenant isolation (users can't access other tenants)
+- Service user protection (can't delete service users)
+- All three auth methods work on each endpoint
+- Pagination, search, sorting
+- Error cases and validation</p>
+<hr />
+<h2 id="phase-3-api-testing-strategy-documentation-week-3">Phase 3: API Testing Strategy &amp; Documentation (Week 3)<a class="headerlink" href="#phase-3-api-testing-strategy-documentation-week-3" title="Permanent link">&para;</a></h2>
+<h3 id="step-15-spec-based-testing">Step 15: Spec-Based Testing<a class="headerlink" href="#step-15-spec-based-testing" title="Permanent link">&para;</a></h3>
+<p><strong>Approach: Custom pytest-based contract testing</strong></p>
+<p>Why not schemathesis:
+- More control over test scenarios
+- Leverage existing fixtures
+- Can test authorization flows properly</p>
+<p><strong>Implementation:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># tests/api/test_openapi_contract.py</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_all_api_endpoints_in_spec</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure all implemented API endpoints are in OpenAPI spec&quot;&quot;&quot;</span>
+    <span class="n">openapi</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/openapi.json&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">openapi</span><span class="p">[</span><span class="s2">&quot;paths&quot;</span><span class="p">]</span>
+
+    <span class="c1"># Get all /api/v1/* routes from FastAPI</span>
+    <span class="n">api_routes</span> <span class="o">=</span> <span class="p">[</span><span class="n">route</span> <span class="k">for</span> <span class="n">route</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">routes</span> <span class="k">if</span> <span class="n">route</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/api/v1/&quot;</span><span class="p">)]</span>
+
+    <span class="c1"># Verify all routes are documented</span>
+    <span class="k">for</span> <span class="n">route</span> <span class="ow">in</span> <span class="n">api_routes</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">route</span><span class="o">.</span><span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_all_responses_match_schema</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">test_user_access_token</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate response schemas match OpenAPI spec&quot;&quot;&quot;</span>
+    <span class="n">openapi</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/openapi.json&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="c1"># For each endpoint, make request and validate response</span>
+    <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">methods</span> <span class="ow">in</span> <span class="n">openapi</span><span class="p">[</span><span class="s2">&quot;paths&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">method</span><span class="p">,</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">methods</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Make request</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">make_request</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">test_user_access_token</span><span class="p">)</span>
+
+            <span class="c1"># Validate response schema</span>
+            <span class="k">assert</span> <span class="n">validate_schema</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">(),</span> <span class="n">spec</span><span class="p">[</span><span class="s2">&quot;responses&quot;</span><span class="p">][</span><span class="nb">str</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">)])</span>
+</code></pre></div>
+<h3 id="step-16-error-handling-response-formatting">Step 16: Error Handling &amp; Response Formatting<a class="headerlink" href="#step-16-error-handling-response-formatting" title="Permanent link">&para;</a></h3>
+<p><strong>Standardized error responses:</strong></p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ErrorDetail</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">detail</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">error_code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="c1"># Example responses:</span>
+<span class="p">{</span>
+    <span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;User not found&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;error_code&quot;</span><span class="p">:</span> <span class="s2">&quot;USER_NOT_FOUND&quot;</span>
+<span class="p">}</span>
+
+<span class="p">{</span>
+    <span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;Cannot delete service user. Delete associated OAuth2 client first.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;error_code&quot;</span><span class="p">:</span> <span class="s2">&quot;SERVICE_USER_DELETE_FORBIDDEN&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><strong>HTTP Status Codes:</strong>
+- 200 OK - Successful GET/PATCH
+- 201 Created - Successful POST
+- 204 No Content - Successful DELETE
+- 400 Bad Request - Validation error
+- 401 Unauthorized - Not authenticated
+- 403 Forbidden - Authenticated but insufficient permissions
+- 404 Not Found - Resource doesn't exist
+- 409 Conflict - Duplicate resource (e.g., email already exists)
+- 422 Unprocessable Entity - Pydantic validation error
+- 500 Internal Server Error - Server error</p>
+<h3 id="step-17-service-user-protection">Step 17: Service User Protection<a class="headerlink" href="#step-17-service-user-protection" title="Permanent link">&para;</a></h3>
+<p><strong>Database layer:</strong>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">delete_user</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="c1"># Check if user is a service user</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">get_b2b_client_by_service_user</span><span class="p">(</span><span class="n">tenant_id</span><span class="p">,</span> <span class="n">user_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Cannot delete service user. &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Delete OAuth2 client &#39;</span><span class="si">{</span><span class="n">client</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39; first.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Proceed with deletion</span>
+    <span class="o">...</span>
+</code></pre></div></p>
+<p><strong>UI indicators:</strong>
+- User list: Badge/icon for service users
+- User detail: Warning message if trying to delete
+- OAuth2 client list: Show linked service user</p>
+<h3 id="step-18-documentation-cleanup">Step 18: Documentation &amp; Cleanup<a class="headerlink" href="#step-18-documentation-cleanup" title="Permanent link">&para;</a></h3>
+<p><strong>OpenAPI spec enhancements:</strong>
+- Add descriptions for all endpoints
+- Document OAuth2 flows with examples
+- Document error responses
+- Add security requirements to each endpoint</p>
+<p><strong>Documentation files:</strong>
+- <code>docs/oauth2-authorization-code-flow.md</code> - Step-by-step guide
+- <code>docs/oauth2-client-credentials-flow.md</code> - B2B integration guide
+- <code>docs/api-authentication.md</code> - Overview of all auth methods</p>
+<p><strong>CI/CD:</strong>
+- Run all API tests in GitHub Actions
+- Maintain 90%+ coverage
+- Spec validation on every commit</p>
+<hr />
+<h2 id="complete-api-endpoint-summary">Complete API Endpoint Summary<a class="headerlink" href="#complete-api-endpoint-summary" title="Permanent link">&para;</a></h2>
+<h3 id="oauth2-authentication">OAuth2 &amp; Authentication<a class="headerlink" href="#oauth2-authentication" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /oauth2/authorize</code> - Authorization page (normal clients)</li>
+<li><code>POST /oauth2/authorize</code> - Grant authorization</li>
+<li><code>POST /oauth2/token</code> - Token endpoint (all grant types)</li>
+<li><code>GET /api/v1/oauth2/clients</code> - List OAuth2 clients (admin)</li>
+<li><code>POST /api/v1/oauth2/clients</code> - Create normal client (admin)</li>
+<li><code>POST /api/v1/oauth2/clients/b2b</code> - Create B2B client (admin)</li>
+<li><code>DELETE /api/v1/oauth2/clients/{client_id}</code> - Delete client (admin)</li>
+<li><code>POST /api/v1/oauth2/clients/{client_id}/regenerate-secret</code> - Regenerate secret (admin)</li>
+</ul>
+<h3 id="user-profile-self-service">User Profile (Self-Service)<a class="headerlink" href="#user-profile-self-service" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /api/v1/users/me</code> - Get profile</li>
+<li><code>PATCH /api/v1/users/me</code> - Update profile</li>
+</ul>
+<h3 id="email-management-self-service">Email Management (Self-Service)<a class="headerlink" href="#email-management-self-service" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /api/v1/users/me/emails</code> - List emails</li>
+<li><code>POST /api/v1/users/me/emails</code> - Add email</li>
+<li><code>DELETE /api/v1/users/me/emails/{email_id}</code> - Delete email</li>
+<li><code>POST /api/v1/users/me/emails/{email_id}/set-primary</code> - Set primary</li>
+<li><code>POST /api/v1/users/me/emails/{email_id}/resend-verification</code> - Resend verification</li>
+</ul>
+<h3 id="mfa-management-self-service">MFA Management (Self-Service)<a class="headerlink" href="#mfa-management-self-service" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /api/v1/mfa/status</code> - Get MFA status</li>
+<li><code>POST /api/v1/mfa/setup/totp</code> - Setup TOTP</li>
+<li><code>POST /api/v1/mfa/setup/verify</code> - Verify TOTP</li>
+<li><code>POST /api/v1/mfa/setup/email</code> - Enable email MFA</li>
+<li><code>POST /api/v1/mfa/backup-codes/regenerate</code> - Regenerate codes</li>
+<li><code>POST /api/v1/mfa/downgrade</code> - Downgrade MFA</li>
+</ul>
+<h3 id="user-management-admin">User Management (Admin)<a class="headerlink" href="#user-management-admin" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /api/v1/users</code> - List users</li>
+<li><code>GET /api/v1/users/{user_id}</code> - Get user</li>
+<li><code>POST /api/v1/users</code> - Create user</li>
+<li><code>PATCH /api/v1/users/{user_id}</code> - Update user</li>
+</ul>
+<h3 id="settings-management-admin">Settings Management (Admin)<a class="headerlink" href="#settings-management-admin" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>GET /api/v1/settings/privileged-domains</code> - List domains</li>
+<li><code>POST /api/v1/settings/privileged-domains</code> - Add domain</li>
+<li><code>DELETE /api/v1/settings/privileged-domains/{domain_id}</code> - Delete domain</li>
+<li><code>GET /api/v1/settings/security</code> - Get security settings (super_admin)</li>
+<li><code>PATCH /api/v1/settings/security</code> - Update security (super_admin)</li>
+</ul>
+<hr />
+<h2 id="key-design-decisions">Key Design Decisions<a class="headerlink" href="#key-design-decisions" title="Permanent link">&para;</a></h2>
+<p>✅ <strong>Opaque tokens, not JWTs</strong> - Database-backed for instant revocation
+✅ <strong>Three auth methods</strong> - Session cookies, authorization code flow, client credentials flow
+✅ <strong>Two OAuth2 client types</strong> - Normal (user delegation) vs B2B (service account)
+✅ <strong>Service users for B2B</strong> - B2B clients act as users, use existing RBAC
+✅ <strong>No scopes</strong> - Access determined by user's role (simple, uses existing system)
+✅ <strong>PKCE optional</strong> - Support both PKCE and non-PKCE flows
+✅ <strong>Exact redirect URI matching</strong> - No wildcards for security
+✅ <strong>Lifecycle coupling</strong> - Service users protected, must delete client first
+✅ <strong>Admin-level access</strong> - Admins can manage OAuth2 clients
+✅ <strong>Argon2 for everything</strong> - Client secrets, tokens all use same proven hashing</p>
+<hr />
+<h2 id="deliverables">Deliverables<a class="headerlink" href="#deliverables" title="Permanent link">&para;</a></h2>
+<p>✅ Authorization Code Flow with optional PKCE
+✅ Client Credentials Flow for B2B integrations
+✅ Refresh token support (30 day expiry)
+✅ Complete RESTful API with /api/v1/ prefix
+✅ Opaque database-backed tokens (instant revocation)
+✅ Service user system for B2B clients
+✅ OAuth2 client management UI/API
+✅ OpenAPI 3.x specification at /openapi.json
+✅ Interactive OAuth2-enabled docs at /docs
+✅ Dual authentication (cookies + Bearer tokens)
+✅ Spec-based contract testing
+✅ Comprehensive test suite
+✅ 90%+ test coverage maintained
+✅ Service user protection (delete prevention)
+✅ All existing HTML pages remain functional</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.sections","navigation.expand","navigation.indexes","search.suggest","content.code.copy"],"search":"../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      
+    
+  </body>
+</html>

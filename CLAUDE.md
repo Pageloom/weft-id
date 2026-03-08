@@ -456,6 +456,7 @@ All checks must pass before committing.
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 - Use `/deps` to audit third-party dependencies for known CVEs and vulnerabilities
 - Use `/refactor` to analyze codebase for refactoring opportunities and technical debt
+- Use `/tech-writer` to review app copy for clarity and maintain the documentation site
 
 ## Issue Tracking
 
@@ -464,6 +465,7 @@ All checks must pass before committing.
 - Security vulnerabilities found by `/security` are logged in `ISSUES.md`
 - Dependency vulnerabilities found by `/deps` are logged in `ISSUES.md`
 - Refactoring opportunities found by `/refactor` are logged in `ISSUES.md`
+- Copy inconsistencies found by `/tech-writer` are logged in `ISSUES.md`
 - `/dev` checks ISSUES.md first before BACKLOG.md (bugs before features)
 - **When resolved:** Move issues from `ISSUES.md` to `ISSUES_ARCHIVE.md` (don't keep resolved items in ISSUES.md)
 - Goal: keep `ISSUES.md` empty

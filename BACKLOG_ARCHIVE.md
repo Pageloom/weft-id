@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Service Provider List: User Access Count
+
+**Status:** Complete
+
+**Summary:** The SP list view and API now show how many unique users can access each service provider. The count uses a single batch query via the group_lineage closure table, handling inherited group access. SPs marked "available to all" display an "All users" badge with the total active user count. Zero-access SPs show "0".
+
+**Acceptance Criteria:**
+
+- [x] SP list view shows a user access count for each service provider
+- [x] Count reflects unique users across all groups assigned to the SP
+- [x] SPs with "available to all" enabled show the total tenant user count or "All users" label
+- [x] Count is computed efficiently (single query, not N+1 per SP)
+- [x] API list endpoint (`GET /api/v1/service-providers`) includes the count in the response
+- [x] Zero-access SPs show "0" (not hidden or blank)
+
+---
+
 ## Admin: Security Settings Tabbed Layout
 
 **Status:** Complete

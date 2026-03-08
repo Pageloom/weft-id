@@ -316,28 +316,6 @@ Documentation updates:
 
 ---
 
-## Auto-assign Users to Groups Based on Privileged Email Domains
-
-**User Story:**
-As a super admin
-I want to configure privileged domains to automatically assign users with matching email
-addresses to specified groups
-So that I do not have to manually manage group memberships for users from known domains
-
-**Acceptance Criteria:**
-
-- [ ] Link one or more WeftId groups to a privileged domain
-- [ ] When a user is created or verified with an email matching the domain, auto-add to linked groups
-- [ ] Existing users can be bulk-processed when a domain-group link is added
-- [ ] Domain-group links shown on privileged domain detail page
-- [ ] Auto-assigned memberships are regular memberships (can be manually removed)
-- [ ] Event log entries for auto-assignments
-
-**Effort:** S-M
-**Value:** Medium (Reduces admin toil for common onboarding pattern)
-
----
-
 ## Reusable SVG Icon System
 
 **User Story:**
@@ -398,259 +376,80 @@ Quality:
 
 ---
 
-## Create `/accessibility` Skill
-
-**User Story:**
-As a developer,
-I want an `/accessibility` skill that audits the frontend for WCAG 2.1 AA compliance,
-So that accessibility issues are identified and tracked systematically like security and compliance violations.
-
-**Acceptance Criteria:**
-
-- [ ] New skill file at `.claude/skills/accessibility/` following the pattern of existing skills
-- [ ] Skill audits Jinja2 templates for WCAG 2.1 AA violations (missing alt text, insufficient contrast cues, missing form labels, ARIA misuse, keyboard navigation gaps, missing lang attributes, missing focus indicators)
-- [ ] Skill logs findings to `ISSUES.md` in the same format as `/security` and `/compliance`
-- [ ] Skill references a checklist in `.claude/references/wcag-patterns.md`
-- [ ] Skill can be invoked with `/accessibility` from Claude Code
-
-**Effort:** M
-**Value:** Medium
-
----
-
-## Dyslexic-Friendly Font User Preference
-
-**User Story:**
-As a user with dyslexia,
-I want to enable a dyslexic-friendly font in my account settings,
-So that the interface is more readable for me without affecting other users.
-
-**Acceptance Criteria:**
-
-- [ ] A font preference field is added to the user profile (boolean, default false)
-- [ ] Database migration adds the column to the `users` table
-- [ ] User can toggle the preference in their profile/settings page
-- [ ] When enabled, the selected dyslexic-friendly font (e.g. OpenDyslexic or Atkinson Hyperlegible) is applied via a CSS class on the `<html>` or `<body>` element
-- [ ] Font is served from static assets (not an external CDN) for privacy and reliability
-- [ ] Preference persists across sessions (stored server-side)
-- [ ] **No audit log** for this write (follows the `save_graph_layout()` pattern: it is UI preference state, not a business action). The service function docstring must note this explicitly.
-- [ ] `track_activity()` is called (instead of `log_event()`) so the user's `last_activity_at` is still updated
-- [ ] API endpoint exposes the preference for programmatic access
-
-**Effort:** M
-**Value:** Medium
-
----
-
-## Group Graph: Toolbar, New Group Modal, and Label Overlap
-
-**User Story:**
-As an admin using the group graph view
-I want a cleaner toolbar, the ability to create groups directly from the graph, and non-overlapping edge labels
-So that the graph feels polished, I can build the group hierarchy without leaving the canvas, and off-screen labels are readable
-
-**Acceptance Criteria:**
-
-Toolbar (icon-only buttons):
-- [ ] "Add relationship", "Cut relationship", and "Edit layout" toolbar buttons show only an icon (no text label)
-- [ ] Each button has a `title` tooltip that describes its function (visible on hover)
-- [ ] Visual appearance and active/inactive states are preserved
-
-New Group tool:
-- [ ] A "New group" button is added to the graph toolbar (icon + tooltip, consistent with other toolbar items)
-- [ ] Clicking it opens a modal with a "Name" field (required) and a "Description" field (optional), plus Cancel and Create buttons
-- [ ] Submitting the modal creates the group via the existing group creation service and adds it to the graph
-- [ ] The new node appears in the graph in a selected/highlighted state so the admin can immediately connect it
-- [ ] Cancel closes the modal without creating anything
-- [ ] Validation: name is required; shows inline error if empty on submit
-- [ ] Creation failure (e.g. duplicate name) shows an error in the modal without closing it
-
-Edge label de-overlap:
-- [ ] When multiple off-screen edge labels (showing a connected group's name) would be rendered at overlapping or near-overlapping positions at the viewport boundary, they are spread out so no two labels overlap
-- [ ] De-overlap logic is applied only to the off-screen labels (labels for visible nodes are unaffected)
-- [ ] Labels remain close to the edge line's viewport intersection point where possible
-
-**Effort:** M
-**Value:** Medium
-
----
-
-## Admin: Super Admin Debug Impersonation
+## Admin: Security Settings Tabbed Layout
 
 **User Story:**
 As a super admin
-I want to view what a specific user's application access looks like from their perspective
-So that I can debug access and attribute issues without creating a real session as that user
+I want the Security settings page organized into focused tabs
+So that related settings are grouped logically and the page is easier to navigate as more security options are added
 
 **Context:**
 
-This is a debug-only, read-only capability. The super admin sees the user's effective access
-and the identity attributes that would be asserted for them, without performing a real
-authentication to any SP. This is the "what would happen if they logged in?" companion to
-the User-App Access Query item, which answers "does this user have access?".
+The current Security settings page is a single long form with five sections covering sessions,
+inactivation, certificates, and user permissions. Splitting it into tabs follows the established
+Branding Settings pattern (base template with tab nav, child templates per tab) and creates
+clear homes for future security settings.
+
+**Tab structure:**
+
+1. **Sessions** (default tab): Maximum session length, keep signed in after browser close, and
+   automatic user inactivation after inactivity period
+2. **Certificates**: Signing certificate validity period and auto-rotation/grace period window
+3. **Permissions**: Allow users to edit profile details, allow users to add alternative email addresses
 
 **Acceptance Criteria:**
 
-- [ ] Super admin only (not admin role)
-- [ ] Accessible from the user detail page and/or the User-App Access view
-- [ ] Shows the user's effective group memberships and the SPs accessible via those groups
-- [ ] For a selected user + SP combination, shows a preview of the identity attributes
-      (name, email, groups, any custom attribute mappings) that would be asserted
-- [ ] Clearly labeled as a debug preview. No actual SP session or authentication occurs.
-- [ ] Event logged in audit trail (`super_admin_debug_impersonation`) with actor, target user, and SP
+Templates:
+- [ ] Create `settings_security_base.html` with tab navigation (Sessions, Certificates, Permissions)
+- [ ] Create `settings_security_tab_sessions.html` with session length, keep signed in, and inactivation settings
+- [ ] Create `settings_security_tab_certificates.html` with certificate lifetime and rotation window settings
+- [ ] Create `settings_security_tab_permissions.html` with user permission toggles
+- [ ] Remove old `settings_tenant_security.html`
 
-**Effort:** M
-**Value:** Low
+Routes:
+- [ ] `/admin/settings/security` redirects to `/admin/settings/security/sessions`
+- [ ] Each tab has its own GET route (`/sessions`, `/certificates`, `/permissions`)
+- [ ] POST update route(s) handle saves per tab (or a single route that redirects back to the originating tab)
+- [ ] Register new routes in `app/pages.py`
 
----
+Behavior:
+- [ ] Each tab has its own Save button (no cross-tab form submission)
+- [ ] Success/error flash messages appear on the correct tab after save
+- [ ] All existing settings continue to function identically
 
+Tests:
+- [ ] Existing security settings tests pass (update any that reference the old template/route)
+- [ ] Each tab route returns 200 with correct content
+- [ ] Form submissions on each tab persist correctly
 
-## SAML: Group Assertion Transparency (Trunk-Only Mode + Consent Screen Visibility)
-
-**User Story:**
-As a super admin
-I want to control whether full group memberships or only trunk groups are communicated in
-SAML assertions, and as a user I want to see which groups will be shared during authentication
-So that admins can minimize group exposure to service providers, and users understand what
-identity information is being disclosed before they consent
-
-**Context:**
-
-Currently, SAML assertions include all of the user's group memberships. Two related gaps:
-
-1. **Trunk-only mode:** A "trunk group" is any group the user belongs to that has no parent
-   groups in the DAG. It represents the broadest, most concise outline of the user's group
-   footprint without enumerating every nested membership. Communicating only trunk groups
-   reduces how much internal group structure is leaked to service providers.
-
-2. **Consent screen visibility:** The consent screen during SAML authentication does not show
-   which groups will be shared with the SP. If group attributes are being asserted, the user
-   should see exactly which groups are being disclosed before completing sign-in.
-
-These are linked: if trunk-only mode is active, the consent screen should reflect the filtered
-group set (not the full membership list).
-
-**Acceptance Criteria:**
-
-Trunk-only admin setting:
-- [ ] New tenant-level setting in admin security settings: "Group assertion scope" with two
-      options: "All groups" (share all group memberships) and "Trunk groups only" (share only
-      groups with no parent groups in the DAG). Default: "Trunk groups only"
-- [ ] "Trunk groups only" filters the group list included in any SAML assertion to those
-      where the user has no parent group in the `group_lineage` table
-- [ ] Setting is persisted with a migration; readable via the settings service
-- [ ] Event logged (`group_assertion_scope_updated`) when the setting changes
-- [ ] API endpoint exposes and allows updating the setting
-
-Consent screen group disclosure:
-- [ ] If the SP's attribute mapping includes a groups attribute, the consent screen displays
-      the list of groups that will be shared in the assertion
-- [ ] If trunk-only mode is active, the displayed groups reflect the filtered set
-- [ ] If the SP does not request a groups attribute, this section is hidden
-- [ ] Groups are listed by name; if the list is long (>10), show a count with a collapsible
-      "show all" expansion
-
-**Effort:** M
-**Value:** Medium
+**Effort:** S
+**Value:** Medium (UX improvement, prepares for additional security settings)
 
 ---
 
-## Service Provider Logo / Avatar
+## Service Provider List: User Access Count
 
 **User Story:**
 As an admin
-I want to upload a logo for each service provider, with a generated acronym avatar as fallback
-So that SPs are visually identifiable in lists, detail pages, and the user dashboard
+I want to see how many users have access to each service provider in the SP list view
+So that I can quickly gauge the reach of each application at a glance
 
 **Context:**
 
-Service providers currently have no visual identity. Group logos already support PNG and SVG
-uploads with an acronym fallback. This item brings the same pattern to service providers,
-reusing the existing validation and serving infrastructure.
-
-Upload happens from the SP detail page. The acronym fallback uses the same generation logic
-as groups (works with any UUID + name). Logos appear in the SP list, SP detail header,
-dashboard "My Apps" cards, and the SSO consent screen.
+The SP list currently shows name, entity ID, and status but gives no indication of how many
+users can access each app. Access is granted via group assignments, so the count is the
+number of unique users across all groups assigned to the SP. SPs marked "available to all"
+should display the total tenant user count (or a label like "All users") rather than computing
+group-based access.
 
 **Acceptance Criteria:**
 
-Database:
-- [ ] New `sp_logos` table (parallel to `group_logos`): `sp_id`, `logo_data`, `content_type`,
-      `created_at`, `updated_at`, tenant-scoped with RLS
-- [ ] Migration adds the table with appropriate constraints
-- [ ] Add `has_logo` and `logo_updated_at` fields to SP response schemas
-
-Service:
-- [ ] Reuse validation from `app/services/branding.py` (`_validate_png`, `_validate_svg_content`)
-- [ ] Same constraints as group logos: PNG (square, >=48x48, <=256KB) or SVG
-- [ ] Upload and delete service functions with event logging
-
-Serving and API:
-- [ ] `/branding/sp-logo/{sp_id}` endpoint (parallel to `/branding/group-logo/{group_id}`)
-- [ ] Upload endpoint under SP admin routes
-- [ ] Delete endpoint under SP admin routes
-- [ ] API endpoints for upload and delete under `/api/v1/`
-
-Templates:
-- [ ] SP list (`saml_idp_sp_list.html`): show logo or acronym avatar
-- [ ] SP detail header (`saml_idp_sp_tab_details.html`): show logo with upload/remove controls
-- [ ] Dashboard "My Apps" cards (`dashboard.html`): show logo or acronym avatar
-- [ ] SSO consent screen (`saml_idp_sso_consent.html`): show logo or acronym avatar
-
-Frontend:
-- [ ] Acronym generation reuses `generateGroupAcronym()` from `static/js/group-mandala.js`
-      (works with any UUID + name)
-
-Tests:
-- [ ] Service layer tests for upload validation (PNG constraints, SVG sanitization)
-- [ ] Service layer tests for upload and delete with event logging
-- [ ] API integration tests for upload, serve, and delete endpoints
-- [ ] Template rendering tests verify logo/acronym fallback behavior
-
-**Effort:** M
-**Value:** Medium
-
----
-
-## Group Graph: Extended Selection Highlighting with Depth-Aware Edge Styles
-
-**User Story:**
-As an admin using the group graph view
-I want the selected node's full ancestry and descendancy to be visually represented,
-with solid edges for immediate neighbours and dashed edges for more distant relatives
-So that I can understand the complete hierarchical context of a group at a glance
-
-**Context:**
-
-Currently, selecting a node highlights only its immediate children (solid arrows pointing in)
-and immediate parents (orange arrows). Grandchildren, grandparents, and more remote relatives
-are invisible in the selection state.
-
-The new rule is: **dashed line = more than one step removed.** The direction of arrows and
-colour conventions remain unchanged; only the reach and stroke style change.
-
-**Acceptance Criteria:**
-
-Descendant side (children, grandchildren, …):
-- [ ] When a node is selected, solid arrows are drawn from all **immediate children** to the
-      selected node (existing behaviour, retained)
-- [ ] Dashed arrows are drawn from all **grandchildren and more remote descendants** to the
-      selected node
-- [ ] Arrow direction is the same for all descendants (child → selected)
-
-Ancestor side (parents, grandparents, …):
-- [ ] Immediate parents continue to be highlighted with **solid orange arrows** pointing from
-      the selected node to each parent (existing behaviour, retained)
-- [ ] **Grandparents and more remote ancestors** are connected with **dashed arrows** (same
-      direction: selected → ancestor, same orange colour or a subdued variant that is clearly
-      distinguishable from immediate parents)
-
-General:
-- [ ] Depth 1 neighbours (immediate parents and children) always use solid lines
-- [ ] Depth 2+ neighbours (any relative more than one step away) always use dashed lines
-- [ ] Unrelated nodes remain visually neutral (no highlight, no extra edges)
-- [ ] The existing Cytoscape layout and node positions are unaffected by the style change
-- [ ] De-selection resets all edges to their default appearance
+- [ ] SP list view shows a user access count for each service provider
+- [ ] Count reflects unique users across all groups assigned to the SP
+- [ ] SPs with "available to all" enabled show the total tenant user count or "All users" label
+- [ ] Count is computed efficiently (single query, not N+1 per SP)
+- [ ] API list endpoint (`GET /api/v1/service-providers`) includes the count in the response
+- [ ] Zero-access SPs show "0" (not hidden or blank)
 
 **Effort:** S
 **Value:** Medium
@@ -705,138 +504,239 @@ Tests:
 
 ---
 
-## Onboarding Wizard for New Super Admins
-
-> **Status: Needs grooming.** The shape is roughed out below but the details need more thought before implementation.
-
-**User Story:**
-As the first super admin of a new WeftID instance
-I want a guided setup wizard that helps me get my identity layer running
-So that I can reach a working configuration quickly without guessing what to do first
-
-**Context:**
-
-A brand new WeftID instance gives no guidance on where to start. The wizard meets the first super admin after onboarding and walks them through initial setup. It is dismissable forever (per-user flag) and only appears for super admins.
-
-WeftID serves three primary deployment scenarios, and the wizard should adapt to whichever the admin is pursuing:
-
-- **Identity Federation Hub:** Multiple upstream IdPs unified behind one identity layer
-- **Standalone Identity Provider:** WeftID manages users directly (email/password, MFA)
-- **SSO Gateway:** One IdP, but WeftID adds group-based access control and audit for downstream apps
-
-**Rough Flow:**
-
-1. **Welcome.** Friendly intro, explain what the wizard will help with.
-2. **"How will your people sign in?"** Branching question: existing IdP, directly with WeftID, or both. Determines whether the next step is IdP setup or domain/user setup.
-3. **Identity source setup.** If IdP: walk through connecting the first provider (Okta, Entra, Google, generic SAML). If direct: collect company email domain, create a privileged domain.
-4. **"Let's organize your people."** Create the first group (suggest a name based on domain, e.g. "Acme Staff"). Link the domain to the group if applicable.
-5. **"Connect an application."** Optional. Walk through registering the first SP, or skip for later.
-6. **"Who should have access?"** Assign the group from step 4 to the SP from step 5. This is the "aha" moment.
-7. **Quick security check.** MFA policy toggle, session timeout recommendation.
-8. **Summary and next steps.** Show what was accomplished, link to key areas (audit logs, more apps, invite users).
-
-**Open Design Questions:**
-
-- Should step 3 (IdP setup) be a full inline walkthrough or just navigate to the existing config page with contextual guidance?
-- For the "Both" path in step 2, run both flows sequentially or pick one as primary?
-- Persistence model: wizard state as JSON on the tenant (checklist on dashboard) vs. a modal/sequential experience?
-- Should "invite a co-admin" be a wizard step?
-- Does the auto-assign-users-to-groups backlog item need to land first for the domain-to-group linking in step 4?
-
-**Acceptance Criteria:**
-
-- [ ] Wizard appears for the first super admin on a new tenant (not for subsequent admins unless they haven't dismissed it)
-- [ ] Dismissable forever via a per-user flag
-- [ ] Adapts flow based on the admin's stated intent (federation, standalone, SSO gateway)
-- [ ] Each step is skippable ("I'll do this later")
-- [ ] Completing or dismissing the wizard never blocks access to the main UI
-- [ ] Progress is persisted so the wizard can be resumed across sessions
-- [ ] Summary step links to relevant admin pages for continued setup
-
-**Effort:** XL
-**Value:** High
-
----
-
-## Service Provider List: User Access Count
+## Groups: Customizable Acronym
 
 **User Story:**
 As an admin
-I want to see how many users have access to each service provider in the SP list view
-So that I can quickly gauge the reach of each application at a glance
+I want to set a custom acronym (up to 4 characters) for a group
+So that the group avatar displays a meaningful short label instead of the auto-generated initials
 
 **Context:**
 
-The SP list currently shows name, entity ID, and status but gives no indication of how many
-users can access each app. Access is granted via group assignments, so the count is the
-number of unique users across all groups assigned to the SP. SPs marked "available to all"
-should display the total tenant user count (or a label like "All users") rather than computing
-group-based access.
+Group avatars currently show an auto-generated acronym derived from the group name (max 3
+characters, first letter of each word). Some group names produce unhelpful or ambiguous initials.
+A custom acronym lets the admin override this with something more recognizable (e.g., "HR",
+"ENGR", "OPS", "IT").
+
+The custom acronym appears wherever the auto-generated acronym would: group list, group detail,
+group graph nodes, and any SP or dashboard views that show group avatars. If not set, the
+existing auto-generation logic continues to apply.
 
 **Acceptance Criteria:**
 
-- [ ] SP list view shows a user access count for each service provider
-- [ ] Count reflects unique users across all groups assigned to the SP
-- [ ] SPs with "available to all" enabled show the total tenant user count or "All users" label
-- [ ] Count is computed efficiently (single query, not N+1 per SP)
-- [ ] API list endpoint (`GET /api/v1/service-providers`) includes the count in the response
-- [ ] Zero-access SPs show "0" (not hidden or blank)
+Database:
+- [ ] Add `acronym` column to `groups` table (nullable, max 4 Unicode characters)
+- [ ] Migration adds the column with a `CHECK` constraint on character count (`char_length <= 4`)
+- [ ] Column included in group query results
+
+Service and API:
+- [ ] `GroupUpdate` schema accepts optional `acronym` field (max 4 Unicode chars, stripped)
+- [ ] Setting acronym to empty string or null clears the override (reverts to auto-generated)
+- [ ] Group create and update services handle the field
+- [ ] API endpoints (`POST /api/v1/groups`, `PUT /api/v1/groups/{id}`) accept the field
+- [ ] Event log metadata includes acronym when set or cleared
+- [ ] IdP groups cannot have custom acronyms (read-only, same as name/description)
+
+Frontend:
+- [ ] Group Detail "Details" tab shows an acronym input field (max 4 chars) below the name field
+- [ ] Field shows placeholder text indicating it is optional (e.g., "Auto-generated if blank")
+- [ ] `generateGroupAcronym()` uses the custom acronym when `data-acronym-override` (or similar) is provided
+- [ ] Acronym avatar font size adjusts for 4-character acronyms (smaller than 3-character)
+- [ ] Group list, group graph, and any other avatar displays respect the custom acronym
+
+Tests:
+- [ ] Service tests for setting, updating, and clearing the acronym
+- [ ] Validation tests for length and character constraints
+- [ ] API integration tests for create and update with acronym
+- [ ] Verify auto-generated acronym is used when custom is null/empty
+
+**Effort:** S
+**Value:** Medium (Visual clarity, admin control over group identity)
+
+---
+
+## Service Provider Logo / Avatar
+
+**User Story:**
+As an admin
+I want to upload a logo for each service provider, with a generated acronym avatar as fallback
+So that SPs are visually identifiable in lists, detail pages, and the user dashboard
+
+**Context:**
+
+Service providers currently have no visual identity. Group logos already support PNG and SVG
+uploads with an acronym fallback. This item brings the same pattern to service providers,
+reusing the existing validation and serving infrastructure.
+
+Upload happens from the SP detail page. The acronym fallback uses the same generation logic
+as groups (works with any UUID + name). Logos appear in the SP list, SP detail header,
+dashboard "My Apps" cards, and the SSO consent screen.
+
+**Acceptance Criteria:**
+
+Database:
+- [ ] New `sp_logos` table (parallel to `group_logos`): `sp_id`, `logo_data`, `content_type`,
+      `created_at`, `updated_at`, tenant-scoped with RLS
+- [ ] Migration adds the table with appropriate constraints
+- [ ] Add `has_logo` and `logo_updated_at` fields to SP response schemas
+
+Service:
+- [ ] Reuse validation from `app/services/branding.py` (`_validate_png`, `_validate_svg_content`)
+- [ ] Same constraints as group logos: PNG (square, >=48x48, <=256KB) or SVG
+- [ ] Upload and delete service functions with event logging
+
+Serving and API:
+- [ ] `/branding/sp-logo/{sp_id}` endpoint (parallel to `/branding/group-logo/{group_id}`)
+- [ ] Upload endpoint under SP admin routes
+- [ ] Delete endpoint under SP admin routes
+- [ ] API endpoints for upload and delete under `/api/v1/`
+
+Templates:
+- [ ] SP list (`saml_idp_sp_list.html`): show logo or acronym avatar
+- [ ] SP detail header (`saml_idp_sp_tab_details.html`): show logo with upload/remove controls
+- [ ] Dashboard "My Apps" cards (`dashboard.html`): show logo or acronym avatar
+- [ ] SSO consent screen (`saml_idp_sso_consent.html`): show logo or acronym avatar
+
+Frontend:
+- [ ] Acronym generation reuses `generateGroupAcronym()` from `static/js/group-avatar.js`
+      (works with any UUID + name)
+
+Tests:
+- [ ] Service layer tests for upload validation (PNG constraints, SVG sanitization)
+- [ ] Service layer tests for upload and delete with event logging
+- [ ] API integration tests for upload, serve, and delete endpoints
+- [ ] Template rendering tests verify logo/acronym fallback behavior
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## Group Graph: Extended Selection Highlighting with Depth-Aware Edge Styles
+
+**User Story:**
+As an admin using the group graph view
+I want the selected node's full ancestry and descendancy to be visually represented,
+with solid edges for immediate neighbours and dashed edges for more distant relatives
+So that I can understand the complete hierarchical context of a group at a glance
+
+**Context:**
+
+Currently, selecting a node highlights only its immediate children (solid arrows pointing in)
+and immediate parents (orange arrows). Grandchildren, grandparents, and more remote relatives
+are invisible in the selection state.
+
+The new rule is: **dashed line = more than one step removed.** The direction of arrows and
+colour conventions remain unchanged; only the reach and stroke style change.
+
+**Acceptance Criteria:**
+
+Descendant side (children, grandchildren, ...):
+- [ ] When a node is selected, solid arrows are drawn from all **immediate children** to the
+      selected node (existing behaviour, retained)
+- [ ] Dashed arrows are drawn from all **grandchildren and more remote descendants** to the
+      selected node
+- [ ] Arrow direction is the same for all descendants (child -> selected)
+
+Ancestor side (parents, grandparents, ...):
+- [ ] Immediate parents continue to be highlighted with **solid orange arrows** pointing from
+      the selected node to each parent (existing behaviour, retained)
+- [ ] **Grandparents and more remote ancestors** are connected with **dashed arrows** (same
+      direction: selected -> ancestor, same orange colour or a subdued variant that is clearly
+      distinguishable from immediate parents)
+
+General:
+- [ ] Depth 1 neighbours (immediate parents and children) always use solid lines
+- [ ] Depth 2+ neighbours (any relative more than one step away) always use dashed lines
+- [ ] Unrelated nodes remain visually neutral (no highlight, no extra edges)
+- [ ] The existing Cytoscape layout and node positions are unaffected by the style change
+- [ ] De-selection resets all edges to their default appearance
 
 **Effort:** S
 **Value:** Medium
 
 ---
 
----
-
-## Admin: Security Settings Tabbed Layout
+## Group Graph: Toolbar, New Group Modal, and Label Overlap
 
 **User Story:**
-As a super admin
-I want the Security settings page organized into focused tabs
-So that related settings are grouped logically and the page is easier to navigate as more security options are added
-
-**Context:**
-
-The current Security settings page is a single long form with five sections covering sessions,
-inactivation, certificates, and user permissions. Splitting it into tabs follows the established
-Branding Settings pattern (base template with tab nav, child templates per tab) and creates
-clear homes for future security settings.
-
-**Tab structure:**
-
-1. **Sessions** (default tab): Maximum session length, keep signed in after browser close, and
-   automatic user inactivation after inactivity period
-2. **Certificates**: Signing certificate validity period and auto-rotation/grace period window
-3. **Permissions**: Allow users to edit profile details, allow users to add alternative email addresses
+As an admin using the group graph view
+I want a cleaner toolbar, the ability to create groups directly from the graph, and non-overlapping edge labels
+So that the graph feels polished, I can build the group hierarchy without leaving the canvas, and off-screen labels are readable
 
 **Acceptance Criteria:**
 
-Templates:
-- [ ] Create `settings_security_base.html` with tab navigation (Sessions, Certificates, Permissions)
-- [ ] Create `settings_security_tab_sessions.html` with session length, keep signed in, and inactivation settings
-- [ ] Create `settings_security_tab_certificates.html` with certificate lifetime and rotation window settings
-- [ ] Create `settings_security_tab_permissions.html` with user permission toggles
-- [ ] Remove old `settings_tenant_security.html`
+Toolbar (icon-only buttons):
+- [ ] "Add relationship", "Cut relationship", and "Edit layout" toolbar buttons show only an icon (no text label)
+- [ ] Each button has a `title` tooltip that describes its function (visible on hover)
+- [ ] Visual appearance and active/inactive states are preserved
 
-Routes:
-- [ ] `/admin/settings/security` redirects to `/admin/settings/security/sessions`
-- [ ] Each tab has its own GET route (`/sessions`, `/certificates`, `/permissions`)
-- [ ] POST update route(s) handle saves per tab (or a single route that redirects back to the originating tab)
-- [ ] Register new routes in `app/pages.py`
+New Group tool:
+- [ ] A "New group" button is added to the graph toolbar (icon + tooltip, consistent with other toolbar items)
+- [ ] Clicking it opens a modal with a "Name" field (required) and a "Description" field (optional), plus Cancel and Create buttons
+- [ ] Submitting the modal creates the group via the existing group creation service and adds it to the graph
+- [ ] The new node appears in the graph in a selected/highlighted state so the admin can immediately connect it
+- [ ] Cancel closes the modal without creating anything
+- [ ] Validation: name is required; shows inline error if empty on submit
+- [ ] Creation failure (e.g. duplicate name) shows an error in the modal without closing it
 
-Behavior:
-- [ ] Each tab has its own Save button (no cross-tab form submission)
-- [ ] Success/error flash messages appear on the correct tab after save
-- [ ] All existing settings continue to function identically
+Edge label de-overlap:
+- [ ] When multiple off-screen edge labels (showing a connected group's name) would be rendered at overlapping or near-overlapping positions at the viewport boundary, they are spread out so no two labels overlap
+- [ ] De-overlap logic is applied only to the off-screen labels (labels for visible nodes are unaffected)
+- [ ] Labels remain close to the edge line's viewport intersection point where possible
 
-Tests:
-- [ ] Existing security settings tests pass (update any that reference the old template/route)
-- [ ] Each tab route returns 200 with correct content
-- [ ] Form submissions on each tab persist correctly
+**Effort:** M
+**Value:** Medium
 
-**Effort:** S
-**Value:** Medium (UX improvement, prepares for additional security settings)
+---
+
+## SAML: Group Assertion Transparency (Trunk-Only Mode + Consent Screen Visibility)
+
+**User Story:**
+As a super admin
+I want to control whether full group memberships or only trunk groups are communicated in
+SAML assertions, and as a user I want to see which groups will be shared during authentication
+So that admins can minimize group exposure to service providers, and users understand what
+identity information is being disclosed before they consent
+
+**Context:**
+
+Currently, SAML assertions include all of the user's group memberships. Two related gaps:
+
+1. **Trunk-only mode:** A "trunk group" is any group the user belongs to that has no parent
+   groups in the DAG. It represents the broadest, most concise outline of the user's group
+   footprint without enumerating every nested membership. Communicating only trunk groups
+   reduces how much internal group structure is leaked to service providers.
+
+2. **Consent screen visibility:** The consent screen during SAML authentication does not show
+   which groups will be shared with the SP. If group attributes are being asserted, the user
+   should see exactly which groups are being disclosed before completing sign-in.
+
+These are linked: if trunk-only mode is active, the consent screen should reflect the filtered
+group set (not the full membership list).
+
+**Acceptance Criteria:**
+
+Trunk-only admin setting:
+- [ ] New tenant-level setting in admin security settings: "Group assertion scope" with two
+      options: "All groups" (share all group memberships) and "Trunk groups only" (share only
+      groups with no parent groups in the DAG). Default: "Trunk groups only"
+- [ ] "Trunk groups only" filters the group list included in any SAML assertion to those
+      where the user has no parent group in the `group_lineage` table
+- [ ] Setting is persisted with a migration; readable via the settings service
+- [ ] Event logged (`group_assertion_scope_updated`) when the setting changes
+- [ ] API endpoint exposes and allows updating the setting
+
+Consent screen group disclosure:
+- [ ] If the SP's attribute mapping includes a groups attribute, the consent screen displays
+      the list of groups that will be shared in the assertion
+- [ ] If trunk-only mode is active, the displayed groups reflect the filtered set
+- [ ] If the SP does not request a groups attribute, this section is hidden
+- [ ] Groups are listed by name; if the list is long (>10), show a count with a collapsible
+      "show all" expansion
+
+**Effort:** M
+**Value:** Medium
 
 ---
 
@@ -967,54 +867,128 @@ E2E tests (once both SP and IdP encryption items are complete):
 
 ---
 
-## Groups: Customizable Acronym
+## Create `/accessibility` Skill
 
 **User Story:**
-As an admin
-I want to set a custom acronym (up to 4 characters) for a group
-So that the group avatar displays a meaningful short label instead of the auto-generated initials
-
-**Context:**
-
-Group avatars currently show an auto-generated acronym derived from the group name (max 3
-characters, first letter of each word). Some group names produce unhelpful or ambiguous initials.
-A custom acronym lets the admin override this with something more recognizable (e.g., "HR",
-"ENGR", "OPS", "IT").
-
-The custom acronym appears wherever the auto-generated acronym would: group list, group detail,
-group graph nodes, and any SP or dashboard views that show group avatars. If not set, the
-existing auto-generation logic continues to apply.
+As a developer,
+I want an `/accessibility` skill that audits the frontend for WCAG 2.1 AA compliance,
+So that accessibility issues are identified and tracked systematically like security and compliance violations.
 
 **Acceptance Criteria:**
 
-Database:
-- [ ] Add `acronym` column to `groups` table (nullable, max 4 Unicode characters)
-- [ ] Migration adds the column with a `CHECK` constraint on character count (`char_length <= 4`)
-- [ ] Column included in group query results
+- [ ] New skill file at `.claude/skills/accessibility/` following the pattern of existing skills
+- [ ] Skill audits Jinja2 templates for WCAG 2.1 AA violations (missing alt text, insufficient contrast cues, missing form labels, ARIA misuse, keyboard navigation gaps, missing lang attributes, missing focus indicators)
+- [ ] Skill logs findings to `ISSUES.md` in the same format as `/security` and `/compliance`
+- [ ] Skill references a checklist in `.claude/references/wcag-patterns.md`
+- [ ] Skill can be invoked with `/accessibility` from Claude Code
 
-Service and API:
-- [ ] `GroupUpdate` schema accepts optional `acronym` field (max 4 Unicode chars, stripped)
-- [ ] Setting acronym to empty string or null clears the override (reverts to auto-generated)
-- [ ] Group create and update services handle the field
-- [ ] API endpoints (`POST /api/v1/groups`, `PUT /api/v1/groups/{id}`) accept the field
-- [ ] Event log metadata includes acronym when set or cleared
-- [ ] IdP groups cannot have custom acronyms (read-only, same as name/description)
-
-Frontend:
-- [ ] Group Detail "Details" tab shows an acronym input field (max 4 chars) below the name field
-- [ ] Field shows placeholder text indicating it is optional (e.g., "Auto-generated if blank")
-- [ ] `generateGroupAcronym()` uses the custom acronym when `data-acronym-override` (or similar) is provided
-- [ ] Acronym avatar font size adjusts for 4-character acronyms (smaller than 3-character)
-- [ ] Group list, group graph, and any other avatar displays respect the custom acronym
-
-Tests:
-- [ ] Service tests for setting, updating, and clearing the acronym
-- [ ] Validation tests for length and character constraints
-- [ ] API integration tests for create and update with acronym
-- [ ] Verify auto-generated acronym is used when custom is null/empty
-
-**Effort:** S
-**Value:** Medium (Visual clarity, admin control over group identity)
+**Effort:** M
+**Value:** Medium
 
 ---
 
+## Dyslexic-Friendly Font User Preference
+
+**User Story:**
+As a user with dyslexia,
+I want to enable a dyslexic-friendly font in my account settings,
+So that the interface is more readable for me without affecting other users.
+
+**Acceptance Criteria:**
+
+- [ ] A font preference field is added to the user profile (boolean, default false)
+- [ ] Database migration adds the column to the `users` table
+- [ ] User can toggle the preference in their profile/settings page
+- [ ] When enabled, the selected dyslexic-friendly font (e.g. OpenDyslexic or Atkinson Hyperlegible) is applied via a CSS class on the `<html>` or `<body>` element
+- [ ] Font is served from static assets (not an external CDN) for privacy and reliability
+- [ ] Preference persists across sessions (stored server-side)
+- [ ] **No audit log** for this write (follows the `save_graph_layout()` pattern: it is UI preference state, not a business action). The service function docstring must note this explicitly.
+- [ ] `track_activity()` is called (instead of `log_event()`) so the user's `last_activity_at` is still updated
+- [ ] API endpoint exposes the preference for programmatic access
+
+**Effort:** M
+**Value:** Medium
+
+---
+
+## Admin: Super Admin Debug Impersonation
+
+**User Story:**
+As a super admin
+I want to view what a specific user's application access looks like from their perspective
+So that I can debug access and attribute issues without creating a real session as that user
+
+**Context:**
+
+This is a debug-only, read-only capability. The super admin sees the user's effective access
+and the identity attributes that would be asserted for them, without performing a real
+authentication to any SP. This is the "what would happen if they logged in?" companion to
+the User-App Access Query item, which answers "does this user have access?".
+
+**Acceptance Criteria:**
+
+- [ ] Super admin only (not admin role)
+- [ ] Accessible from the user detail page and/or the User-App Access view
+- [ ] Shows the user's effective group memberships and the SPs accessible via those groups
+- [ ] For a selected user + SP combination, shows a preview of the identity attributes
+      (name, email, groups, any custom attribute mappings) that would be asserted
+- [ ] Clearly labeled as a debug preview. No actual SP session or authentication occurs.
+- [ ] Event logged in audit trail (`super_admin_debug_impersonation`) with actor, target user, and SP
+
+**Effort:** M
+**Value:** Low
+
+---
+
+## Onboarding Wizard for New Super Admins
+
+> **Status: Needs grooming.** The shape is roughed out below but the details need more thought before implementation.
+
+**User Story:**
+As the first super admin of a new WeftID instance
+I want a guided setup wizard that helps me get my identity layer running
+So that I can reach a working configuration quickly without guessing what to do first
+
+**Context:**
+
+A brand new WeftID instance gives no guidance on where to start. The wizard meets the first super admin after onboarding and walks them through initial setup. It is dismissable forever (per-user flag) and only appears for super admins.
+
+WeftID serves three primary deployment scenarios, and the wizard should adapt to whichever the admin is pursuing:
+
+- **Identity Federation Hub:** Multiple upstream IdPs unified behind one identity layer
+- **Standalone Identity Provider:** WeftID manages users directly (email/password, MFA)
+- **SSO Gateway:** One IdP, but WeftID adds group-based access control and audit for downstream apps
+
+**Rough Flow:**
+
+1. **Welcome.** Friendly intro, explain what the wizard will help with.
+2. **"How will your people sign in?"** Branching question: existing IdP, directly with WeftID, or both. Determines whether the next step is IdP setup or domain/user setup.
+3. **Identity source setup.** If IdP: walk through connecting the first provider (Okta, Entra, Google, generic SAML). If direct: collect company email domain, create a privileged domain.
+4. **"Let's organize your people."** Create the first group (suggest a name based on domain, e.g. "Acme Staff"). Link the domain to the group if applicable.
+5. **"Connect an application."** Optional. Walk through registering the first SP, or skip for later.
+6. **"Who should have access?"** Assign the group from step 4 to the SP from step 5. This is the "aha" moment.
+7. **Quick security check.** MFA policy toggle, session timeout recommendation.
+8. **Summary and next steps.** Show what was accomplished, link to key areas (audit logs, more apps, invite users).
+
+**Open Design Questions:**
+
+- Should step 3 (IdP setup) be a full inline walkthrough or just navigate to the existing config page with contextual guidance?
+- For the "Both" path in step 2, run both flows sequentially or pick one as primary?
+- Persistence model: wizard state as JSON on the tenant (checklist on dashboard) vs. a modal/sequential experience?
+- Should "invite a co-admin" be a wizard step?
+- Auto-assign-users-to-groups is now complete, so domain-to-group linking in step 4 is available.
+
+**Acceptance Criteria:**
+
+- [ ] Wizard appears for the first super admin on a new tenant (not for subsequent admins unless they haven't dismissed it)
+- [ ] Dismissable forever via a per-user flag
+- [ ] Adapts flow based on the admin's stated intent (federation, standalone, SSO gateway)
+- [ ] Each step is skippable ("I'll do this later")
+- [ ] Completing or dismissing the wizard never blocks access to the main UI
+- [ ] Progress is persisted so the wizard can be resumed across sessions
+- [ ] Summary step links to relevant admin pages for continued setup
+
+**Effort:** XL
+**Value:** High
+
+---

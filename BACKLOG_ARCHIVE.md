@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Auto-assign Users to Groups Based on Privileged Email Domains
+
+**Status:** Complete
+
+**Summary:** Privileged domains can now be linked to WeftId groups. When a user is created, invited, verified, or JIT-provisioned with an email matching a linked domain, they are automatically added to the linked groups. Existing users are bulk-processed retroactively when a new link is created. Domain-group links are managed from the privileged domain settings page and via API endpoints. All operations are event-logged.
+
+**Acceptance Criteria:**
+
+- [x] Link one or more WeftId groups to a privileged domain
+- [x] When a user is created or verified with an email matching the domain, auto-add to linked groups
+- [x] Existing users can be bulk-processed when a domain-group link is added
+- [x] Domain-group links shown on privileged domain detail page
+- [x] Auto-assigned memberships are regular memberships (can be manually removed)
+- [x] Event log entries for auto-assignments
+
+---
+
 ## SAML Entity IDs: Per-Connection Instead of Per-Tenant
 
 **Status:** Complete

@@ -831,6 +831,75 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
+## Contextual Documentation Links
+
+**User Story:**
+As an admin (or user) viewing any page in WeftId
+I want a subtle documentation icon in the top-right area of the page
+So that I can quickly jump to the relevant documentation without hunting through the docs site
+
+**Context:**
+
+Most pages in the application have a corresponding documentation page. A small
+`information-circle` icon in the top-right of the page header would link directly to the
+relevant docs section. The mapping is one link per page (entry point, not exhaustive).
+Admin pages are the priority since those have the richest docs coverage, but user-facing
+pages (dashboard, profile, two-step verification) should link to user-guide pages too.
+
+**Implementation approach:**
+
+Add an optional `docs_path` field to the `Page` dataclass in `app/pages.py`. This keeps
+the page-to-docs mapping centralized in the same registry that drives navigation. The
+template layer reads `docs_path` from the navigation context and renders the icon-link
+when present. Pages without a `docs_path` simply show no icon.
+
+**Proposed page-to-docs mapping:**
+
+| Page / Section | Docs path |
+|----------------|-----------|
+| Dashboard | `/docs/user-guide/dashboard` |
+| User list / detail | `/docs/admin-guide/users/` |
+| Profile (account) | `/docs/user-guide/profile` |
+| Two-step verification (account) | `/docs/user-guide/two-step-verification` |
+| Background Jobs (account) | `/docs/user-guide/background-jobs` |
+| Security settings | `/docs/admin-guide/security/` |
+| Sessions | `/docs/admin-guide/security/sessions` |
+| Certificates | `/docs/admin-guide/security/certificates` |
+| Permissions | `/docs/admin-guide/security/permissions` |
+| Privileged Domains | `/docs/admin-guide/identity-providers/privileged-domains` |
+| Identity Providers | `/docs/admin-guide/identity-providers/` |
+| IdP detail (all tabs) | `/docs/admin-guide/identity-providers/saml-setup` |
+| Service Providers | `/docs/admin-guide/service-providers/` |
+| SP detail: details | `/docs/admin-guide/service-providers/registering-an-sp` |
+| SP detail: attributes | `/docs/admin-guide/service-providers/attribute-mapping` |
+| SP detail: certificates | `/docs/admin-guide/service-providers/sp-certificates` |
+| SP detail: metadata | `/docs/admin-guide/service-providers/registering-an-sp` |
+| Branding | `/docs/admin-guide/branding/` |
+| Groups list / detail | `/docs/admin-guide/groups/` |
+| Group detail: membership | `/docs/admin-guide/groups/membership-management` |
+| Group detail: relationships | `/docs/admin-guide/groups/group-hierarchy` |
+| Group detail: applications | `/docs/admin-guide/groups/group-based-access` |
+| Audit / Event Log | `/docs/admin-guide/audit/` |
+| Integrations | `/docs/admin-guide/integrations/` |
+| Reactivation | `/docs/admin-guide/users/user-lifecycle` |
+
+**Acceptance Criteria:**
+
+- [ ] `Page` dataclass gains an optional `docs_path: str | None` field (default `None`)
+- [ ] `docs_path` is populated for all pages with a relevant documentation page (see mapping above)
+- [ ] `docs_path` is passed through `get_navigation_context()` to templates
+- [ ] Base template (or page header partial) renders an `information-circle` icon linked to `docs_path` in the top-right area of the page header, when `docs_path` is set
+- [ ] Icon opens the docs page in a new tab (`target="_blank"`)
+- [ ] Icon has a `title` tooltip (e.g., "View documentation")
+- [ ] Icon is visually subtle (muted color, small size) so it does not compete with page content
+- [ ] Pages without a `docs_path` show no icon (no empty placeholder)
+- [ ] Child pages inherit their parent's `docs_path` if they don't define their own (so tab-level pages don't all need explicit entries unless a more specific doc exists)
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Onboarding Wizard for New Super Admins
 
 > **Status: Needs grooming.** The shape is roughed out below but the details need more thought before implementation.

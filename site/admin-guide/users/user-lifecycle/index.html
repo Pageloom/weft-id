@@ -2277,6 +2277,7 @@
 <p><strong>Super admin self-reactivation.</strong> Super admins can reactivate themselves by verifying their email address. No admin approval is needed. After verification, the super admin can sign in immediately if they have a password, or must contact another admin to set one up.</p>
 <h3 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h3>
 <p>If configured in <a href="../../security/sessions/">Security &gt; Sessions</a>, users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.</p>
+<p>Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.</p>
 <h2 id="anonymized">Anonymized<a class="headerlink" href="#anonymized" title="Permanent link">&para;</a></h2>
 <p>Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgotten requests. Only super admins can anonymize a user. When a user is anonymized:</p>
 <ul>

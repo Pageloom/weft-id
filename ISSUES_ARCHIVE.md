@@ -5,6 +5,60 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [COPY] "Login" vs "Sign in" inconsistency in navigation labels
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Replaced all user-facing "Login" references with "Sign in" terminology. Changed "Back to Login"/"Return to Login" link text in 5 templates, "Last Login" labels in 3 templates, and the page title in `pages.py`. URL paths (`/login`) remain unchanged (technical, not user-facing).
+
+---
+
+### [COPY] "log in" in email template strings (Python code)
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Replaced "log in" with "sign in", "account login" with "account sign-in", and "next login" with "next sign-in" across 6 occurrences in `app/utils/email.py` (plain text and HTML bodies for welcome, primary email change, and MFA reset notifications).
+
+---
+
+### [STRUCTURE] Dead template: groups_detail_tab_danger.html
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Deleted `app/templates/groups_detail_tab_danger.html`. Template was unreferenced by any router and duplicated `groups_detail_tab_delete.html`.
+
+---
+
+### [STRUCTURE] Branding global: single form spans two visual sections
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Downgraded "Display Mode" from an H2 with border-t separator to an H3 subsection heading, making it visually subordinate to the "Site Title" H2 and clarifying that both settings share the same form submission.
+
+---
+
+### [STRUCTURE] User profile tab: read-only info at same weight as edit sections
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Removed the H2 "User Information" heading from the read-only summary section. Added a subtle border and adjusted the background to make it visually subordinate to the edit sections below.
+
+---
+
+### [STRUCTURE] Branding global: logo requirements note buried at page bottom
+
+**Status:** Resolved (2026-03-08)
+**Original Severity:** Low
+
+**Resolution:** Moved the logo requirements note (square, min 48x48 PNG, square viewBox SVG, 256KB max) from the bottom of the page to directly below the intro paragraph, before any upload sections.
+
+---
+
 ### [API-FIRST] Incomplete PATCH/PUT endpoint docstrings (6 endpoints)
 
 **Status:** Resolved (2026-03-06)

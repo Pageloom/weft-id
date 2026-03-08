@@ -20,8 +20,8 @@ status: ## Show up/down for all services
 	  fi; \
 	done
 
-up: ## Build and start all services (detached)
-	$(COMPOSE) up --build -d
+up: ## Build and start all services (detached) - also builds docs first
+	make docs && $(COMPOSE) up --build -d
 
 up-onprem: ## Build and start all onprem services (detached)
 	$(COMPOSE) -f docker-compose.onprem.yml up --build -d
@@ -78,7 +78,7 @@ seed-dev: ## Seed dev environment with Meridian Health sample data
 
 ## Docs
 docs: ## Build documentation site (output in site/)
-	poetry run mkdocs build --strict
+	poetry run zensical build
 
 ## Quality
 test: ## Run all tests (pass args: make test ARGS="-v -k my_test")

@@ -28,6 +28,7 @@ class Page:
     show_in_nav: bool = True
     creates_nav_level: bool = True
     children: list["Page"] | None = None
+    docs_path: str | None = None
 
     def get_all_paths(self) -> list[str]:
         """Get all paths including children."""
@@ -54,6 +55,7 @@ PAGES = [
         permission=PagePermission.AUTHENTICATED,
         icon="home",
         show_in_nav=True,
+        docs_path="/docs/user-guide/dashboard/",
     ),
     # User management
     Page(
@@ -62,6 +64,7 @@ PAGES = [
         permission=PagePermission.AUTHENTICATED,
         icon="users",
         show_in_nav=True,
+        docs_path="/docs/admin-guide/users/",
         children=[
             Page(
                 path="/users/list",
@@ -96,6 +99,7 @@ PAGES = [
                 title="Profile",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
+                docs_path="/docs/user-guide/profile/",
             ),
             Page(
                 path="/account/emails",
@@ -108,6 +112,7 @@ PAGES = [
                 title="Two-Step Verification",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
+                docs_path="/docs/user-guide/two-step-verification/",
                 children=[
                     Page(
                         path="/account/mfa/setup/totp",
@@ -130,6 +135,7 @@ PAGES = [
                 title="Background Jobs",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
+                docs_path="/docs/user-guide/background-jobs/",
                 children=[
                     Page(
                         path="/account/background-jobs/job",
@@ -162,24 +168,28 @@ PAGES = [
                         title="Security",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/security/",
                         children=[
                             Page(
                                 path="/admin/settings/security/sessions",
                                 title="Sessions",
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=True,
+                                docs_path="/docs/admin-guide/security/sessions/",
                             ),
                             Page(
                                 path="/admin/settings/security/certificates",
                                 title="Certificates",
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=True,
+                                docs_path="/docs/admin-guide/security/certificates/",
                             ),
                             Page(
                                 path="/admin/settings/security/permissions",
                                 title="Permissions",
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=True,
+                                docs_path="/docs/admin-guide/security/permissions/",
                             ),
                         ],
                     ),
@@ -188,12 +198,14 @@ PAGES = [
                         title="Privileged Domains",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/identity-providers/privileged-domains/",
                     ),
                     Page(
                         path="/admin/settings/identity-providers",
                         title="Identity Providers",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/identity-providers/",
                         children=[
                             Page(
                                 path="/admin/settings/identity-providers/new",
@@ -208,6 +220,7 @@ PAGES = [
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/identity-providers/saml-setup/",
                                 children=[
                                     Page(
                                         path="/admin/settings/identity-providers/idp/details",
@@ -253,6 +266,7 @@ PAGES = [
                         title="Service Providers",
                         permission=PagePermission.SUPER_ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/service-providers/",
                         children=[
                             Page(
                                 path="/admin/settings/service-providers/new",
@@ -267,6 +281,7 @@ PAGES = [
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/service-providers/registering-an-sp/",
                                 children=[
                                     Page(
                                         path="/admin/settings/service-providers/detail/details",
@@ -274,6 +289,7 @@ PAGES = [
                                         permission=PagePermission.SUPER_ADMIN,
                                         show_in_nav=False,
                                         creates_nav_level=False,
+                                        docs_path="/docs/admin-guide/service-providers/registering-an-sp/",
                                     ),
                                     Page(
                                         path="/admin/settings/service-providers/detail/attributes",
@@ -281,6 +297,7 @@ PAGES = [
                                         permission=PagePermission.SUPER_ADMIN,
                                         show_in_nav=False,
                                         creates_nav_level=False,
+                                        docs_path="/docs/admin-guide/service-providers/attribute-mapping/",
                                     ),
                                     Page(
                                         path="/admin/settings/service-providers/detail/groups",
@@ -295,6 +312,7 @@ PAGES = [
                                         permission=PagePermission.SUPER_ADMIN,
                                         show_in_nav=False,
                                         creates_nav_level=False,
+                                        docs_path="/docs/admin-guide/service-providers/sp-certificates/",
                                     ),
                                     Page(
                                         path="/admin/settings/service-providers/detail/metadata",
@@ -302,6 +320,7 @@ PAGES = [
                                         permission=PagePermission.SUPER_ADMIN,
                                         show_in_nav=False,
                                         creates_nav_level=False,
+                                        docs_path="/docs/admin-guide/service-providers/registering-an-sp/",
                                     ),
                                     Page(
                                         path="/admin/settings/service-providers/detail/danger",
@@ -319,6 +338,7 @@ PAGES = [
                         title="Branding",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/branding/",
                         children=[
                             Page(
                                 path="/admin/settings/branding/global",
@@ -342,6 +362,7 @@ PAGES = [
                 title="Groups",
                 permission=PagePermission.ADMIN,
                 show_in_nav=True,
+                docs_path="/docs/admin-guide/groups/",
                 children=[
                     Page(
                         path="/admin/groups/list",
@@ -375,6 +396,7 @@ PAGES = [
                                 permission=PagePermission.ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/groups/membership-management/",
                             ),
                             Page(
                                 path="/admin/groups/detail/applications",
@@ -382,6 +404,7 @@ PAGES = [
                                 permission=PagePermission.ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/groups/group-based-access/",
                             ),
                             Page(
                                 path="/admin/groups/detail/relationships",
@@ -389,6 +412,7 @@ PAGES = [
                                 permission=PagePermission.ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/groups/group-hierarchy/",
                             ),
                             Page(
                                 path="/admin/groups/detail/delete",
@@ -403,6 +427,7 @@ PAGES = [
                                 permission=PagePermission.ADMIN,
                                 show_in_nav=False,
                                 creates_nav_level=False,
+                                docs_path="/docs/admin-guide/groups/membership-management/",
                             ),
                         ],
                     ),
@@ -420,6 +445,7 @@ PAGES = [
                         title="Reactivation",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/users/user-lifecycle/",
                         children=[
                             Page(
                                 path="/admin/todo/reactivation/history",
@@ -438,6 +464,7 @@ PAGES = [
                 title="Audit",
                 permission=PagePermission.ADMIN,
                 show_in_nav=True,
+                docs_path="/docs/admin-guide/audit/",
                 children=[
                     Page(
                         path="/admin/audit/events",
@@ -462,6 +489,7 @@ PAGES = [
                 title="Integrations",
                 permission=PagePermission.ADMIN,
                 show_in_nav=True,
+                docs_path="/docs/admin-guide/integrations/",
                 children=[
                     Page(
                         path="/admin/integrations/apps",
@@ -558,6 +586,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     - sub_nav_items: Sub-navigation items for the active top-level
     - active_sub_level: The active sub-level page (if any)
     - sub_sub_nav_items: Sub-sub-navigation items (if any)
+    - docs_path: Documentation URL for the current page (inherited from nearest ancestor if not set)
     """
 
     def find_page_with_ancestors(
@@ -628,6 +657,16 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
                     if child.show_in_nav and has_permission(child, user_role)
                 ]
 
+    # Resolve docs_path: current page's own, or nearest ancestor's
+    docs_path = None
+    if current_page and current_page.docs_path:
+        docs_path = current_page.docs_path
+    else:
+        for ancestor in reversed(full_ancestors):
+            if ancestor.docs_path:
+                docs_path = ancestor.docs_path
+                break
+
     return {
         "current_page": current_page,
         "nav_chain": nav_chain,
@@ -636,6 +675,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
         "sub_nav_items": sub_nav_items,
         "active_sub_level": active_sub_level,
         "sub_sub_nav_items": sub_sub_nav_items,
+        "docs_path": docs_path,
     }
 
 

@@ -99,6 +99,12 @@
                     {% endfor %}
                 </div>
 
+                <div class="flex items-center space-x-2">
+                <!-- Help link to contextual documentation -->
+                {% if nav is defined and nav.docs_path %}
+                <a href="{{ nav.docs_path }}" target="_blank" rel="noopener" title="Documentation for this page" class="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">{{ icon("information-circle", class="w-5 h-5") }}</a>
+                {% endif %}
+
                 <!-- User dropdown menu -->
                 <div class="relative">
                     <button id="user-menu-button" type="button" class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-gray-800">
@@ -123,6 +129,7 @@
                             </form>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>

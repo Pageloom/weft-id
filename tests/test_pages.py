@@ -487,3 +487,124 @@ def test_integrations_get_all_paths():
     assert "/admin/integrations" in all_paths
     assert "/admin/integrations/apps" in all_paths
     assert "/admin/integrations/b2b" in all_paths
+
+
+# =============================================================================
+# Documentation Links Tests
+# =============================================================================
+
+
+def test_docs_path_defaults_to_none():
+    """Test that docs_path defaults to None for pages without it."""
+    login_page = get_page_by_path("/login")
+    assert login_page.docs_path is None
+
+
+def test_docs_path_set_on_dashboard():
+    """Test that dashboard has a docs_path."""
+    page = get_page_by_path("/dashboard")
+    assert page.docs_path == "/docs/user-guide/dashboard/"
+
+
+def test_docs_path_set_on_admin_pages():
+    """Test that key admin pages have docs_path values."""
+    sec = "/admin/settings/security"
+    idp = "/docs/admin-guide/identity-providers"
+    cases = {
+        sec: "/docs/admin-guide/security/",
+        f"{sec}/sessions": "/docs/admin-guide/security/sessions/",
+        f"{sec}/certificates": "/docs/admin-guide/security/certificates/",
+        f"{sec}/permissions": "/docs/admin-guide/security/permissions/",
+        "/admin/settings/privileged-domains": f"{idp}/privileged-domains/",
+        "/admin/settings/identity-providers": f"{idp}/",
+        "/admin/settings/service-providers": "/docs/admin-guide/service-providers/",
+        "/admin/settings/branding": "/docs/admin-guide/branding/",
+        "/admin/groups": "/docs/admin-guide/groups/",
+        "/admin/audit": "/docs/admin-guide/audit/",
+        "/admin/integrations": "/docs/admin-guide/integrations/",
+    }
+    for path, expected_docs in cases.items():
+        page = get_page_by_path(path)
+        assert page.docs_path == expected_docs, f"{path} docs_path mismatch"
+
+
+def test_docs_path_set_on_user_pages():
+    """Test that user-facing pages have docs_path values."""
+    cases = {
+        "/account/profile": "/docs/user-guide/profile/",
+        "/account/mfa": "/docs/user-guide/two-step-verification/",
+        "/account/background-jobs": "/docs/user-guide/background-jobs/",
+        "/users": "/docs/admin-guide/users/",
+    }
+    for path, expected_docs in cases.items():
+        page = get_page_by_path(path)
+        assert page.docs_path == expected_docs, f"{path} docs_path mismatch"
+
+
+def test_docs_path_set_on_sp_detail_tabs():
+    """Test that SP detail tabs have specific docs_path values."""
+    sp = "/admin/settings/service-providers/detail"
+    docs = "/docs/admin-guide/service-providers"
+    cases = {
+        f"{sp}/details": f"{docs}/registering-an-sp/",
+        f"{sp}/attributes": f"{docs}/attribute-mapping/",
+        f"{sp}/certificates": f"{docs}/sp-certificates/",
+        f"{sp}/metadata": f"{docs}/registering-an-sp/",
+    }
+    for path, expected_docs in cases.items():
+        page = get_page_by_path(path)
+        assert page.docs_path == expected_docs, f"{path} docs_path mismatch"
+
+
+def test_docs_path_set_on_group_detail_tabs():
+    """Test that group detail tabs have specific docs_path values."""
+    cases = {
+        "/admin/groups/detail/membership": "/docs/admin-guide/groups/membership-management/",
+        "/admin/groups/detail/applications": "/docs/admin-guide/groups/group-based-access/",
+        "/admin/groups/detail/relationships": "/docs/admin-guide/groups/group-hierarchy/",
+    }
+    for path, expected_docs in cases.items():
+        page = get_page_by_path(path)
+        assert page.docs_path == expected_docs, f"{path} docs_path mismatch"
+
+
+def test_navigation_context_docs_path_direct():
+    """Test that navigation context returns docs_path for pages that define it."""
+    context = get_navigation_context("/dashboard", "member")
+    assert context["docs_path"] == "/docs/user-guide/dashboard/"
+
+
+def test_navigation_context_docs_path_inherited():
+    """Test that child pages inherit docs_path from nearest ancestor."""
+    # /admin/groups/list has no docs_path, but parent /admin/groups does
+    context = get_navigation_context("/admin/groups/list", "admin")
+    assert context["docs_path"] == "/docs/admin-guide/groups/"
+
+
+def test_navigation_context_docs_path_child_overrides_parent():
+    """Test that a child's own docs_path overrides the parent's."""
+    # /admin/groups/detail/membership has its own docs_path
+    context = get_navigation_context("/admin/groups/detail/membership", "admin")
+    assert context["docs_path"] == "/docs/admin-guide/groups/membership-management/"
+
+
+def test_navigation_context_docs_path_none_when_unset():
+    """Test that docs_path is None when neither page nor ancestors define it."""
+    context = get_navigation_context("/login", None)
+    assert context["docs_path"] is None
+
+
+def test_navigation_context_docs_path_unknown_path():
+    """Test that docs_path is None for unknown paths."""
+    context = get_navigation_context("/unknown-path", "member")
+    assert context["docs_path"] is None
+
+
+def test_navigation_context_docs_path_idp_detail_inherited():
+    """Test IdP detail tabs inherit from IdP detail parent."""
+    # /admin/settings/identity-providers/idp/details has no docs_path,
+    # but its parent /admin/settings/identity-providers/idp does
+    context = get_navigation_context(
+        "/admin/settings/identity-providers/idp/details", "super_admin"
+    )
+    assert context["docs_path"] == "/docs/admin-guide/identity-providers/saml-setup/"

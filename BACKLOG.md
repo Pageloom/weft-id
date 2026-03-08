@@ -840,6 +840,133 @@ Tests:
 
 ---
 
+## SAML SP: Encrypted Assertion Support
+
+**User Story:**
+As a super admin
+I want WeftId to support receiving encrypted SAML assertions from identity providers
+So that assertion contents (PII, group memberships, entitlements) are protected end-to-end, not just by transport-level encryption
+
+**Context:**
+
+When WeftId acts as an SP, SAML responses travel through the user's browser via the POST
+binding. Even over HTTPS, the assertion content is visible to the browser (and any extensions
+or proxies). Encrypted assertions provide defense-in-depth: the IdP encrypts the assertion
+payload with the SP's public encryption key, and only the SP can decrypt it with its private
+key.
+
+Currently, WeftId only publishes a signing certificate in its SP metadata
+(`<md:KeyDescriptor use="signing">`). It does not publish an encryption certificate or
+implement assertion decryption. Many IdPs (Entra ID, Okta, Google Workspace) support
+encrypting assertions when the SP metadata advertises an encryption key.
+
+This is optional per the SAML spec. Most SPs don't support it. But higher-security
+environments and compliance frameworks may require it.
+
+**Acceptance Criteria:**
+
+Encryption certificate management:
+- [ ] Generate a separate encryption certificate/key pair per IdP connection (same pattern as signing certificates)
+- [ ] Store encryption private key securely (HKDF-derived or stored alongside signing keys)
+- [ ] Key rotation support: new encryption key can be generated while the old one remains valid during a grace period
+
+SP metadata:
+- [ ] Publish an encryption `KeyDescriptor` (`use="encryption"`) in the per-IdP SP metadata XML
+- [ ] During key rotation, publish both current and previous encryption certificates
+- [ ] Signing `KeyDescriptor` remains unchanged
+
+Assertion decryption:
+- [ ] Detect encrypted assertions in SAML responses (`<EncryptedAssertion>` element)
+- [ ] Decrypt using the SP's encryption private key (via xmlsec1 or lxml/xmlsec bindings)
+- [ ] Support AES-128-CBC and AES-256-CBC content encryption (most common algorithms)
+- [ ] Support RSA-OAEP and RSA-v1.5 key transport algorithms
+- [ ] After decryption, process the assertion through the existing validation pipeline (signature verification, attribute extraction)
+- [ ] Clear error messages when decryption fails (wrong key, unsupported algorithm, malformed ciphertext)
+
+Configuration:
+- [ ] Per-IdP connection toggle: "Accept encrypted assertions" (default: on for new IdP connections)
+- [ ] When enabled, the encryption certificate is generated and included in metadata
+- [ ] When disabled, no encryption KeyDescriptor in metadata, encrypted assertions are rejected with a clear error
+- [ ] If the IdP does not encrypt assertions, plain assertions are accepted normally regardless of this setting (the encryption cert in metadata is advisory, not mandatory)
+
+Event logging:
+- [ ] Log encryption certificate generation and rotation events
+- [ ] Log when encrypted assertion is successfully decrypted (metadata, not assertion content)
+
+**Effort:** L
+**Value:** Medium (Defense-in-depth security enhancement for higher-security deployments)
+
+---
+
+## SAML IdP: Encrypt Assertions for Downstream SPs
+
+**User Story:**
+As a super admin
+I want WeftId to encrypt SAML assertions for downstream service providers that advertise an encryption certificate
+So that assertion contents are protected end-to-end when WeftId acts as the identity provider
+
+**Context:**
+
+When WeftId acts as an IdP, it builds and signs SAML assertions for downstream SPs. These
+assertions travel through the user's browser via the POST binding. If the SP advertises an
+encryption certificate in its metadata (`<md:KeyDescriptor use="encryption">`), the IdP
+should encrypt the assertion with that public key so only the SP can read it.
+
+Currently, WeftId's SP metadata parser (`parse_sp_metadata_xml()`) grabs the first
+`KeyDescriptor` it finds without distinguishing `use="signing"` from `use="encryption"`.
+The assertion builder (`build_saml_response()`) only signs, never encrypts. Even if an SP
+advertises an encryption certificate, WeftId ignores it.
+
+This is the IdP-side complement to the "SAML SP: Encrypted Assertion Support" backlog item
+(which covers the SP side, where WeftId receives encrypted assertions). They share some
+infrastructure (xmlsec encryption primitives) but the data flow is reversed and they can be
+implemented independently.
+
+**Acceptance Criteria:**
+
+SP metadata parsing:
+- [ ] `parse_sp_metadata_xml()` distinguishes `use="signing"` and `use="encryption"` KeyDescriptors
+- [ ] When `use` is omitted, the certificate is treated as valid for both purposes (per SAML spec)
+- [ ] Encryption certificate stored separately from signing certificate in the SP record
+- [ ] SP import and update flows handle the encryption certificate
+
+Database:
+- [ ] Store SP encryption certificate (new column or table alongside existing SP data)
+- [ ] Migration adds the field with appropriate constraints
+
+Assertion encryption:
+- [ ] When the SP has an encryption certificate, wrap the signed assertion in an `<EncryptedAssertion>` element
+- [ ] Use the SP's encryption public key for key transport (RSA-OAEP preferred, RSA-v1.5 as fallback)
+- [ ] Use AES-256-CBC or AES-128-CBC for content encryption
+- [ ] The assertion is signed first, then encrypted (sign-then-encrypt, per SAML best practice)
+- [ ] When the SP has no encryption certificate, send plain signed assertions as today
+
+Configuration:
+- [ ] Per-SP toggle: "Encrypt assertions" (default: auto, meaning encrypt if the SP provides an encryption certificate)
+- [ ] Override option to force plain assertions even if the SP advertises an encryption cert (for debugging or compatibility)
+- [ ] Setting visible on the SP detail/configuration page
+
+Event logging:
+- [ ] Log whether assertion was encrypted in SSO event metadata
+- [ ] Log encryption certificate changes when SP metadata is re-imported
+
+Tests:
+- [ ] Metadata parsing correctly extracts separate signing and encryption certificates
+- [ ] Metadata parsing handles KeyDescriptors with no `use` attribute (dual-purpose)
+- [ ] Assertion encryption produces valid `<EncryptedAssertion>` XML
+- [ ] Plain assertions still work when SP has no encryption certificate
+- [ ] Per-SP toggle overrides auto-encryption behavior
+
+E2E tests (once both SP and IdP encryption items are complete):
+- [ ] End-to-end test where WeftId encrypts assertions as IdP and decrypts them as SP (both sides of the equation in the same test environment)
+- [ ] E2E test verifying SSO still works when encryption is disabled on either side
+- [ ] E2E test verifying SSO works when the SP has no encryption certificate
+
+**Effort:** L
+**Value:** Medium (Completes end-to-end assertion encryption support across both IdP and SP roles)
+
+---
+
 ## Groups: Customizable Acronym
 
 **User Story:**

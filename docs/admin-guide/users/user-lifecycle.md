@@ -39,6 +39,8 @@ Past decisions are visible in the reactivation history view (**Admin > Todo > Re
 
 If configured in [Security > Sessions](../security/sessions.md), users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.
 
+Any authenticated action counts as activity: signing in, triggering an SSO flow, viewing pages, or making API calls.
+
 ## Anonymized
 
 Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgotten requests. Only super admins can anonymize a user. When a user is anonymized:

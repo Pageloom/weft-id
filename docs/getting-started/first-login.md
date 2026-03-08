@@ -10,9 +10,13 @@ Click the link in the invitation email. This confirms your email address and tak
 
 Choose a password for your account. After setting your password, you are signed in and taken to the dashboard.
 
+**Careful!** Do not reuse a password from another account. As the initial super-admin, you would be dodging your
+responsibilities if you did not set up a strong password. 
+
 ## Explore the dashboard
 
-The dashboard shows your name, email, role, and last sign-in time. As a super admin, you have access to all administrative settings:
+The dashboard shows your name, email, role, and last sign-in time. As a super admin, you have access to all
+administrative settings:
 
 - **Users** -- Create and manage user accounts
 - **Groups** -- Organize users into groups

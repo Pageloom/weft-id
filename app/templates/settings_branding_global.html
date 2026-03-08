@@ -16,9 +16,15 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
     <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Branding</h1>
 
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Customize the logo displayed in navigation. Upload a square PNG (min 48x48) or SVG (max 256KB).
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Customize the logo displayed in navigation.
     </p>
+    <div class="mb-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+        <p class="text-sm text-blue-800 dark:text-blue-300">
+            Logos must be square. PNG images must be at least 48x48 pixels.
+            SVG images should have a square viewBox. Maximum file size is 256KB.
+        </p>
+    </div>
 
     {# ---- Site Title ---- #}
     <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
@@ -54,7 +60,7 @@
             </div>
 
     {# ---- Logo Mode ---- #}
-            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100 border-t border-gray-200 dark:border-gray-700 pt-6">Display Mode</h2>
+            <h3 class="text-base font-medium mb-4 text-gray-900 dark:text-gray-100">Display Mode</h3>
 
             <div class="mb-6 space-y-3">
                 <label class="flex items-center">
@@ -218,12 +224,6 @@
         </div>
     </div>
 
-    <div class="mt-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-        <p class="text-sm text-blue-800 dark:text-blue-300">
-            <strong>Note:</strong> Logos must be square. PNG images must be at least 48x48 pixels.
-            SVG images should have a square viewBox. Maximum file size is 256KB.
-        </p>
-    </div>
 </div>
 {% endblock %}
 

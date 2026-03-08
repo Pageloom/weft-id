@@ -279,7 +279,7 @@ Your primary email address has been changed by an administrator.
 New primary email: {new_primary_email}
 Changed by: {admin_name}
 
-Your account login will now use the new primary email address.
+Your account sign-in will now use the new primary email address.
 
 If you did not expect this change or have concerns, please contact your administrator immediately.
 """
@@ -306,7 +306,7 @@ If you did not expect this change or have concerns, please contact your administ
             <p><strong>New primary email:</strong> {new_primary_email}</p>
             <p><strong>Changed by:</strong> {admin_name}</p>
         </div>
-        <p>Your account login will now use the new primary email address.</p>
+        <p>Your account sign-in will now use the new primary email address.</p>
         <div class="warning">
             <p><strong>Security Notice:</strong> If you did not expect this change or have concerns, please contact your administrator immediately.</p>
         </div>
@@ -337,7 +337,7 @@ Your account has been created by {admin_name}. Since you're using a trusted emai
 To get started, please set your password by visiting:
 {password_set_url}
 
-After setting your password, you'll be able to log in and access your account.
+After setting your password, you'll be able to sign in and access your account.
 
 If you have any questions, please contact your administrator.
 """
@@ -365,7 +365,7 @@ If you have any questions, please contact your administrator.
         <a href="{password_set_url}" class="button">Set Your Password</a>
         <p>Or copy and paste this link into your browser:</p>
         <p style="word-break: break-all; color: #6b7280;">{password_set_url}</p>
-        <p>After setting your password, you'll be able to log in and access your account.</p>
+        <p>After setting your password, you'll be able to sign in and access your account.</p>
         <div class="footer">
             <p>If you have any questions, please contact your administrator.</p>
             <p>This is an automated message, please do not reply.</p>
@@ -609,7 +609,7 @@ Your multi-factor authentication (MFA) has been reset by an administrator.
 Reset by: {admin_name}
 Time: {reset_timestamp}
 
-Your next login will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.
+Your next sign-in will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.
 
 If you did not expect this change, please contact your administrator.
 """
@@ -635,7 +635,7 @@ If you did not expect this change, please contact your administrator.
         </div>
         <p><strong>Reset by:</strong> {admin_name}</p>
         <p><strong>Time:</strong> {reset_timestamp}</p>
-        <p>Your next login will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.</p>
+        <p>Your next sign-in will use email verification codes. You can re-enroll in authenticator-based MFA from your account settings after signing in.</p>
         <div class="footer">
             <p>If you did not expect this change, please contact your administrator.</p>
             <p>This is an automated message, please do not reply.</p>

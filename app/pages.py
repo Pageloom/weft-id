@@ -43,7 +43,7 @@ PAGES = [
     # Authentication pages
     Page(
         path="/login",
-        title="Login",
+        title="Sign in",
         permission=PagePermission.PUBLIC,
         show_in_nav=False,
         creates_nav_level=False,

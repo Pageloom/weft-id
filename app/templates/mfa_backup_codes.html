@@ -8,9 +8,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
             <div class="text-center mb-6">
                 <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full mb-4">
-                    <svg class="h-8 w-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
+                    {{ icon("check", class="h-8 w-8 text-green-600 dark:text-green-400") }}
                 </div>
                 <h1 class="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Two-Factor Authentication Enabled!</h1>
                 <p class="text-gray-600 dark:text-gray-400">Save these backup codes in a secure location</p>
@@ -19,9 +17,7 @@
             <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 mb-6">
                 <div class="flex">
                     <div class="flex-shrink-0">
-                        <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                        </svg>
+                        {{ icon("exclamation-triangle", class="h-5 w-5 text-yellow-400") }}
                     </div>
                     <div class="ml-3">
                         <p class="text-sm text-yellow-700 dark:text-yellow-300">

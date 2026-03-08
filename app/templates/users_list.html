@@ -108,9 +108,7 @@
                     id="toggle-filters-btn"
                     class="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                    <svg id="filter-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
+                    {{ icon("chevron-down", class="w-4 h-4 transition-transform", id="filter-chevron") }}
                     Filters
                 </button>
                 {% if roles or statuses or auth_methods %}
@@ -267,18 +265,12 @@
                                 <span>{{ label }}</span>
                                 {% if sort_field == field %}
                                     {% if sort_order == 'asc' %}
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
-                                    </svg>
+                                    {{ icon("chevron-up", class="w-4 h-4") }}
                                     {% else %}
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
+                                    {{ icon("chevron-down", class="w-4 h-4") }}
                                     {% endif %}
                                 {% else %}
-                                <svg class="w-4 h-4 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
-                                </svg>
+                                {{ icon("arrows-up-down", class="w-4 h-4 opacity-0 group-hover:opacity-50") }}
                                 {% endif %}
                             </a>
                         </th>

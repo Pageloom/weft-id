@@ -38,9 +38,7 @@
 
         {% if entries|length == 0 %}
         <div class="text-center py-12 border-t border-gray-200 dark:border-gray-700">
-            <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
+            {{ icon("check-circle", class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500") }}
             <p class="text-gray-500 dark:text-gray-400 text-lg mt-2">No authentication failures</p>
             <p class="text-gray-400 dark:text-gray-500 text-sm mt-1">
                 No SAML authentication errors have been recorded in the last 24 hours.

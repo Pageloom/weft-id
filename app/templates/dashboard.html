@@ -51,9 +51,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ app.description }}</p>
                     {% endif %}
                 </div>
-                <svg class="h-4 w-4 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                </svg>
+                {{ icon("arrow-right", class="h-4 w-4 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0 ml-2") }}
             </a>
             {% endfor %}
         </div>

@@ -103,9 +103,7 @@
                 <div class="relative">
                     <button id="user-menu-button" type="button" class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-gray-800">
                         <span>{{ user.first_name }} {{ user.last_name }}</span>
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
+                        {{ icon("chevron-down", class="w-4 h-4") }}
                     </button>
 
                     <!-- Dropdown menu -->

@@ -65,6 +65,7 @@ Request → Router → Service → Database → PostgreSQL
 | `app/routers/saml_idp/` | SAML IdP admin, SSO, metadata (package) |
 | `app/database/service_providers.py` | SP database queries |
 | `app/database/sp_signing_certificates.py` | Per-SP signing certificate queries |
+| `app/templates/icons/` | SVG icon files (19 Heroicons outline, viewable as images) |
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
@@ -240,7 +241,22 @@ with session(tenant_id=tenant_id) as cur:
 - `weftid`: Manually managed groups (admin can add/remove members)
 - `idp`: Identity Provider groups (synced from external IdP, read-only in WeftId)
 
-## Frontend: JavaScript Utilities and Graph Views
+## Frontend: Icons, JavaScript Utilities, and Graph Views
+
+### Icons
+
+All SVG icons are centralized in `app/templates/icons/` as pure, valid SVG files (viewable as images). Never paste inline SVGs into templates. Use the `icon()` global function (registered in `app/utils/templates.py`):
+
+```jinja2
+{{ icon("chevron-down", class="w-4 h-4 text-gray-400") }}
+{{ icon("chevron-down", class="w-4 h-4", id="filter-chevron") }}
+```
+
+No import needed. `icon()` is a Jinja2 global available in all templates. It reads the SVG file and injects the provided HTML attributes (`class`, `id`, etc.) onto the `<svg>` element.
+
+Available icons (all Heroicons outline): `arrow-right`, `arrows-up-down`, `check`, `check-circle`, `chevron-down`, `chevron-right`, `chevron-up`, `clipboard`, `download`, `envelope`, `exclamation-circle`, `exclamation-triangle`, `information-circle`, `pencil`, `server-stack`, `shield-check`, `squares-plus`, `user`, `x-mark`.
+
+To add a new icon: create `app/templates/icons/<name>.svg` as a valid SVG with `xmlns="http://www.w3.org/2000/svg"`. Use Heroicons outline paths with `viewBox="0 0 24 24"`. The `icon()` function handles attribute injection at render time.
 
 ### WeftUtils
 

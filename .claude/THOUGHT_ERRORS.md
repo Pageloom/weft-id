@@ -248,6 +248,15 @@ The `UNSCOPED` sentinel skips the `SET LOCAL app.tenant_id` call, giving the que
 
 ---
 
+## Never Paste Inline SVG Icons
+
+**Wrong:** Copy-pasting `<svg>...<path d="..."/></svg>` directly into a template
+**Right:** `{{ icon("chevron-down", class="w-4 h-4") }}`
+
+All icons live as valid SVG files in `app/templates/icons/`. The `icon()` Jinja2 global (from `app/utils/templates.py`) reads the SVG and injects HTML attributes. No import needed. Check the icons directory for available names before creating a new one.
+
+---
+
 ## Database Changes Go in Migrations Only
 
 **Wrong:** Adding a new column to `db-init/schema.sql` (the baseline schema)

@@ -4,6 +4,25 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Reusable SVG Icon System
+
+**Status:** Complete
+
+**Summary:** All inline SVG icons across the template codebase are now centralized in `app/templates/icons/` as pure, valid SVG files (viewable as images). An `icon()` Jinja2 global function (registered in `app/utils/templates.py`) reads SVG files and injects caller-supplied HTML attributes (`class`, `id`) at render time. 47 inline SVG instances across 24 templates were replaced. The two warning triangle styles (solid/filled and outline) were consolidated to a single outline style for consistency.
+
+**Acceptance Criteria:**
+
+- [x] Dedicated icon directory `app/templates/icons/` with 19 valid `.svg` files, named semantically
+- [x] Jinja2 global `icon(name, class="...", id="...")` injects attributes onto SVGs at render time. No import needed.
+- [x] SVG files are pure, valid SVGs (viewable as images in file browsers)
+- [x] Inconsistencies resolved: single outline warning triangle style, single pencil/edit style
+- [x] All 19 distinct icons extracted to the icon directory
+- [x] All 47 inline SVG instances replaced across 24 templates
+- [x] All 3811 existing tests pass
+- [x] Icon system documented in CLAUDE.md (key files, frontend section)
+
+---
+
 ## Auto-assign Users to Groups Based on Privileged Email Domains
 
 **Status:** Complete

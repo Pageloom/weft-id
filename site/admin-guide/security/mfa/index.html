@@ -1361,6 +1361,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Factor Authentication
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1377,6 +1395,47 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#per-idp-mfa-requirement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-IdP MFA requirement
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-mfa-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin MFA reset
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1953,36 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#per-idp-mfa-requirement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-IdP MFA requirement
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-mfa-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin MFA reset
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +1999,13 @@
 
 
 <h1 id="multi-factor-authentication">Multi-Factor Authentication<a class="headerlink" href="#multi-factor-authentication" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>WeftId supports TOTP (authenticator app) and email-based MFA. Users manage their own MFA enrollment from the <a href="../../../user-guide/mfa/">MFA settings</a> page.</p>
+<h2 id="per-idp-mfa-requirement">Per-IdP MFA requirement<a class="headerlink" href="#per-idp-mfa-requirement" title="Permanent link">&para;</a></h2>
+<p>Each identity provider connection has a <strong>Require platform MFA</strong> setting. When enabled, users who sign in through that IdP must complete WeftId's MFA challenge after SAML authentication, even if the IdP already authenticated them.</p>
+<p>This is useful when the IdP does not enforce MFA itself, or when you want a second factor under WeftId's control.</p>
+<p>Configure this on the IdP's detail page under connection settings.</p>
+<h2 id="admin-mfa-reset">Admin MFA reset<a class="headerlink" href="#admin-mfa-reset" title="Permanent link">&para;</a></h2>
+<p>Super admins can reset a user's MFA from the user's detail page. This deletes all MFA data (TOTP secrets and backup codes). The user must set up MFA again on their next sign-in if required.</p>
 
 
 

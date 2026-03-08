@@ -617,6 +617,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -633,6 +651,86 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#active" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inactivated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inactivated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inactivated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-inactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic inactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anonymized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anonymized
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1992,75 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#active" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inactivated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inactivated
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inactivated">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-inactivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic inactivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anonymized" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anonymized
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2077,35 @@
 
 
 <h1 id="user-lifecycle">User Lifecycle<a class="headerlink" href="#user-lifecycle" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Users in WeftId move through three possible states.</p>
+<h2 id="active">Active<a class="headerlink" href="#active" title="Permanent link">&para;</a></h2>
+<p>The default state. Active users can sign in and access their applications.</p>
+<h2 id="inactivated">Inactivated<a class="headerlink" href="#inactivated" title="Permanent link">&para;</a></h2>
+<p>Inactivated users cannot sign in. All their data is preserved, and they can be reactivated later. When a user is inactivated:</p>
+<ul>
+<li>Their session is terminated immediately</li>
+<li>All OAuth2 tokens are revoked (API access is cut off)</li>
+<li>They cannot request reactivation if a previous request was denied</li>
+</ul>
+<p>An admin can inactivate any user except themselves, service users (linked to OAuth2 clients), or the last super admin.</p>
+<h3 id="reactivation">Reactivation<a class="headerlink" href="#reactivation" title="Permanent link">&para;</a></h3>
+<p>There are two ways to reactivate a user:</p>
+<ul>
+<li><strong>Admin-initiated</strong> -- An admin reactivates the user directly from the user's detail page.</li>
+<li><strong>User-requested</strong> -- The inactivated user submits a reactivation request. An admin must approve or deny it. Denied users cannot submit further requests.</li>
+</ul>
+<p>Super admins have a special self-reactivation path: they prove email ownership to reactivate themselves without admin approval.</p>
+<h3 id="automatic-inactivation">Automatic inactivation<a class="headerlink" href="#automatic-inactivation" title="Permanent link">&para;</a></h3>
+<p>If configured in <a href="../../security/sessions/">Security &gt; Sessions</a>, users who haven't been active for a set period are automatically inactivated. An admin must reactivate them before they can sign in again.</p>
+<h2 id="anonymized">Anonymized<a class="headerlink" href="#anonymized" title="Permanent link">&para;</a></h2>
+<p>Anonymization is a permanent, irreversible operation for GDPR right-to-be-forgotten requests. Only super admins can anonymize a user. When a user is anonymized:</p>
+<ul>
+<li>Their name is replaced with "[Anonymized] User"</li>
+<li>All email addresses are anonymized</li>
+<li>MFA data is deleted</li>
+<li>Password is cleared</li>
+</ul>
+<p>The user's ID and audit trail are preserved for compliance, but all personally identifiable information is removed.</p>
 
 
 

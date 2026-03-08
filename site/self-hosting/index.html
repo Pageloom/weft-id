@@ -1882,6 +1882,108 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Services
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting started
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1898,7 +2000,157 @@
 
 
 <h1 id="self-hosting">Self-Hosting<a class="headerlink" href="#self-hosting" title="Permanent link">&para;</a></h1>
-<p><em>This section is under construction. It will cover deploying WeftId on your own infrastructure.</em></p>
+<p>Deploy WeftId on your own infrastructure using Docker Compose.</p>
+<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Docker and Docker Compose</li>
+<li>PostgreSQL 16+</li>
+<li>A reverse proxy with TLS (nginx included in the Docker setup)</li>
+<li>An SMTP server or email service (Resend, SendGrid)</li>
+</ul>
+<h2 id="services">Services<a class="headerlink" href="#services" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>app</strong></td>
+<td>FastAPI web application</td>
+</tr>
+<tr>
+<td><strong>worker</strong></td>
+<td>Background job processor</td>
+</tr>
+<tr>
+<td><strong>db</strong></td>
+<td>PostgreSQL database</td>
+</tr>
+<tr>
+<td><strong>memcached</strong></td>
+<td>Session and cache storage</td>
+</tr>
+<tr>
+<td><strong>reverse-proxy</strong></td>
+<td>Nginx for TLS termination</td>
+</tr>
+<tr>
+<td><strong>migrate</strong></td>
+<td>One-shot schema migration runner</td>
+</tr>
+</tbody>
+</table>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<p>WeftId is configured through environment variables.</p>
+<h3 id="required">Required<a class="headerlink" href="#required" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SECRET_KEY</code></td>
+<td>Master encryption key. All derived keys (sessions, MFA, SAML, email) use HKDF from this value. Generate a random 64-character string.</td>
+</tr>
+<tr>
+<td><code>BASE_DOMAIN</code></td>
+<td>Base domain for tenant subdomains (e.g., <code>weftid.example.com</code>)</td>
+</tr>
+<tr>
+<td><code>POSTGRES_USER</code></td>
+<td>Database user</td>
+</tr>
+<tr>
+<td><code>POSTGRES_PASSWORD</code></td>
+<td>Database password</td>
+</tr>
+<tr>
+<td><code>POSTGRES_DB</code></td>
+<td>Database name (default: <code>appdb</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="email">Email<a class="headerlink" href="#email" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EMAIL_BACKEND</code></td>
+<td>Email provider: <code>smtp</code>, <code>resend</code>, or <code>sendgrid</code></td>
+</tr>
+<tr>
+<td><code>SMTP_HOST</code></td>
+<td>SMTP server hostname</td>
+</tr>
+<tr>
+<td><code>SMTP_PORT</code></td>
+<td>SMTP port</td>
+</tr>
+<tr>
+<td><code>SMTP_USER</code></td>
+<td>SMTP username (optional)</td>
+</tr>
+<tr>
+<td><code>SMTP_PASS</code></td>
+<td>SMTP password (optional)</td>
+</tr>
+<tr>
+<td><code>SMTP_TLS</code></td>
+<td>Enable TLS (<code>true</code> or <code>false</code>)</td>
+</tr>
+<tr>
+<td><code>FROM_EMAIL</code></td>
+<td>Sender email address</td>
+</tr>
+<tr>
+<td><code>RESEND_API_KEY</code></td>
+<td>Resend API key (if using Resend)</td>
+</tr>
+<tr>
+<td><code>SENDGRID_API_KEY</code></td>
+<td>SendGrid API key (if using SendGrid)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="optional">Optional<a class="headerlink" href="#optional" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ENABLE_OPENAPI_DOCS</code></td>
+<td>Enable Swagger UI and ReDoc at <code>/api/docs</code></td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h2>
+<p>The database schema is applied automatically on first startup. The <code>migrate</code> service runs the baseline schema followed by any pending migrations.</p>
+<p>Subsequent schema changes are applied automatically when you restart with a new version. Migrations are forward-only and logged to the <code>schema_migration_log</code> table.</p>
+<h2 id="getting-started">Getting started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Copy the example environment file and fill in your values</li>
+<li>Run <code>docker compose up -d</code></li>
+<li>The <code>migrate</code> service initializes the database</li>
+<li>Access WeftId at your configured domain</li>
+<li>The first user to sign in becomes the super admin</li>
+</ol>
 
 
 

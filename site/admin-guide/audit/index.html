@@ -1884,6 +1884,86 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event log
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event log">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filtering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#activity-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Activity tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1900,8 +1980,61 @@
 
 
 <h1 id="audit">Audit<a class="headerlink" href="#audit" title="Permanent link">&para;</a></h1>
-<p>Review a complete event log of all actions taken in your tenant. Filter by user, event type, date range, and artifact. Export audit data for compliance reporting.</p>
-<p><em>Detailed documentation is under construction.</em></p>
+<p>Review a complete event log of all actions taken in your tenant. Navigate to <strong>Audit &gt; Events</strong>.</p>
+<h2 id="event-log">Event log<a class="headerlink" href="#event-log" title="Permanent link">&para;</a></h2>
+<p>Every write operation in WeftId is recorded in the event log. Events capture who performed the action, what was affected, when it happened, and relevant context.</p>
+<h3 id="filtering">Filtering<a class="headerlink" href="#filtering" title="Permanent link">&para;</a></h3>
+<p>Filter the event log by date range, event type, actor (who performed the action), artifact type, and artifact ID.</p>
+<h3 id="event-detail">Event detail<a class="headerlink" href="#event-detail" title="Permanent link">&para;</a></h3>
+<p>Click any event to see its full details, including metadata and request information (IP address, user agent).</p>
+<h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
+<p>Click <strong>Export</strong> to generate a CSV file of the event log. The export runs as a background job. Check <strong>Background Jobs</strong> to download the file when ready.</p>
+<h2 id="event-types">Event types<a class="headerlink" href="#event-types" title="Permanent link">&para;</a></h2>
+<p>Events cover all areas of the platform:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Authentication</td>
+<td>Sign-in, sign-out, password changes</td>
+</tr>
+<tr>
+<td>Users</td>
+<td>Created, updated, inactivated, reactivated, anonymized</td>
+</tr>
+<tr>
+<td>Groups</td>
+<td>Created, deleted, members added/removed, relationships changed</td>
+</tr>
+<tr>
+<td>Identity providers</td>
+<td>Created, updated, trust established, deleted</td>
+</tr>
+<tr>
+<td>Service providers</td>
+<td>Created, updated, deleted, SSO assertions issued</td>
+</tr>
+<tr>
+<td>Certificates</td>
+<td>Created, rotated</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td>Session, certificate, permission, and branding changes</td>
+</tr>
+<tr>
+<td>MFA</td>
+<td>Enabled, disabled, backup codes regenerated, admin resets</td>
+</tr>
+</tbody>
+</table>
+<h2 id="activity-tracking">Activity tracking<a class="headerlink" href="#activity-tracking" title="Permanent link">&para;</a></h2>
+<p>Read operations (viewing user lists, group details, etc.) are tracked separately from the event log. Activity tracking records the last time each user accessed the system. This data feeds into the <a href="../security/sessions/">automatic inactivation</a> feature.</p>
 
 
 

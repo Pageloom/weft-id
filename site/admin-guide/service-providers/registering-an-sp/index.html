@@ -1083,6 +1083,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registering a Service Provider
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1099,6 +1117,91 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-the-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-share-weftids-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Share WeftId's metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-import-the-applications-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Import the application's metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-configure-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Configure access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#service-provider-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service provider settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1997,80 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#step-1-create-the-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Create the service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-2-share-weftids-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Share WeftId's metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-3-import-the-applications-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Import the application's metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-4-configure-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Configure access
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#service-provider-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service provider settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2087,79 @@
 
 
 <h1 id="registering-a-service-provider">Registering a Service Provider<a class="headerlink" href="#registering-a-service-provider" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Register a downstream application as a SAML service provider to enable single sign-on.</p>
+<h2 id="step-1-create-the-service-provider">Step 1: Create the service provider<a class="headerlink" href="#step-1-create-the-service-provider" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Settings &gt; Service Providers</strong></li>
+<li>Click <strong>Add Service Provider</strong></li>
+<li>Enter a display name</li>
+<li>Click <strong>Create</strong></li>
+</ol>
+<h2 id="step-2-share-weftids-metadata">Step 2: Share WeftId's metadata<a class="headerlink" href="#step-2-share-weftids-metadata" title="Permanent link">&para;</a></h2>
+<p>After creation, WeftId generates an IdP metadata URL specific to this SP. The metadata contains:</p>
+<ul>
+<li>WeftId's entity ID (unique per SP)</li>
+<li>SSO endpoint URL</li>
+<li>Signing certificate</li>
+<li>Supported attributes and NameID formats</li>
+</ul>
+<p>Copy this URL and configure it in your application's SAML settings.</p>
+<h2 id="step-3-import-the-applications-metadata">Step 3: Import the application's metadata<a class="headerlink" href="#step-3-import-the-applications-metadata" title="Permanent link">&para;</a></h2>
+<p>Once your application is configured, return to the SP's detail page and import its metadata:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Metadata URL</strong></td>
+<td>The application publishes a metadata URL. WeftId fetches and parses it automatically.</td>
+</tr>
+<tr>
+<td><strong>Metadata XML</strong></td>
+<td>You have the application's SAML metadata as XML.</td>
+</tr>
+<tr>
+<td><strong>Manual entry</strong></td>
+<td>Enter the entity ID and ACS URL directly.</td>
+</tr>
+</tbody>
+</table>
+<p>WeftId auto-detects the application's requested attributes and NameID format from its metadata.</p>
+<h2 id="step-4-configure-access">Step 4: Configure access<a class="headerlink" href="#step-4-configure-access" title="Permanent link">&para;</a></h2>
+<p>New service providers have no users assigned. Choose an access mode:</p>
+<ul>
+<li><strong>Group-based access</strong> -- Assign specific groups on the SP's <strong>Groups</strong> tab. Only users in those groups can access the application.</li>
+<li><strong>Available to all</strong> -- Enable this setting to allow all active users to access the application.</li>
+</ul>
+<h2 id="service-provider-settings">Service provider settings<a class="headerlink" href="#service-provider-settings" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Enabled</strong></td>
+<td>Toggle the SP on or off without deleting it.</td>
+</tr>
+<tr>
+<td><strong>NameID format</strong></td>
+<td>How users are identified in assertions: email, persistent, transient, or unspecified.</td>
+</tr>
+<tr>
+<td><strong>Include group claims</strong></td>
+<td>Include the user's group memberships in the SAML assertion.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="deleting-a-service-provider">Deleting a service provider<a class="headerlink" href="#deleting-a-service-provider" title="Permanent link">&para;</a></h2>
+<p>Remove all group assignments before deleting an SP.</p>
 
 
 

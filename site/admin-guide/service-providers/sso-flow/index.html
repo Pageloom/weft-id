@@ -1167,6 +1167,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SSO Flow
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -1183,6 +1201,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sp-initiated-sso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SP-initiated SSO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idp-initiated-sso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdP-initiated SSO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consent-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consent screen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-in-the-assertion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in the assertion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#sp-initiated-sso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SP-initiated SSO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#idp-initiated-sso" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IdP-initiated SSO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consent-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consent screen
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whats-in-the-assertion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in the assertion
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,45 @@
 
 
 <h1 id="sso-flow">SSO Flow<a class="headerlink" href="#sso-flow" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>WeftId supports two single sign-on flows: SP-initiated (started by the application) and IdP-initiated (started from WeftId).</p>
+<h2 id="sp-initiated-sso">SP-initiated SSO<a class="headerlink" href="#sp-initiated-sso" title="Permanent link">&para;</a></h2>
+<p>This is the most common flow. The user starts at the application and is redirected to WeftId to authenticate.</p>
+<ol>
+<li><strong>User visits the application.</strong> The application generates a SAML AuthnRequest and redirects the user to WeftId's SSO endpoint.</li>
+<li><strong>WeftId authenticates the user.</strong> If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).</li>
+<li><strong>MFA challenge.</strong> If the SP or IdP requires MFA, the user must complete the MFA step.</li>
+<li><strong>Consent.</strong> WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.</li>
+<li><strong>Access check.</strong> WeftId verifies the user has access to the SP (via group assignment or "available to all").</li>
+<li><strong>Assertion issued.</strong> WeftId builds a signed SAML response containing the user's attributes and posts it to the application's ACS URL.</li>
+<li><strong>User is signed in</strong> to the application.</li>
+</ol>
+<h2 id="idp-initiated-sso">IdP-initiated SSO<a class="headerlink" href="#idp-initiated-sso" title="Permanent link">&para;</a></h2>
+<p>The user starts from WeftId and launches an application from their dashboard.</p>
+<ol>
+<li><strong>User clicks an application</strong> on the WeftId dashboard.</li>
+<li><strong>Access check.</strong> WeftId verifies the user has access.</li>
+<li><strong>Consent.</strong> The consent screen is shown.</li>
+<li><strong>Assertion issued.</strong> WeftId builds and posts the SAML response to the application.</li>
+<li><strong>User is signed in</strong> to the application.</li>
+</ol>
+<h2 id="consent-screen">Consent screen<a class="headerlink" href="#consent-screen" title="Permanent link">&para;</a></h2>
+<p>The consent screen shows:</p>
+<ul>
+<li>The application name</li>
+<li>The user's name and email</li>
+<li>A <strong>Continue</strong> button to proceed</li>
+<li>A <strong>Cancel</strong> button to return to the dashboard</li>
+<li>A <strong>Switch account</strong> option to sign in as a different user</li>
+</ul>
+<h2 id="whats-in-the-assertion">What's in the assertion<a class="headerlink" href="#whats-in-the-assertion" title="Permanent link">&para;</a></h2>
+<p>The SAML assertion contains:</p>
+<ul>
+<li><strong>Issuer</strong> -- WeftId's entity ID (unique per SP connection)</li>
+<li><strong>NameID</strong> -- User identifier in the configured format (email, persistent, or transient)</li>
+<li><strong>Attributes</strong> -- Email, first name, last name, display name, and optionally group memberships</li>
+<li><strong>Session index</strong> -- Unique session identifier for Single Logout correlation</li>
+<li><strong>Signature</strong> -- Signed with the SP's per-SP signing certificate</li>
+</ul>
 
 
 

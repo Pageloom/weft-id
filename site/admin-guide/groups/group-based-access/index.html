@@ -839,6 +839,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group-Based Access
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -855,6 +873,69 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assigning-groups-to-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assigning groups to a service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-assignments-from-a-group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing assignments from a group
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-and-the-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access and the hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1975,58 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assigning-groups-to-a-service-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assigning groups to a service provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-assignments-from-a-group" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing assignments from a group
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#access-and-the-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Access and the hierarchy
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2043,23 @@
 
 
 <h1 id="group-based-access">Group-Based Access<a class="headerlink" href="#group-based-access" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Groups control which users can access which service providers.</p>
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>Each service provider can be restricted to specific groups. During SSO, WeftId checks whether the user belongs to any of the groups assigned to the service provider. If the user is not in any assigned group, access is denied.</p>
+<p>If a service provider is set to <strong>Available to all</strong>, group assignments are bypassed and all active users can access it.</p>
+<h2 id="assigning-groups-to-a-service-provider">Assigning groups to a service provider<a class="headerlink" href="#assigning-groups-to-a-service-provider" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Go to the service provider's detail page</li>
+<li>Open the <strong>Groups</strong> tab</li>
+<li>Click <strong>Assign Groups</strong></li>
+<li>Select one or more groups</li>
+<li>Click <strong>Assign</strong></li>
+</ol>
+<p>Multiple groups can be assigned to one SP. A user needs to be in at least one of them.</p>
+<h2 id="viewing-assignments-from-a-group">Viewing assignments from a group<a class="headerlink" href="#viewing-assignments-from-a-group" title="Permanent link">&para;</a></h2>
+<p>From a group's detail page, you can see which service providers are assigned to that group.</p>
+<h2 id="access-and-the-hierarchy">Access and the hierarchy<a class="headerlink" href="#access-and-the-hierarchy" title="Permanent link">&para;</a></h2>
+<p>Access assignments apply to the group itself. If a service provider is assigned to a parent group, users who are direct members of that parent group can access it.</p>
 
 
 

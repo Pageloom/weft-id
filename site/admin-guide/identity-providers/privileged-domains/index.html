@@ -973,6 +973,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Privileged Domains
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -989,6 +1007,86 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#binding-an-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binding an IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linking-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linking groups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Linking groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#removing-a-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removing a domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1992,75 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#binding-an-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Binding an IdP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#linking-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Linking groups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Linking groups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#removing-a-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removing a domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2077,28 @@
 
 
 <h1 id="privileged-domains">Privileged Domains<a class="headerlink" href="#privileged-domains" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>Privileged domains let you route users to a specific identity provider and auto-assign them to groups based on their email domain.</p>
+<h2 id="adding-a-domain">Adding a domain<a class="headerlink" href="#adding-a-domain" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Navigate to <strong>Settings &gt; Privileged Domains</strong></li>
+<li>Click <strong>Add Domain</strong></li>
+<li>Enter the email domain (e.g., <code>acme.com</code>)</li>
+<li>Click <strong>Add</strong></li>
+</ol>
+<h2 id="binding-an-idp">Binding an IdP<a class="headerlink" href="#binding-an-idp" title="Permanent link">&para;</a></h2>
+<p>Each domain can be bound to one identity provider. When a user with a matching email domain signs in, they are automatically directed to that IdP instead of seeing the IdP selection page.</p>
+<p>To bind an IdP, select it from the domain's configuration panel.</p>
+<h2 id="linking-groups">Linking groups<a class="headerlink" href="#linking-groups" title="Permanent link">&para;</a></h2>
+<p>Link one or more groups to a domain. When a user is created with an email address matching that domain, they are automatically added to the linked groups.</p>
+<p>This applies to both manually created users and JIT-provisioned users.</p>
+<h3 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Add the domain <code>engineering.acme.com</code></li>
+<li>Link it to the "Engineering" group</li>
+<li>When <code>alice@engineering.acme.com</code> is created, she is automatically added to the Engineering group</li>
+</ol>
+<h2 id="removing-a-domain">Removing a domain<a class="headerlink" href="#removing-a-domain" title="Permanent link">&para;</a></h2>
+<p>Unlink all groups and unbind the IdP before deleting a domain.</p>
 
 
 

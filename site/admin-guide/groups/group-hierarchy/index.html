@@ -783,6 +783,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Group Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -799,6 +817,58 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parent-child-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parent-child relationships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing relationships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#graph-visualization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graph visualization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1894,6 +1964,47 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parent-child-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parent-child relationships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#managing-relationships" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managing relationships
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#graph-visualization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graph visualization
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1910,7 +2021,24 @@
 
 
 <h1 id="group-hierarchy">Group Hierarchy<a class="headerlink" href="#group-hierarchy" title="Permanent link">&para;</a></h1>
-<p><em>This page is under construction.</em></p>
+<p>WeftId groups support a directed acyclic graph (DAG) model. Unlike a simple tree, groups can have multiple parents.</p>
+<h2 id="parent-child-relationships">Parent-child relationships<a class="headerlink" href="#parent-child-relationships" title="Permanent link">&para;</a></h2>
+<p>Any group can be added as a child of another group. The only constraint is that a group cannot be both an ancestor and a descendant of the same group (no cycles).</p>
+<p>For example:</p>
+<ul>
+<li>Groups A and B can both be children of C</li>
+<li>A can also become a child of B (creating multiple paths to A)</li>
+<li>But if A is already an ancestor of B, then A cannot become B's child</li>
+</ul>
+<h2 id="managing-relationships">Managing relationships<a class="headerlink" href="#managing-relationships" title="Permanent link">&para;</a></h2>
+<p>From a group's detail page, the <strong>Relationships</strong> tab shows the group's parents and children.</p>
+<ul>
+<li><strong>Add parent</strong> -- Attach this group under another group</li>
+<li><strong>Add child</strong> -- Attach another group under this one</li>
+<li><strong>Remove relationship</strong> -- Detach a parent-child link without deleting either group</li>
+</ul>
+<h2 id="graph-visualization">Graph visualization<a class="headerlink" href="#graph-visualization" title="Permanent link">&para;</a></h2>
+<p>The group list and detail pages include an interactive graph view. The graph shows the full hierarchy with parent-child connections. You can drag nodes to rearrange the layout, and your arrangement is saved automatically.</p>
 
 
 

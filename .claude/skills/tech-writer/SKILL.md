@@ -57,29 +57,34 @@ the current state of the application.
 
 ### Copy Principles
 
-1. **Be direct.** Say what something does, not what it is. "Users can change their name"
+1. **Be terse.** Every word must earn its place. Cut filler ("allows you to", "in order to",
+   "will be able to"). Prefer "Auto-detected on sign-in" over "Your timezone and locale are
+   automatically detected when you sign in." See `settings_security_tab_*.html` for the
+   reference tone.
+
+2. **Be direct.** Say what something does, not what it is. "Users can change their name"
    not "When enabled, this setting allows users to modify their profile details."
 
-2. **Don't explain the UI.** If a checkbox label says "Keep users signed in after browser
+3. **Don't explain the UI.** If a checkbox label says "Keep users signed in after browser
    close", you don't need help text restating "When enabled, sessions persist after the
    browser is closed. When disabled, they don't." The label already said it.
 
-3. **One idea per sentence.** Break compound sentences. Short sentences are easier to scan.
+4. **One idea per sentence.** Break compound sentences. Short sentences are easier to scan.
 
-4. **Use consistent terminology.** Pick one term and use it everywhere. Don't alternate
+5. **Use consistent terminology.** Pick one term and use it everywhere. Don't alternate
    between "sign in" and "log in", "inactivate" and "deactivate", "tenant" and "organization".
 
-5. **Match the user's mental model.** A super admin thinks in terms of "my organization's
+6. **Match the user's mental model.** A super admin thinks in terms of "my organization's
    settings". A regular user thinks in terms of "my account". Copy should match.
 
-6. **Front-load the important word.** "Certificate validity period" not "The period for
+7. **Front-load the important word.** "Certificate validity period" not "The period for
    which certificates remain valid". Scanners read the first few words.
 
-7. **No jargon without context.** Terms like "RLS", "HKDF", "closure table" belong in
+8. **No jargon without context.** Terms like "RLS", "HKDF", "closure table" belong in
    developer docs, not in UI copy. Terms like "SAML", "IdP", "SP" are acceptable in admin
    UI since the audience understands federation.
 
-8. **Be specific about consequences.** "Users whose sessions exceed the new limit will be
+9. **Be specific about consequences.** "Users whose sessions exceed the new limit will be
    signed out on their next request" is better than "Changes apply immediately."
 
 ### Terminology Glossary

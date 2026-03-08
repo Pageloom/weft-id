@@ -17,7 +17,7 @@
             </p>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {% if sp.enabled %}
-                Disabling will immediately reject all SSO requests. Group assignments will be preserved.
+                Disabling rejects all SSO requests immediately. Group assignments are preserved.
                 {% else %}
                 Enabling will allow SSO requests from this SP to be processed.
                 {% endif %}
@@ -50,14 +50,14 @@
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Service Provider</h2>
     {% if sp.enabled %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        The service provider must be disabled before it can be deleted. Disable it first using the toggle above.
+        Disable the service provider before deleting.
     </p>
     <button type="button" disabled
             class="px-4 py-2 text-sm font-medium text-white bg-red-300 dark:bg-red-900 rounded cursor-not-allowed opacity-60">
         Delete Service Provider
     </button>
     {% else %}
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Deleting this service provider will remove all configuration including the signing certificate and group assignments. This cannot be undone.</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Removes all configuration, certificates, and group assignments. This cannot be undone.</p>
     <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"

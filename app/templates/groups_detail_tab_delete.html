@@ -12,12 +12,12 @@
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
         This group has {{ parents|length }} parent{{ 's' if parents|length != 1 else '' }}
         and {{ children|length }} child group{{ 's' if children|length != 1 else '' }}.
-        All relationships must be removed before the group can be deleted.
+        Remove all relationships before deleting.
     </p>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
         The <a href="/admin/groups/list?view=graph&search={{ group.name|urlencode }}&fullscreen=1"
                class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">groups graph</a>
-        gives an overview of all connections and lets you cut relationships interactively.
+        shows all connections and lets you cut relationships interactively.
     </p>
     <form method="post" action="/admin/groups/{{ group.id }}/relationships/clear" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -33,7 +33,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 opacity-50">
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Remove all relationships above before deleting.
+        Remove all relationships first.
     </p>
     <button type="button" disabled
             class="px-4 py-2 text-sm font-medium text-white bg-red-400 rounded cursor-not-allowed">
@@ -46,13 +46,13 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Deleting this group will remove all members. This cannot be undone.
+        Permanently deletes this group and all memberships. Members themselves are not affected. This cannot be undone.
     </p>
     <form method="post" action="/admin/groups/{{ group.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                data-confirm="Delete group '{{ group.name }}'?&#10;&#10;Members will be removed. This cannot be undone."
+                data-confirm="Delete group '{{ group.name }}'?&#10;&#10;All memberships will be removed. Members themselves are not affected. This cannot be undone."
                 data-destructive="true">
             Delete Group
         </button>

@@ -6,7 +6,7 @@
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Identity Provider</h2>
     {% if idp.is_enabled %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Disable this identity provider on the Details tab before deleting it.
+        Disable on the Details tab before deleting.
     </p>
     <button type="button" disabled
             class="px-4 py-2 text-sm font-medium text-white bg-red-300 dark:bg-red-900 rounded cursor-not-allowed opacity-60">
@@ -14,18 +14,18 @@
     </button>
     {% else %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-        Deleting this identity provider will remove all configuration including certificate data, attribute mappings, and domain bindings. This cannot be undone.
+        Removes all configuration, certificates, attribute mappings, and domain bindings. This cannot be undone.
     </p>
     {% if user_count and user_count > 0 %}
     <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
         {{ icon("exclamation-triangle", class="w-4 h-4 inline-block mr-1 -mt-0.5") }}
-        {{ user_count }} user(s) are assigned to this IdP. Migrate them first, or they will lose their SSO access.
+        {{ user_count }} user(s) assigned. Migrate them first or they lose SSO access.
     </p>
     {% endif %}
     {% if domain_count and domain_count > 0 %}
     <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
         {{ icon("exclamation-triangle", class="w-4 h-4 inline-block mr-1 -mt-0.5") }}
-        {{ domain_count }} domain(s) are bound to this IdP. Unbind them first.
+        {{ domain_count }} domain(s) bound. Unbind them first.
     </p>
     {% endif %}
     <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="inline mt-2">

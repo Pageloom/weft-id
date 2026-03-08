@@ -3,7 +3,7 @@
 {% block tab_content %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Each service provider has its own signing certificate. SAML assertions sent to this SP are signed with this certificate, allowing the SP to verify they came from this identity provider. The certificate is included in the sharable metadata URL on the Details tab.
+        Each SP has its own signing certificate for SAML assertions. Included in the metadata URL on the Details tab.
     </p>
 
     <div class="flex justify-between items-center mb-4">
@@ -53,7 +53,7 @@
 
     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <p class="text-xs text-gray-500 dark:text-gray-400">
-            After rotating, update the downstream SP with the new metadata. The SP will need the new certificate to verify SAML assertions.
+            After rotating, share the new metadata with the SP so it can verify future assertions.
         </p>
     </div>
     {% else %}

@@ -8,21 +8,19 @@
         <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Privileged Domains</h1>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Privileged domains are email domains that your organization controls or that you have chosen to trust
-            (e.g., @company.com, @company.org). Users created with email addresses from these domains are automatically
-            verified. Additionally, domains can be bound to an Identity Provider to automatically assign users
-            to that IdP, or linked to groups for automatic group membership.
+            Email domains your organization controls (e.g., @company.com). Users with these domains are auto-verified.
+            Domains can be bound to an IdP for automatic routing, or linked to groups for auto-membership.
         </p>
 
         {% if success %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
                 {% if success == 'domain_bound' %}
-                Domain bound to IdP successfully. All existing users with this domain have been assigned to the IdP.
+                Domain bound. Existing users with this domain assigned to the IdP.
                 {% elif success == 'domain_unbound' %}
                 Domain unbound from IdP successfully.
                 {% elif success == 'group_linked' %}
-                Group linked to domain successfully. Existing users with this domain have been added to the group.
+                Group linked. Existing users with this domain added to the group.
                 {% elif success == 'group_unlinked' %}
                 Group unlinked from domain successfully. Existing memberships are preserved.
                 {% else %}
@@ -185,8 +183,7 @@
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
             <div class="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
                 <p class="text-sm text-amber-800 dark:text-amber-300">
-                    <strong>Note:</strong> When you bind a domain to an IdP, all existing and future users with matching
-                    emails are assigned to that IdP. They will only be able to authenticate via SAML.
+                    <strong>Note:</strong> Binding assigns all matching users to this IdP. They will only authenticate via SAML.
                 </p>
             </div>
         </div>

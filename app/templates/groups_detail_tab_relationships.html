@@ -28,7 +28,7 @@
                 Parent Groups ({{ parents|length }})
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Parent groups include this group's members in their effective membership.
+                Parent groups inherit this group's members.
             </p>
 
             {% if available_parents %}
@@ -81,7 +81,7 @@
                 Child Groups ({{ children|length }})
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Child groups contribute their members to this group's effective membership.
+                This group inherits members from child groups.
             </p>
 
             {% if available_children %}
@@ -164,8 +164,7 @@
                 Child Groups ({{ children|length }})
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Assertion groups reported by {{ group.idp_name }} during authentication are
-                automatically wired as children of this group.
+                Groups from {{ group.idp_name }} are automatically added as children during authentication.
             </p>
 
             {% set weftid_children = children | selectattr('group_type', 'equalto', 'weftid') | list %}

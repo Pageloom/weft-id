@@ -25,7 +25,7 @@
     </form>
     {% if sp.available_to_all %}
     <p class="mt-3 text-xs text-blue-600 dark:text-blue-400">
-        All active users can access this application. Group assignments below are supplementary.
+        All active users can access this application. Group assignments below are for organization only.
     </p>
     {% endif %}
 </div>
@@ -37,7 +37,7 @@
     </h2>
 
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-        Users in these groups (or their descendant groups) can access this application via SSO.
+        Members of these groups (and descendants) can access this SP via SSO.
     </p>
 
     {% if available_groups %}

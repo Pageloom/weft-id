@@ -19,7 +19,7 @@
         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Share SP Metadata with your IdP</h2>
     </div>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-        Give this metadata URL to the external IdP administrator so they can configure trust with WeftId.
+        Share with the external IdP administrator to configure trust with WeftId.
     </p>
     <div class="space-y-3">
         <div>
@@ -184,7 +184,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Share with your IdP</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
-        Share this page with your external IdP administrator. It contains the SP metadata URL, entity ID, ACS URL, and expected attribute mappings.
+        Share with your external IdP administrator. Contains SP metadata URL, entity ID, ACS URL, and attribute mappings.
     </p>
     <div class="flex items-center gap-2">
         <code id="trust-page-url" class="flex-1 text-sm bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded font-mono break-all text-gray-900 dark:text-gray-100">{{ base_url }}/pub/idp/{{ idp.id }}</code>
@@ -255,7 +255,7 @@
                 </div>
                 <div class="ml-3">
                     <label for="is_enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">Enabled</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Users will not be able to authenticate via this IdP while disabled.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Users cannot authenticate via this IdP while disabled.</p>
                 </div>
             </div>
 
@@ -267,7 +267,7 @@
                 </div>
                 <div class="ml-3">
                     <label for="is_default" class="text-sm font-medium text-gray-700 dark:text-gray-300">Default IdP</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Used when users click "Sign in with SSO" without selecting a specific provider.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Used when users sign in with SSO without selecting a provider.</p>
                 </div>
             </div>
 
@@ -291,10 +291,10 @@
                 </div>
                 <div class="ml-3">
                     <label for="jit_provisioning" class="text-sm font-medium text-gray-700 dark:text-gray-300">Just-in-Time Provisioning</label>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Automatically create user accounts on first SAML login</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Create accounts automatically on first SAML sign-in</p>
                     <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                         {{ icon("exclamation-triangle", class="w-3 h-3 inline-block mr-1 -mt-0.5") }}
-                        Users will be created as Members with no password (SAML-only login)
+                        Created as members with no password (SAML-only)
                     </p>
                 </div>
             </div>
@@ -312,7 +312,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Connection Testing</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Test your SAML configuration by performing a real authentication flow without creating a session.
+        Perform a real authentication flow without creating a session.
     </p>
     <button type="button" id="test-connection-btn"
             class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -320,7 +320,7 @@
         Test Connection
     </button>
     <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        Opens in a new window. You'll authenticate with the IdP and see the parsed assertion details.
+        Opens in a new window. Authenticate with the IdP and view parsed assertion details.
     </p>
 </div>
 
@@ -328,7 +328,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Domain Bindings</h2>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        When a user's email domain matches a bound domain, they will be automatically routed to this IdP for authentication.
+        Matching email domains auto-route users to this IdP for authentication.
     </p>
 
     {% if domain_bindings %}

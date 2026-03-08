@@ -15,8 +15,7 @@
         </div>
 
         <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Users who have been automatically inactivated due to inactivity can request reactivation.
-            Review and approve or deny their requests below.
+            Inactivated users can request reactivation. Approve or deny below.
         </p>
 
         {% if success == 'approved' %}
@@ -125,8 +124,7 @@
 
     <div class="mt-6 p-4 border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-md">
         <p class="text-sm text-blue-800 dark:text-blue-300">
-            <strong>Note:</strong> Denying a request permanently blocks the user from requesting reactivation again.
-            Administrators can still reactivate users manually.
+            <strong>Note:</strong> Denied users cannot request reactivation again. Admins can still reactivate them manually.
         </p>
     </div>
 </div>

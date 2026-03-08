@@ -11,9 +11,9 @@
             <div class="space-y-3">
                 {% if mfa_method == 'totp' %}
                 <div class="block border border-gray-300 dark:border-gray-600 rounded-md p-4 cursor-not-allowed">
-                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App / Password Manager (TOTP) <span class="text-green-600 dark:text-green-400 text-xs">(Currently Active)</span>
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App or Password Manager (TOTP) <span class="text-green-600 dark:text-green-400 text-xs">(Currently Active)</span>
                     </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, password managers, or similar
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, or similar apps
                         to generate time-based codes</p>
                 </div>
                 <form method="post" action="/account/mfa/setup/email">
@@ -32,8 +32,8 @@
                 </div>
                 <a href="/account/mfa/setup/totp"
                    class="block border border-gray-300 dark:border-gray-600 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App / Password Manager (TOTP)</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, password managers, or similar
+                    <h3 class="font-medium text-gray-900 dark:text-gray-100">Authenticator App or Password Manager (TOTP)</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Use Google Authenticator, Authy, or similar apps
                         to generate time-based codes</p>
                 </a>
                 {% endif %}

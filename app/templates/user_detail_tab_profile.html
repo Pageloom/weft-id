@@ -86,7 +86,7 @@
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Role</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Only super administrators can change user roles.
+                Only super admins can change user roles.
             </p>
             <form method="post" action="/users/{{ target_user.id }}/update-role" class="space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -160,7 +160,7 @@
                 {% if not target_user.has_password %}
                 <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md">
                     <p class="text-xs text-amber-800 dark:text-amber-300">
-                        <br><strong>Note:</strong> This user has no password. If disconnected from IdP, they will need a password set or new IdP assigned after reactivation.
+                        <strong>Note:</strong> This user has no password. If disconnected from IdP, they will need a password set or new IdP assigned after reactivation.
                     </p>
                 </div>
                 {% endif %}

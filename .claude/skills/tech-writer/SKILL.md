@@ -54,6 +54,9 @@ the current state of the application.
 | Confirmation dialogs | `WeftUtils.confirm()` message strings |
 | Tooltip text | `title` attributes |
 | Email templates | If any exist in `app/templates/` |
+| Page structure | Heading hierarchy, section grouping, information flow |
+| Information density | Sections mixing unrelated concerns |
+| Task flow | Whether page order matches the user's natural workflow |
 
 ### Copy Principles
 
@@ -87,6 +90,25 @@ the current state of the application.
 9. **Be specific about consequences.** "Users whose sessions exceed the new limit will be
    signed out on their next request" is better than "Changes apply immediately."
 
+10. **Structure pages for scanability.** Review the hierarchical organization of each page:
+    heading levels should form a clear outline, related controls should be grouped visually,
+    and the most important information should come first. A page with five ungrouped form
+    fields and a wall of help text fails even if every sentence is well-written.
+
+11. **Control information density.** Each section of a page should carry one idea. If a
+    settings panel mixes unrelated concerns (e.g., session timeout next to certificate
+    validity next to MFA policy), the user has to hold too much context at once. Flag
+    pages where the grouping doesn't match the user's mental model of the task.
+
+12. **Hierarchy signals meaning.** Heading levels, whitespace, dividers, and indentation
+    tell the user what belongs together and what's subordinate. If two sections at the same
+    heading level have vastly different weight or scope, the hierarchy is lying. Flag it.
+
+13. **Flow follows the task.** The order of sections on a page should match the order the
+    user thinks about the task. Setup before configuration. Configuration before danger
+    zone. Required fields before optional ones. If the page order fights the natural
+    workflow, flag it even if the copy is fine.
+
 ### Terminology Glossary
 
 Maintain consistency with these terms (check `app/templates/` for the canonical usage):
@@ -116,6 +138,9 @@ If you find inconsistencies in the glossary vs. actual usage, flag them.
 - Missing empty states or error messages
 - Copy that is technically wrong (describes behavior that doesn't match the code)
 - Labels or messages that are hardcoded in Python instead of templates
+- Page structure problems (sections that mix unrelated concerns, heading hierarchy
+  that misrepresents the content, page flow that fights the user's task order).
+  These require template restructuring beyond copy changes.
 
 ### Issue Format
 

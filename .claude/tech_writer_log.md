@@ -80,3 +80,57 @@ Target tone: security settings pages (short, direct, front-loaded, no filler).
 ### Screenshots Requested
 
 None.
+
+---
+
+## 2026-03-08 - Structural IA Review + Copy Fixes
+
+**Starting commit:** b610395
+**Mode:** Copy review (structural focus per user request)
+
+### Skill Definition Updated
+
+- **SKILL.md**: Added principles 10-13 (page scanability, information density, hierarchy signals meaning, task flow). Added structural concerns to "What to Review" table and "What Goes to ISSUES.md" section.
+
+### Direct Copy Fixes
+
+1. **user_detail_tab_profile.html:89** - "super administrators" → "super admins" (glossary consistency)
+2. **user_detail_tab_profile.html:162** - Removed stray `<br>` tag before `<strong>Note:</strong>` in amber warning box
+
+### Structural Issues Logged to ISSUES.md
+
+1. **Dead template: groups_detail_tab_danger.html** - Not referenced by any router. The group detail base only renders a "Delete" tab. Nearly identical code to groups_detail_tab_delete.html. Recommend deletion.
+2. **Branding global: form spans two visual sections** - Site Title and Display Mode share a single `<form>` but have separate H2 headings and border-t separators, creating misleading visual hierarchy.
+3. **User profile tab: read-only info at same visual weight as edit sections** - Five H2 sections with identical border-t separation. Read-only User Information grid uses same weight as edit forms. No task-based grouping.
+4. **Branding global: logo requirements note at page bottom** - Blue info box with format/size requirements appears after all upload sections. Users hit validation errors before seeing constraints.
+
+### Structural Observations (Not Logged)
+
+These patterns were reviewed and found acceptable or debatable:
+
+- **Privileged domains: dense cards** - Domain cards pack binding + group linking + metadata. Dense but appropriate for the admin audience managing multiple domains.
+- **SAML trust establishment: nested tabs** - URL/XML/Manual tabs inside a card within the page-level tab bar. Creates visual hierarchy ambiguity, but the numbered steps (1, 2) provide enough orientation.
+- **IdP/SP tab bars: destructive tab alongside operational** - Delete/Disable tab at the end of the tab bar. Common pattern (GitHub, AWS console). The red styling provides sufficient visual distinction.
+- **Group membership tab: high complexity** - Search, filtering, sorting, pagination, multiselect, inherited members all in one view. Complex but the list manager pattern keeps it consistent with other list views.
+- **Settings profile: multiple H1 per card** - Unusual heading hierarchy but each card is a visually independent section. Works in practice.
+- **Duplicate pagination controls** (top + bottom) - Standard pattern for long tables. Acceptable.
+
+### Full Structural Review Coverage
+
+All 82 templates reviewed for:
+- Heading hierarchy (H1/H2/H3 usage and consistency)
+- Section grouping and logical separation
+- Information density per section
+- Help text proportionality to complexity
+- Task flow alignment (does page order match user workflow?)
+- Mixed concerns (unrelated content in same section)
+
+### Areas Not Yet Reviewed
+
+- API error response messages (app/routers/api/)
+- Service layer error messages (app/services/exceptions.py usage)
+- Documentation site (Mode 2 not run)
+
+### Screenshots Requested
+
+None.

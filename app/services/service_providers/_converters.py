@@ -32,7 +32,10 @@ def _row_to_config(row: dict) -> SPConfig:
 
 
 def _row_to_list_item(
-    row: dict, signing_cert_expires_at=None, assigned_group_count: int = 0
+    row: dict,
+    signing_cert_expires_at=None,
+    assigned_group_count: int = 0,
+    user_access_count: int = 0,
 ) -> SPListItem:
     """Convert database row to SPListItem schema."""
     return SPListItem(
@@ -44,5 +47,6 @@ def _row_to_list_item(
         available_to_all=row.get("available_to_all", False),
         signing_cert_expires_at=signing_cert_expires_at,
         assigned_group_count=assigned_group_count,
+        user_access_count=user_access_count,
         created_at=row["created_at"],
     )

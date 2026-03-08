@@ -128,6 +128,35 @@ class TestListAPI:
         assert len(data["items"]) == 1
         assert data["items"][0]["name"] == "API App"
 
+    def test_list_includes_user_access_count(self, sp_api_client, api_host):
+        """API response includes user_access_count field."""
+        sp_list = SPListResponse(
+            items=[
+                SPListItem(
+                    id=str(uuid4()),
+                    name="Access Count App",
+                    entity_id="https://access.example.com",
+                    assigned_group_count=3,
+                    user_access_count=15,
+                    created_at=datetime.now(UTC),
+                ),
+            ],
+            total=1,
+        )
+        with patch(
+            "services.service_providers.list_service_providers",
+            return_value=sp_list,
+        ):
+            response = sp_api_client.get(
+                "/api/v1/service-providers/",
+                headers={"Host": api_host},
+            )
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["user_access_count"] == 15
+        assert item["assigned_group_count"] == 3
+
     def test_list_unauthenticated(self, client, api_host):
         """Unauthenticated requests return 401."""
         response = client.get(

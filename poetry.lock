@@ -2603,14 +2603,14 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "resend"
-version = "2.21.0"
+version = "2.23.0"
 description = "Resend Python SDK"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "resend-2.21.0-py2.py3-none-any.whl", hash = "sha256:906d1916298e7b6b9a0f2a8e81a123f12cda5fd07683ecbfa53b54e8ec58f5f4"},
-    {file = "resend-2.21.0.tar.gz", hash = "sha256:765288c2015c2c4dd0fb3c8596af4007709b790336eda2966593194377546d11"},
+    {file = "resend-2.23.0-py2.py3-none-any.whl", hash = "sha256:eca6d28a1ffd36c1fc489fa83cb6b511f384792c9f07465f7c92d96c8b4d5636"},
+    {file = "resend-2.23.0.tar.gz", hash = "sha256:df613827dcc40eb1c9de2e5ff600cd4081b89b206537dec8067af1a5016d23c7"},
 ]
 
 [package.dependencies]
@@ -3303,4 +3303,4 @@ pyyaml = ">=6.0.2"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "8f188e7dbbd2d6a8c64ca68be4e8ec5c7bc0fe9a759ab00ae6e2092d89da3799"
+content-hash = "f5e7ffbf627ccd45d031ce89460411a42d51d6d7d5463258b64c490842b84af1"

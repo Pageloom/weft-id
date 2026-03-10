@@ -4,6 +4,36 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups: Customizable Acronym
+
+**Status:** Complete
+
+**Summary:** Groups can now have an optional custom acronym (up to 4 characters) that overrides the auto-generated initials in avatars. The acronym is stored in a new nullable `acronym` column on the `groups` table, exposed through all layers (database, service, API, web forms, templates), and rendered by the updated `group-avatar.js`. IdP groups remain read-only. Also fixed missing `has_logo`/`logo_updated_at` mapping in service layer converters.
+
+**Acceptance Criteria:**
+
+- [x] Add `acronym` column to `groups` table (nullable, max 4 Unicode characters)
+- [x] Migration adds the column with a `CHECK` constraint on character count
+- [x] Column included in group query results
+- [x] `GroupCreate` and `GroupUpdate` schemas accept optional `acronym` field (max 4 chars)
+- [x] Setting acronym to empty string or null clears the override
+- [x] Group create and update services handle the field
+- [x] API endpoints (`POST /api/v1/groups`, `PATCH /api/v1/groups/{id}`) accept the field
+- [x] Event log metadata includes acronym when set or cleared
+- [x] IdP groups cannot have custom acronyms (read-only)
+- [x] Group Detail "Details" tab shows an acronym input field below the name field
+- [x] Field shows placeholder text indicating it is optional
+- [x] `generateGroupAcronym()` uses the custom acronym when `data-acronym-override` is provided
+- [x] Acronym avatar font size adjusts for 4-character acronyms (17px)
+- [x] Group list, group graph, and relationship graph displays respect the custom acronym
+- [x] Service tests for setting, updating, and clearing the acronym
+- [x] Validation tests for length constraints
+- [x] API integration tests for create and update with acronym
+- [x] Verify auto-generated acronym is used when custom is null/empty
+- [x] Database integration tests for CRUD and query inclusion
+
+---
+
 ## Groups: Remove Mandala Avatar Option
 
 **Status:** Complete

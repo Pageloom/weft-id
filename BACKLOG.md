@@ -387,54 +387,6 @@ Documentation updates:
 ---
 
 
-## Groups: Remove Mandala Avatar Option
-
-**User Story:**
-As a developer
-I want to remove the mandala option from group avatar styles
-So that we simplify the codebase and standardize on the acronym avatar
-
-**Context:**
-
-Groups currently support two avatar styles: mandala (generative art from the group UUID) and
-acronym (letter-based, derived from the group name). The mandala option adds complexity with
-limited value. Removing it simplifies the frontend and reduces the number of code paths.
-
-Scope: groups only. The tenant-level site logo mandala generator (`app/utils/mandala.py`)
-stays, as it serves a different purpose.
-
-**Acceptance Criteria:**
-
-Enum and migration:
-- [ ] Remove `MANDALA = "mandala"` from `GroupAvatarStyle` enum
-- [ ] Migration updates any tenant with `group_avatar_style = 'mandala'` to `'acronym'`
-- [ ] Migration updates the `CHECK` constraint on the column to exclude `'mandala'`
-
-Templates:
-- [ ] Remove mandala rendering branch from group list template
-- [ ] Remove mandala rendering branch from group detail template
-- [ ] Remove mandala rendering branch from group graph template
-- [ ] Remove mandala radio option from `settings_branding_groups.html`
-
-JavaScript:
-- [ ] Remove `generateGroupMandala()` from `static/js/group-mandala.js`
-- [ ] Keep `generateGroupAcronym()` (still needed for groups and SP acronym avatars)
-- [ ] Rename `group-mandala.js` to `group-avatar.js`
-- [ ] Update all `<script>` references to the renamed file
-
-Backend:
-- [ ] Keep `app/utils/mandala.py` (still used for site logo)
-- [ ] Remove any mandala-specific service or template logic for groups
-
-Tests:
-- [ ] Existing tests continue to pass after enum and template changes
-- [ ] Verify migration correctly converts existing `'mandala'` rows to `'acronym'`
-
-**Effort:** S
-**Value:** Low
-
----
-
 ## Groups: Customizable Acronym
 
 **User Story:**

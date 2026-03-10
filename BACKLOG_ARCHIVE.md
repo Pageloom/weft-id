@@ -4,6 +4,32 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Groups: Remove Mandala Avatar Option
+
+**Status:** Complete
+
+**Summary:** Removed the mandala option from group avatar styles. Groups now always use the acronym (letter-based) avatar. Migration converts existing mandala rows to acronym and replaces the PostgreSQL enum with a text column plus CHECK constraint. The JS file is renamed from `group-mandala.js` to `group-avatar.js` with the mandala generator removed. The avatar style selector on the branding settings page is replaced with informational text. The router endpoint for changing avatar style is removed.
+
+**Acceptance Criteria:**
+
+- [x] Remove `MANDALA = "mandala"` from `GroupAvatarStyle` enum
+- [x] Migration updates any tenant with `group_avatar_style = 'mandala'` to `'acronym'`
+- [x] Migration updates the `CHECK` constraint on the column to exclude `'mandala'`
+- [x] Remove mandala rendering branch from group list template
+- [x] Remove mandala rendering branch from group detail template
+- [x] Remove mandala rendering branch from group graph template
+- [x] Remove mandala radio option from `settings_branding_groups.html`
+- [x] Remove `generateGroupMandala()` from `static/js/group-mandala.js`
+- [x] Keep `generateGroupAcronym()` (still needed for groups and SP acronym avatars)
+- [x] Rename `group-mandala.js` to `group-avatar.js`
+- [x] Update all `<script>` references to the renamed file
+- [x] Keep `app/utils/mandala.py` (still used for site logo)
+- [x] Remove any mandala-specific service or template logic for groups
+- [x] Existing tests continue to pass after enum and template changes
+- [x] Verify migration correctly converts existing `'mandala'` rows to `'acronym'`
+
+---
+
 ## Service Provider List: User Access Count
 
 **Status:** Complete

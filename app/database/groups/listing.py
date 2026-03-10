@@ -79,7 +79,8 @@ def list_groups(
     return fetchall(
         tenant_id,
         f"""
-        select g.id, g.name, g.description, g.group_type, g.idp_id, g.is_valid, g.created_at,
+        select g.id, g.name, g.description, g.acronym, g.group_type,
+               g.idp_id, g.is_valid, g.created_at,
                idp.name as idp_name,
                (select count(*) from group_memberships gm where gm.group_id = g.id) as member_count,
                (select count(*) from group_relationships gr
@@ -114,7 +115,7 @@ def list_all_groups_for_graph(tenant_id: TenantArg) -> dict:
     groups = fetchall(
         tenant_id,
         """
-        select g.id, g.name, g.group_type,
+        select g.id, g.name, g.acronym, g.group_type,
                (idp_match.id is not null) as is_umbrella,
                (select count(*) from group_memberships gm
                 where gm.group_id = g.id) as member_count,

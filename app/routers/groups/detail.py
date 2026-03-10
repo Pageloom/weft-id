@@ -59,6 +59,7 @@ def _load_group_common(requesting_user, group_id):
         "group": {
             "id": group.id,
             "name": group.name,
+            "acronym": group.acronym,
             "group_type": group.group_type,
             "parent_count": group.parent_count,
             "child_count": group.child_count,
@@ -369,12 +370,13 @@ def update_group(
     group_id: str,
     name: Annotated[str, Form()],
     description: Annotated[str, Form()] = "",
+    acronym: Annotated[str, Form()] = "",
 ):
     """Update group details."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
-        group_data = GroupUpdate(name=name, description=description)
+        group_data = GroupUpdate(name=name, description=description, acronym=acronym)
         groups_service.update_group(requesting_user, group_id, group_data)
     except (ValidationError, ConflictError, NotFoundError) as exc:
         return RedirectResponse(

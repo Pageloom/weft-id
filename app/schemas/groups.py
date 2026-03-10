@@ -15,6 +15,9 @@ class GroupCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=200, description="Group name")
     description: str | None = Field(None, max_length=2000, description="Optional group description")
+    acronym: str | None = Field(
+        None, max_length=4, description="Custom acronym override (1-4 chars)"
+    )
 
 
 class GroupUpdate(BaseModel):
@@ -23,6 +26,9 @@ class GroupUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=200, description="Group name")
     description: str | None = Field(
         None, max_length=2000, description="Group description (empty string to clear)"
+    )
+    acronym: str | None = Field(
+        None, max_length=4, description="Custom acronym override (empty string to clear)"
     )
 
 
@@ -34,6 +40,7 @@ class GroupSummary(BaseModel):
     id: str = Field(..., description="Group UUID")
     name: str = Field(..., description="Group name")
     description: str | None = Field(None, description="Group description")
+    acronym: str | None = Field(None, description="Custom acronym override (up to 4 chars)")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     idp_id: str | None = Field(None, description="Source IdP UUID (for IdP groups)")
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
@@ -58,6 +65,7 @@ class GroupDetail(BaseModel):
     id: str = Field(..., description="Group UUID")
     name: str = Field(..., description="Group name")
     description: str | None = Field(None, description="Group description")
+    acronym: str | None = Field(None, description="Custom acronym override (up to 4 chars)")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     idp_id: str | None = Field(None, description="Source IdP UUID (for IdP groups)")
     idp_name: str | None = Field(None, description="Source IdP name (for IdP groups)")
@@ -342,6 +350,7 @@ class GroupGraphNode(BaseModel):
 
     id: str = Field(..., description="Group UUID")
     name: str = Field(..., description="Group name")
+    acronym: str | None = Field(None, description="Custom acronym override")
     group_type: str = Field(..., description="Group type (weftid or idp)")
     is_umbrella: bool = Field(False, description="Whether this group is an IdP umbrella group")
     member_count: int = Field(0, description="Number of direct members")

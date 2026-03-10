@@ -19,6 +19,7 @@ def _row_to_summary(row: dict) -> GroupSummary:
         id=str(row["id"]),
         name=row["name"],
         description=row.get("description"),
+        acronym=row.get("acronym"),
         group_type=row["group_type"],
         idp_id=str(row["idp_id"]) if row.get("idp_id") else None,
         idp_name=row.get("idp_name"),
@@ -28,6 +29,8 @@ def _row_to_summary(row: dict) -> GroupSummary:
         child_count=row.get("child_count", 0),
         effective_member_count=row.get("effective_member_count", 0),
         sp_count=row.get("sp_count", 0),
+        has_logo=bool(row.get("has_logo", False)),
+        logo_updated_at=row.get("logo_updated_at"),
         created_at=row["created_at"],
     )
 
@@ -38,6 +41,7 @@ def _row_to_detail(row: dict) -> GroupDetail:
         id=str(row["id"]),
         name=row["name"],
         description=row.get("description"),
+        acronym=row.get("acronym"),
         group_type=row["group_type"],
         idp_id=str(row["idp_id"]) if row.get("idp_id") else None,
         idp_name=row.get("idp_name"),
@@ -46,6 +50,8 @@ def _row_to_detail(row: dict) -> GroupDetail:
         effective_member_count=row.get("effective_member_count", 0),
         parent_count=row.get("parent_count", 0),
         child_count=row.get("child_count", 0),
+        has_logo=bool(row.get("has_logo", False)),
+        logo_updated_at=row.get("logo_updated_at"),
         created_by=str(row["created_by"]) if row.get("created_by") else None,
         created_at=row["created_at"],
         updated_at=row["updated_at"],

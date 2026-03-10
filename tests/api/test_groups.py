@@ -170,6 +170,228 @@ def test_create_group_name_required(make_user_dict, override_api_auth):
         assert response.status_code == 400
 
 
+def test_create_group_with_acronym(make_user_dict, override_api_auth):
+    """Admin can create a group with a custom acronym."""
+    admin = make_user_dict(role="admin")
+
+    mock_group = GroupDetail(
+        id=str(uuid4()),
+        name="Human Resources",
+        description=None,
+        acronym="HR",
+        group_type="weftid",
+        is_valid=True,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_by=str(admin["id"]),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.create_group.return_value = mock_group
+
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/groups",
+            json={"name": "Human Resources", "acronym": "HR"},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["acronym"] == "HR"
+
+
+def test_create_group_acronym_too_long(make_user_dict, override_api_auth):
+    """Acronym exceeding 4 chars is rejected by schema validation."""
+    admin = make_user_dict(role="admin")
+
+    override_api_auth(admin)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/groups",
+        json={"name": "Test Group", "acronym": "TOOLONG"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_group_with_acronym(make_user_dict, override_api_auth):
+    """Admin can update a group's acronym."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=group_id,
+        name="Operations",
+        description=None,
+        acronym="OPS",
+        group_type="weftid",
+        is_valid=True,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.update_group.return_value = mock_group
+
+        client = TestClient(app)
+        response = client.patch(
+            f"/api/v1/groups/{group_id}",
+            json={"acronym": "OPS"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["acronym"] == "OPS"
+
+        # Verify service was called with acronym in GroupUpdate
+        call_args = mock_svc.update_group.call_args
+        group_data = call_args[0][2]  # 3rd positional arg
+        assert group_data.acronym == "OPS"
+
+
+def test_update_group_clear_acronym(make_user_dict, override_api_auth):
+    """Admin can clear a group's acronym with empty string."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=group_id,
+        name="Operations",
+        description=None,
+        acronym=None,
+        group_type="weftid",
+        is_valid=True,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.update_group.return_value = mock_group
+
+        client = TestClient(app)
+        response = client.patch(
+            f"/api/v1/groups/{group_id}",
+            json={"acronym": ""},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["acronym"] is None
+
+
+def test_get_group_includes_acronym(make_user_dict, override_api_auth):
+    """Group detail response includes acronym field."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_group = GroupDetail(
+        id=group_id,
+        name="Engineering",
+        description=None,
+        acronym="ENGR",
+        group_type="weftid",
+        is_valid=True,
+        member_count=0,
+        parent_count=0,
+        child_count=0,
+        created_by=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group.return_value = mock_group
+
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}")
+
+        assert response.status_code == 200
+        assert response.json()["acronym"] == "ENGR"
+
+
+def test_list_groups_includes_acronym(make_user_dict, override_api_auth):
+    """Group list response includes acronym field."""
+    admin = make_user_dict(role="admin")
+
+    mock_response = GroupListResponse(
+        items=[
+            GroupSummary(
+                id=str(uuid4()),
+                name="Engineering",
+                acronym="ENGR",
+                group_type="weftid",
+                is_valid=True,
+                member_count=5,
+                created_at=datetime.now(UTC),
+            )
+        ],
+        total=1,
+        page=1,
+        limit=25,
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_groups.return_value = mock_response
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups")
+
+        assert response.status_code == 200
+        assert response.json()["items"][0]["acronym"] == "ENGR"
+
+
+def test_graph_data_includes_acronym(make_user_dict, override_api_auth):
+    """Graph node response includes acronym field."""
+    admin = make_user_dict(role="admin")
+    group_id = str(uuid4())
+
+    mock_data = GroupGraphData(
+        nodes=[
+            GroupGraphNode(
+                id=group_id,
+                name="IT Support",
+                acronym="IT",
+                group_type="weftid",
+                member_count=3,
+                effective_member_count=3,
+            )
+        ],
+        edges=[],
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.get_group_graph_data.return_value = mock_data
+
+        client = TestClient(app)
+        response = client.get("/api/v1/groups/graph")
+
+        assert response.status_code == 200
+        assert response.json()["nodes"][0]["acronym"] == "IT"
+
+
 # =============================================================================
 # Get Group Tests
 # =============================================================================

@@ -163,12 +163,15 @@ def create_group(
             field="name",
         )
 
+    acronym = group_data.acronym.strip() if group_data.acronym else None
+
     # Create group (also creates self-referential lineage entry)
     result = database.groups.create_group(
         tenant_id=tenant_id,
         tenant_id_value=tenant_id,
         name=name,
         description=group_data.description,
+        acronym=acronym,
         created_by=requesting_user["id"],
     )
 
@@ -181,13 +184,17 @@ def create_group(
     group_id = str(result["id"])
 
     # Log event
+    metadata: dict = {"name": name}
+    if acronym:
+        metadata["acronym"] = acronym
+
     log_event(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
         artifact_type="group",
         artifact_id=group_id,
         event_type="group_created",
-        metadata={"name": name},
+        metadata=metadata,
     )
 
     # Fetch and return
@@ -258,20 +265,31 @@ def update_group(
                     field="name",
                 )
 
+    # Process acronym if provided
+    acronym = database.groups._SENTINEL
+    if group_data.acronym is not None:
+        acronym = group_data.acronym.strip() or None
+
     # Update
     database.groups.update_group(
         tenant_id=tenant_id,
         group_id=group_id,
         name=name,
         description=group_data.description,
+        acronym=acronym,
     )
 
     # Log event
-    changes = {}
+    changes: dict = {}
     if name is not None and name != existing["name"]:
         changes["name"] = {"old": existing["name"], "new": name}
     if group_data.description is not None:
         changes["description"] = {"old": existing.get("description"), "new": group_data.description}
+    if group_data.acronym is not None:
+        new_acronym = group_data.acronym.strip() or None
+        old_acronym = existing.get("acronym")
+        if new_acronym != old_acronym:
+            changes["acronym"] = {"old": old_acronym, "new": new_acronym}
 
     log_event(
         tenant_id=tenant_id,
@@ -374,6 +392,7 @@ def get_group_graph_data(requesting_user: RequestingUser) -> GroupGraphData:
         GroupGraphNode(
             id=str(row["id"]),
             name=row["name"],
+            acronym=row.get("acronym"),
             group_type=row["group_type"],
             is_umbrella=bool(row.get("is_umbrella", False)),
             member_count=row.get("member_count", 0),

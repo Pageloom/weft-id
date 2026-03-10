@@ -325,6 +325,129 @@ def test_create_group_fetch_after_create_fails(make_requesting_user):
         assert exc_info.value.code == "fetch_failed"
 
 
+def test_create_group_with_acronym(make_requesting_user):
+    """Test creating a group with a custom acronym."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(user_id=user_id, tenant_id=tenant_id, role="admin")
+
+    group_data = GroupCreate(name="Human Resources", acronym="HR")
+
+    mock_created = {"id": group_id}
+    mock_group = {
+        "id": group_id,
+        "name": "Human Resources",
+        "description": None,
+        "acronym": "HR",
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": user_id,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
+    ):
+        mock_db.groups.get_weftid_group_by_name.return_value = None
+        mock_db.groups.create_group.return_value = mock_created
+        mock_db.groups.get_group_by_id.return_value = mock_group
+
+        result = groups_service.create_group(requesting_user, group_data)
+
+        assert result.acronym == "HR"
+        # Verify acronym was passed to database
+        call_kwargs = mock_db.groups.create_group.call_args[1]
+        assert call_kwargs["acronym"] == "HR"
+        # Verify acronym in event metadata
+        log_kwargs = mock_log.call_args[1]
+        assert log_kwargs["metadata"]["acronym"] == "HR"
+
+
+def test_create_group_acronym_stripped(make_requesting_user):
+    """Test that acronym whitespace is stripped by the service layer."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    # Leading space within max_length limit
+    group_data = GroupCreate(name="Test Group", acronym=" HR ")
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event"),
+    ):
+        mock_db.groups.get_weftid_group_by_name.return_value = None
+        mock_db.groups.create_group.return_value = {"id": group_id}
+        mock_db.groups.get_group_by_id.return_value = {
+            "id": group_id,
+            "name": "Test Group",
+            "acronym": "HR",
+            "group_type": "weftid",
+            "idp_id": None,
+            "is_valid": True,
+            "member_count": 0,
+            "parent_count": 0,
+            "child_count": 0,
+            "created_by": None,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+
+        groups_service.create_group(requesting_user, group_data)
+
+        call_kwargs = mock_db.groups.create_group.call_args[1]
+        assert call_kwargs["acronym"] == "HR"
+
+
+def test_create_group_empty_acronym_becomes_none(make_requesting_user):
+    """Test that empty acronym string is stored as None."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_data = GroupCreate(name="Test Group", acronym="")
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event"),
+    ):
+        mock_db.groups.get_weftid_group_by_name.return_value = None
+        mock_db.groups.create_group.return_value = {"id": group_id}
+        mock_db.groups.get_group_by_id.return_value = {
+            "id": group_id,
+            "name": "Test Group",
+            "acronym": None,
+            "group_type": "weftid",
+            "idp_id": None,
+            "is_valid": True,
+            "member_count": 0,
+            "parent_count": 0,
+            "child_count": 0,
+            "created_by": None,
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+        }
+
+        result = groups_service.create_group(requesting_user, group_data)
+
+        call_kwargs = mock_db.groups.create_group.call_args[1]
+        assert call_kwargs["acronym"] is None
+        assert result.acronym is None
+
+
 # =============================================================================
 # Update Group Tests
 # =============================================================================
@@ -487,6 +610,170 @@ def test_update_group_fetch_after_update_fails(make_requesting_user):
             groups_service.update_group(requesting_user, group_id, group_data)
 
         assert exc_info.value.code == "group_not_found"
+
+
+def test_update_group_set_acronym(make_requesting_user):
+    """Test setting a custom acronym on a group."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_data = GroupUpdate(acronym="OPS")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Operations",
+        "description": None,
+        "acronym": None,
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+    mock_updated = {**mock_existing, "acronym": "OPS"}
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_existing, mock_updated]
+        mock_db.groups.update_group.return_value = 1
+
+        result = groups_service.update_group(requesting_user, group_id, group_data)
+
+        assert result.acronym == "OPS"
+        # Verify acronym change logged
+        log_kwargs = mock_log.call_args[1]
+        changes = log_kwargs["metadata"]["changes"]
+        assert "acronym" in changes
+        assert changes["acronym"]["old"] is None
+        assert changes["acronym"]["new"] == "OPS"
+
+
+def test_update_group_clear_acronym(make_requesting_user):
+    """Test clearing an acronym by setting empty string."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_data = GroupUpdate(acronym="")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Operations",
+        "description": None,
+        "acronym": "OPS",
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+    mock_updated = {**mock_existing, "acronym": None}
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_existing, mock_updated]
+        mock_db.groups.update_group.return_value = 1
+
+        result = groups_service.update_group(requesting_user, group_id, group_data)
+
+        assert result.acronym is None
+        # Verify acronym change logged
+        log_kwargs = mock_log.call_args[1]
+        changes = log_kwargs["metadata"]["changes"]
+        assert "acronym" in changes
+        assert changes["acronym"]["old"] == "OPS"
+        assert changes["acronym"]["new"] is None
+
+
+def test_update_group_acronym_not_in_changes_when_unchanged(make_requesting_user):
+    """Test that acronym is not logged as changed when value is the same."""
+    from services import groups as groups_service
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_data = GroupUpdate(acronym="OPS")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "Operations",
+        "description": None,
+        "acronym": "OPS",
+        "group_type": "weftid",
+        "idp_id": None,
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with (
+        patch("services.groups.crud.database") as mock_db,
+        patch("services.groups.crud.log_event") as mock_log,
+    ):
+        mock_db.groups.get_group_by_id.side_effect = [mock_existing, mock_existing]
+        mock_db.groups.update_group.return_value = 1
+
+        groups_service.update_group(requesting_user, group_id, group_data)
+
+        # No changes, so metadata should be None
+        log_kwargs = mock_log.call_args[1]
+        assert log_kwargs["metadata"] is None
+
+
+def test_update_group_idp_group_rejected(make_requesting_user):
+    """Test that IdP groups cannot have acronym set."""
+    from services import groups as groups_service
+    from services.exceptions import ForbiddenError
+
+    tenant_id = str(uuid4())
+    group_id = str(uuid4())
+    requesting_user = make_requesting_user(tenant_id=tenant_id, role="admin")
+
+    group_data = GroupUpdate(acronym="IDG")
+
+    mock_existing = {
+        "id": group_id,
+        "name": "IdP Group",
+        "description": None,
+        "acronym": None,
+        "group_type": "idp",
+        "idp_id": str(uuid4()),
+        "is_valid": True,
+        "member_count": 0,
+        "parent_count": 0,
+        "child_count": 0,
+        "created_by": None,
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
+    }
+
+    with patch("services.groups.crud.database") as mock_db:
+        mock_db.groups.get_group_by_id.return_value = mock_existing
+
+        with pytest.raises(ForbiddenError):
+            groups_service.update_group(requesting_user, group_id, group_data)
 
 
 # =============================================================================

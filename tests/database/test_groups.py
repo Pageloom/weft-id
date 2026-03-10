@@ -206,6 +206,136 @@ def test_update_group(test_tenant):
     assert group["description"] == "Updated description"
 
 
+def test_create_group_with_acronym(test_tenant):
+    """Test creating a group with a custom acronym."""
+    import database
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Human Resources",
+        acronym="HR",
+    )
+
+    group = database.groups.get_group_by_id(test_tenant["id"], result["id"])
+    assert group is not None
+    assert group["acronym"] == "HR"
+
+
+def test_create_group_without_acronym(test_tenant):
+    """Test creating a group without acronym defaults to None."""
+    import database
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="No Acronym Group",
+    )
+
+    group = database.groups.get_group_by_id(test_tenant["id"], result["id"])
+    assert group is not None
+    assert group["acronym"] is None
+
+
+def test_update_group_set_acronym(test_tenant):
+    """Test setting an acronym on an existing group."""
+    import database
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Operations",
+    )
+
+    database.groups.update_group(
+        tenant_id=test_tenant["id"],
+        group_id=result["id"],
+        acronym="OPS",
+    )
+
+    group = database.groups.get_group_by_id(test_tenant["id"], result["id"])
+    assert group["acronym"] == "OPS"
+
+
+def test_update_group_clear_acronym(test_tenant):
+    """Test clearing an acronym by setting it to empty string."""
+    import database
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Engineering",
+        acronym="ENGR",
+    )
+
+    # Clear by passing empty string (DB function converts to None)
+    database.groups.update_group(
+        tenant_id=test_tenant["id"],
+        group_id=result["id"],
+        acronym="",
+    )
+
+    group = database.groups.get_group_by_id(test_tenant["id"], result["id"])
+    assert group["acronym"] is None
+
+
+def test_update_group_acronym_not_touched_when_sentinel(test_tenant):
+    """Test that acronym is not changed when sentinel is used."""
+    import database
+
+    result = database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="IT Department",
+        acronym="IT",
+    )
+
+    # Update name only, acronym should remain
+    database.groups.update_group(
+        tenant_id=test_tenant["id"],
+        group_id=result["id"],
+        name="IT Department Renamed",
+    )
+
+    group = database.groups.get_group_by_id(test_tenant["id"], result["id"])
+    assert group["name"] == "IT Department Renamed"
+    assert group["acronym"] == "IT"
+
+
+def test_acronym_in_list_groups(test_tenant):
+    """Test that acronym is returned in list_groups results."""
+    import database
+
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Quality Assurance",
+        acronym="QA",
+    )
+
+    rows = database.groups.list_groups(test_tenant["id"])
+    qa_groups = [r for r in rows if r["name"] == "Quality Assurance"]
+    assert len(qa_groups) == 1
+    assert qa_groups[0]["acronym"] == "QA"
+
+
+def test_acronym_in_graph_groups(test_tenant):
+    """Test that acronym is returned in graph group data."""
+    import database
+
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Sales Team",
+        acronym="SLS",
+    )
+
+    data = database.groups.list_all_groups_for_graph(test_tenant["id"])
+    sales_groups = [g for g in data["groups"] if g["name"] == "Sales Team"]
+    assert len(sales_groups) == 1
+    assert sales_groups[0]["acronym"] == "SLS"
+
+
 def test_delete_group(test_tenant):
     """Test deleting a group."""
     import database

@@ -1,36 +1,45 @@
-/* Deterministic acronym avatar generation from a group UUID + name. */
+/* Deterministic acronym avatar generation from a group UUID + name.
+ * An optional acronymOverride parameter bypasses the auto-generation
+ * and uses the custom acronym directly (up to 4 characters). */
 (function (global) {
-  function generateGroupAcronym(id, name) {
-    var hex = id.replace(/-/g, '');
-    function h(o, l) { return parseInt(hex.slice(o, o + l), 16) || 0; }
+  function generateGroupAcronym(id, name, acronymOverride) {
+    const hex = id.replace(/-/g, '');
+    const h = (o, l) => parseInt(hex.slice(o, o + l), 16) || 0;
 
-    var hue = h(0, 4) % 360;
-    var sat = 55 + h(4, 2) % 20;   // 55-74
-    var lit = 38 + h(6, 2) % 16;   // 38-53
+    const hue = h(0, 4) % 360;
+    const sat = 55 + h(4, 2) % 20;   // 55-74
+    const lit = 38 + h(6, 2) % 16;   // 38-53
 
-    var bg   = 'hsl(' + hue + ',' + sat + '%,90%)';
-    var dark = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
+    const bg   = 'hsl(' + hue + ',' + sat + '%,90%)';
+    const dark = 'hsl(' + hue + ',' + sat + '%,' + lit + '%)';
 
-    // Derive initials: first letter of each alphabetic word, up to 3 chars, uppercase.
-    // "&" sitting between two alpha words is kept as a connector (e.g. "I&C", "B&P").
-    // Leading/trailing "&" and non-alpha non-& tokens are skipped.
-    var words = (name || '').trim().split(/\s+/);
-    var initials = '';
-    for (var i = 0; i < words.length && initials.length < 3; i++) {
-      if (/^[A-Za-z]/.test(words[i])) {
-        initials += words[i][0].toUpperCase();
-      } else if (
-        words[i] === '&' &&
-        initials.length > 0 &&
-        i + 1 < words.length &&
-        /^[A-Za-z]/.test(words[i + 1])
-      ) {
-        initials += '&';
+    let initials;
+    if (acronymOverride) {
+      // Use custom acronym as-is (already validated server-side to <= 4 chars)
+      initials = acronymOverride.toUpperCase();
+    } else {
+      // Derive initials: first letter of each alphabetic word, up to 3 chars, uppercase.
+      // "&" sitting between two alpha words is kept as a connector (e.g. "I&C", "B&P").
+      // Leading/trailing "&" and non-alpha non-& tokens are skipped.
+      const words = (name || '').trim().split(/\s+/);
+      initials = '';
+      for (let i = 0; i < words.length && initials.length < 3; i++) {
+        if (/^[A-Za-z]/.test(words[i])) {
+          initials += words[i][0].toUpperCase();
+        } else if (
+          words[i] === '&' &&
+          initials.length > 0 &&
+          i + 1 < words.length &&
+          /^[A-Za-z]/.test(words[i + 1])
+        ) {
+          initials += '&';
+        }
       }
+      if (!initials) { initials = '?'; }
     }
-    if (!initials) { initials = '?'; }
 
-    var fontSize = initials.length === 1 ? 36 : initials.length === 2 ? 28 : 22;
+    const len = initials.length;
+    const fontSize = len === 1 ? 36 : len === 2 ? 28 : len === 3 ? 22 : 17;
 
     // Measure the actual glyph bounding box so the SVG baseline is placed at
     // exactly the right position to centre the caps in the circle.
@@ -40,18 +49,18 @@
     // This puts the glyph's visual centre on the circle's centre (y=32)
     // regardless of font metrics or letter count.  Falls back to 32 if the
     // Canvas API is unavailable.
-    var textY = 32;
+    let textY = 32;
     try {
-      var _c = document.createElement('canvas').getContext('2d');
+      const _c = document.createElement('canvas').getContext('2d');
       _c.font = '700 ' + fontSize + 'px system-ui, sans-serif';
-      var _m = _c.measureText(initials); // raw string — canvas works with real text
+      const _m = _c.measureText(initials); // raw string — canvas works with real text
       textY = 32 + (_m.actualBoundingBoxAscent - _m.actualBoundingBoxDescent) / 2;
     } catch (e) {}
 
     // Escape & for SVG XML; the canvas measurement above used the raw string.
-    var svgText = initials.replace(/&/g, '&amp;');
+    const svgText = initials.replace(/&/g, '&amp;');
 
-    var svg =
+    const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">' +
       '<circle cx="32" cy="32" r="32" fill="' + bg + '"/>' +
       '<text x="32" y="' + textY.toFixed(2) + '" text-anchor="middle"' +

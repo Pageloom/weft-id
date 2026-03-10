@@ -247,7 +247,7 @@
                                 <img src="/branding/group-logo/{{ group.id }}{% if group.logo_updated_at %}?v={{ group.logo_updated_at.timestamp() | int }}{% endif %}" width="32" height="32"
                                      class="rounded-full shrink-0 border border-gray-200 dark:border-gray-700" alt="">
                                 {% else %}
-                                <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
+                                <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"{% if group.acronym %} data-acronym-override="{{ group.acronym }}"{% endif %}
                                      width="32" height="32" class="rounded-full shrink-0" alt="">
                                 {% endif %}
                                 <span>
@@ -335,7 +335,7 @@
   if (btnGraph) { btnGraph.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'graph'); }); }
 })();
 document.querySelectorAll('[data-acronym]').forEach((el) => {
-  const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
+  const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'), el.dataset.acronymOverride);
   el.src = v.image;
 });
 const { tenantId, pageSize } = JSON.parse(document.getElementById('page-data-list').textContent);
@@ -525,7 +525,7 @@ WeftUtils.listManager({
           const logoV = n.logo_updated_at ? Math.floor(Date.parse(n.logo_updated_at) / 1000) : 0;
           vis = {color: '#9ca3af', image: `/branding/group-logo/${n.id}${logoV ? `?v=${logoV}` : ''}`};
         } else {
-          vis = generateGroupAcronym(n.id, n.name);
+          vis = generateGroupAcronym(n.id, n.name, n.acronym);
         }
         const elem = {data: {
           id: n.id,

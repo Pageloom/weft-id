@@ -17,7 +17,7 @@ def get_group_by_id(tenant_id: TenantArg, group_id: str) -> dict | None:
     return fetchone(
         tenant_id,
         """
-        select g.id, g.tenant_id, g.name, g.description, g.group_type,
+        select g.id, g.tenant_id, g.name, g.description, g.acronym, g.group_type,
                g.idp_id, idp.name as idp_name, g.is_valid, g.created_by,
                g.created_at, g.updated_at,
                (select count(*) from group_memberships gm
@@ -64,6 +64,7 @@ def create_group(
     tenant_id_value: str,
     name: str,
     description: str | None = None,
+    acronym: str | None = None,
     group_type: str = "weftid",
     created_by: str | None = None,
 ) -> dict | None:
@@ -79,14 +80,18 @@ def create_group(
         # Create the group
         cur.execute(
             """
-            insert into groups (tenant_id, name, description, group_type, created_by)
-            values (%(tenant_id)s, %(name)s, %(description)s, %(group_type)s, %(created_by)s)
+            insert into groups
+                (tenant_id, name, description, acronym, group_type, created_by)
+            values
+                (%(tenant_id)s, %(name)s, %(description)s, %(acronym)s,
+                 %(group_type)s, %(created_by)s)
             returning id
             """,
             {
                 "tenant_id": tenant_id_value,
                 "name": name,
                 "description": description,
+                "acronym": acronym,
                 "group_type": group_type,
                 "created_by": created_by,
             },
@@ -109,11 +114,15 @@ def create_group(
         return {"id": group_id}
 
 
+_SENTINEL = object()
+
+
 def update_group(
     tenant_id: TenantArg,
     group_id: str,
     name: str | None = None,
     description: str | None = None,
+    acronym: object = _SENTINEL,
 ) -> int:
     """Update group metadata."""
     updates = []
@@ -127,6 +136,11 @@ def update_group(
     if description is not None:
         updates.append("description = :description")
         params["description"] = description if description else None
+
+    # Allow empty string or None to clear acronym
+    if acronym is not _SENTINEL:
+        updates.append("acronym = :acronym")
+        params["acronym"] = acronym if acronym else None
 
     if not updates:
         return 0

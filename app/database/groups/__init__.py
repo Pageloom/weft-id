@@ -1,6 +1,7 @@
 """Group database operations with transactional lineage maintenance."""
 
 from database.groups.core import (
+    _SENTINEL,
     create_group,
     delete_group,
     get_group_by_id,
@@ -63,6 +64,7 @@ from database.groups.selection import (
 
 __all__ = [
     # core
+    "_SENTINEL",
     "get_group_by_id",
     "get_group_by_name",
     "get_weftid_group_by_name",

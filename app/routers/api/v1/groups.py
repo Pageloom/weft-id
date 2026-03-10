@@ -207,6 +207,7 @@ def update_group(
     Request body (all fields optional):
         name: Group name
         description: Group description (empty string to clear)
+        acronym: Custom acronym override, up to 4 chars (empty string to clear)
 
     Returns:
         Updated group details

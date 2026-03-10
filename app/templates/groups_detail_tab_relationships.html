@@ -283,17 +283,17 @@
     const centerX = W / 2;
     const elements = [];
 
-    const resolveGroupVis = (id, name, hasLogo, logoVersion) => {
+    const resolveGroupVis = (id, name, hasLogo, logoVersion, acronym) => {
         if (hasLogo) {
             const suffix = logoVersion ? `?v=${logoVersion}` : '';
             return {color: '#9ca3af', image: `/branding/group-logo/${id}${suffix}`};
         } else {
-            return generateGroupAcronym(id, name);
+            return generateGroupAcronym(id, name, acronym);
         }
     };
 
     // Center node (current group)
-    const centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo, data.group.logo_version);
+    const centerVis = resolveGroupVis(data.group.id, data.group.name, data.group.has_logo, data.group.logo_version, data.group.acronym);
     elements.push({
         data: {
             id: data.group.id,

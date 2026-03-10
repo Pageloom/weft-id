@@ -752,19 +752,11 @@ class TestGroupLogoDelete:
 
 
 class TestGroupAvatarStyle:
-    def test_update_group_avatar_style_to_acronym(self, test_tenant, test_admin_user):
-        """Admin can change group avatar style to acronym."""
+    def test_group_avatar_style_is_acronym(self, test_tenant, test_admin_user):
+        """Group avatar style is always acronym."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
-
-        # Set mandala first so there is a real style change to log
-        branding_service.update_branding_settings(
-            ru,
-            BrandingSettingsUpdate(
-                logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
-            ),
-        )
 
         update = BrandingSettingsUpdate(
             logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
@@ -772,56 +764,6 @@ class TestGroupAvatarStyle:
         result = branding_service.update_branding_settings(ru, update)
 
         assert result.group_avatar_style == GroupAvatarStyle.ACRONYM
-        _verify_event_logged(str(test_tenant["id"]), "group_avatar_style_updated")
-
-    def test_update_group_avatar_style_to_mandala(self, test_tenant, test_admin_user):
-        """Admin can change group avatar style back to mandala."""
-        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-
-        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
-
-        # Set to acronym first
-        update = BrandingSettingsUpdate(
-            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.ACRONYM
-        )
-        branding_service.update_branding_settings(ru, update)
-
-        # Switch back to mandala
-        update2 = BrandingSettingsUpdate(
-            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
-        )
-        result = branding_service.update_branding_settings(ru, update2)
-
-        assert result.group_avatar_style == GroupAvatarStyle.MANDALA
-
-    def test_no_extra_event_when_style_unchanged(self, test_tenant, test_admin_user):
-        """Does not log group_avatar_style_updated when style doesn't change."""
-        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
-
-        from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode
-
-        # Set initial state
-        update = BrandingSettingsUpdate(
-            logo_mode=LogoMode.MANDALA, group_avatar_style=GroupAvatarStyle.MANDALA
-        )
-        branding_service.update_branding_settings(ru, update)
-
-        # Count existing style events
-        events_before = [
-            e
-            for e in database.event_log.list_events(str(test_tenant["id"]), limit=20)
-            if e["event_type"] == "group_avatar_style_updated"
-        ]
-
-        # Same style update
-        branding_service.update_branding_settings(ru, update)
-
-        events_after = [
-            e
-            for e in database.event_log.list_events(str(test_tenant["id"]), limit=20)
-            if e["event_type"] == "group_avatar_style_updated"
-        ]
-        assert len(events_after) == len(events_before)
 
     def test_get_branding_for_template_includes_group_avatar_style(
         self, test_tenant, test_admin_user

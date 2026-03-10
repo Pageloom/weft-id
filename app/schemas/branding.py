@@ -16,7 +16,6 @@ class LogoMode(StrEnum):
 class GroupAvatarStyle(StrEnum):
     """Avatar style for group icons."""
 
-    MANDALA = "mandala"
     ACRONYM = "acronym"
 
 

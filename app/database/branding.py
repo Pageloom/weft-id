@@ -150,7 +150,7 @@ def update_branding_settings(
         use_logo_as_favicon: Whether to use logo as favicon
         site_title: Custom site title (None = use default)
         show_title_in_nav: Whether to show title in nav bar
-        group_avatar_style: 'mandala' or 'acronym'
+        group_avatar_style: 'acronym'
 
     Returns:
         Number of rows affected

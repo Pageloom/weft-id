@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child
 from pydantic import ValidationError as PydanticValidationError
-from schemas.branding import BrandingSettingsUpdate, GroupAvatarStyle, LogoMode, LogoSlot
+from schemas.branding import BrandingSettingsUpdate, LogoMode, LogoSlot
 from schemas.settings import (
     DomainGroupLinkCreate,
     PrivilegedDomainCreate,
@@ -651,48 +651,6 @@ def update_branding_settings(
 
     return RedirectResponse(
         url="/admin/settings/branding/global?success=settings_updated",
-        status_code=303,
-    )
-
-
-@router.post("/branding/groups/settings")
-def update_group_avatar_style(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    group_avatar_style: Annotated[str, Form()],
-):
-    """Update the tenant group avatar style setting."""
-    requesting_user = build_requesting_user(user, tenant_id, request)
-
-    # Retrieve current settings to preserve global branding values
-    try:
-        current = branding_service.get_branding_settings(requesting_user)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    try:
-        settings_data = BrandingSettingsUpdate(
-            logo_mode=current.logo_mode,
-            use_logo_as_favicon=current.use_logo_as_favicon,
-            site_title=current.site_title,
-            show_title_in_nav=current.show_title_in_nav,
-            group_avatar_style=GroupAvatarStyle(group_avatar_style),
-        )
-    except (ValueError, PydanticValidationError):
-        return render_error_page(
-            request,
-            tenant_id,
-            ValidationError(message="Invalid group avatar style", code="validation_error"),
-        )
-
-    try:
-        branding_service.update_branding_settings(requesting_user, settings_data)
-    except ServiceError as exc:
-        return render_error_page(request, tenant_id, exc)
-
-    return RedirectResponse(
-        url="/admin/settings/branding/groups?success=style_updated",
         status_code=303,
     )
 

@@ -246,12 +246,9 @@
                                 {% if group.has_logo %}
                                 <img src="/branding/group-logo/{{ group.id }}{% if group.logo_updated_at %}?v={{ group.logo_updated_at.timestamp() | int }}{% endif %}" width="32" height="32"
                                      class="rounded-full shrink-0 border border-gray-200 dark:border-gray-700" alt="">
-                                {% elif branding.group_avatar_style == 'acronym' %}
+                                {% else %}
                                 <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
                                      width="32" height="32" class="rounded-full shrink-0" alt="">
-                                {% else %}
-                                <img data-mandala="{{ group.id }}" width="32" height="32"
-                                     class="rounded-full shrink-0" alt="">
                                 {% endif %}
                                 <span>
                                     <a href="/admin/groups/{{ group.id }}" class="text-sm font-medium {% if group.is_valid %}text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300{% else %}text-gray-500 hover:text-gray-700 dark:text-gray-400{% endif %}">
@@ -317,7 +314,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ static_url('js/group-mandala.js') }}"></script>
+<script src="{{ static_url('js/group-avatar.js') }}"></script>
 {% if view == 'list' %}
 <script type="application/json" id="page-data-list">
 { "tenantId": {{ user.tenant_id | string | tojson }}, "pageSize": {{ pagination.page_size }} }
@@ -337,10 +334,6 @@
   if (btnList) { btnList.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'list'); }); }
   if (btnGraph) { btnGraph.addEventListener('click', () => { localStorage.setItem('weft-groups-view', 'graph'); }); }
 })();
-document.querySelectorAll('[data-mandala]').forEach((el) => {
-  const v = generateGroupMandala(el.getAttribute('data-mandala'));
-  el.src = v.image;
-});
 document.querySelectorAll('[data-acronym]').forEach((el) => {
   const v = generateGroupAcronym(el.getAttribute('data-acronym'), el.getAttribute('data-name'));
   el.src = v.image;
@@ -358,9 +351,6 @@ WeftUtils.listManager({
 <script src="{{ static_url('js/cytoscape.min.js') }}" integrity="sha384-H3uzGzTfGHUAumB8+s4GEdfFwzAceN9wCCndN8AXubWKFIPuBSWKKtWDx7RhSf/z" nonce="{{ csp_nonce }}"></script>
 <script src="{{ static_url('js/dagre.min.js') }}" integrity="sha384-2IH3T69EIKYC4c+RXZifZRvaH5SRUdacJW7j6HtE5rQbvLhKKdawxq6vpIzJ7j9M" nonce="{{ csp_nonce }}"></script>
 <script src="{{ static_url('js/cytoscape-dagre.min.js') }}" integrity="sha384-u69h9ebXeSjlg6q/rb1zKTRAGu/h8deCl0409xpS/QJctMKnc4M9Fzkm01VOQdeF" nonce="{{ csp_nonce }}"></script>
-<script type="application/json" id="page-data-graph">
-{ "groupAvatarStyle": {{ branding.group_avatar_style | tojson }} }
-</script>
 <script nonce="{{ csp_nonce }}">
 (function() {
   // localStorage redirect
@@ -529,16 +519,13 @@ WeftUtils.listManager({
         (directChildrenOf[n.id] || []).forEach((childId) => { nodeParent[childId] = clusterId; });
       });
 
-      const { groupAvatarStyle } = JSON.parse(document.getElementById('page-data-graph').textContent);
       const elements = data.nodes.map((n) => {
         let vis;
         if (n.has_logo) {
           const logoV = n.logo_updated_at ? Math.floor(Date.parse(n.logo_updated_at) / 1000) : 0;
           vis = {color: '#9ca3af', image: `/branding/group-logo/${n.id}${logoV ? `?v=${logoV}` : ''}`};
-        } else if (groupAvatarStyle === 'acronym') {
-          vis = generateGroupAcronym(n.id, n.name);
         } else {
-          vis = generateGroupMandala(n.id);
+          vis = generateGroupAcronym(n.id, n.name);
         }
         const elem = {data: {
           id: n.id,

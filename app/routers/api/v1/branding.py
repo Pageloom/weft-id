@@ -97,7 +97,7 @@ def update_branding(
     - use_logo_as_favicon: Use custom logo as favicon (default false)
     - site_title: Custom site title, max 30 chars (optional, null to clear)
     - show_title_in_nav: Show title in navigation bar (default true)
-    - group_avatar_style: Default avatar style for group icons (default acronym)
+    - group_avatar_style: Avatar style for group icons (acronym)
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
 

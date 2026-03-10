@@ -6,44 +6,8 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
     <h1 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Group Branding</h1>
 
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Configure how group avatars are displayed. Custom logos for individual groups can be uploaded from each group's detail page.
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Groups display a colored circle with initials derived from the group name. Custom logos for individual groups can be uploaded from each group's detail page.
     </p>
-
-    {# ---- Avatar Style ---- #}
-    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
-        <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Default Avatar Style</h2>
-
-        <form method="post" action="/admin/settings/branding/groups/settings">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-            <div class="mb-6 space-y-3">
-                <label class="flex items-center">
-                    <input type="radio" name="group_avatar_style" value="acronym"
-                           {% if branding_settings.group_avatar_style == 'acronym' %}checked{% endif %}
-                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
-                    <span class="ml-2">
-                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Acronym</span>
-                        <span class="block text-sm text-gray-500 dark:text-gray-400">Colored circle with initials from the group name</span>
-                    </span>
-                </label>
-
-                <label class="flex items-center">
-                    <input type="radio" name="group_avatar_style" value="mandala"
-                           {% if branding_settings.group_avatar_style == 'mandala' %}checked{% endif %}
-                           class="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
-                    <span class="ml-2">
-                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mandala</span>
-                        <span class="block text-sm text-gray-500 dark:text-gray-400">Unique geometric pattern derived from the group ID</span>
-                    </span>
-                </label>
-            </div>
-
-            <button type="submit"
-                    class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">
-                Save Style
-            </button>
-        </form>
-    </div>
 </div>
 {% endblock %}

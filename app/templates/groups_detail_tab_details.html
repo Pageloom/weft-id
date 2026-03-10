@@ -71,11 +71,8 @@
             <img src="/branding/group-logo/{{ group.id }}{% if group.logo_updated_at %}?v={{ group.logo_updated_at.timestamp() | int }}{% endif %}"
                  width="48" height="48"
                  class="rounded-full border border-gray-200 dark:border-gray-700" alt="Group logo">
-            {% elif branding.group_avatar_style == 'acronym' %}
-            <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
-                 width="48" height="48" class="rounded-full" alt="">
             {% else %}
-            <img data-mandala="{{ group.id }}"
+            <img data-acronym="{{ group.id }}" data-name="{{ group.name }}"
                  width="48" height="48" class="rounded-full" alt="">
             {% endif %}
             <div>
@@ -119,12 +116,9 @@
 </div>
 
 {% block tab_scripts %}
-<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-avatar.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
-    document.querySelectorAll('img[data-mandala]').forEach((img) => {
-        img.src = generateGroupMandala(img.dataset.mandala).image;
-    });
     document.querySelectorAll('img[data-acronym]').forEach((img) => {
         img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
     });

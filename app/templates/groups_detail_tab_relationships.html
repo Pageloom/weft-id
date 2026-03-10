@@ -271,14 +271,10 @@
 
 {% block tab_scripts %}
 <script nonce="{{ csp_nonce }}" src="{{ static_url('js/cytoscape.min.js') }}"></script>
-<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-mandala.js') }}"></script>
-<script type="application/json" id="page-data">
-{ "groupAvatarStyle": {{ branding.group_avatar_style | tojson }} }
-</script>
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-avatar.js') }}"></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
     const data = JSON.parse(document.getElementById('neighborhood-data').textContent);
-    const { groupAvatarStyle } = JSON.parse(document.getElementById('page-data').textContent);
     const isDark = document.documentElement.classList.contains('dark');
     const container = document.getElementById('cy-neighborhood');
 
@@ -291,10 +287,8 @@
         if (hasLogo) {
             const suffix = logoVersion ? `?v=${logoVersion}` : '';
             return {color: '#9ca3af', image: `/branding/group-logo/${id}${suffix}`};
-        } else if (groupAvatarStyle === 'acronym') {
-            return generateGroupAcronym(id, name);
         } else {
-            return generateGroupMandala(id);
+            return generateGroupAcronym(id, name);
         }
     };
 

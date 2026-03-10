@@ -432,10 +432,6 @@ def update_branding_settings(
             field="site_title",
         )
 
-    # Check if group_avatar_style is changing so we can log it separately
-    previous_style = current_row["group_avatar_style"] if current_row else "acronym"
-    new_style = settings.group_avatar_style.value
-
     database.branding.update_branding_settings(
         tenant_id=requesting_user["tenant_id"],
         tenant_id_value=requesting_user["tenant_id"],
@@ -443,7 +439,7 @@ def update_branding_settings(
         use_logo_as_favicon=settings.use_logo_as_favicon,
         site_title=site_title,
         show_title_in_nav=settings.show_title_in_nav,
-        group_avatar_style=new_style,
+        group_avatar_style=settings.group_avatar_style.value,
     )
 
     log_event(
@@ -457,19 +453,8 @@ def update_branding_settings(
             "use_logo_as_favicon": settings.use_logo_as_favicon,
             "site_title": site_title,
             "show_title_in_nav": settings.show_title_in_nav,
-            "group_avatar_style": new_style,
         },
     )
-
-    if new_style != previous_style:
-        log_event(
-            tenant_id=requesting_user["tenant_id"],
-            actor_user_id=requesting_user["id"],
-            event_type="group_avatar_style_updated",
-            artifact_type="tenant_branding",
-            artifact_id=requesting_user["tenant_id"],
-            metadata={"from": previous_style, "to": new_style},
-        )
 
     return get_branding_settings(requesting_user)
 

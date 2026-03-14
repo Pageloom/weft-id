@@ -208,6 +208,7 @@ Resolved poetry.lock conflict by regenerating after cherry-pick.
   breaking change forces an adjustment, which should be called out explicitly)
 - Does not close PRs that dependabot will auto-close (already-merged ones)
 - Does not read ISSUES.md or BACKLOG.md
+- There are two Docker ecosystem entries in `.github/dependabot.yml` (dev at `/app`, production at `/`). Base image bumps may arrive as pairs.
 
 ---
 

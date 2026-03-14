@@ -68,6 +68,11 @@ Request → Router → Service → Database → PostgreSQL
 | `app/templates/icons/` | SVG icon files (19 Heroicons outline, viewable as images) |
 | `static/js/utils.js` | Shared `WeftUtils` JS object (modals, sticky bars, clipboard, locale) |
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
+| `app/version.py` | Runtime version via `importlib.metadata` (falls back to baked-in `VERSION` file) |
+| `VERSIONING.md` | Semver policy: patch/minor/major definitions, identity-specific rules |
+| `Dockerfile` | Production multi-stage build (GHCR images, no dev deps) |
+| `app/Dockerfile` | Dev build (used by `docker-compose.yml`) |
+| `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
@@ -283,6 +288,22 @@ All JavaScript in this project targets **ES2020** (`const`/`let`, arrow function
 Group list and detail pages use Cytoscape.js (`static/js/cytoscape.min.js`) for interactive graph views. Key rule: **always initialize Cytoscape on a visible container.** If the graph is inside a hidden tab, defer initialization to `requestAnimationFrame` after the tab becomes visible. Initializing on a hidden container results in a zero-size layout with no error.
 
 Graph layouts are persisted to the database via `PUT /api/v1/groups/graph/layout`.
+
+## Versioning & Release
+
+The canonical version lives in `pyproject.toml`. `app/version.py` exposes it at runtime via
+`importlib.metadata`, falling back to a baked-in `VERSION` file in production images (where the
+package isn't installed with `--no-root`). See `VERSIONING.md` for the full policy.
+
+**Two Dockerfiles:**
+- `app/Dockerfile` — dev build (all deps, dev entrypoint with `--reload`, used by `docker-compose.yml`)
+- `Dockerfile` (root) — production multi-stage build (main deps only, no dev scripts, OCI labels)
+
+Changes to the dev Dockerfile may need mirroring in the production one if they affect dependencies,
+static assets, or the app directory structure.
+
+**Release flow:** bump version in `pyproject.toml`, tag `v1.2.3` on main, push the tag. The GHCR
+workflow validates the tag matches `pyproject.toml`, then builds and pushes to `ghcr.io/pageloom/weft-id`.
 
 ## Background Jobs
 

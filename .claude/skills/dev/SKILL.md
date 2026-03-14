@@ -77,6 +77,12 @@ Lists with bulk actions (e.g., group member management) follow additional rules:
 
 **Reference templates:** `groups_members.html` (remove pattern), `groups_members_add.html` (add pattern).
 
+## Versioning & Docker
+
+- **Two Dockerfiles:** `app/Dockerfile` (dev) and `Dockerfile` at the project root (production). If you change dependencies, static asset paths, or the `app/` directory structure in the dev Dockerfile, check whether the production Dockerfile needs the same change.
+- **Version bumps:** Change the version in `pyproject.toml`, then run `poetry install` to update the installed package metadata. `app/version.py` reads from `importlib.metadata` in dev and falls back to a baked-in `VERSION` file in production images.
+- **SAML assertion changes are major bumps.** See `VERSIONING.md` for the full policy on what constitutes patch, minor, and major changes. Identity-specific rules exist because seemingly minor SAML changes can silently break federation trust.
+
 ## Continuous Development
 
 **During active development**, use watch mode for immediate feedback:

@@ -223,8 +223,7 @@ docs/
     # when ENABLE_OPENAPI_DOCS=true. This section covers authentication, conventions,
     # and usage patterns, NOT endpoint-by-endpoint reference.
   self-hosting/
-    index.md                        # Self-hosting overview
-    # Content comes from the self-hosting backlog items when complete
+    index.md                        # Self-hosting: Docker image, requirements, configuration, database
 ```
 
 ### Documentation Principles
@@ -246,7 +245,9 @@ docs/
 5. **Stay current.** Every documentation page should reflect the current state of the
    application. When reviewing changes since last run, update affected documentation pages.
 
-6. **Link, don't repeat.** If the same concept appears in multiple guides (e.g., MFA in
+6. **Keep self-hosting docs current.** `docs/self-hosting/index.md` documents the GHCR image URL, available tags, and configuration. `VERSIONING.md` (repo root, not in `docs/`) documents the semver policy. When release infrastructure changes, update both.
+
+7. **Link, don't repeat.** If the same concept appears in multiple guides (e.g., MFA in
    both admin and user guide), write it once and link to it.
 
 ### Workflow for Documentation Updates

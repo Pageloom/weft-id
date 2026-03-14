@@ -265,7 +265,7 @@ All SVG icons are centralized in `app/templates/icons/` as pure, valid SVG files
 
 No import needed. `icon()` is a Jinja2 global available in all templates. It reads the SVG file and injects the provided HTML attributes (`class`, `id`, etc.) onto the `<svg>` element.
 
-Available icons (all Heroicons outline): `arrow-right`, `arrows-up-down`, `check`, `check-circle`, `chevron-down`, `chevron-right`, `chevron-up`, `clipboard`, `download`, `envelope`, `exclamation-circle`, `exclamation-triangle`, `information-circle`, `pencil`, `server-stack`, `shield-check`, `squares-plus`, `user`, `x-mark`.
+Available icons (all Heroicons outline): `arrow-path`, `arrow-right`, `arrows-pointing-in`, `arrows-pointing-out`, `arrows-up-down`, `check`, `check-circle`, `chevron-down`, `chevron-right`, `chevron-up`, `clipboard`, `cursor-arrow-rays`, `download`, `envelope`, `exclamation-circle`, `exclamation-triangle`, `information-circle`, `link`, `link-slash`, `pencil`, `server-stack`, `shield-check`, `squares-plus`, `user`, `user-group-plus`, `x-mark`.
 
 To add a new icon: create `app/templates/icons/<name>.svg` as a valid SVG with `xmlns="http://www.w3.org/2000/svg"`. Use Heroicons outline paths with `viewBox="0 0 24 24"`. The `icon()` function handles attribute injection at render time.
 

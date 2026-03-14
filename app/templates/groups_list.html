@@ -76,48 +76,54 @@
         <!-- Graph View -->
         <div id="graph-wrapper">
             <div id="graph-toolbar" class="mb-3 flex items-center gap-3">
-                <button id="btn-add-rel" type="button"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                <button id="btn-add-rel" type="button" title="Add relationship"
+                        class="px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
                                hover:bg-gray-50 dark:hover:bg-gray-600">
-                    &#x22B8; Add Relationship
+                    {{ icon("link", class="w-5 h-5") }}
                 </button>
-                <button id="btn-cut-rel" type="button"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                <button id="btn-cut-rel" type="button" title="Cut relationship"
+                        class="px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
                                hover:bg-gray-50 dark:hover:bg-gray-600">
-                    &#x2702; Cut Relationship
+                    {{ icon("link-slash", class="w-5 h-5") }}
+                </button>
+                <button id="btn-new-group" type="button" title="New group"
+                        class="px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                               bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
+                               hover:bg-gray-50 dark:hover:bg-gray-600">
+                    {{ icon("user-group-plus", class="w-5 h-5") }}
                 </button>
                 <span id="rel-hint" class="hidden text-sm text-amber-600 dark:text-amber-400">
-                    Click a child node and drag to its parent
+                    Click a group and drag to its new parent
                 </span>
                 <span id="cut-hint" class="hidden text-sm text-red-600 dark:text-red-400">
                     Click a relationship line to remove it
                 </span>
-                <button id="btn-layout-mode" type="button"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                <button id="btn-layout-mode" type="button" title="Edit layout"
+                        class="px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
                                hover:bg-gray-50 dark:hover:bg-gray-600">
-                    &#x270E; Edit Layout
+                    {{ icon("cursor-arrow-rays", class="w-5 h-5") }}
                 </button>
-                <button id="btn-save-layout" type="button"
-                        class="hidden px-3 py-1.5 text-sm font-medium rounded-md border border-blue-600
+                <button id="btn-save-layout" type="button" title="Save layout"
+                        class="hidden px-2.5 py-1.5 text-sm font-medium rounded-md border border-blue-600
                                bg-blue-600 text-white hover:bg-blue-700">
-                    Save Layout
+                    {{ icon("check", class="w-5 h-5") }}
                 </button>
-                <button id="btn-reset-layout" type="button"
-                        class="hidden px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                <button id="btn-reset-layout" type="button" title="Reset layout"
+                        class="hidden px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
                                bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
                                hover:bg-gray-50 dark:hover:bg-gray-600">
-                    &#x21BA; Reset Layout
+                    {{ icon("arrow-path", class="w-5 h-5") }}
                 </button>
-                <button id="btn-cancel-layout" type="button"
-                        class="hidden px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400
+                <button id="btn-cancel-layout" type="button" title="Cancel layout edit"
+                        class="hidden px-2.5 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400
                                hover:text-gray-800 dark:hover:text-gray-200">
-                    Cancel
+                    {{ icon("x-mark", class="w-5 h-5") }}
                 </button>
                 <span id="layout-hint" class="hidden text-sm text-blue-600 dark:text-blue-400">
-                    Drag to reposition. Nodes snap to grid.
+                    Drag to reposition.
                 </span>
                 {# Classes only referenced via JS — listed here so Tailwind includes them in the build #}
                 <span class="hidden bg-amber-500 border-amber-500 bg-red-500 border-red-500 bg-blue-600 border-blue-600 hover:bg-blue-700"></span>
@@ -139,16 +145,47 @@
                             &plus;
                         </button>
                     </div>
-                    <button id="btn-fullscreen" type="button"
-                            class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
+                    <button id="btn-fullscreen" type="button" title="Fullscreen"
+                            class="px-2.5 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600
                                    bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300
                                    hover:bg-gray-50 dark:hover:bg-gray-600">
-                        Fullscreen
+                        <span id="icon-fs-expand">{{ icon("arrows-pointing-out", class="w-5 h-5") }}</span>
+                        <span id="icon-fs-collapse" class="hidden">{{ icon("arrows-pointing-in", class="w-5 h-5") }}</span>
                     </button>
                 </div>
             </div>
             <div id="cy-container" class="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
                 <div id="cy" style="height: 600px; width: 100%; position: relative;"></div>
+            </div>
+        </div>
+
+        <!-- New Group Modal -->
+        <div id="new-group-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-gray-900 dark:bg-opacity-70 hidden items-center justify-center z-[10050]">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">New Group</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="new-group-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                        <input type="text" id="new-group-name" maxlength="200" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="new-group-description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span class="text-gray-400 font-normal">(optional)</span></label>
+                        <textarea id="new-group-description" maxlength="2000" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                    <div id="new-group-error" class="hidden text-sm text-red-600 dark:text-red-400"></div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button id="new-group-cancel" type="button"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+                        Cancel
+                    </button>
+                    <button id="new-group-submit" type="button"
+                            class="px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                        Create
+                    </button>
+                </div>
             </div>
         </div>
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -388,21 +425,31 @@ WeftUtils.listManager({
       cyContainer.style.flex = '1';
       cyContainer.style.minHeight = '0';
       cyEl.style.height = '100%';
-      btn.textContent = '\u2715 Exit Fullscreen';
+      document.getElementById('icon-fs-expand').classList.add('hidden');
+      document.getElementById('icon-fs-collapse').classList.remove('hidden');
+      btn.title = 'Exit fullscreen';
       fsUrl.searchParams.set('fullscreen', '1');
     } else {
       wrapper.style.cssText = '';
       cyContainer.style.flex = '';
       cyContainer.style.minHeight = '';
       cyEl.style.height = '600px';
-      btn.textContent = '\u26F6 Fullscreen';
+      document.getElementById('icon-fs-expand').classList.remove('hidden');
+      document.getElementById('icon-fs-collapse').classList.add('hidden');
+      btn.title = 'Fullscreen';
       fsUrl.searchParams.delete('fullscreen');
     }
     history.replaceState(null, '', fsUrl.toString());
     requestAnimationFrame(() => { if (window._cy) { window._cy.resize(); window._cy.fit(undefined, 160); } });
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isFullscreen) { document.getElementById('btn-fullscreen').click(); }
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('new-group-modal');
+    if (modal && !modal.classList.contains('hidden')) {
+      WeftUtils.hideModal('new-group-modal');
+    } else if (isFullscreen) {
+      document.getElementById('btn-fullscreen').click();
+    }
   });
 
   // Relation line drawing state
@@ -1040,6 +1087,35 @@ WeftUtils.listManager({
         edgeLabels = [];
       }
 
+      function deoverlapLabels(labels, W, H, margin) {
+        labels.sort((a, b) => a.y - b.y || a.x - b.x);
+        for (let pass = 0; pass < 3; pass++) {
+          for (let i = 0; i < labels.length; i++) {
+            for (let j = i + 1; j < labels.length; j++) {
+              const a = labels[i], b = labels[j];
+              const overlapX = (a.hw + b.hw) - Math.abs(a.x - b.x);
+              const overlapY = (a.hh + b.hh) - Math.abs(a.y - b.y);
+              if (overlapX <= 0 || overlapY <= 0) continue;
+              // Push apart along the axis of minimum overlap
+              if (overlapX < overlapY) {
+                const shift = overlapX / 2 + 1;
+                if (a.x <= b.x) { a.x -= shift; b.x += shift; }
+                else { a.x += shift; b.x -= shift; }
+              } else {
+                const shift = overlapY / 2 + 1;
+                if (a.y <= b.y) { a.y -= shift; b.y += shift; }
+                else { a.y += shift; b.y -= shift; }
+              }
+              // Re-clamp to container bounds
+              a.x = Math.max(a.hw, Math.min(W - a.hw, a.x));
+              a.y = Math.max(a.hh, Math.min(H - a.hh, a.y));
+              b.x = Math.max(b.hw, Math.min(W - b.hw, b.x));
+              b.y = Math.max(b.hh, Math.min(H - b.hh, b.y));
+            }
+          }
+        }
+      }
+
       function applyOffViewportEdgeLabels() {
         clearEdgeLabels();
         if (!selectedNode) return;
@@ -1047,12 +1123,14 @@ WeftUtils.listManager({
         const H = cyEl.offsetHeight;
         const margin = 6;
 
+        // Pass 1: create labels and compute natural positions
+        const labelData = [];
         cy.edges('.parent-edge, .child-edge, .parent-edge-distant, .child-edge-distant').each((edge) => {
           const srcPos = edge.source().renderedPosition();
           const tgtPos = edge.target().renderedPosition();
           const srcIn = srcPos.x >= 0 && srcPos.x <= W && srcPos.y >= 0 && srcPos.y <= H;
           const tgtIn = tgtPos.x >= 0 && tgtPos.x <= W && tgtPos.y >= 0 && tgtPos.y <= H;
-          if (srcIn === tgtIn) return; // both in or both out — no boundary label needed
+          if (srcIn === tgtIn) return;
 
           const inPos   = srcIn ? srcPos : tgtPos;
           const outPos  = srcIn ? tgtPos : srcPos;
@@ -1061,7 +1139,6 @@ WeftUtils.listManager({
           const isParent = edge.hasClass('parent-edge') || edge.hasClass('parent-edge-distant');
           const color   = isParent ? '#f97316' : '#22c55e';
 
-          // Parametric t where the line crosses the container boundary
           const dx = outPos.x - inPos.x;
           const dy = outPos.y - inPos.y;
           let t = 1;
@@ -1070,7 +1147,6 @@ WeftUtils.listManager({
           if (dy < 0) t = Math.min(t, -inPos.y / dy);
           if (dy > 0) t = Math.min(t, (H - inPos.y) / dy);
 
-          // Place at 82% of the way to the boundary so it's clearly inside
           const lx = inPos.x + t * 0.82 * dx;
           const ly = inPos.y + t * 0.82 * dy;
 
@@ -1087,11 +1163,22 @@ WeftUtils.listManager({
           cyEl.appendChild(el);
           edgeLabels.push(el);
 
-          // Hard-clamp so the label never escapes the container
           const hw = el.offsetWidth  / 2 + margin;
           const hh = el.offsetHeight / 2 + margin;
-          el.style.left = `${Math.max(hw, Math.min(W - hw, lx))}px`;
-          el.style.top  = `${Math.max(hh, Math.min(H - hh, ly))}px`;
+          labelData.push({
+            el,
+            x: Math.max(hw, Math.min(W - hw, lx)),
+            y: Math.max(hh, Math.min(H - hh, ly)),
+            hw,
+            hh,
+          });
+        });
+
+        // Pass 2: de-overlap and apply final positions
+        deoverlapLabels(labelData, W, H, margin);
+        labelData.forEach((d) => {
+          d.el.style.left = `${d.x}px`;
+          d.el.style.top  = `${d.y}px`;
         });
       }
 
@@ -1122,6 +1209,7 @@ WeftUtils.listManager({
         cyEl.style.cursor = '';
         cancelRelDraw();
         document.getElementById('btn-layout-mode').classList.remove('hidden');
+        document.getElementById('btn-new-group').classList.remove('hidden');
       }
 
       function deactivateCutMode() {
@@ -1133,6 +1221,33 @@ WeftUtils.listManager({
         cy.edges().removeClass('cut-hover');
         cyEl.style.cursor = '';
         document.getElementById('btn-layout-mode').classList.remove('hidden');
+        document.getElementById('btn-new-group').classList.remove('hidden');
+      }
+
+      function showGrid() {
+        updateGridOverlay();
+        cy.on('viewport', updateGridOverlay);
+      }
+
+      function hideGrid() {
+        cy.off('viewport', updateGridOverlay);
+        cyEl.style.backgroundImage = '';
+        cyEl.style.backgroundSize = '';
+        cyEl.style.backgroundPosition = '';
+      }
+
+      function updateGridOverlay() {
+        const z = cy.zoom();
+        const p = cy.pan();
+        const gap = GRID * z;
+        const ox = p.x % gap;
+        const oy = p.y % gap;
+        const r = Math.max(1, Math.min(3, 1.5 * z));
+        const isDark = document.documentElement.classList.contains('dark');
+        const dot = isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)';
+        cyEl.style.backgroundImage = `radial-gradient(circle, ${dot} ${r}px, transparent ${r}px)`;
+        cyEl.style.backgroundSize = `${gap}px ${gap}px`;
+        cyEl.style.backgroundPosition = `${ox}px ${oy}px`;
       }
 
       function enterLayoutMode() {
@@ -1145,10 +1260,12 @@ WeftUtils.listManager({
         document.getElementById('btn-layout-mode').classList.add('hidden');
         document.getElementById('btn-add-rel').classList.add('hidden');
         document.getElementById('btn-cut-rel').classList.add('hidden');
+        document.getElementById('btn-new-group').classList.add('hidden');
         document.getElementById('btn-save-layout').classList.remove('hidden');
         document.getElementById('btn-reset-layout').classList.remove('hidden');
         document.getElementById('btn-cancel-layout').classList.remove('hidden');
         document.getElementById('layout-hint').classList.remove('hidden');
+        showGrid();
       }
 
       function exitLayoutMode(save) {
@@ -1165,10 +1282,12 @@ WeftUtils.listManager({
         document.getElementById('btn-layout-mode').classList.remove('hidden');
         document.getElementById('btn-add-rel').classList.remove('hidden');
         document.getElementById('btn-cut-rel').classList.remove('hidden');
+        document.getElementById('btn-new-group').classList.remove('hidden');
         document.getElementById('btn-save-layout').classList.add('hidden');
         document.getElementById('btn-reset-layout').classList.add('hidden');
         document.getElementById('btn-cancel-layout').classList.add('hidden');
         document.getElementById('layout-hint').classList.add('hidden');
+        hideGrid();
       }
 
       // Add Relationship mode toggle
@@ -1182,6 +1301,7 @@ WeftUtils.listManager({
           BTN_ADD_ACTIVE.forEach((c) => { this.classList.add(c); });
           document.getElementById('rel-hint').classList.remove('hidden');
           document.getElementById('btn-layout-mode').classList.add('hidden');
+          document.getElementById('btn-new-group').classList.add('hidden');
           cy.nodes().ungrabify();
           cy.userPanningEnabled(false);
           cyEl.style.cursor = 'crosshair';
@@ -1199,6 +1319,7 @@ WeftUtils.listManager({
           BTN_CUT_ACTIVE.forEach((c) => { this.classList.add(c); });
           document.getElementById('cut-hint').classList.remove('hidden');
           document.getElementById('btn-layout-mode').classList.add('hidden');
+          document.getElementById('btn-new-group').classList.add('hidden');
         }
       });
 
@@ -1225,6 +1346,84 @@ WeftUtils.listManager({
         cy.fit(undefined, 60);
       });
       document.getElementById('btn-cancel-layout').addEventListener('click', () => exitLayoutMode(false));
+
+      // New Group modal handlers
+      const newGroupBtn = document.getElementById('btn-new-group');
+      const newGroupModal = document.getElementById('new-group-modal');
+      const newGroupName = document.getElementById('new-group-name');
+      const newGroupDesc = document.getElementById('new-group-description');
+      const newGroupError = document.getElementById('new-group-error');
+
+      newGroupBtn.addEventListener('click', () => {
+        newGroupName.value = '';
+        newGroupDesc.value = '';
+        newGroupError.classList.add('hidden');
+        newGroupError.textContent = '';
+        if (relMode) deactivateAddMode();
+        if (cutMode) deactivateCutMode();
+        WeftUtils.showModal('new-group-modal');
+        newGroupName.focus();
+      });
+
+      document.getElementById('new-group-cancel').addEventListener('click', () => {
+        WeftUtils.hideModal('new-group-modal');
+      });
+
+      newGroupModal.addEventListener('click', function(e) {
+        if (e.target === this) WeftUtils.hideModal('new-group-modal');
+      });
+
+      newGroupName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('new-group-submit').click(); }
+      });
+
+      document.getElementById('new-group-submit').addEventListener('click', () => {
+        const name = newGroupName.value.trim();
+        if (!name) {
+          newGroupError.textContent = 'Name is required.';
+          newGroupError.classList.remove('hidden');
+          return;
+        }
+        const body = { name };
+        const desc = newGroupDesc.value.trim();
+        if (desc) body.description = desc;
+
+        WeftUtils.apiFetch('/api/v1/groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then((r) => {
+          if (!r.ok) return r.json().then((d) => { throw new Error(d.detail || 'Failed to create group'); });
+          return r.json();
+        }).then((group) => {
+          WeftUtils.hideModal('new-group-modal');
+          const vis = generateGroupAcronym(group.id, group.name, group.acronym);
+          // Compute viewport center in model coordinates, snapped to grid
+          const center = { x: cy.width() / 2, y: cy.height() / 2 };
+          const modelPos = {
+            x: Math.round(((center.x - cy.pan().x) / cy.zoom()) / GRID) * GRID,
+            y: Math.round(((center.y - cy.pan().y) / cy.zoom()) / GRID) * GRID,
+          };
+          const newNode = cy.add({
+            data: {
+              id: group.id,
+              label: group.name,
+              color: vis.color,
+              mandala: vis.image,
+              memberCount: 0,
+              effectiveMemberCount: 0,
+              groupType: 'weftid',
+            },
+            position: modelPos,
+          });
+          newNode.ungrabify();
+          currentNodeIds = cy.nodes().filter((n) => !n.data('isCluster')).map((n) => n.id()).sort().join(',');
+          selectNode(newNode);
+        }).catch((err) => {
+          newGroupError.textContent = err.message;
+          newGroupError.classList.remove('hidden');
+        });
+      });
 
       // Edge hover highlight in cut mode
       cy.on('mouseover', 'edge', (evt) => {

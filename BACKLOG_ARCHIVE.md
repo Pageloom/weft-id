@@ -4,6 +4,25 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Version Management Policy
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator (and as the development team)
+I want a documented versioning policy that defines what constitutes a patch, minor, and major release
+So that self-hosters can assess upgrade risk and the team has clear rules for when to bump which number
+
+**Acceptance Criteria:**
+
+- [x] Starting version chosen and set in `pyproject.toml` (1.0.0)
+- [x] Version accessible at runtime (`app/version.py` reads from installed package metadata)
+- [x] `VERSIONING.md` in repo root documents the policy (patch/minor/major definitions, identity-specific rules)
+- [x] Git tag convention documented: `v1.0.0` format, tags on main only
+- [x] Docker image labeled with version (`org.opencontainers.image.version`)
+
+---
+
 ## SAML SP: Encrypted Assertion Support
 
 **Status:** Complete

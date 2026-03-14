@@ -15,51 +15,7 @@ items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
 
 ---
 
-## 1. Version Management Policy
-
-**User Story:**
-As a platform operator (and as the development team)
-I want a documented versioning policy that defines what constitutes a patch, minor, and major release
-So that self-hosters can assess upgrade risk and the team has clear rules for when to bump which number
-
-**Context:**
-
-WeftId has no version number today. Before the code goes public, we need to decide on a
-starting version and document what each level of change means. Identity platforms carry
-extra weight here: a "minor improvement" to SAML assertion format can silently break every
-federated SP downstream.
-
-**Decision points to resolve during implementation:**
-
-- Starting version: `0.1.0` (signals early-but-usable, allows breaking changes before 1.0)
-  vs `1.0.0` (signals production-ready). Recommendation: start at `1.0.0` since the platform
-  is already running in production for the SaaS offering.
-- Where to store the version: `pyproject.toml` is the canonical source. A `__version__` in
-  `app/__init__.py` or `app/version.py` reads from it. The Docker image gets it as a label.
-
-**Proposed definitions:**
-
-| Level | What changes | Self-hoster impact |
-|-------|-------------|-------------------|
-| **Patch** (1.0.x) | Bug fixes, security patches. No schema migrations, no API changes, no SAML/OAuth behavior changes. | Drop-in safe. Pull and restart. |
-| **Minor** (1.x.0) | New features, additive API endpoints, non-breaking schema migrations (new columns with defaults, new tables), new env vars with sensible defaults, UI improvements. | Pull, restart, auto-migration runs. Review changelog for new features. |
-| **Major** (x.0.0) | Removed or changed API endpoints, required new env vars without defaults, SAML assertion format or attribute mapping behavior changes, SSO flow changes requiring SP/IdP reconfiguration, compose file structural changes (new required services, renamed volumes). | Read migration guide. May require SP/IdP reconfiguration. |
-
-**Identity-specific rules:**
-- Any change to SAML assertion structure, entityID format, or default attribute mappings is a **major** bump (these break federation trust silently).
-- New optional SAML/OAuth features (e.g., a new optional attribute) are **minor**.
-- Changes to the consent screen UI that don't alter what data is shared are **minor**.
-
-**Acceptance Criteria:**
-
-- [ ] Starting version chosen and set in `pyproject.toml`
-- [ ] Version accessible at runtime (e.g., `app/version.py` reads from pyproject.toml or is set at build time)
-- [ ] `VERSIONING.md` in repo root documents the policy (patch/minor/major definitions, identity-specific rules)
-- [ ] Git tag convention documented: `v1.0.0` format, tags on main only
-- [ ] Docker image labeled with version (`org.opencontainers.image.version`)
-
-**Effort:** S
-**Value:** High (Foundational for all release infrastructure)
+## ~~1. Version Management Policy~~ (Complete)
 
 ---
 

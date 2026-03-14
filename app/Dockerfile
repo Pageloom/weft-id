@@ -1,5 +1,12 @@
 FROM python:3.12-slim
 
+ARG VERSION=dev
+ARG BUILD_DATE
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/pageloom/weft-id" \
+      org.opencontainers.image.description="Multi-tenant identity federation platform" \
+      org.opencontainers.image.created="${BUILD_DATE}"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     POETRY_VERSION=1.8.3 \

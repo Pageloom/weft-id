@@ -86,6 +86,7 @@ class SPConfig(BaseModel):
     acs_url: str | None = None
     slo_url: str | None = None
     certificate_pem: str | None = None
+    encryption_certificate_pem: str | None = None
     nameid_format: str
     include_group_claims: bool = False
     sp_requested_attributes: list[dict] | None = None

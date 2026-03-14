@@ -28,6 +28,20 @@
             </div>
         </div>
 
+        <div class="mb-4">
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assertion Encryption</p>
+            {% if sp.encryption_certificate_pem %}
+            <p class="text-sm text-gray-900 dark:text-gray-100">
+                {{ icon("shield-check", class="w-4 h-4 inline-block mr-1 text-green-600 dark:text-green-400 -mt-0.5") }}
+                Assertions are encrypted. This SP provides an encryption certificate.
+            </p>
+            {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Assertions are sent unencrypted. This SP does not provide an encryption certificate in its metadata.
+            </p>
+            {% endif %}
+        </div>
+
         <table class="w-full text-sm mb-4">
             <thead>
             <tr class="border-b border-gray-200 dark:border-gray-700">

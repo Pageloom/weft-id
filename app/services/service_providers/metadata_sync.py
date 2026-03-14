@@ -87,6 +87,18 @@ def _compute_metadata_diff(
             )
         )
 
+    # Encryption certificate: show fingerprints instead of full PEM
+    old_enc_cert = current_row.get("encryption_certificate_pem")
+    new_enc_cert = parsed.get("encryption_certificate_pem")
+    if (old_enc_cert or None) != (new_enc_cert or None):
+        changes.append(
+            SPMetadataFieldChange(
+                field="Encryption Certificate",
+                old_value=_cert_fingerprint(old_enc_cert) if old_enc_cert else None,
+                new_value=_cert_fingerprint(new_enc_cert) if new_enc_cert else None,
+            )
+        )
+
     # sp_requested_attributes: compare as JSON
     old_attrs = current_row.get("sp_requested_attributes")
     new_attrs = parsed.get("requested_attributes")
@@ -168,6 +180,7 @@ def _apply_metadata_refresh(
         sp_id=sp_id,
         acs_url=parsed["acs_url"],
         certificate_pem=parsed.get("certificate_pem"),
+        encryption_certificate_pem=parsed.get("encryption_certificate_pem"),
         nameid_format=parsed.get(
             "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
         ),

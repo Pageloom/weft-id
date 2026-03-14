@@ -16,10 +16,12 @@ from utils.saml_assertion import (
 _SAML_NS = "urn:oasis:names:tc:SAML:2.0:assertion"
 _SAMLP_NS = "urn:oasis:names:tc:SAML:2.0:protocol"
 _DS_NS = "http://www.w3.org/2000/09/xmldsig#"
+_XENC_NS = "http://www.w3.org/2001/04/xmlenc#"
 _NS = {
     "saml": _SAML_NS,
     "samlp": _SAMLP_NS,
     "ds": _DS_NS,
+    "xenc": _XENC_NS,
 }
 
 # Test fixtures
@@ -590,3 +592,117 @@ class TestCustomAttributeMapping:
         # Others use defaults
         assert attr_map["firstName"] == SAML_ATTRIBUTE_URIS["firstName"]
         assert attr_map["lastName"] == SAML_ATTRIBUTE_URIS["lastName"]
+
+
+# ============================================================================
+# Assertion Encryption Tests
+# ============================================================================
+
+
+@pytest.fixture(scope="module")
+def encryption_keys():
+    """Generate a separate keypair for assertion encryption."""
+    cert_pem, key_pem = generate_sp_certificate("test-enc-tenant")
+    return cert_pem, key_pem
+
+
+class TestAssertionEncryption:
+    """Tests for assertion encryption in build_saml_response()."""
+
+    def test_encrypted_response_structure(self, signing_keys, encryption_keys):
+        """When encryption_certificate_pem is provided, Response contains
+        EncryptedAssertion with EncryptedData, not a plain Assertion."""
+        sign_cert, sign_key = signing_keys
+        enc_cert, _enc_key = encryption_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_enc_001",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=enc_cert,
+        )
+        root = _decode_response(result)
+
+        # Should NOT have a plain Assertion
+        plain_assertion = root.find("saml:Assertion", _NS)
+        assert plain_assertion is None
+
+        # Should have EncryptedAssertion
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        assert encrypted_assertion is not None
+
+        # EncryptedAssertion should contain EncryptedData
+        encrypted_data = encrypted_assertion.find("xenc:EncryptedData", _NS)
+        assert encrypted_data is not None
+
+    def test_round_trip_encrypt_decrypt(self, signing_keys, encryption_keys):
+        """Encrypt with cert, decrypt with private key, verify decrypted assertion."""
+        sign_cert, sign_key = signing_keys
+        enc_cert, enc_key = encryption_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_enc_002",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=enc_cert,
+        )
+        root = _decode_response(result)
+
+        # Find the EncryptedData element
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        encrypted_data = encrypted_assertion.find("xenc:EncryptedData", _NS)
+        assert encrypted_data is not None
+
+        # Decrypt using the encryption private key
+        manager = xmlsec.KeysManager()
+        key = xmlsec.Key.from_memory(enc_key.encode(), xmlsec.KeyFormat.PEM)
+        manager.add_key(key)
+        enc_ctx = xmlsec.EncryptionContext(manager)
+        decrypted = enc_ctx.decrypt(encrypted_data)
+
+        # The decrypted element should be a SAML Assertion
+        assert decrypted.tag == f"{{{_SAML_NS}}}Assertion"
+
+        # Verify it has the expected Issuer
+        issuer = decrypted.find("saml:Issuer", _NS)
+        assert issuer is not None
+        assert issuer.text == _ISSUER
+
+    def test_no_encryption_cert_produces_plain_assertion(self, signing_keys):
+        """When encryption_certificate_pem is None, Response contains a plain
+        Assertion (no EncryptedAssertion). Verifies existing behavior."""
+        sign_cert, sign_key = signing_keys
+
+        result, _ = build_saml_response(
+            issuer_entity_id=_ISSUER,
+            sp_entity_id=_SP_ENTITY_ID,
+            sp_acs_url=_SP_ACS_URL,
+            name_id=_NAME_ID,
+            name_id_format=_NAME_ID_FORMAT,
+            authn_request_id="_req_enc_003",
+            user_attributes=_USER_ATTRS,
+            certificate_pem=sign_cert,
+            private_key_pem=sign_key,
+            encryption_certificate_pem=None,
+        )
+        root = _decode_response(result)
+
+        # Should have a plain Assertion
+        plain_assertion = root.find("saml:Assertion", _NS)
+        assert plain_assertion is not None
+
+        # Should NOT have EncryptedAssertion
+        encrypted_assertion = root.find("saml:EncryptedAssertion", _NS)
+        assert encrypted_assertion is None

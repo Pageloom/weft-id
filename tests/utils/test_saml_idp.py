@@ -86,6 +86,7 @@ class TestParseSPMetadataXML:
         assert result["certificate_pem"] is not None
         assert "BEGIN CERTIFICATE" in result["certificate_pem"]
         assert result["nameid_format"] == "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+        assert result["encryption_certificate_pem"] is None
 
     def test_minimal_metadata(self):
         """Parse minimal SP metadata (no cert, no NameID format)."""
@@ -836,6 +837,163 @@ class TestAutoDetectAttributeMapping:
         result = auto_detect_attribute_mapping(attrs)
 
         assert result == {"groups": "urn:oid:1.3.6.1.4.1.5923.1.1.1.7"}
+
+
+# =============================================================================
+# parse_sp_metadata_xml: encryption certificate extraction
+# =============================================================================
+
+
+class TestParseSPMetadataEncryptionCert:
+    """Tests for encryption certificate extraction from SP metadata."""
+
+    def test_separate_signing_and_encryption_certs(self):
+        """Metadata with separate signing and encryption KeyDescriptors."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://dual-cert.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="signing">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>SIGNING_CERT_DATA</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:KeyDescriptor use="encryption">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>ENCRYPTION_CERT_DATA</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://dual-cert.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["certificate_pem"] is not None
+        assert "SIGNING_CERT_DATA" in result["certificate_pem"]
+        assert result["encryption_certificate_pem"] is not None
+        assert "ENCRYPTION_CERT_DATA" in result["encryption_certificate_pem"]
+        # Each cert should be distinct
+        assert result["certificate_pem"] != result["encryption_certificate_pem"]
+
+    def test_single_cert_no_use_attribute_populates_both(self):
+        """A KeyDescriptor with no use attribute populates both fields."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://nouse.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor>
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>SHARED_CERT_DATA</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://nouse.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["certificate_pem"] is not None
+        assert "SHARED_CERT_DATA" in result["certificate_pem"]
+        assert result["encryption_certificate_pem"] is not None
+        assert "SHARED_CERT_DATA" in result["encryption_certificate_pem"]
+        assert result["certificate_pem"] == result["encryption_certificate_pem"]
+
+    def test_signing_only_no_encryption_cert(self):
+        """KeyDescriptor with use=signing only. Encryption cert should be None."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://signing-only.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="signing">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>SIGNING_ONLY_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://signing-only.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["certificate_pem"] is not None
+        assert "SIGNING_ONLY_CERT" in result["certificate_pem"]
+        assert result["encryption_certificate_pem"] is None
+
+    def test_encryption_only_no_signing_cert(self):
+        """KeyDescriptor with use=encryption only. Signing cert should be None."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            entityID="https://encryption-only.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:KeyDescriptor use="encryption">
+              <ds:KeyInfo>
+                <ds:X509Data>
+                  <ds:X509Certificate>ENCRYPTION_ONLY_CERT</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://encryption-only.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["certificate_pem"] is None
+        assert result["encryption_certificate_pem"] is not None
+        assert "ENCRYPTION_ONLY_CERT" in result["encryption_certificate_pem"]
+
+    def test_no_key_descriptors(self):
+        """No KeyDescriptor elements. Both cert fields should be None."""
+        xml = """<?xml version="1.0"?>
+        <md:EntityDescriptor
+            xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+            entityID="https://nocerts.example.com">
+          <md:SPSSODescriptor
+              protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="https://nocerts.example.com/acs"
+                index="0" />
+          </md:SPSSODescriptor>
+        </md:EntityDescriptor>"""
+
+        result = parse_sp_metadata_xml(xml)
+
+        assert result["certificate_pem"] is None
+        assert result["encryption_certificate_pem"] is None
 
 
 # =============================================================================

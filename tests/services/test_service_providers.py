@@ -45,6 +45,7 @@ def _make_sp_row(
     metadata_url: str | None = None,
     metadata_xml: str | None = None,
     certificate_pem: str | None = None,
+    encryption_certificate_pem: str | None = None,
     slo_url: str | None = None,
 ) -> dict:
     """Create a mock SP database row."""
@@ -55,6 +56,7 @@ def _make_sp_row(
         "entity_id": entity_id,
         "acs_url": acs_url,
         "certificate_pem": certificate_pem,
+        "encryption_certificate_pem": encryption_certificate_pem,
         "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
         "metadata_xml": metadata_xml,
         "metadata_url": metadata_url,
@@ -2723,6 +2725,25 @@ class TestComputeMetadataDiff:
         assert cert_change is not None
         assert cert_change.old_value is not None  # fingerprint
         assert cert_change.new_value is None
+
+    def test_encryption_certificate_change_detected(self):
+        """Detects encryption certificate change and shows fingerprints."""
+        from services.service_providers.metadata_sync import _compute_metadata_diff
+
+        current = _make_sp_row(encryption_certificate_pem=SAMPLE_CERT_PEM)
+        parsed = {
+            "entity_id": current["entity_id"],
+            "acs_url": current["acs_url"],
+            "nameid_format": current["nameid_format"],
+            "certificate_pem": None,
+            "encryption_certificate_pem": None,
+        }
+
+        changes = _compute_metadata_diff(current, parsed, None)
+        enc_change = next((c for c in changes if c.field == "Encryption Certificate"), None)
+        assert enc_change is not None
+        assert enc_change.old_value is not None  # fingerprint
+        assert enc_change.new_value is None
 
     def test_requested_attributes_change_detected(self):
         """Detects change in requested attributes and shows count summary."""

@@ -113,6 +113,7 @@ def _create_sp_from_parsed_metadata(
         entity_id=parsed["entity_id"],
         acs_url=parsed["acs_url"],
         certificate_pem=parsed.get("certificate_pem"),
+        encryption_certificate_pem=parsed.get("encryption_certificate_pem"),
         nameid_format=parsed.get(
             "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
         ),

@@ -51,6 +51,7 @@ def build_saml_response(
     private_key_pem: str,
     session_index: str | None = None,
     attribute_mapping: dict[str, str] | None = None,
+    encryption_certificate_pem: str | None = None,
 ) -> tuple[str, str]:
     """Build and sign a SAML 2.0 Response containing a signed Assertion.
 
@@ -66,6 +67,9 @@ def build_saml_response(
         certificate_pem: PEM-encoded signing certificate
         private_key_pem: PEM-encoded private key (decrypted)
         session_index: Optional session index for SLO correlation
+        attribute_mapping: Optional per-SP attribute name mapping
+        encryption_certificate_pem: Optional PEM-encoded SP encryption certificate.
+            When provided, the signed assertion is encrypted so only the SP can read it.
 
     Returns:
         Tuple of (base64_encoded_response, session_index)
@@ -96,13 +100,19 @@ def build_saml_response(
     # Sign the Assertion
     signed_assertion = _sign_assertion(assertion, certificate_pem, private_key_pem)
 
+    # Encrypt the signed assertion if SP provides an encryption certificate
+    if encryption_certificate_pem:
+        assertion_for_response = _encrypt_assertion(signed_assertion, encryption_certificate_pem)
+    else:
+        assertion_for_response = signed_assertion
+
     # Build the outer Response
     response = _build_response_element(
         response_id=response_id,
         sp_acs_url=sp_acs_url,
         authn_request_id=authn_request_id,
         issuer_entity_id=issuer_entity_id,
-        signed_assertion=signed_assertion,
+        signed_assertion=assertion_for_response,
         now=now,
     )
 
@@ -326,3 +336,58 @@ def _sign_assertion(
     ctx.sign(signature_node)
 
     return assertion
+
+
+_XENC_NS = "http://www.w3.org/2001/04/xmlenc#"
+
+
+def _encrypt_assertion(
+    signed_assertion: etree._Element,
+    encryption_certificate_pem: str,
+) -> etree._Element:
+    """Encrypt a signed SAML Assertion for the SP.
+
+    Uses AES-256-CBC for content encryption and RSA-OAEP for key transport,
+    then wraps the result in a <saml:EncryptedAssertion> element.
+    """
+    # Create EncryptedData template
+    enc_data = xmlsec.template.encrypted_data_create(
+        signed_assertion,
+        method=xmlsec.Transform.AES256,  # type: ignore[attr-defined]
+        type=f"{_XENC_NS}Element",
+    )
+    xmlsec.template.encrypted_data_ensure_cipher_value(enc_data)
+
+    # Add KeyInfo with EncryptedKey using RSA-OAEP
+    enc_key_info = xmlsec.template.encrypted_data_ensure_key_info(enc_data)
+    enc_key = xmlsec.template.add_encrypted_key(
+        enc_key_info,
+        method=xmlsec.Transform.RSA_OAEP,  # type: ignore[attr-defined]
+    )
+    xmlsec.template.encrypted_data_ensure_cipher_value(enc_key)
+
+    # Load the SP's encryption certificate for key wrapping
+    manager = xmlsec.KeysManager()
+    enc_cert_key = xmlsec.Key.from_memory(
+        encryption_certificate_pem.encode("utf-8"),
+        format=xmlsec.KeyFormat.CERT_PEM,  # type: ignore[attr-defined]
+    )
+    manager.add_key(enc_cert_key)
+
+    # Perform encryption: generate a session key for AES, RSA-OAEP wraps it
+    enc_ctx = xmlsec.EncryptionContext(manager)
+    enc_ctx.key = xmlsec.Key.generate(
+        xmlsec.KeyData.AES,  # type: ignore[attr-defined]
+        256,
+        xmlsec.KeyDataType.SESSION,  # type: ignore[attr-defined]
+    )
+    encrypted_data = enc_ctx.encrypt_xml(enc_data, signed_assertion)
+
+    # Wrap in <saml:EncryptedAssertion>
+    encrypted_assertion = etree.Element(
+        f"{{{_SAML_NS}}}EncryptedAssertion",
+        nsmap={"saml": _SAML_NS},
+    )
+    encrypted_assertion.append(encrypted_data)
+
+    return encrypted_assertion

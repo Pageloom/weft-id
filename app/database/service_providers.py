@@ -5,14 +5,16 @@ import json
 from database._core import TenantArg, execute, fetchall, fetchone
 
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
-               certificate_pem, nameid_format, metadata_xml, metadata_url,
+               certificate_pem, encryption_certificate_pem,
+               nameid_format, metadata_xml, metadata_url,
                slo_url, include_group_claims, sp_requested_attributes,
                attribute_mapping, enabled, trust_established, available_to_all,
                created_by, created_at, updated_at"""
 
 # Qualified columns for queries with JOINs (avoids ambiguous column errors)
 _SP_COLUMNS_Q = """sp.id, sp.tenant_id, sp.name, sp.description, sp.entity_id, sp.acs_url,
-               sp.certificate_pem, sp.nameid_format, sp.metadata_xml, sp.metadata_url,
+               sp.certificate_pem, sp.encryption_certificate_pem,
+               sp.nameid_format, sp.metadata_xml, sp.metadata_url,
                sp.slo_url, sp.include_group_claims, sp.sp_requested_attributes,
                sp.attribute_mapping, sp.enabled, sp.trust_established, sp.available_to_all,
                sp.created_by, sp.created_at, sp.updated_at"""
@@ -83,6 +85,7 @@ def create_service_provider(
     entity_id: str | None = None,
     acs_url: str | None = None,
     certificate_pem: str | None = None,
+    encryption_certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
     metadata_url: str | None = None,
@@ -102,13 +105,15 @@ def create_service_provider(
         f"""
         insert into service_providers (
             tenant_id, name, description, entity_id, acs_url,
-            certificate_pem, nameid_format, metadata_xml, metadata_url,
+            certificate_pem, encryption_certificate_pem,
+            nameid_format, metadata_xml, metadata_url,
             slo_url, sp_requested_attributes, attribute_mapping,
             trust_established, created_by
         )
         values (
             :tenant_id, :name, :description, :entity_id, :acs_url,
-            :certificate_pem, :nameid_format, :metadata_xml, :metadata_url,
+            :certificate_pem, :encryption_certificate_pem,
+            :nameid_format, :metadata_xml, :metadata_url,
             :slo_url, :sp_requested_attributes, :attribute_mapping,
             :trust_established, :created_by
         )
@@ -121,6 +126,7 @@ def create_service_provider(
             "entity_id": entity_id,
             "acs_url": acs_url,
             "certificate_pem": certificate_pem,
+            "encryption_certificate_pem": encryption_certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
             "metadata_url": metadata_url,
@@ -196,6 +202,7 @@ def refresh_sp_metadata_fields(
     sp_id: str,
     acs_url: str,
     certificate_pem: str | None = None,
+    encryption_certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
     slo_url: str | None = None,
@@ -215,6 +222,7 @@ def refresh_sp_metadata_fields(
         update service_providers
         set acs_url = :acs_url,
             certificate_pem = :certificate_pem,
+            encryption_certificate_pem = :encryption_certificate_pem,
             nameid_format = :nameid_format,
             metadata_xml = :metadata_xml,
             slo_url = :slo_url,
@@ -228,6 +236,7 @@ def refresh_sp_metadata_fields(
             "sp_id": sp_id,
             "acs_url": acs_url,
             "certificate_pem": certificate_pem,
+            "encryption_certificate_pem": encryption_certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
             "slo_url": slo_url,
@@ -245,6 +254,7 @@ def establish_trust(
     entity_id: str,
     acs_url: str,
     certificate_pem: str | None = None,
+    encryption_certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
     metadata_url: str | None = None,
@@ -266,6 +276,7 @@ def establish_trust(
         set entity_id = :entity_id,
             acs_url = :acs_url,
             certificate_pem = :certificate_pem,
+            encryption_certificate_pem = :encryption_certificate_pem,
             nameid_format = :nameid_format,
             metadata_xml = :metadata_xml,
             metadata_url = :metadata_url,
@@ -282,6 +293,7 @@ def establish_trust(
             "entity_id": entity_id,
             "acs_url": acs_url,
             "certificate_pem": certificate_pem,
+            "encryption_certificate_pem": encryption_certificate_pem,
             "nameid_format": nameid_format,
             "metadata_xml": metadata_xml,
             "metadata_url": metadata_url,

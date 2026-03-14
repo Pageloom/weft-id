@@ -167,6 +167,10 @@ def build_sso_response(
     # 6b. Get per-SP attribute mapping (if configured)
     attribute_mapping = sp_row.get("attribute_mapping")
 
+    # 6c. Encrypt assertion if SP provides an encryption certificate
+    encryption_cert = sp_row.get("encryption_certificate_pem")
+    assertion_encrypted = encryption_cert is not None
+
     saml_response_b64, session_index = build_saml_response(
         issuer_entity_id=issuer_entity_id,
         sp_entity_id=sp_entity_id,
@@ -178,6 +182,7 @@ def build_sso_response(
         certificate_pem=cert["certificate_pem"],
         private_key_pem=private_key_pem,
         attribute_mapping=attribute_mapping,
+        encryption_certificate_pem=encryption_cert,
     )
 
     # 7. Log event
@@ -190,6 +195,7 @@ def build_sso_response(
         metadata={
             "sp_entity_id": sp_entity_id,
             "sp_name": sp_row["name"],
+            "assertion_encrypted": assertion_encrypted,
         },
     )
 

@@ -20,6 +20,7 @@ def _do_establish_trust(
     entity_id: str,
     acs_url: str,
     certificate_pem: str | None = None,
+    encryption_certificate_pem: str | None = None,
     nameid_format: str = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
     metadata_xml: str | None = None,
     metadata_url: str | None = None,
@@ -56,6 +57,7 @@ def _do_establish_trust(
         entity_id=entity_id,
         acs_url=acs_url,
         certificate_pem=certificate_pem,
+        encryption_certificate_pem=encryption_certificate_pem,
         nameid_format=nameid_format,
         metadata_xml=metadata_xml,
         metadata_url=metadata_url,
@@ -129,6 +131,7 @@ def establish_trust_from_metadata_url(
         entity_id=parsed["entity_id"],
         acs_url=parsed["acs_url"],
         certificate_pem=parsed.get("certificate_pem"),
+        encryption_certificate_pem=parsed.get("encryption_certificate_pem"),
         nameid_format=parsed.get(
             "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
         ),
@@ -175,6 +178,7 @@ def establish_trust_from_metadata_xml(
         entity_id=parsed["entity_id"],
         acs_url=parsed["acs_url"],
         certificate_pem=parsed.get("certificate_pem"),
+        encryption_certificate_pem=parsed.get("encryption_certificate_pem"),
         nameid_format=parsed.get(
             "nameid_format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
         ),

@@ -13,6 +13,13 @@ _MD_NS = "urn:oasis:names:tc:SAML:2.0:metadata"
 _DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 
 
+def _wrap_pem(cert_data: str) -> str:
+    """Wrap raw certificate data in PEM headers if not already present."""
+    if cert_data.startswith("-----BEGIN"):
+        return cert_data
+    return f"-----BEGIN CERTIFICATE-----\n{cert_data}\n-----END CERTIFICATE-----"
+
+
 def make_idp_entity_id(tenant_id: str, sp_registration_id: str) -> str:
     """Stable URN-based IdP entity ID, one per SP connection.
 
@@ -65,19 +72,32 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
     if not acs_url:
         raise ValueError("SP metadata missing AssertionConsumerService URL")
 
-    # Extract SP certificate (optional)
+    # Extract SP certificates (optional)
+    # Iterate all KeyDescriptor elements:
+    #   use="signing" -> signing cert
+    #   use="encryption" -> encryption cert
+    #   no use attr -> both (per SAML spec)
+    # First match per category wins.
     certificate_pem = None
-    key_descriptor = sp_descriptor.find(f"{{{_MD_NS}}}KeyDescriptor")
-    if key_descriptor is not None:
-        x509_cert = key_descriptor.find(f".//{{{_DS_NS}}}X509Certificate")
-        if x509_cert is not None and x509_cert.text:
-            cert_data = x509_cert.text.strip()
-            if not cert_data.startswith("-----BEGIN"):
-                certificate_pem = (
-                    f"-----BEGIN CERTIFICATE-----\n{cert_data}\n-----END CERTIFICATE-----"
-                )
-            else:
-                certificate_pem = cert_data
+    encryption_certificate_pem = None
+    for kd in sp_descriptor.findall(f"{{{_MD_NS}}}KeyDescriptor"):
+        x509_cert = kd.find(f".//{{{_DS_NS}}}X509Certificate")
+        if x509_cert is None or not x509_cert.text:
+            continue
+        pem = _wrap_pem(x509_cert.text.strip())
+        use = kd.attrib.get("use")
+        if use == "signing":
+            if certificate_pem is None:
+                certificate_pem = pem
+        elif use == "encryption":
+            if encryption_certificate_pem is None:
+                encryption_certificate_pem = pem
+        else:
+            # No use attribute: applies to both
+            if certificate_pem is None:
+                certificate_pem = pem
+            if encryption_certificate_pem is None:
+                encryption_certificate_pem = pem
 
     # Extract NameID format (optional, default to emailAddress)
     nameid_format = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
@@ -123,6 +143,7 @@ def parse_sp_metadata_xml(metadata_xml: str) -> dict[str, Any]:
         "entity_id": entity_id,
         "acs_url": acs_url,
         "certificate_pem": certificate_pem,
+        "encryption_certificate_pem": encryption_certificate_pem,
         "nameid_format": nameid_format,
         "slo_url": slo_url,
         "requested_attributes": requested_attributes or None,

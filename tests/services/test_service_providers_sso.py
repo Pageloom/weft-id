@@ -648,3 +648,99 @@ class TestBuildSsoResponseAttributeMapping:
 
         call_kwargs = mock_build.call_args[1]
         assert call_kwargs["attribute_mapping"] is None
+
+
+# ============================================================================
+# build_sso_response: assertion encryption
+# ============================================================================
+
+
+class TestBuildSsoResponseEncryption:
+    """Tests that build_sso_response encrypts when SP provides encryption cert."""
+
+    _ENC_CERT = "-----BEGIN CERTIFICATE-----\nenc-cert\n-----END CERTIFICATE-----"
+
+    def _setup_mocks(self, mock_db, *, encryption_certificate_pem=None):
+        """Set up standard mocks with optional encryption cert on the SP row."""
+        sp_row = {
+            "id": "sp-1",
+            "name": "Test SP",
+            "entity_id": "https://sp.example.com",
+            "acs_url": "https://sp.example.com/acs",
+            "certificate_pem": None,
+            "nameid_format": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "trust_established": True,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "encryption_certificate_pem": encryption_certificate_pem,
+        }
+        mock_db.service_providers.get_service_provider_by_entity_id.return_value = sp_row
+        mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
+        mock_db.saml.get_sp_certificate.return_value = {
+            "certificate_pem": "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----",
+            "private_key_pem_enc": "encrypted-key",
+        }
+        mock_db.users.get_user_by_id.return_value = {
+            "id": "user-1",
+            "first_name": "Alice",
+            "last_name": "Smith",
+        }
+        mock_db.user_emails.get_primary_email.return_value = {
+            "email": "alice@example.com",
+        }
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_encrypts_when_cert_present(self, mock_db, mock_log_event):
+        """Encrypts assertion when SP provides an encryption certificate."""
+        self._setup_mocks(mock_db, encryption_certificate_pem=self._ENC_CERT)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert mock_build.call_args[1]["encryption_certificate_pem"] == self._ENC_CERT
+        assert mock_log_event.call_args[1]["metadata"]["assertion_encrypted"] is True
+
+    @patch("services.service_providers.sso.log_event")
+    @patch("services.service_providers.sso.database")
+    def test_plain_when_no_cert(self, mock_db, mock_log_event):
+        """Sends plain assertion when SP has no encryption certificate."""
+        self._setup_mocks(mock_db, encryption_certificate_pem=None)
+
+        with (
+            patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
+            patch(
+                "services.service_providers.nameid.resolve_name_id",
+                return_value=_RESOLVE_EMAIL,
+            ),
+            patch(
+                "utils.saml_assertion.build_saml_response",
+                return_value=("base64-response", "_session123"),
+            ) as mock_build,
+        ):
+            build_sso_response(
+                tenant_id="tenant-1",
+                user_id="user-1",
+                sp_entity_id="https://sp.example.com",
+                authn_request_id=None,
+                base_url="https://idp.example.com",
+            )
+
+        assert mock_build.call_args[1]["encryption_certificate_pem"] is None
+        assert mock_log_event.call_args[1]["metadata"]["assertion_encrypted"] is False

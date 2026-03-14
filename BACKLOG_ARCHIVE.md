@@ -4,6 +4,26 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Group Graph: Extended Selection Highlighting with Depth-Aware Edge Styles
+
+**Status:** Complete
+
+**Summary:** Selecting a node in the group graph now highlights the full ancestor and descendant chains. Direct parents and children use solid lines (existing behavior), while grandparents, grandchildren, and more distant relatives use dashed lines at slightly reduced opacity. Off-viewport edge labels also cover distant connections.
+
+**Acceptance Criteria:**
+
+- [x] Immediate children highlighted with solid green arrows (retained)
+- [x] Grandchildren and more remote descendants highlighted with dashed green arrows
+- [x] Immediate parents highlighted with solid orange arrows (retained)
+- [x] Grandparents and more remote ancestors highlighted with dashed orange arrows
+- [x] Depth 1 neighbours always use solid lines
+- [x] Depth 2+ neighbours always use dashed lines
+- [x] Unrelated nodes remain visually neutral
+- [x] Existing layout and node positions unaffected
+- [x] De-selection resets all edges to default appearance
+
+---
+
 ## Service Provider Logo / Avatar
 
 **Status:** Complete

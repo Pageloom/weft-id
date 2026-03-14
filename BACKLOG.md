@@ -386,51 +386,6 @@ Documentation updates:
 
 ---
 
-## Group Graph: Extended Selection Highlighting with Depth-Aware Edge Styles
-
-**User Story:**
-As an admin using the group graph view
-I want the selected node's full ancestry and descendancy to be visually represented,
-with solid edges for immediate neighbours and dashed edges for more distant relatives
-So that I can understand the complete hierarchical context of a group at a glance
-
-**Context:**
-
-Currently, selecting a node highlights only its immediate children (solid arrows pointing in)
-and immediate parents (orange arrows). Grandchildren, grandparents, and more remote relatives
-are invisible in the selection state.
-
-The new rule is: **dashed line = more than one step removed.** The direction of arrows and
-colour conventions remain unchanged; only the reach and stroke style change.
-
-**Acceptance Criteria:**
-
-Descendant side (children, grandchildren, ...):
-- [ ] When a node is selected, solid arrows are drawn from all **immediate children** to the
-      selected node (existing behaviour, retained)
-- [ ] Dashed arrows are drawn from all **grandchildren and more remote descendants** to the
-      selected node
-- [ ] Arrow direction is the same for all descendants (child -> selected)
-
-Ancestor side (parents, grandparents, ...):
-- [ ] Immediate parents continue to be highlighted with **solid orange arrows** pointing from
-      the selected node to each parent (existing behaviour, retained)
-- [ ] **Grandparents and more remote ancestors** are connected with **dashed arrows** (same
-      direction: selected -> ancestor, same orange colour or a subdued variant that is clearly
-      distinguishable from immediate parents)
-
-General:
-- [ ] Depth 1 neighbours (immediate parents and children) always use solid lines
-- [ ] Depth 2+ neighbours (any relative more than one step away) always use dashed lines
-- [ ] Unrelated nodes remain visually neutral (no highlight, no extra edges)
-- [ ] The existing Cytoscape layout and node positions are unaffected by the style change
-- [ ] De-selection resets all edges to their default appearance
-
-**Effort:** S
-**Value:** Medium
-
----
-
 ## Group Graph: Toolbar, New Group Modal, and Label Overlap
 
 **User Story:**

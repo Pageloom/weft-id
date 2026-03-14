@@ -96,6 +96,8 @@ class SPConfig(BaseModel):
     trust_established: bool = False
     available_to_all: bool = False
     signing_cert_expires_at: datetime | None = None
+    has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this SP")
+    logo_updated_at: datetime | None = Field(None, description="When the SP logo was last updated")
     created_at: datetime
     updated_at: datetime
 
@@ -112,6 +114,8 @@ class SPListItem(BaseModel):
     signing_cert_expires_at: datetime | None = None
     assigned_group_count: int = 0
     user_access_count: int = 0
+    has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this SP")
+    logo_updated_at: datetime | None = Field(None, description="When the SP logo was last updated")
     created_at: datetime
 
 
@@ -250,6 +254,8 @@ class UserApp(BaseModel):
     name: str
     description: str | None = None
     entity_id: str | None = None
+    has_logo: bool = Field(False, description="Whether a custom logo is uploaded for this SP")
+    logo_updated_at: datetime | None = Field(None, description="When the SP logo was last updated")
 
 
 class UserAppList(BaseModel):

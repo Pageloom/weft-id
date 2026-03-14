@@ -4,6 +4,45 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Service Provider Logo / Avatar
+
+**Status:** Complete
+
+**Summary:** Service providers now support custom logo upload (PNG or SVG) with an acronym avatar fallback, reusing the existing group logo infrastructure. Logos appear in SP list, SP detail header, dashboard "My Apps" cards, and the SSO consent screen. A new `sp_logos` table stores binary logo data with tenant-scoped RLS and cascade deletion.
+
+**Acceptance Criteria:**
+
+Database:
+- [x] New `sp_logos` table with RLS, FK to service_providers with CASCADE delete
+- [x] Migration 0013 adds composite unique constraint and creates the table
+- [x] `has_logo` and `logo_updated_at` fields in SP list/get query results
+
+Service:
+- [x] Reuses `_validate_logo` from branding service (PNG square >=48x48, SVG, <=256KB)
+- [x] `upload_sp_logo` and `delete_sp_logo` with event logging
+- [x] `get_sp_logo_for_serving` for public serving endpoint
+
+Serving and API:
+- [x] `GET /branding/sp-logo/{sp_id}` with ETag/304 caching
+- [x] `POST /{sp_id}/logo/upload` and `POST /{sp_id}/logo/delete` under SP admin routes
+- [x] `POST /api/v1/service-providers/{sp_id}/logo` and `DELETE` API endpoints
+
+Templates:
+- [x] SP list: logo or acronym avatar inline with name
+- [x] SP detail: logo with upload/remove controls
+- [x] Dashboard "My Apps": logo or acronym avatar on cards
+- [x] SSO consent screen: logo, acronym avatar, or shield-check fallback
+
+Frontend:
+- [x] Acronym generation reuses `generateGroupAcronym()` from group-avatar.js
+
+Tests:
+- [x] 8 database integration tests (CRUD, cascade, has_logo in queries)
+- [x] 8 service layer tests (upload/delete, auth, validation, event logging)
+- [x] 8 API/serving tests (upload, delete, serve, ETag/304, cache headers)
+
+---
+
 ## Groups: Customizable Acronym
 
 **Status:** Complete

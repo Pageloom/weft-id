@@ -139,6 +139,50 @@
 {% else %}
 {# ===== TRUST ESTABLISHED: Normal Detail View ===== #}
 
+{# SP Logo #}
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
+    <h2 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Logo</h2>
+    <div class="flex items-center gap-4 mb-3">
+        {% if sp.has_logo %}
+        <img src="/branding/sp-logo/{{ sp.id }}{% if sp.logo_updated_at %}?v={{ sp.logo_updated_at.timestamp() | int }}{% endif %}"
+             width="48" height="48"
+             class="rounded-lg border border-gray-200 dark:border-gray-700" alt="SP logo">
+        {% else %}
+        <img data-acronym="{{ sp.id }}" data-name="{{ sp.name }}"
+             width="48" height="48" class="rounded-lg" alt="">
+        {% endif %}
+        <div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                {% if sp.has_logo %}Custom logo uploaded.{% else %}Using generated acronym avatar.{% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+        <form method="post"
+              action="/admin/settings/service-providers/{{ sp.id }}/logo/upload"
+              enctype="multipart/form-data"
+              class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="file" accept="image/png,image/svg+xml,.png,.svg"
+                   class="text-xs text-gray-500 dark:text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-700 dark:file:bg-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-600">
+            <button type="submit"
+                    class="bg-gray-800 dark:bg-gray-600 text-white hover:bg-gray-700 dark:hover:bg-gray-500 font-medium py-1 px-3 rounded-md transition duration-150 text-xs">
+                Upload Logo
+            </button>
+        </form>
+        {% if sp.has_logo %}
+        <form method="post"
+              action="/admin/settings/service-providers/{{ sp.id }}/logo/delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                Remove Logo
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
 {# SP Configuration #}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
     <dl class="grid grid-cols-1 gap-4">
@@ -330,6 +374,14 @@
 {% endblock %}
 
 {% block tab_scripts %}
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-avatar.js') }}"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    document.querySelectorAll('img[data-acronym]').forEach((img) => {
+        img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
+    });
+})();
+</script>
 <script nonce="{{ csp_nonce }}">
 {% if not sp.trust_established %}
 // Trust establishment tab switching

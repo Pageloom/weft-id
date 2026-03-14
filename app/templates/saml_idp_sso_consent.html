@@ -7,9 +7,22 @@
     <div class="max-w-md w-full">
         <div class="bg-white dark:bg-gray-800 shadow-sm rounded-lg p-8">
             <div class="text-center mb-6">
+                {% if sp_has_logo %}
+                <div class="mx-auto flex items-center justify-center h-12 w-12 mb-4">
+                    <img src="/branding/sp-logo/{{ sp_id }}{% if sp_logo_updated_at %}?v={{ sp_logo_updated_at }}{% endif %}"
+                         width="48" height="48"
+                         class="rounded-lg border border-gray-200 dark:border-gray-700" alt="{{ sp_name }}">
+                </div>
+                {% elif sp_id %}
+                <div class="mx-auto flex items-center justify-center h-12 w-12 mb-4">
+                    <img data-acronym="{{ sp_id }}" data-name="{{ sp_name }}"
+                         width="48" height="48" class="rounded-lg" alt="">
+                </div>
+                {% else %}
                 <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/20 mb-4">
                     {{ icon("shield-check", class="h-6 w-6 text-blue-600 dark:text-blue-400") }}
                 </div>
+                {% endif %}
                 <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
                     Sign in to {{ sp_name }}
                 </h1>
@@ -63,4 +76,15 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-avatar.js') }}"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    document.querySelectorAll('img[data-acronym]').forEach((img) => {
+        img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
+    });
+})();
+</script>
 {% endblock %}

@@ -622,6 +622,92 @@ def delete_group_logo(
     )
 
 
+# =============================================================================
+# SP Logo Operations
+# =============================================================================
+
+
+def upload_sp_logo(
+    requesting_user: RequestingUser,
+    sp_id: str,
+    data: bytes,
+    filename: str | None = None,
+) -> None:
+    """Upload a custom logo for a specific service provider.
+
+    Authorization: Requires admin role.
+
+    Args:
+        requesting_user: The authenticated admin user.
+        sp_id: The service provider UUID to attach the logo to.
+        data: Raw image bytes.
+        filename: Optional original filename for format detection.
+    """
+    require_admin(requesting_user)
+    mime_type = _validate_logo(data, filename)
+
+    database.branding.upsert_sp_logo(
+        tenant_id=requesting_user["tenant_id"],
+        sp_id=sp_id,
+        logo_data=data,
+        mime_type=mime_type,
+    )
+
+    log_event(
+        tenant_id=requesting_user["tenant_id"],
+        actor_user_id=requesting_user["id"],
+        event_type="sp_logo_uploaded",
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        metadata={"mime_type": mime_type, "size": len(data)},
+    )
+
+
+def delete_sp_logo(
+    requesting_user: RequestingUser,
+    sp_id: str,
+) -> None:
+    """Remove a custom logo from a service provider.
+
+    Authorization: Requires admin role.
+
+    Raises:
+        NotFoundError: If no logo exists for the SP.
+    """
+    require_admin(requesting_user)
+
+    rows = database.branding.delete_sp_logo(
+        tenant_id=requesting_user["tenant_id"],
+        sp_id=sp_id,
+    )
+
+    if rows == 0:
+        raise NotFoundError(
+            message="No logo found for this service provider",
+            code="sp_logo_not_found",
+        )
+
+    log_event(
+        tenant_id=requesting_user["tenant_id"],
+        actor_user_id=requesting_user["id"],
+        event_type="sp_logo_removed",
+        artifact_type="service_provider",
+        artifact_id=sp_id,
+        metadata={},
+    )
+
+
+def get_sp_logo_for_serving(tenant_id: str, sp_id: str) -> dict | None:
+    """Get SP logo binary data for the public serving endpoint.
+
+    No authentication required.
+
+    Returns:
+        Dict with logo_data, logo_mime, updated_at. None if not found.
+    """
+    return database.branding.get_sp_logo(tenant_id, sp_id)
+
+
 def get_group_logo_for_serving(tenant_id: str, group_id: str) -> dict | None:
     """Get group logo binary data for the public serving endpoint.
 

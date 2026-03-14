@@ -15,6 +15,7 @@ from typing import Annotated
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from services import branding as branding_service
 from services import service_providers as sp_service
 from services.event_log import log_event
 from utils.csp_nonce import get_csp_nonce
@@ -181,10 +182,22 @@ def consent_page(
     if not user_info:
         return _render_sso_error(request, tenant_id, "no_session")
 
+    # Get SP logo info for the consent screen
+    sp_has_logo = False
+    sp_logo_updated_at = None
+    if sp_id:
+        logo_data = branding_service.get_sp_logo_for_serving(tenant_id, sp_id)
+        if logo_data:
+            sp_has_logo = True
+            sp_logo_updated_at = int(logo_data["updated_at"].timestamp())
+
     context = get_template_context(
         request,
         tenant_id,
+        sp_id=sp_id,
         sp_name=sp_name,
+        sp_has_logo=sp_has_logo,
+        sp_logo_updated_at=sp_logo_updated_at,
         user_email=user_info["email"],
         user_first_name=user_info["first_name"],
         user_last_name=user_info["last_name"],

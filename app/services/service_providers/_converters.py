@@ -26,6 +26,8 @@ def _row_to_config(row: dict) -> SPConfig:
         enabled=row.get("enabled", True),
         trust_established=row.get("trust_established", False),
         available_to_all=row.get("available_to_all", False),
+        has_logo=row.get("has_logo", False),
+        logo_updated_at=row.get("logo_updated_at"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -48,5 +50,7 @@ def _row_to_list_item(
         signing_cert_expires_at=signing_cert_expires_at,
         assigned_group_count=assigned_group_count,
         user_access_count=user_access_count,
+        has_logo=row.get("has_logo", False),
+        logo_updated_at=row.get("logo_updated_at"),
         created_at=row["created_at"],
     )

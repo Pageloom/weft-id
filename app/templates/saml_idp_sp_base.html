@@ -9,7 +9,7 @@
            class="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to Service Providers</a>
     </div>
 
-    {% if success in ('certificate_rotated', 'group_assigned', 'groups_assigned', 'group_removed', 'updated', 'enabled', 'disabled', 'metadata_refreshed', 'metadata_reimported', 'attributes_updated', 'created', 'trust_established') %}
+    {% if success in ('certificate_rotated', 'group_assigned', 'groups_assigned', 'group_removed', 'updated', 'enabled', 'disabled', 'metadata_refreshed', 'metadata_reimported', 'attributes_updated', 'created', 'trust_established', 'logo_uploaded', 'logo_deleted') %}
     <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
         <p class="text-sm text-green-800 dark:text-green-300">
             {% if success == 'created' %}
@@ -36,6 +36,10 @@
             Metadata re-imported successfully from XML.
             {% elif success == 'attributes_updated' %}
             Attribute mapping updated successfully.
+            {% elif success == 'logo_uploaded' %}
+            Logo uploaded successfully.
+            {% elif success == 'logo_deleted' %}
+            Logo removed successfully.
             {% endif %}
         </p>
     </div>

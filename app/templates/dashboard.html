@@ -43,13 +43,23 @@
             {% for app in user_apps %}
             <a href="/saml/idp/launch/{{ app.id }}"
                class="group flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors">
-                <div class="min-w-0">
-                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                        {{ app.name }}
-                    </span>
-                    {% if app.description %}
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ app.description }}</p>
+                <div class="flex items-center gap-3 min-w-0">
+                    {% if app.has_logo %}
+                    <img src="/branding/sp-logo/{{ app.id }}{% if app.logo_updated_at %}?v={{ app.logo_updated_at.timestamp() | int }}{% endif %}"
+                         width="32" height="32"
+                         class="rounded border border-gray-200 dark:border-gray-700 flex-shrink-0" alt="">
+                    {% else %}
+                    <img data-acronym="{{ app.id }}" data-name="{{ app.name }}"
+                         width="32" height="32" class="rounded flex-shrink-0" alt="">
                     {% endif %}
+                    <div class="min-w-0">
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                            {{ app.name }}
+                        </span>
+                        {% if app.description %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ app.description }}</p>
+                        {% endif %}
+                    </div>
                 </div>
                 {{ icon("arrow-right", class="h-4 w-4 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0 ml-2") }}
             </a>
@@ -95,4 +105,15 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script nonce="{{ csp_nonce }}" src="{{ static_url('js/group-avatar.js') }}"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+    document.querySelectorAll('img[data-acronym]').forEach((img) => {
+        img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
+    });
+})();
+</script>
 {% endblock %}

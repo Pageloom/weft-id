@@ -240,3 +240,65 @@ def delete_group_logo(tenant_id: TenantArg, group_id: str) -> int:
         "DELETE FROM group_logos WHERE group_id = :group_id",
         {"group_id": group_id},
     )
+
+
+# =============================================================================
+# SP Logo Operations
+# =============================================================================
+
+
+def get_sp_logo(tenant_id: TenantArg, sp_id: str) -> dict | None:
+    """Get SP logo binary data and metadata.
+
+    Returns:
+        Dict with logo_data (bytes), logo_mime (str), updated_at.
+        None if no logo exists for this SP.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        SELECT logo_data, logo_mime, updated_at
+        FROM sp_logos
+        WHERE sp_id = :sp_id
+        """,
+        {"sp_id": sp_id},
+    )
+
+
+def upsert_sp_logo(
+    tenant_id: TenantArg,
+    sp_id: str,
+    logo_data: bytes,
+    mime_type: str,
+) -> None:
+    """Upload or replace a custom logo for a service provider."""
+    execute(
+        tenant_id,
+        """
+        INSERT INTO sp_logos (sp_id, tenant_id, logo_data, logo_mime, updated_at)
+        VALUES (:sp_id, :tenant_id, :logo_data, :logo_mime, now())
+        ON CONFLICT (sp_id) DO UPDATE
+            SET logo_data = :logo_data,
+                logo_mime = :logo_mime,
+                updated_at = now()
+        """,
+        {
+            "sp_id": sp_id,
+            "tenant_id": str(tenant_id),
+            "logo_data": logo_data,
+            "logo_mime": mime_type,
+        },
+    )
+
+
+def delete_sp_logo(tenant_id: TenantArg, sp_id: str) -> int:
+    """Remove a custom logo for a service provider.
+
+    Returns:
+        Number of rows deleted (0 if no logo existed).
+    """
+    return execute(
+        tenant_id,
+        "DELETE FROM sp_logos WHERE sp_id = :sp_id",
+        {"sp_id": sp_id},
+    )

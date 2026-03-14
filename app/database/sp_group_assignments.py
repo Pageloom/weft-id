@@ -167,8 +167,11 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
     return fetchall(
         tenant_id,
         """
-        select distinct sp.id, sp.name, sp.description, sp.entity_id
+        select distinct sp.id, sp.name, sp.description, sp.entity_id,
+               (spl.sp_id IS NOT NULL) AS has_logo,
+               spl.updated_at AS logo_updated_at
         from service_providers sp
+        left join sp_logos spl on spl.sp_id = sp.id
         join sp_group_assignments sga on sga.sp_id = sp.id
         join group_lineage gl on gl.ancestor_id = sga.group_id
         join group_memberships gm on gm.group_id = gl.descendant_id
@@ -176,8 +179,11 @@ def get_accessible_sps_for_user(tenant_id: TenantArg, user_id: str) -> list[dict
           and sp.enabled = true
           and sp.trust_established = true
         union
-        select sp.id, sp.name, sp.description, sp.entity_id
+        select sp.id, sp.name, sp.description, sp.entity_id,
+               (spl.sp_id IS NOT NULL) AS has_logo,
+               spl.updated_at AS logo_updated_at
         from service_providers sp
+        left join sp_logos spl on spl.sp_id = sp.id
         where sp.available_to_all = true
           and sp.enabled = true
           and sp.trust_established = true

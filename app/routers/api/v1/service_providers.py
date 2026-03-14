@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import get_current_user_api, require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, UploadFile, status
 from schemas.service_providers import (
     SPConfig,
     SPCreate,
@@ -25,6 +25,7 @@ from schemas.service_providers import (
     SPUpdate,
     UserAppList,
 )
+from services import branding as branding_service
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
@@ -513,6 +514,54 @@ def remove_group_from_sp(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         sp_service.remove_sp_group_assignment(requesting_user, sp_id, group_id)
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+# =============================================================================
+# SP Logo Endpoints
+# =============================================================================
+
+
+@router.post("/{sp_id}/logo", status_code=status.HTTP_201_CREATED)
+async def upload_sp_logo(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+    file: UploadFile,
+):
+    """Upload a custom logo for a service provider.
+
+    Requires super_admin role.
+    Accepts PNG (square, min 48x48) or SVG (square viewBox) up to 256KB.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        data = await file.read()
+        branding_service.upload_sp_logo(
+            requesting_user,
+            sp_id=sp_id,
+            data=data,
+            filename=file.filename,
+        )
+        return None
+    except ServiceError as exc:
+        raise translate_to_http_exception(exc)
+
+
+@router.delete("/{sp_id}/logo", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sp_logo(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_super_admin_api)],
+    sp_id: str,
+):
+    """Remove a custom logo from a service provider.
+
+    Requires super_admin role.
+    """
+    requesting_user = build_requesting_user(admin, tenant_id, None)
+    try:
+        branding_service.delete_sp_logo(requesting_user, sp_id=sp_id)
     except ServiceError as exc:
         raise translate_to_http_exception(exc)
 

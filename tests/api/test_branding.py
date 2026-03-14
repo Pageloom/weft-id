@@ -437,3 +437,198 @@ def test_serve_group_logo_etag_304(client):
         )
 
     assert resp.status_code == 304
+
+
+# =============================================================================
+# POST /api/v1/service-providers/{sp_id}/logo
+# =============================================================================
+
+
+def _super_admin_user():
+    return {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "tenant_id": "00000000-0000-0000-0000-000000000099",
+        "first_name": "Super",
+        "last_name": "Admin",
+        "role": "super_admin",
+        "email": "super@example.com",
+    }
+
+
+def test_upload_sp_logo_as_super_admin(client, override_api_auth):
+    """Super admin can upload an SP logo via API."""
+    user = _super_admin_user()
+    override_api_auth(user, level="super_admin")
+
+    png = _make_png(64, 64)
+
+    with (
+        patch("services.branding.database.branding.upsert_sp_logo"),
+        patch("services.branding.log_event"),
+    ):
+        resp = client.post(
+            "/api/v1/service-providers/00000000-0000-0000-0000-000000000042/logo",
+            files={"file": ("logo.png", io.BytesIO(png), "image/png")},
+        )
+
+    assert resp.status_code == 201
+
+
+def test_upload_sp_logo_validation_error(client, override_api_auth):
+    """Upload with invalid data returns 400."""
+    user = _super_admin_user()
+    override_api_auth(user, level="super_admin")
+
+    resp = client.post(
+        "/api/v1/service-providers/00000000-0000-0000-0000-000000000042/logo",
+        files={"file": ("bad.gif", io.BytesIO(b"not-an-image"), "image/gif")},
+    )
+
+    assert resp.status_code == 400
+
+
+# =============================================================================
+# DELETE /api/v1/service-providers/{sp_id}/logo
+# =============================================================================
+
+
+def test_delete_sp_logo_as_super_admin(client, override_api_auth):
+    """Super admin can delete an SP logo."""
+    user = _super_admin_user()
+    override_api_auth(user, level="super_admin")
+
+    with (
+        patch("services.branding.database.branding.delete_sp_logo", return_value=1),
+        patch("services.branding.log_event"),
+    ):
+        resp = client.delete("/api/v1/service-providers/00000000-0000-0000-0000-000000000042/logo")
+
+    assert resp.status_code == 204
+
+
+def test_delete_sp_logo_not_found(client, override_api_auth):
+    """Deleting non-existent SP logo returns 404."""
+    user = _super_admin_user()
+    override_api_auth(user, level="super_admin")
+
+    with patch("services.branding.database.branding.delete_sp_logo", return_value=0):
+        resp = client.delete("/api/v1/service-providers/00000000-0000-0000-0000-000000000042/logo")
+
+    assert resp.status_code == 404
+
+
+# =============================================================================
+# GET /branding/sp-logo/{sp_id}
+# =============================================================================
+
+
+def test_serve_sp_logo_returns_200(client):
+    """Uploaded SP logo is served with correct content type and ETag."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    png = _make_png(64, 64)
+    sp_id = "00000000-0000-0000-0000-000000000042"
+
+    with patch(
+        "services.branding.database.branding.get_sp_logo",
+        return_value={
+            "logo_data": png,
+            "logo_mime": "image/png",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ):
+        resp = client.get(f"/branding/sp-logo/{sp_id}")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert "ETag" in resp.headers
+    assert resp.content == png
+
+
+def test_serve_sp_logo_not_found(client):
+    """Returns 404 when no logo exists for the SP."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    sp_id = "00000000-0000-0000-0000-000000000042"
+
+    with patch(
+        "services.branding.database.branding.get_sp_logo",
+        return_value=None,
+    ):
+        resp = client.get(f"/branding/sp-logo/{sp_id}")
+
+    assert resp.status_code == 404
+
+
+def test_serve_sp_logo_etag_304(client):
+    """Returns 304 when ETag matches."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    sp_id = "00000000-0000-0000-0000-000000000042"
+    png = _make_png(64, 64)
+
+    logo_data = {
+        "logo_data": png,
+        "logo_mime": "image/png",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    # Get ETag from first request
+    with patch(
+        "services.branding.database.branding.get_sp_logo",
+        return_value=logo_data,
+    ):
+        first_resp = client.get(f"/branding/sp-logo/{sp_id}")
+
+    assert first_resp.status_code == 200
+    etag = first_resp.headers["ETag"]
+
+    # Second request with If-None-Match
+    with patch(
+        "services.branding.database.branding.get_sp_logo",
+        return_value=logo_data,
+    ):
+        resp = client.get(
+            f"/branding/sp-logo/{sp_id}",
+            headers={"if-none-match": etag},
+        )
+
+    assert resp.status_code == 304
+
+
+def test_serve_sp_logo_cache_headers(client):
+    """SP logo response includes correct cache headers."""
+    from dependencies import get_tenant_id_from_request
+    from main import app
+
+    tenant_id = "00000000-0000-0000-0000-000000000099"
+    app.dependency_overrides[get_tenant_id_from_request] = lambda: tenant_id
+
+    png = _make_png(64, 64)
+    sp_id = "00000000-0000-0000-0000-000000000042"
+
+    with patch(
+        "services.branding.database.branding.get_sp_logo",
+        return_value={
+            "logo_data": png,
+            "logo_mime": "image/png",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        },
+    ):
+        resp = client.get(f"/branding/sp-logo/{sp_id}")
+
+    assert "max-age=3600" in resp.headers["cache-control"]
+    assert "must-revalidate" in resp.headers["cache-control"]
+    assert "public" in resp.headers["cache-control"]

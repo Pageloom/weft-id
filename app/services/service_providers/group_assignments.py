@@ -400,6 +400,8 @@ def get_user_accessible_apps(
             name=row["name"],
             description=row.get("description"),
             entity_id=row["entity_id"],
+            has_logo=row.get("has_logo", False),
+            logo_updated_at=row.get("logo_updated_at"),
         )
         for row in rows
     ]

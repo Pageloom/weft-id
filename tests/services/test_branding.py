@@ -751,6 +751,112 @@ class TestGroupLogoDelete:
             branding_service.delete_group_logo(ru, group_id="some-id")
 
 
+# =============================================================================
+# SP Logo Tests
+# =============================================================================
+
+
+def _create_test_sp(test_tenant, test_admin_user) -> str:
+    """Helper to create a test SP; returns SP UUID as string."""
+    import database.service_providers
+
+    result = database.service_providers.create_service_provider(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Test Logo SP",
+        created_by=str(test_admin_user["id"]),
+    )
+    return str(result["id"])
+
+
+class TestSPLogoUpload:
+    def test_upload_sp_logo_success(self, test_tenant, test_admin_user):
+        """Admin can upload a PNG logo for an SP."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        branding_service.upload_sp_logo(ru, sp_id=sp_id, data=_make_png(64, 64))
+
+        result = branding_service.get_sp_logo_for_serving(str(test_tenant["id"]), sp_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/png"
+        _verify_event_logged(str(test_tenant["id"]), "sp_logo_uploaded")
+
+    def test_upload_sp_logo_svg(self, test_tenant, test_admin_user):
+        """Admin can upload an SVG logo for an SP."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        branding_service.upload_sp_logo(
+            ru, sp_id=sp_id, data=_make_svg(100, 100), filename="logo.svg"
+        )
+
+        result = branding_service.get_sp_logo_for_serving(str(test_tenant["id"]), sp_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/svg+xml"
+
+    def test_upload_sp_logo_replaces_existing(self, test_tenant, test_admin_user):
+        """Uploading a second logo replaces the first."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        branding_service.upload_sp_logo(ru, sp_id=sp_id, data=_make_png(48, 48))
+        branding_service.upload_sp_logo(ru, sp_id=sp_id, data=_make_svg(100, 100))
+
+        result = branding_service.get_sp_logo_for_serving(str(test_tenant["id"]), sp_id)
+        assert result is not None
+        assert result["logo_mime"] == "image/svg+xml"
+
+    def test_upload_sp_logo_forbidden_for_member(self, test_tenant, test_user):
+        """Non-admin cannot upload an SP logo."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+        from services.exceptions import ForbiddenError
+
+        with pytest.raises(ForbiddenError):
+            branding_service.upload_sp_logo(ru, sp_id="some-id", data=_make_png(64, 64))
+
+    def test_upload_sp_logo_invalid_format(self, test_tenant, test_admin_user):
+        """Invalid image format is rejected."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        with pytest.raises(ValidationError) as exc_info:
+            branding_service.upload_sp_logo(ru, sp_id=sp_id, data=b"not-an-image")
+        assert exc_info.value.code == "unsupported_format"
+
+
+class TestSPLogoDelete:
+    def test_delete_sp_logo_success(self, test_tenant, test_admin_user):
+        """Admin can delete an SP logo."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        branding_service.upload_sp_logo(ru, sp_id=sp_id, data=_make_png(64, 64))
+        branding_service.delete_sp_logo(ru, sp_id=sp_id)
+
+        result = branding_service.get_sp_logo_for_serving(str(test_tenant["id"]), sp_id)
+        assert result is None
+        _verify_event_logged(str(test_tenant["id"]), "sp_logo_removed")
+
+    def test_delete_sp_logo_not_found(self, test_tenant, test_admin_user):
+        """Deleting a non-existent logo raises NotFoundError."""
+        ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
+        sp_id = _create_test_sp(test_tenant, test_admin_user)
+
+        with pytest.raises(NotFoundError):
+            branding_service.delete_sp_logo(ru, sp_id=sp_id)
+
+    def test_delete_sp_logo_forbidden_for_member(self, test_tenant, test_user):
+        """Non-admin cannot delete an SP logo."""
+        ru = _make_requesting_user(test_user, test_tenant["id"], "member")
+
+        from services.exceptions import ForbiddenError
+
+        with pytest.raises(ForbiddenError):
+            branding_service.delete_sp_logo(ru, sp_id="some-id")
+
+
 class TestGroupAvatarStyle:
     def test_group_avatar_style_is_acronym(self, test_tenant, test_admin_user):
         """Group avatar style is always acronym."""

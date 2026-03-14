@@ -83,6 +83,8 @@ sp_access_mode_updated
 sp_group_assigned
 sp_group_unassigned
 sp_groups_bulk_assigned
+sp_logo_removed
+sp_logo_uploaded
 sp_metadata_refreshed
 sp_metadata_reimported
 sp_nameid_format_updated

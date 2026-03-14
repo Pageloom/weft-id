@@ -8,9 +8,10 @@ from dependencies import (
     get_tenant_id_from_request,
     require_super_admin,
 )
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import has_page_access
+from services import branding as branding_service
 from services import service_providers as sp_service
 from services.exceptions import ServiceError
 from services.types import RequestingUser
@@ -1009,3 +1010,65 @@ def sp_delete(
     except ServiceError as exc:
         logger.warning("Failed to delete SP: %s", exc)
         return RedirectResponse(url=f"{SP_LIST_URL}?error={exc.message}", status_code=303)
+
+
+# =============================================================================
+# SP Logo Handlers
+# =============================================================================
+
+
+@router.post("/{sp_id}/logo/upload", response_class=HTMLResponse)
+async def sp_upload_logo(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+    file: UploadFile = Form(...),
+):
+    """Upload a custom logo for a service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        data = await file.read()
+        branding_service.upload_sp_logo(
+            requesting_user,
+            sp_id=sp_id,
+            data=data,
+            filename=file.filename,
+        )
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=logo_uploaded", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to upload SP logo: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )
+
+
+@router.post("/{sp_id}/logo/delete", response_class=HTMLResponse)
+def sp_delete_logo(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    sp_id: str,
+):
+    """Remove a custom logo from a service provider."""
+    if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = _build_requesting_user(user, tenant_id)
+
+    try:
+        branding_service.delete_sp_logo(requesting_user, sp_id=sp_id)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?success=logo_deleted", status_code=303
+        )
+    except ServiceError as exc:
+        logger.warning("Failed to delete SP logo: %s", exc)
+        return RedirectResponse(
+            url=f"{SP_LIST_URL}/{sp_id}/details?error={exc.message}", status_code=303
+        )

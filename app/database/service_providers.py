@@ -10,6 +10,13 @@ _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                attribute_mapping, enabled, trust_established, available_to_all,
                created_by, created_at, updated_at"""
 
+# Qualified columns for queries with JOINs (avoids ambiguous column errors)
+_SP_COLUMNS_Q = """sp.id, sp.tenant_id, sp.name, sp.description, sp.entity_id, sp.acs_url,
+               sp.certificate_pem, sp.nameid_format, sp.metadata_xml, sp.metadata_url,
+               sp.slo_url, sp.include_group_claims, sp.sp_requested_attributes,
+               sp.attribute_mapping, sp.enabled, sp.trust_established, sp.available_to_all,
+               sp.created_by, sp.created_at, sp.updated_at"""
+
 
 def list_service_providers(tenant_id: TenantArg) -> list[dict]:
     """List all service providers for a tenant.
@@ -20,9 +27,12 @@ def list_service_providers(tenant_id: TenantArg) -> list[dict]:
     return fetchall(
         tenant_id,
         f"""
-        select {_SP_COLUMNS}
-        from service_providers
-        order by created_at desc
+        select {_SP_COLUMNS_Q},
+               (spl.sp_id IS NOT NULL) AS has_logo,
+               spl.updated_at AS logo_updated_at
+        from service_providers sp
+        left join sp_logos spl on spl.sp_id = sp.id
+        order by sp.created_at desc
         """,
         {},
     )
@@ -37,9 +47,12 @@ def get_service_provider(tenant_id: TenantArg, sp_id: str) -> dict | None:
     return fetchone(
         tenant_id,
         f"""
-        select {_SP_COLUMNS}
-        from service_providers
-        where id = :sp_id
+        select {_SP_COLUMNS_Q},
+               (spl.sp_id IS NOT NULL) AS has_logo,
+               spl.updated_at AS logo_updated_at
+        from service_providers sp
+        left join sp_logos spl on spl.sp_id = sp.id
+        where sp.id = :sp_id
         """,
         {"sp_id": sp_id},
     )

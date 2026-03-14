@@ -655,6 +655,28 @@ WeftUtils.listManager({
             }
           },
           {
+            selector: 'edge.parent-edge-distant',
+            style: {
+              'width': 3,
+              'line-color': '#f97316',
+              'target-arrow-color': '#f97316',
+              'line-style': 'dashed',
+              'line-dash-pattern': [6, 4],
+              'opacity': 0.75
+            }
+          },
+          {
+            selector: 'edge.child-edge-distant',
+            style: {
+              'width': 3,
+              'line-color': '#22c55e',
+              'target-arrow-color': '#22c55e',
+              'line-style': 'dashed',
+              'line-dash-pattern': [6, 4],
+              'opacity': 0.75
+            }
+          },
+          {
             selector: 'edge.dimmed',
             style: {
               'opacity': 0.12
@@ -814,12 +836,16 @@ WeftUtils.listManager({
       // Select a node programmatically (shared by tap and edge dbltap).
       function selectNode(node) {
         clearEdgeLabels();
-        cy.edges().removeClass('parent-edge child-edge dimmed');
+        cy.edges().removeClass('parent-edge child-edge parent-edge-distant child-edge-distant dimmed');
         cy.nodes().removeClass('selected');
         selectedNode = node;
-        node.outgoers('edge').addClass('parent-edge');
-        node.predecessors('edge').addClass('child-edge');
-        cy.edges().not('.parent-edge').not('.child-edge').addClass('dimmed');
+        const directParentEdges = node.outgoers('edge');
+        directParentEdges.addClass('parent-edge');
+        node.successors('edge').not(directParentEdges).addClass('parent-edge-distant');
+        const directChildEdges = node.incomers('edge');
+        directChildEdges.addClass('child-edge');
+        node.predecessors('edge').not(directChildEdges).addClass('child-edge-distant');
+        cy.edges().not('.parent-edge').not('.child-edge').not('.parent-edge-distant').not('.child-edge-distant').addClass('dimmed');
         node.addClass('selected');
         applyOffViewportEdgeLabels();
         hoverTooltip.style.display = 'none';
@@ -855,7 +881,7 @@ WeftUtils.listManager({
         if (evt.target === cy) {
           clearEdgeLabels();
           selectedNode = null;
-          cy.edges().removeClass('parent-edge child-edge dimmed');
+          cy.edges().removeClass('parent-edge child-edge parent-edge-distant child-edge-distant dimmed');
           cy.nodes().removeClass('selected');
           tooltip.style.display = 'none';
         }
@@ -1021,7 +1047,7 @@ WeftUtils.listManager({
         const H = cyEl.offsetHeight;
         const margin = 6;
 
-        cy.edges('.parent-edge, .child-edge').each((edge) => {
+        cy.edges('.parent-edge, .child-edge, .parent-edge-distant, .child-edge-distant').each((edge) => {
           const srcPos = edge.source().renderedPosition();
           const tgtPos = edge.target().renderedPosition();
           const srcIn = srcPos.x >= 0 && srcPos.x <= W && srcPos.y >= 0 && srcPos.y <= H;
@@ -1032,7 +1058,8 @@ WeftUtils.listManager({
           const outPos  = srcIn ? tgtPos : srcPos;
           const outNode = srcIn ? edge.target() : edge.source();
           const name    = outNode.data('label').split('\n')[0];
-          const color   = edge.hasClass('parent-edge') ? '#f97316' : '#22c55e';
+          const isParent = edge.hasClass('parent-edge') || edge.hasClass('parent-edge-distant');
+          const color   = isParent ? '#f97316' : '#22c55e';
 
           // Parametric t where the line crosses the container boundary
           const dx = outPos.x - inPos.x;

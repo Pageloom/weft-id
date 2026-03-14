@@ -4,6 +4,75 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML SP: Encrypted Assertion Support
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want WeftId to support receiving encrypted SAML assertions from identity providers
+So that assertion contents are protected end-to-end, not just by transport-level encryption
+
+**Acceptance Criteria:**
+
+SP metadata:
+- [x] Always publish an encryption `KeyDescriptor` (`use="encryption"`) in the per-IdP SP metadata XML
+- [x] Reuse the per-IdP signing certificate for encryption (python3-saml decrypts with the same private key)
+- [x] Signing `KeyDescriptor` remains unchanged
+
+Assertion decryption:
+- [x] python3-saml handles `<EncryptedAssertion>` transparently using the SP private key
+- [x] Supports AES-128/256-CBC content encryption and RSA-OAEP/v1.5 key transport (via python3-saml)
+- [x] After decryption, assertion flows through the existing validation pipeline
+- [x] Plain assertions still accepted (encryption is advisory, not required)
+
+---
+
+## SAML IdP: Encrypt Assertions for Downstream SPs
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want WeftId to encrypt SAML assertions for downstream service providers that advertise an encryption certificate
+So that assertion contents are protected end-to-end when WeftId acts as the identity provider
+
+**Acceptance Criteria:**
+
+SP metadata parsing:
+- [x] `parse_sp_metadata_xml()` distinguishes `use="signing"` and `use="encryption"` KeyDescriptors
+- [x] When `use` is omitted, the certificate is treated as valid for both purposes (per SAML spec)
+- [x] Encryption certificate stored separately from signing certificate in the SP record
+- [x] SP import and update flows handle the encryption certificate
+
+Database:
+- [x] Store SP encryption certificate (new column on service_providers)
+- [x] Migration adds the field with appropriate constraints
+
+Assertion encryption:
+- [x] When the SP has an encryption certificate, wrap the signed assertion in an `<EncryptedAssertion>` element
+- [x] Use the SP's encryption public key for key transport (RSA-OAEP)
+- [x] Use AES-256-CBC for content encryption
+- [x] The assertion is signed first, then encrypted (sign-then-encrypt, per SAML best practice)
+- [x] When the SP has no encryption certificate, send plain signed assertions as today
+
+Configuration:
+- [x] Always encrypt when the SP provides an encryption certificate (no toggle needed)
+- [x] SP detail page shows encryption status (read-only indicator)
+
+Event logging:
+- [x] Log whether assertion was encrypted in SSO event metadata
+- [x] Log encryption certificate changes when SP metadata is re-imported
+
+Tests:
+- [x] Metadata parsing correctly extracts separate signing and encryption certificates
+- [x] Metadata parsing handles KeyDescriptors with no `use` attribute (dual-purpose)
+- [x] Assertion encryption produces valid `<EncryptedAssertion>` XML
+- [x] Plain assertions still work when SP has no encryption certificate
+- [x] Per-SP toggle overrides auto-encryption behavior
+
+---
+
 ## Group Graph: Toolbar, New Group Modal, and Label Overlap
 
 **Status:** Complete

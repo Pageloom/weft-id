@@ -281,6 +281,7 @@ def generate_sp_metadata_xml(
     slo_url: str | None = None,
     previous_certificate_pem: str | None = None,
     attribute_mapping: dict[str, str] | None = None,
+    encryption_certificate_pem: str | None = None,
 ) -> str:
     """
     Generate SP metadata XML for IdPs to consume.
@@ -293,6 +294,9 @@ def generate_sp_metadata_xml(
         previous_certificate_pem: Optional previous cert during rotation grace period
         attribute_mapping: Optional IdP attribute mapping {idp_attr_name: platform_field}.
             Uses defaults if None.
+        encryption_certificate_pem: Optional PEM-encoded encryption certificate.
+            When provided, an encryption KeyDescriptor is included so IdPs can
+            encrypt assertions for this SP.
 
     Returns:
         XML metadata string
@@ -355,6 +359,20 @@ def generate_sp_metadata_xml(
       </ds:KeyInfo>
     </md:KeyDescriptor>"""
 
+    # Build encryption certificate KeyDescriptor
+    enc_cert_section = ""
+    if encryption_certificate_pem:
+        enc_lines = encryption_certificate_pem.strip().split("\n")
+        enc_data = "".join(line for line in enc_lines if not line.startswith("-----"))
+        enc_cert_section = f"""
+    <md:KeyDescriptor use="encryption">
+      <ds:KeyInfo>
+        <ds:X509Data>
+          <ds:X509Certificate>{enc_data}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>"""
+
     entity_id_esc = esc(entity_id)
     acs_url_esc = esc(acs_url)
 
@@ -373,7 +391,7 @@ def generate_sp_metadata_xml(
           <ds:X509Certificate>{cert_data}</ds:X509Certificate>
         </ds:X509Data>
       </ds:KeyInfo>
-    </md:KeyDescriptor>{prev_cert_section}
+    </md:KeyDescriptor>{prev_cert_section}{enc_cert_section}
     <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
     <md:AssertionConsumerService
         Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"

@@ -497,6 +497,49 @@ class TestGetIdpSpMetadataXml:
 
 
 # =============================================================================
+# Service Layer: get_idp_sp_metadata_xml (encryption cert toggle)
+# =============================================================================
+
+
+class TestIdpSpMetadataEncryptionCert:
+    """Tests for encryption certificate in SP metadata."""
+
+    def test_encryption_cert_always_included(self):
+        """SP metadata always includes the signing cert as encryption cert."""
+        from unittest.mock import patch
+
+        from services import saml as saml_service
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        cert_pem = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIICsDCCAZigAwIBAgIJALwzrJEIQ9UHMA0=\n"
+            "-----END CERTIFICATE-----"
+        )
+
+        with (
+            patch("services.saml.idp_sp_certificates.database") as mock_db,
+            patch("services.saml.idp_sp_certificates.generate_sp_metadata_xml") as mock_gen,
+        ):
+            mock_db.saml.get_idp_sp_certificate.return_value = {
+                "certificate_pem": cert_pem,
+                "previous_certificate_pem": None,
+            }
+            mock_db.saml.get_identity_provider.return_value = {
+                "id": idp_id,
+                "attribute_mapping": None,
+            }
+            mock_gen.return_value = "<xml/>"
+
+            saml_service.get_idp_sp_metadata_xml(tenant_id, idp_id, "https://test.example.com")
+
+            call_kwargs = mock_gen.call_args[1]
+            assert call_kwargs["encryption_certificate_pem"] == cert_pem
+
+
+# =============================================================================
 # Two-Step IdP Creation: Name-Only Mode
 # =============================================================================
 

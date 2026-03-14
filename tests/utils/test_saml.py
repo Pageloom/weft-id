@@ -600,6 +600,94 @@ def test_generate_sp_metadata_xml_escapes_entity_id_and_urls(sample_certificate)
 
 
 # =============================================================================
+# SP Metadata Encryption Certificate Tests
+# =============================================================================
+
+
+class TestGenerateSPMetadataEncryptionCert:
+    """Tests for encryption KeyDescriptor in generated SP metadata XML."""
+
+    SIGNING_CERT = "-----BEGIN CERTIFICATE-----\nSIGNINGDATA\n-----END CERTIFICATE-----"
+    ENCRYPTION_CERT = "-----BEGIN CERTIFICATE-----\nENCRYPTIONDATA\n-----END CERTIFICATE-----"
+
+    def test_encryption_key_descriptor_present_when_cert_provided(self):
+        """Encryption KeyDescriptor present when cert provided."""
+        from defusedxml import ElementTree as DefusedET
+
+        xml = generate_sp_metadata_xml(
+            entity_id="https://sp.example.com/saml/metadata",
+            acs_url="https://sp.example.com/saml/acs",
+            certificate_pem=self.SIGNING_CERT,
+            encryption_certificate_pem=self.ENCRYPTION_CERT,
+        )
+
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        ds_ns = "http://www.w3.org/2000/09/xmldsig#"
+        sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+
+        key_descriptors = sp_desc.findall(f"{{{md_ns}}}KeyDescriptor")
+        enc_descriptors = [kd for kd in key_descriptors if kd.attrib.get("use") == "encryption"]
+
+        assert len(enc_descriptors) == 1
+        xpath = f"{{{ds_ns}}}KeyInfo/{{{ds_ns}}}X509Data/{{{ds_ns}}}X509Certificate"
+        cert_elem = enc_descriptors[0].find(xpath)
+        assert cert_elem is not None
+        assert "ENCRYPTIONDATA" in cert_elem.text
+
+    def test_no_encryption_key_descriptor_when_none(self):
+        """When encryption_certificate_pem is not passed, no encryption KeyDescriptor appears."""
+        from defusedxml import ElementTree as DefusedET
+
+        xml = generate_sp_metadata_xml(
+            entity_id="https://sp.example.com/saml/metadata",
+            acs_url="https://sp.example.com/saml/acs",
+            certificate_pem=self.SIGNING_CERT,
+        )
+
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+
+        key_descriptors = sp_desc.findall(f"{{{md_ns}}}KeyDescriptor")
+        enc_descriptors = [kd for kd in key_descriptors if kd.attrib.get("use") == "encryption"]
+
+        assert len(enc_descriptors) == 0
+
+    def test_signing_and_encryption_descriptors_coexist(self):
+        """When both signing and encryption certs are passed, both KeyDescriptors appear."""
+        from defusedxml import ElementTree as DefusedET
+
+        xml = generate_sp_metadata_xml(
+            entity_id="https://sp.example.com/saml/metadata",
+            acs_url="https://sp.example.com/saml/acs",
+            certificate_pem=self.SIGNING_CERT,
+            encryption_certificate_pem=self.ENCRYPTION_CERT,
+        )
+
+        root = DefusedET.fromstring(xml)
+        md_ns = "urn:oasis:names:tc:SAML:2.0:metadata"
+        ds_ns = "http://www.w3.org/2000/09/xmldsig#"
+        sp_desc = root.find(f"{{{md_ns}}}SPSSODescriptor")
+
+        key_descriptors = sp_desc.findall(f"{{{md_ns}}}KeyDescriptor")
+        uses = {kd.attrib.get("use") for kd in key_descriptors}
+
+        assert "signing" in uses
+        assert "encryption" in uses
+
+        # Verify each has the correct certificate data
+        xpath = f"{{{ds_ns}}}KeyInfo/{{{ds_ns}}}X509Data/{{{ds_ns}}}X509Certificate"
+        for kd in key_descriptors:
+            cert_elem = kd.find(xpath)
+            assert cert_elem is not None
+            if kd.attrib.get("use") == "signing":
+                assert "SIGNINGDATA" in cert_elem.text
+            elif kd.attrib.get("use") == "encryption":
+                assert "ENCRYPTIONDATA" in cert_elem.text
+
+
+# =============================================================================
 # SAML Settings Builder Tests
 # =============================================================================
 

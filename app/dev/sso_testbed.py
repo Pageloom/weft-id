@@ -356,6 +356,46 @@ def step_5b_update_per_idp_metadata(
     log.info("Ensured per-IdP SP certificate for IdP %s", idp_id)
 
 
+def step_5c_set_sp_encryption_cert(
+    log,
+    idp_tenant_id: str,
+    sp_tenant_id: str,
+    sp_id: str,
+    idp_id: str,
+):
+    """Set the SP's encryption certificate on its registration at the IdP.
+
+    The SP advertises its per-IdP certificate for encryption in metadata.
+    This step reads that certificate from the SP tenant and stores it on
+    the SP registration at the IdP tenant so the IdP encrypts assertions.
+    """
+    log.info("--- Step 5c: SP encryption certificate ---")
+
+    sp_cert = database.saml.get_idp_sp_certificate(sp_tenant_id, idp_id)
+    if not sp_cert:
+        log.info("No per-IdP SP certificate found, skipping encryption setup")
+        return
+
+    encryption_cert_pem = sp_cert["certificate_pem"]
+
+    # Check if already set
+    sp_row = database.service_providers.get_service_provider(idp_tenant_id, sp_id)
+    if sp_row and sp_row.get("encryption_certificate_pem"):
+        log.info("Encryption certificate already set on SP %s", sp_id)
+        return
+
+    database.execute(
+        idp_tenant_id,
+        """
+        update service_providers
+        set encryption_certificate_pem = :enc_cert, updated_at = now()
+        where id = cast(:sp_id as uuid)
+        """,
+        {"enc_cert": encryption_cert_pem, "sp_id": sp_id},
+    )
+    log.info("Set encryption certificate on SP %s from SP tenant per-IdP cert", sp_id)
+
+
 def step_6_create_group_and_assign_sp(
     log,
     idp_tenant_id: str,
@@ -589,6 +629,9 @@ def main(
         sp_id,
         idp_id,
     )
+
+    # Step 5c: Set SP encryption certificate for assertion encryption
+    step_5c_set_sp_encryption_cert(log, idp_tenant_id, sp_tenant_id, sp_id, idp_id)
 
     # Step 6: Create group and assign SP for access control
     group_id = step_6_create_group_and_assign_sp(log, idp_tenant_id, idp_admin["id"], sp_id)

@@ -221,4 +221,5 @@ def get_idp_sp_metadata_xml(
         certificate_pem=cert["certificate_pem"],
         previous_certificate_pem=previous_cert,
         attribute_mapping=idp_attribute_mapping,
+        encryption_certificate_pem=cert["certificate_pem"],
     )

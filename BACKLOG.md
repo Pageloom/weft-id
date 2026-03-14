@@ -1057,7 +1057,102 @@ Database:
 - [ ] Table or columns for reset tokens (user_id, token_hash, created_at, expires_at, used_at)
 - [ ] Expired and used tokens cleaned up periodically (background job or on-query)
 
+> **Note:** If the "Stateless Time-Windowed Token Generation" backlog item is implemented first,
+> this item should use that infrastructure instead of database-stored tokens. The database
+> acceptance criteria above would then be replaced by stateless token generation with
+> `password_changed_at` as the state-based invalidation input.
+
 **Effort:** M
 **Value:** High
+
+---
+
+## Stateless Time-Windowed Token Generation
+
+**User Story:**
+As a platform operator
+I want one-time codes and verification tokens to be derived deterministically from a secret
+rather than stored in the database
+So that token flows are simpler, require no storage or cleanup, and scale without database pressure
+
+**Context:**
+
+Several flows in WeftId generate one-time tokens and store them in the database: email
+verification codes, MFA email codes, and (planned) forgot-password tokens. Each requires a
+database table, insert-on-create, lookup-on-verify, and periodic cleanup of expired entries.
+
+All of these can be replaced with deterministic, time-windowed token generation using the
+same principle as TOTP (RFC 6238):
+
+    code = HMAC(derived_secret, user_id + purpose + floor(time / step))
+
+The verifier generates codes for the current time window and a few adjacent windows (e.g.,
+current, -1, -2, +1 steps). If the submitted code matches any of them, it's valid. No
+database lookup, no cleanup job, no table bloat.
+
+The project already has HKDF key derivation in `app/utils/crypto.py` with purpose-scoped
+keys (session, MFA, SAML, email). A new `"token"` purpose would derive the secret used for
+all stateless token generation.
+
+**Revocation without storage:** Where a token must become invalid after use (e.g., forgot-
+password), include a piece of mutable user state in the derivation input. For password reset,
+including `password_changed_at` means the derivation inputs change the moment the password
+is reset, and the old code silently stops matching. The action itself invalidates the token.
+
+**What stays in the database:** Nothing changes for TOTP (RFC 6238 with per-user secrets) or
+session tokens (managed by the session store). This item targets only short-lived, single-
+purpose codes that currently require their own storage.
+
+**Acceptance Criteria:**
+
+Core infrastructure:
+- [ ] New derived key via HKDF with purpose `"token"` in `app/utils/crypto.py`
+- [ ] Token generation function: `generate_code(user_id, purpose, step_seconds, state=None) -> str` that produces a deterministic code from the derived secret, user ID, purpose string, time window, and optional state input
+- [ ] Token verification function: `verify_code(code, user_id, purpose, step_seconds, window=3, state=None) -> bool` that checks the submitted code against the current window and adjacent windows
+- [ ] Purpose strings are explicit constants (e.g., `"email_verify"`, `"mfa_email"`, `"password_reset"`) to prevent cross-purpose token acceptance
+- [ ] Step duration and window size are caller-specified (different flows have different timing needs)
+
+Migration of existing flows:
+- [ ] MFA email codes: migrate from database-stored codes to stateless generation
+- [ ] Email verification tokens: migrate from database-stored tokens to stateless generation
+- [ ] Forgot-password tokens (separate backlog item) should use this infrastructure from the start
+- [ ] Document the pattern so future token needs default to stateless generation
+
+State-based invalidation:
+- [ ] Document which state field to include per purpose (e.g., `password_changed_at` for password reset, `email_verified_at` for email verification)
+- [ ] When state is included, changing that state automatically invalidates outstanding tokens
+
+**Effort:** M
+**Value:** High (Infrastructure simplification, eliminates token storage and cleanup across multiple flows)
+
+---
+
+## Remove Legacy One-Time Token Storage
+
+**User Story:**
+As a developer
+I want to remove the database tables and columns that previously stored one-time tokens
+So that the schema is clean and there is no dead storage after migrating to stateless tokens
+
+**Context:**
+
+Once the "Stateless Time-Windowed Token Generation" item is complete and all token flows have
+been migrated, the database tables/columns that stored email verification codes, MFA email
+codes, and any other one-time tokens are no longer read or written. This item removes them.
+
+This is a cleanup item with no user-facing impact. It depends on the stateless token item
+being fully deployed and confirmed working.
+
+**Acceptance Criteria:**
+
+- [ ] Identify all tables/columns used for one-time token storage
+- [ ] Verify no code paths read from or write to them (grep for table/column names)
+- [ ] Migration drops the identified tables/columns
+- [ ] Migration follows the multi-step safety pattern if needed (mark unused first, drop in a later migration)
+- [ ] Associated cleanup jobs (if any) are removed from `app/jobs/`
+- [ ] Tests updated to remove any references to the old token storage
+
+**Effort:** S
+**Value:** Low (Cleanup, depends on stateless token generation being complete)
 
 ---

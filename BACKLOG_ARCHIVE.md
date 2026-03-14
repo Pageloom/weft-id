@@ -4,6 +4,43 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Group Graph: Toolbar, New Group Modal, and Label Overlap
+
+**Status:** Complete
+
+**User Story:**
+As an admin using the group graph view
+I want a cleaner toolbar, the ability to create groups directly from the graph, and non-overlapping edge labels
+So that the graph feels polished, I can build the group hierarchy without leaving the canvas, and off-screen labels are readable
+
+**Acceptance Criteria:**
+
+Toolbar (icon-only buttons):
+- [x] "Add relationship", "Cut relationship", and "Edit layout" toolbar buttons show only an icon (no text label)
+- [x] Each button has a `title` tooltip that describes its function (visible on hover)
+- [x] Visual appearance and active/inactive states are preserved
+
+New Group tool:
+- [x] A "New group" button is added to the graph toolbar (icon + tooltip, consistent with other toolbar items)
+- [x] Clicking it opens a modal with a "Name" field (required) and a "Description" field (optional), plus Cancel and Create buttons
+- [x] Submitting the modal creates the group via the existing group creation service and adds it to the graph
+- [x] The new node appears in the graph in a selected/highlighted state so the admin can immediately connect it
+- [x] Cancel closes the modal without creating anything
+- [x] Validation: name is required; shows inline error if empty on submit
+- [x] Creation failure (e.g. duplicate name) shows an error in the modal without closing it
+
+Edge label de-overlap:
+- [x] When multiple off-screen edge labels (showing a connected group's name) would be rendered at overlapping or near-overlapping positions at the viewport boundary, they are spread out so no two labels overlap
+- [x] De-overlap logic is applied only to the off-screen labels (labels for visible nodes are unaffected)
+- [x] Labels remain close to the edge line's viewport intersection point where possible
+
+**Resolution:** Replaced all unicode toolbar icons with proper SVG Heroicons (link, link-slash, user-group-plus, cursor-arrow-rays, arrow-path, check, x-mark, arrows-pointing-in/out) for consistent rendering in light and dark mode. Added a new-group modal with API-driven creation that places nodes at viewport center. Refactored off-viewport edge labels to a two-pass approach with greedy iterative de-overlap. Added a zoom-aware snap grid overlay during layout edit mode.
+
+**Effort:** M
+**Value:** Medium
+
+---
+
 ## Group Graph: Extended Selection Highlighting with Depth-Aware Edge Styles
 
 **Status:** Complete

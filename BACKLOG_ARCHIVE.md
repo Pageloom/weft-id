@@ -4,6 +4,27 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## GHCR Publish Workflow
+
+**Status:** Complete
+
+**User Story:**
+As the development team
+I want a GitHub Actions workflow that builds and publishes Docker images to GHCR when a version tag is pushed
+So that self-hosters can pull versioned images without needing the source code
+
+**Acceptance Criteria:**
+
+- [x] GitHub Actions workflow triggers on push of tags matching `v*.*.*`
+- [x] Builds via a production multi-stage `Dockerfile` (separate from dev `app/Dockerfile`)
+- [x] Pushes to `ghcr.io/pageloom/weft-id` with exact, minor, major, and `latest` tags
+- [x] Image includes OCI labels: version, source URL, description, creation date
+- [x] Image does NOT include dev scripts, test files, or dev dependencies
+- [x] Workflow fails if the tag doesn't match the version in `pyproject.toml`
+- [x] Self-hosting docs updated with the GHCR image URL and available tags
+
+---
+
 ## Version Management Policy
 
 **Status:** Complete

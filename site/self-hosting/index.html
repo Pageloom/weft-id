@@ -2064,6 +2064,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#docker-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Image
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2174,6 +2185,19 @@
 
 <h1 id="self-hosting">Self-Hosting<a class="headerlink" href="#self-hosting" title="Permanent link">&para;</a></h1>
 <p>Deploy WeftId on your own infrastructure using Docker Compose.</p>
+<h2 id="docker-image">Docker Image<a class="headerlink" href="#docker-image" title="Permanent link">&para;</a></h2>
+<p>Production images are published to GitHub Container Registry:</p>
+<div class="highlight"><pre><span></span><code>ghcr.io/pageloom/weft-id
+</code></pre></div>
+<p>Available tags:</p>
+<ul>
+<li><code>1.0.0</code> — exact version (recommended for production)</li>
+<li><code>1.0</code> — latest patch for a minor version</li>
+<li><code>1</code> — latest minor for a major version</li>
+<li><code>latest</code> — newest stable release</li>
+</ul>
+<p>Pull the image directly or reference it in your compose file instead of building
+from source.</p>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Docker and Docker Compose</li>

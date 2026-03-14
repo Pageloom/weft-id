@@ -1,0 +1,85 @@
+# Production multi-stage Dockerfile
+# Dev Dockerfile: app/Dockerfile (used by docker-compose.yml)
+
+# --- Stage 1: Builder ---
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    POETRY_HOME=/opt/poetry \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates curl \
+    pkg-config libxmlsec1-dev libxmlsec1-openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+ && ln -s /opt/poetry/bin/poetry /usr/local/bin/poetry
+
+WORKDIR /build
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --only main
+
+# Build Tailwind CSS
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      TAILWIND_ARCH="arm64"; \
+    else \
+      TAILWIND_ARCH="x64"; \
+    fi \
+ && curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-${TAILWIND_ARCH} \
+ && chmod +x tailwindcss-linux-${TAILWIND_ARCH} \
+ && mv tailwindcss-linux-${TAILWIND_ARCH} /usr/local/bin/tailwindcss
+
+COPY tailwind.config.js /build/
+COPY app/templates/ /build/app/templates/
+COPY static/css/input.css /build/static/css/
+RUN mkdir -p /build/static/css \
+ && tailwindcss -i /build/static/css/input.css -o /build/static/css/output.css --minify
+
+# --- Stage 2: Runtime ---
+FROM python:3.12-slim
+
+ARG VERSION=dev
+ARG BUILD_DATE
+LABEL org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/pageloom/weft-id" \
+      org.opencontainers.image.description="Multi-tenant identity federation platform" \
+      org.opencontainers.image.created="${BUILD_DATE}"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libxmlsec1-openssl \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy installed Python packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+WORKDIR /app
+ENV PYTHONPATH=/app
+
+# Copy app code (exclude dev-only files)
+COPY app/ /app/
+RUN rm -rf /app/dev/ /app/Dockerfile /app/dev-docker-entrypoint.sh
+
+# Bake version into a file for runtime access (importlib.metadata fallback)
+RUN echo "${VERSION}" > /app/VERSION
+
+# Copy static assets
+COPY --from=builder /build/static/css/output.css /app/static/css/output.css
+COPY static/js/ /app/static/js/
+COPY static/svgs/ /app/static/svgs/
+
+# Copy documentation site
+COPY site/ /site/
+
+# Copy migration runner
+COPY db-init/ /db-init/
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

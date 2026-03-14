@@ -2,6 +2,24 @@
 
 Deploy WeftId on your own infrastructure using Docker Compose.
 
+## Docker Image
+
+Production images are published to GitHub Container Registry:
+
+```
+ghcr.io/pageloom/weft-id
+```
+
+Available tags:
+
+* `1.0.0` — exact version (recommended for production)
+* `1.0` — latest patch for a minor version
+* `1` — latest minor for a major version
+* `latest` — newest stable release
+
+Pull the image directly or reference it in your compose file instead of building
+from source.
+
 ## Requirements
 
 - Docker and Docker Compose

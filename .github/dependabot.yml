@@ -14,8 +14,14 @@ updates:
       interval: "weekly"
       day: "monday"
 
-  # Docker base images
+  # Docker base images (dev)
   - package-ecosystem: "docker"
     directory: "/app"
+    schedule:
+      interval: "monthly"
+
+  # Docker base images (production)
+  - package-ecosystem: "docker"
+    directory: "/"
     schedule:
       interval: "monthly"

@@ -892,3 +892,172 @@ Only user-facing prose needs updating. Code identifiers (variable names, enum va
 **Value:** Medium
 
 ---
+
+## Password Strength Policy
+
+**User Story:**
+As a super admin
+I want strong, enforceable password requirements that go beyond simple length and character rules
+So that every password-authenticated user in my tenant has a genuinely secure password
+
+**Context:**
+
+WeftId currently has no password strength validation beyond basic length. Passwords are set during
+onboarding but never checked against known breaches or evaluated for real-world guessability.
+
+NIST SP 800-63B recommends against character-composition rules (uppercase + number + symbol) because
+they produce predictable patterns. Instead, modern password policy focuses on three pillars:
+
+1. **Minimum length** (the single strongest factor in password entropy)
+2. **Pattern detection** via zxcvbn, which catches dictionary words, keyboard patterns, repeated
+   characters, l33t substitutions, and common password structures. A password like
+   "password123password123" is long but scores 0.
+3. **Breach checking** via the Have I Been Pwned Passwords API using k-anonymity: only the first
+   5 hex characters of the SHA-1 hash are sent to the API, which returns ~500-800 matching
+   suffixes. The full hash is compared locally. The server never sees the actual password hash.
+
+**Password rotation is deliberately excluded.** NIST 800-63B recommends against periodic rotation
+because it leads to weaker passwords (users append incrementing numbers, reuse patterns). Passwords
+should only be changed on evidence of compromise (via admin-forced reset, a separate backlog item).
+
+**Acceptance Criteria:**
+
+Strength validation (applies to all password-setting flows: onboarding, change, reset):
+- [ ] Minimum length configurable by super admin: 8, 10, 12, 14, 16, 18, or 20 characters. Default: 14
+- [ ] Super admin accounts always require minimum 14 characters regardless of tenant setting
+- [ ] zxcvbn minimum score: default 3 ("safely unguessable"), super admin can set to 4 ("very unguessable")
+- [ ] HIBP k-anonymity breach check: reject passwords found in known breach databases
+- [ ] If HIBP API is unreachable, fail open (allow the password, log a warning). Length and zxcvbn checks still apply.
+- [ ] No password expiry. No rotation policy. No "password must differ from last N passwords." This is intentional and not configurable.
+
+Client-side feedback:
+- [ ] Real-time strength indicator as the user types (zxcvbn-ts or equivalent JS library)
+- [ ] Clear messaging: show estimated crack time, flag specific weaknesses (e.g., "common word detected," "found in breach database")
+- [ ] Encourage password manager use in help text (e.g., "We recommend using a password manager to generate and store a strong password")
+
+Server-side enforcement:
+- [ ] All client-side checks are repeated server-side (zxcvbn Python port + HIBP API call)
+- [ ] Server is the authority. Client-side feedback is UX only.
+- [ ] Validation errors return specific, actionable messages (not just "password too weak")
+
+Admin configuration (security settings page):
+- [ ] Minimum password length selector (dropdown: 8, 10, 12, 14, 16, 18, 20)
+- [ ] Minimum zxcvbn score selector (3 or 4)
+- [ ] Both settings persisted via migration, exposed via API
+- [ ] Event logged when settings change (`password_policy_updated`)
+
+Database:
+- [ ] Migration adds password policy columns to tenant settings (minimum_password_length, minimum_zxcvbn_score)
+- [ ] Sensible defaults (14, 3) so existing tenants get strong policy without action
+
+**Effort:** M
+**Value:** High
+
+---
+
+## Password Change and Admin-Forced Reset
+
+**User Story:**
+As a user who authenticates with a password
+I want to change my password from my account page
+So that I can update my credentials when needed
+
+As an admin
+I want to force a user to change their password on next login
+So that I can respond to suspected credential compromise without rotating everyone's passwords
+
+**Context:**
+
+There is currently no way for users to change their password after initial setup during onboarding.
+The only path is through admin intervention (which also doesn't exist yet).
+
+The password change feature lives on a new "Password" tab on the account page, positioned after
+the existing "Profile" tab. The account page already has four tabs (Profile, Email addresses,
+Two-step verification, Background Jobs), so this adds a fifth.
+
+Admin-forced password reset sets a flag on the user record. On next login, after successful
+authentication, the user is redirected to a password change screen before they can proceed.
+This is the only mechanism for forcing a password change. There is no periodic rotation.
+
+**Acceptance Criteria:**
+
+Password tab (account page):
+- [ ] New "Password" tab on account page, positioned after "Profile"
+- [ ] Only visible for users who authenticate with a password (not IdP-federated users)
+- [ ] Requires current password to set a new password
+- [ ] New password subject to the password strength policy (length, zxcvbn, HIBP)
+- [ ] Client-side strength feedback (same component as onboarding)
+- [ ] Success confirmation shown after password change
+- [ ] Event logged: `password_changed`
+- [ ] API endpoint for programmatic password change (`PUT /api/v1/account/password` or similar)
+
+Admin-forced password reset:
+- [ ] Admin action on user detail page: "Force password reset"
+- [ ] Sets a flag on the user record (`password_reset_required` or similar)
+- [ ] On next login, after successful authentication with current password, user is redirected to a password change screen
+- [ ] User cannot navigate away until password is changed
+- [ ] Flag is cleared after successful password change
+- [ ] Permission model: admins can force reset on any user including super admins. Super admins can force reset on anyone.
+- [ ] Event logged: `password_reset_forced` (actor = admin, target = user)
+- [ ] Event logged: `password_reset_completed` when the user completes the forced change
+- [ ] API endpoint for forcing reset (`POST /api/v1/users/{id}/force-password-reset` or similar)
+
+Database:
+- [ ] Migration adds `password_reset_required` boolean (default false) to users table
+- [ ] Migration adds `password_changed_at` timestamp to users table (nullable, set on every password change)
+
+**Effort:** M
+**Value:** High
+
+---
+
+## Forgot Password (Self-Service Reset)
+
+**User Story:**
+As a user who has forgotten my password
+I want to request a password reset link via email
+So that I can regain access to my account without admin intervention
+
+**Context:**
+
+There is currently no self-service password recovery. A user who forgets their password has no
+recourse other than contacting an admin. This is a basic identity platform capability.
+
+The flow is standard: user enters their email on the login page, receives a time-limited reset
+link, clicks it, and sets a new password (subject to the password strength policy). The critical
+security concern is rate limiting. Password reset endpoints are prime targets for enumeration
+attacks (discovering valid emails) and abuse (flooding a user's inbox).
+
+**Acceptance Criteria:**
+
+User flow:
+- [ ] "Forgot password?" link on the login page
+- [ ] User enters their email address
+- [ ] If the email exists and belongs to a password-authenticated user, a reset email is sent
+- [ ] If the email does not exist or belongs to an IdP-federated user, no email is sent but the same success message is shown (prevents enumeration)
+- [ ] Reset email contains a single-use, time-limited token link
+- [ ] Clicking the link opens a "set new password" page (subject to password strength policy)
+- [ ] After successful reset, user is redirected to login with a confirmation message
+- [ ] The reset token is invalidated after use or expiry (whichever comes first)
+
+Security:
+- [ ] Token expiry: 30 minutes (configurable by super admin if needed, but sensible default)
+- [ ] Tokens are single-use (invalidated on first use)
+- [ ] Token is cryptographically random, stored as a hash (not plaintext) in the database
+- [ ] Rate limiting per email address: max 3 reset requests per hour per email
+- [ ] Rate limiting per IP: max 10 reset requests per hour per IP
+- [ ] Rate limiting is enforced server-side, not bypassable
+- [ ] No information leakage: same response message whether email exists or not
+- [ ] Reset link works only for the email it was issued for (token bound to email)
+- [ ] All active sessions for the user are invalidated after a successful password reset (if they forgot their password, assume compromise)
+- [ ] Event logged: `password_reset_requested` (with email, IP)
+- [ ] Event logged: `password_reset_completed`
+
+Database:
+- [ ] Table or columns for reset tokens (user_id, token_hash, created_at, expires_at, used_at)
+- [ ] Expired and used tokens cleaned up periodically (background job or on-query)
+
+**Effort:** M
+**Value:** High
+
+---

@@ -4,6 +4,36 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Changelog & Release Gate
+
+**Status:** Complete
+
+**User Story:**
+As the development team
+I want a helper that drafts changelog entries from git history, and a release workflow that
+refuses to publish if the changelog hasn't been updated
+So that every release ships with a human-reviewed changelog and none can slip through without one
+
+**Acceptance Criteria:**
+
+Draft helper:
+- [x] `/changelog` skill collects commits between the last tag and HEAD
+- [x] Categorizes commits into sections: Added, Changed, Fixed, Security, Breaking
+- [x] Produces a draft entry in Keep a Changelog format, ready for human editing
+- [x] Output presented for review and written to `CHANGELOG.md` on approval
+
+Changelog format:
+- [x] `CHANGELOG.md` in repo root, following Keep a Changelog format
+- [x] Each release has a section header: `## [1.2.0] - 2026-03-15`
+- [x] Unreleased changes accumulate under `## [Unreleased]`
+
+Release gate:
+- [x] GHCR publish workflow checks for a `## [x.y.z]` section matching the tag
+- [x] Workflow fails with a clear error message if the section is missing
+- [x] GitHub Release created automatically with the matching changelog section as release notes
+
+---
+
 ## GHCR Publish Workflow
 
 **Status:** Complete

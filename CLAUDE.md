@@ -70,6 +70,7 @@ Request → Router → Service → Database → PostgreSQL
 | `static/js/cytoscape.min.js` | Cytoscape.js graph library (group graph views) |
 | `app/version.py` | Runtime version via `importlib.metadata` (falls back to baked-in `VERSION` file) |
 | `VERSIONING.md` | Semver policy: patch/minor/major definitions, identity-specific rules |
+| `CHANGELOG.md` | Release changelog (Keep a Changelog format) |
 | `Dockerfile` | Production multi-stage build (GHCR images, no dev deps) |
 | `app/Dockerfile` | Dev build (used by `docker-compose.yml`) |
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
@@ -495,6 +496,7 @@ All checks must pass before committing.
 - Use `/security` to scan for OWASP Top 10 and other security vulnerabilities
 - Use `/deps` to audit third-party dependencies for known CVEs and vulnerabilities
 - Use `/refactor` to analyze codebase for refactoring opportunities and technical debt
+- Use `/changelog` to draft changelog entries from git history before tagging a release
 - Use `/tech-writer` to review app copy for clarity and maintain the documentation site
 
 ## Issue Tracking

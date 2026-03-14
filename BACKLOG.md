@@ -23,53 +23,7 @@ items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
 
 ---
 
-## 3. Changelog & Release Gate
-
-**User Story:**
-As the development team
-I want a helper that drafts changelog entries from git history, and a release workflow that
-refuses to publish if the changelog hasn't been updated
-So that every release ships with a human-reviewed changelog and none can slip through without one
-
-**Context:**
-
-Two pieces work together:
-
-1. **Draft helper** (local script or Claude Code skill): scans commits on main since the
-   last tag, categorizes them (features, fixes, breaking, security), and produces a draft
-   changelog entry. The developer reviews, edits, and commits the updated `CHANGELOG.md`
-   before tagging.
-
-2. **Release gate** (GitHub Action): the GHCR publish workflow (item 2) checks that
-   `CHANGELOG.md` contains a section header matching the tag being released (e.g.,
-   `## [1.2.0]`). If the section is missing, the workflow fails before building or pushing
-   anything. This makes it impossible to release without an up-to-date changelog.
-
-The changelog is human-curated, not auto-generated. The helper reduces toil but a person
-always reviews the final text. This matters because commit messages describe implementation
-("fix RLS policy on group_lineage") while changelog entries describe impact ("Fixed a bug
-where group hierarchy queries could return stale results").
-
-**Acceptance Criteria:**
-
-Draft helper:
-- [ ] Script or skill that collects commits between the last tag and HEAD
-- [ ] Categorizes commits into sections: Added, Changed, Fixed, Security, Breaking
-- [ ] Produces a draft entry in Keep a Changelog format, ready for human editing
-- [ ] Output can be appended to `CHANGELOG.md` or printed to stdout for review
-
-Changelog format:
-- [ ] `CHANGELOG.md` in repo root, following [Keep a Changelog](https://keepachangelog.com/) format
-- [ ] Each release has a section header: `## [1.2.0] - 2026-03-15`
-- [ ] Unreleased changes can accumulate under `## [Unreleased]`
-
-Release gate:
-- [ ] GHCR publish workflow (item 2) checks for a `## [x.y.z]` section matching the tag
-- [ ] Workflow fails with a clear error message if the section is missing
-- [ ] GitHub Release created automatically with the matching changelog section as release notes
-
-**Effort:** M
-**Value:** High (Transparency for self-hosters, enforced quality gate)
+## ~~3. Changelog & Release Gate~~ (Complete)
 
 ---
 

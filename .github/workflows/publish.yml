@@ -33,6 +33,14 @@ jobs:
             exit 1
           fi
 
+      - name: Verify changelog has release section
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! grep -qE "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for version ${VERSION}. Run /changelog to draft one."
+            exit 1
+          fi
+
   build-and-push:
     needs: validate
     runs-on: ubuntu-latest
@@ -75,3 +83,23 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  release:
+    needs: [validate, build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Extract release notes from changelog
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          sed -n "/^## \[${VERSION}\]/,/^## \[/{/^## \[/d;p}" CHANGELOG.md > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.validate.outputs.version }}
+          body_path: /tmp/release-notes.md
+          tag_name: ${{ github.ref_name }}

@@ -4,6 +4,57 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Production Docker Compose for Self-Hosting
+
+**Status:** Complete
+
+**User Story:**
+As a self-hoster
+I want a standalone Docker Compose file that runs WeftId with good security defaults and automatic HTTPS
+So that I can deploy WeftId on my own server without needing the source code or manual certificate management
+
+**Acceptance Criteria:**
+
+Compose file (`docker-compose.production.yml`):
+- [x] References GHCR image: `ghcr.io/pageloom/weft-id:${WEFT_VERSION:-latest}`
+- [x] Services: caddy (reverse proxy), app, worker, migrate, memcached, db
+- [x] Caddy handles HTTPS automatically (HTTP-01 challenge, auto-renewal, no setup scripts)
+- [x] Migrate service runs as a dependency before app starts (`condition: service_completed_successfully`)
+- [x] No source code bind mounts (app runs from the baked image)
+- [x] Storage volume for persistent data (uploads, etc.)
+- [x] DB password sourced from `.env` (not hardcoded in compose)
+- [x] Health checks on db, memcached, and app
+- [x] `restart: unless-stopped` on all long-running services
+- [x] Ports: only 80 and 443 exposed (everything else internal)
+
+Environment (`.env.production.example`):
+- [x] `WEFT_VERSION` for image pinning (default: `latest`)
+- [x] `BASE_DOMAIN` (required, no default)
+- [x] `SECRET_KEY` with a placeholder and generation instructions
+- [x] `POSTGRES_PASSWORD` with a placeholder and generation instructions
+- [x] SMTP configuration section with clear comments
+- [x] `IS_DEV=False`, `BYPASS_OTP=false`, `ENABLE_OPENAPI_DOCS=false` as defaults
+- [x] No dev-only variables (`DEV_SUBDOMAIN`, `DEV_PASSWORD`)
+
+Security defaults:
+- [x] No ports exposed to host except 80/443
+- [x] Database not accessible from host
+- [x] Memcached not accessible from host
+- [x] All secrets must be explicitly set (no insecure defaults that "work")
+
+Caddy:
+- [x] `Caddyfile` included, parameterized by `BASE_DOMAIN` env var
+- [x] Handles `{$BASE_DOMAIN}` and `*.{$BASE_DOMAIN}` with automatic TLS
+- [x] Proxies to app service on port 8000
+- [x] Sets `X-Forwarded-Proto`, `X-Real-IP`, `X-Forwarded-For` headers
+
+**Resolution:** Added `docker-compose.production.yml` using GHCR image with Caddy for on-demand
+TLS (HTTP-01). Migrate service connects as `postgres` superuser; app connects as `appuser` to
+preserve RLS. `.env.production.example` provides generation instructions for secrets. `Caddyfile`
+handles wildcard subdomain routing with automatic certificate issuance.
+
+---
+
 ## Changelog & Release Gate
 
 **Status:** Complete

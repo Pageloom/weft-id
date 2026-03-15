@@ -4,6 +4,36 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Self-Hosting Install Script
+
+**Status:** Complete
+
+**User Story:**
+As a self-hoster
+I want a single command that downloads everything I need and walks me through initial configuration
+So that I can go from zero to running WeftId in minutes
+
+**Acceptance Criteria:**
+
+- [x] Single command to download and run: `curl -sSL .../install.sh | bash`
+- [x] Downloads `docker-compose.production.yml` and `Caddyfile` from the latest GitHub release
+- [x] Auto-generates `SECRET_KEY` (base64 via `openssl rand -base64 32`)
+- [x] Auto-generates `POSTGRES_PASSWORD` (same method)
+- [x] Prompts for `BASE_DOMAIN` (required)
+- [x] Prompts for SMTP settings (optional, can be configured later)
+- [x] Writes `.env` with all values populated
+- [x] Prints next steps: `docker compose -f docker-compose.production.yml up -d`
+- [x] Idempotent: re-running detects existing `.env` and asks before overwriting
+- [x] Works on Linux (primary target) and macOS
+- [x] No dependencies beyond `curl`, `openssl`, and a POSIX shell
+
+**Resolution:** Added `install.sh` as a POSIX shell script. Resolves the latest GitHub release
+tag via the API (falls back to main), downloads production files, generates cryptographic secrets,
+prompts interactively for domain and SMTP, and writes a ready-to-use `.env`. Uses `/dev/tty` for
+interactive input so the script works when piped via `curl | bash`.
+
+---
+
 ## Production Docker Compose for Self-Hosting
 
 **Status:** Complete

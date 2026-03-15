@@ -76,6 +76,7 @@ Request → Router → Service → Database → PostgreSQL
 | `docker-compose.production.yml` | Self-hosting compose (Caddy + GHCR image, automatic HTTPS) |
 | `Caddyfile` | Caddy reverse proxy config (on-demand TLS for tenant subdomains) |
 | `.env.production.example` | Production environment template with generation instructions |
+| `install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `mkdocs.yml` | Zensical documentation site configuration |
@@ -309,7 +310,8 @@ static assets, or the app directory structure.
 **Self-hosting:** `docker-compose.production.yml` runs the GHCR image with Caddy for automatic HTTPS
 (on-demand TLS, HTTP-01 challenge). Migrations run automatically before the app starts. See
 `.env.production.example` for configuration. The migrate service connects as `postgres` (superuser);
-the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement.
+the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `install.sh`
+automates first-time setup (downloads files, generates secrets, prompts for domain/SMTP, writes `.env`).
 
 **Release flow:** bump version in `pyproject.toml`, tag `v1.2.3` on main, push the tag. The GHCR
 workflow validates the tag matches `pyproject.toml`, then builds and pushes to `ghcr.io/pageloom/weft-id`.

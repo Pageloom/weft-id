@@ -31,37 +31,7 @@ items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
 
 ---
 
-## 5. Self-Hosting Install Script
-
-**User Story:**
-As a self-hoster
-I want a single command that downloads everything I need and walks me through initial configuration
-So that I can go from zero to running WeftId in minutes
-
-**Context:**
-
-Optional convenience script. Downloads `docker-compose.production.yml`, `.env.production.example`,
-and `Caddyfile` from the latest GitHub release. Generates `SECRET_KEY` and `POSTGRES_PASSWORD`
-automatically. Prompts for domain and SMTP settings. Writes `.env` ready to go.
-
-This is a nice-to-have on top of the compose file (which should also work with manual setup).
-
-**Acceptance Criteria:**
-
-- [ ] Single command to download and run: `curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash` (or similar)
-- [ ] Downloads `docker-compose.production.yml`, `.env.production.example`, and `Caddyfile` from the latest GitHub release
-- [ ] Auto-generates `SECRET_KEY` (44-char base64 via `openssl rand -base64 32` or Python equivalent)
-- [ ] Auto-generates `POSTGRES_PASSWORD` (same method)
-- [ ] Prompts for `BASE_DOMAIN` (required)
-- [ ] Prompts for SMTP settings (optional, can be configured later)
-- [ ] Writes `.env` with all values populated
-- [ ] Prints next steps: `docker compose -f docker-compose.production.yml up -d`
-- [ ] Idempotent: re-running detects existing `.env` and asks before overwriting
-- [ ] Works on Linux (primary target) and macOS
-- [ ] No dependencies beyond `curl`, `openssl`, and a POSIX shell
-
-**Effort:** S
-**Value:** Medium (Convenience, reduces friction for first-time setup)
+## ~~5. Self-Hosting Install Script~~ (Complete)
 
 ---
 

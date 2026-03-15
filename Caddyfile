@@ -1,0 +1,29 @@
+# Caddyfile for Weft ID production deployment
+#
+# Requires BASE_DOMAIN environment variable (e.g., id.example.com).
+# Caddy obtains individual TLS certificates per subdomain via HTTP-01
+# challenge (on-demand TLS). No DNS provider configuration needed.
+
+{
+	on_demand_tls {
+		# Caddy will only issue certs for hostnames matching the site
+		# blocks below. For additional protection, point `ask` at an
+		# endpoint that validates the subdomain exists in your database.
+		# ask http://app:8000/caddy/check-domain
+	}
+}
+
+{$BASE_DOMAIN} {
+	reverse_proxy app:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+*.{$BASE_DOMAIN} {
+	tls {
+		on_demand
+	}
+	reverse_proxy app:8000 {
+		header_up X-Real-IP {remote_host}
+	}
+}

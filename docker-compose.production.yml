@@ -1,0 +1,156 @@
+# Docker Compose for production / self-hosting
+#
+# Prerequisites:
+#   1. Copy .env.production.example to .env and fill in all required values
+#   2. Point DNS (apex + wildcard) at this server
+#
+# Usage:
+#   docker compose -f docker-compose.production.yml up -d
+#
+# Caddy handles HTTPS automatically via Let's Encrypt (HTTP-01 challenge).
+# Migrations run automatically before the app starts.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - prodnet
+
+  app:
+    image: ghcr.io/pageloom/weft-id:${WEFT_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+      IS_DEV: ${IS_DEV:-False}
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      SECRET_KEY: ${SECRET_KEY}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      FROM_EMAIL: ${FROM_EMAIL:-}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      BYPASS_OTP: "false"
+      ENABLE_OPENAPI_DOCS: ${ENABLE_OPENAPI_DOCS:-false}
+      MEMCACHED_HOST: memcached
+      MEMCACHED_PORT: "11211"
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      memcached:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - prodnet
+
+  worker:
+    image: ghcr.io/pageloom/weft-id:${WEFT_VERSION:-latest}
+    restart: unless-stopped
+    command: ["python", "worker.py"]
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+      IS_DEV: ${IS_DEV:-False}
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      SECRET_KEY: ${SECRET_KEY}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      FROM_EMAIL: ${FROM_EMAIL:-}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      BYPASS_OTP: "false"
+      MEMCACHED_HOST: memcached
+      MEMCACHED_PORT: "11211"
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      memcached:
+        condition: service_healthy
+    networks:
+      - prodnet
+
+  migrate:
+    image: ghcr.io/pageloom/weft-id:${WEFT_VERSION:-latest}
+    command: ["python", "/db-init/migrate.py"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_DB: appdb
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - prodnet
+
+  memcached:
+    image: memcached:1.6-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "echo stats | nc -w 1 localhost 11211 | grep -q pid"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - prodnet
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: appdb
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - prodnet
+
+volumes:
+  dbdata:
+  storage:
+  caddy_data:
+  caddy_config:
+
+networks:
+  prodnet:
+    driver: bridge

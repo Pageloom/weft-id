@@ -4,6 +4,75 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Self-Hosting Upgrade & Operations Documentation
+
+**Status:** Complete
+
+**User Story:**
+As a self-hoster
+I want clear documentation on how to upgrade, back up, and operate my WeftId instance
+So that I can maintain my deployment confidently over time
+
+**Acceptance Criteria:**
+
+- [x] Docs section covering:
+  - Prerequisites (Docker, Docker Compose, a domain with DNS)
+  - Quick start (referencing install script)
+  - Upgrade procedure: edit `WEFT_VERSION` in `.env`, `docker compose pull`, `docker compose up -d`
+  - What happens on upgrade: migrate service runs automatically, app starts after migration succeeds
+  - Rollback considerations: forward-only migrations, safe within minor versions
+  - Backup strategy: database dump (`pg_dump`), storage volume, `.env` file
+  - Monitoring: `/healthz` endpoint, log commands
+  - Email configuration guide (SMTP, SendGrid, Resend)
+- [x] Linked from the main README
+- [x] Version-specific migration guides created as needed (not upfront)
+
+**Resolution:** Rewrote `docs/self-hosting/index.md` with full coverage of prerequisites, quick
+start (install script), DNS setup, tenant provisioning, architecture, configuration (required
+variables, email backends with tabbed examples, optional variables, security defaults), database
+schema management, upgrade procedure, rollback considerations, backups (database, file storage,
+configuration), monitoring (health check, logs, status), additional tenant provisioning, and TLS.
+Linked from README. Built docs site.
+
+---
+
+## Tenant Provisioning CLI
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator with shell access
+I want a CLI command that creates a new tenant and its first super admin
+So that I can provision new tenants on a running instance without direct database manipulation
+
+**Acceptance Criteria:**
+
+- [x] Management command runnable via `python -m app.cli.provision_tenant`
+- [x] Required arguments: `--subdomain`, `--tenant-name`, `--email`, `--first-name`, `--last-name`
+- [x] All arguments validated before any database writes (subdomain format, email format, name length)
+- [x] Clear error messages for validation failures
+- [x] Creates tenant via existing `provision_tenant()` if subdomain does not exist
+- [x] If tenant with subdomain already exists, uses the existing tenant
+- [x] Creates user with `role=super_admin`, no password
+- [x] Adds email as unverified (standard non-privileged flow)
+- [x] If a user with that email already exists in the tenant, aborts with a clear error
+- [x] Event logged: `user_created` with metadata indicating CLI provisioning (`source: "cli"`)
+- [x] New email template distinct from the standard user invitation
+- [x] Subject conveys ownership: "Set up your organization on Weft ID"
+- [x] Body communicates founding admin role and identity layer configuration
+- [x] If email delivery fails, prints warning but does not roll back user creation
+- [x] Works in production (no `IS_DEV` gate)
+- [x] Idempotent on tenant (safe to re-run with same subdomain)
+- [x] Not idempotent on user (duplicate email in same tenant is an error)
+
+**Resolution:** Added `app/cli/provision_tenant.py` with argparse-based CLI. Reuses existing
+`provision_tenant()`, `create_user_raw()`, `add_unverified_email_with_nonce()`, and `log_event()`
+with `system_context()`. Added `send_provisioning_invitation()` to `app/utils/email.py` with a
+distinct email template for the founding admin. 29 unit tests covering validation, happy path,
+error cases, and CLI parsing.
+
+---
+
 ## Self-Hosting Install Script
 
 **Status:** Complete

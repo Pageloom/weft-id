@@ -14,6 +14,9 @@ authentication (TOTP, email codes, backup codes), and user lifecycle management.
 
 For more details, see [pageloom.com/products/weft-id](https://pageloom.com/products/weft-id).
 
+**Self-hosting?** See the [self-hosting guide](docs/self-hosting/index.md) for installation,
+configuration, upgrades, and backups.
+
 ## Key Features
 
 - **SAML 2.0 federation** with upstream IdP integration and downstream application registration

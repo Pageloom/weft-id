@@ -590,6 +590,65 @@ Please review this request at:
     return send_email(to_email, subject, html_body, text_body)
 
 
+def send_provisioning_invitation(
+    to_email: str,
+    tenant_name: str,
+    verification_url: str,
+) -> bool:
+    """Send invitation to the founding super admin during tenant provisioning."""
+    # ruff: noqa: E501
+    subject = "Set up your organization on Weft ID"
+
+    text_body = f"""
+You have been designated as the founding administrator for {tenant_name} on Weft ID.
+
+As the super admin, you will configure the identity layer for your organization, including authentication providers, user management, and access policies.
+
+To get started, verify your email address:
+
+{verification_url}
+
+After verifying, you will set your password and begin configuring your organization.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .info-box {{ background: #f3f4f6; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Set up {tenant_name} on Weft ID</h1>
+        <div class="info-box">
+            <p>You have been designated as the founding administrator for <strong>{tenant_name}</strong>.</p>
+        </div>
+        <p>As the super admin, you will configure the identity layer for your organization, including authentication providers, user management, and access policies.</p>
+        <p>To get started, verify your email address:</p>
+        <a href="{verification_url}" class="button">Verify Email &amp; Get Started</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{verification_url}</p>
+        <p>After verifying, you will set your password and begin configuring your organization.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
 def send_mfa_reset_notification(
     to_email: str,
     admin_name: str,

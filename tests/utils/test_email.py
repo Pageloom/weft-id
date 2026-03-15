@@ -443,6 +443,51 @@ def test_send_reactivation_request_admin_notification_failure():
         assert result is False
 
 
+def test_send_provisioning_invitation():
+    """Test sending provisioning invitation email."""
+    from utils.email import send_provisioning_invitation
+
+    verification_url = "https://acme.example.com/verify-email/eid/nonce"
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_provisioning_invitation(
+            to_email="admin@acme.com",
+            tenant_name="Acme Corp",
+            verification_url=verification_url,
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        call_args = mock_send.call_args
+        to_email, subject, html_body, text_body = call_args[0]
+
+        assert to_email == "admin@acme.com"
+        assert subject == "Set up your organization on Weft ID"
+        assert "Acme Corp" in html_body
+        assert "Acme Corp" in text_body
+        assert verification_url in html_body
+        assert verification_url in text_body
+        assert "founding administrator" in text_body
+
+
+def test_send_provisioning_invitation_failure():
+    """Test provisioning invitation sending failure."""
+    from utils.email import send_provisioning_invitation
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_provisioning_invitation(
+            to_email="admin@acme.com",
+            tenant_name="Acme Corp",
+            verification_url="https://example.com/verify",
+        )
+
+        assert result is False
+
+
 def test_send_mfa_reset_notification():
     """Test sending MFA reset notification to user."""
     from utils.email import send_mfa_reset_notification

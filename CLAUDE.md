@@ -78,6 +78,7 @@ Request → Router → Service → Database → PostgreSQL
 | `.env.production.example` | Production environment template with generation instructions |
 | `install.sh` | Self-hosting install script (downloads files, generates secrets, writes .env) |
 | `.github/workflows/publish.yml` | GHCR publish workflow (triggers on `v*.*.*` tags) |
+| `app/cli/provision_tenant.py` | CLI to provision a tenant and super admin (`python -m app.cli.provision_tenant`) |
 | `app/dev/seed_dev.py` | Meridian Health dev seed script (canonical dev data fixture) |
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
@@ -89,6 +90,7 @@ Request → Router → Service → Database → PostgreSQL
 
 ```
 app/
+├── cli/              # CLI management commands (run via python -m app.cli.<command>)
 ├── routers/          # HTTP layer (imports services only)
 │   ├── api/v1/       # RESTful API endpoints
 │   ├── auth/         # Login, logout, onboarding (package)
@@ -312,6 +314,9 @@ static assets, or the app directory structure.
 `.env.production.example` for configuration. The migrate service connects as `postgres` (superuser);
 the app connects as `appuser` (created by `schema.sql`) to preserve RLS enforcement. `install.sh`
 automates first-time setup (downloads files, generates secrets, prompts for domain/SMTP, writes `.env`).
+After install, provision the first tenant and super admin via CLI:
+`docker compose exec app python -m app.cli.provision_tenant --subdomain <sub> --tenant-name <name> --email <email> --first-name <first> --last-name <last>`.
+The super admin receives an invitation email and goes through the standard onboarding flow.
 
 **Release flow:** bump version in `pyproject.toml`, tag `v1.2.3` on main, push the tag. The GHCR
 workflow validates the tag matches `pyproject.toml`, then builds and pushes to `ghcr.io/pageloom/weft-id`.

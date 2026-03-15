@@ -72,10 +72,12 @@ class TestEncryptedAssertionSso:
             events = database.fetchall(
                 '{idp_tenant_id}',
                 \"\"\"
-                select metadata from event_log
-                where event_type = 'sso_assertion_issued'
-                  and artifact_id = :sp_id
-                order by created_at desc
+                select m.metadata
+                from event_logs e
+                join event_log_metadata m on e.metadata_hash = m.metadata_hash
+                where e.event_type = 'sso_assertion_issued'
+                  and e.artifact_id = :sp_id
+                order by e.created_at desc
                 limit 1
                 \"\"\",
                 {{'sp_id': '{sp_id}'}},

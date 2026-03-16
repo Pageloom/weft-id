@@ -379,7 +379,6 @@ Runs unit tests and E2E tests separately with coverage collection, then uses `co
 make up          # Build and start all services
 make down        # Stop and remove containers
 make status      # Show service status
-make db-reset    # Wipe DB volume
 make restart-app # Restart specific service
 ```
 
@@ -457,7 +456,7 @@ The CSS is built during the Docker image build process, so running `make up` wil
 ### Development Workflow
 
 **Starting a development session:**
-1. Start Docker services: `make dev` (builds, starts, shows status)
+1. Start Docker services: `make up` (builds and starts all services)
 2. (Optional) Start watch modes in separate terminals:
    - CSS: `make watch-css` - auto-rebuild CSS on template changes
    - Tests: `make watch-tests` - intelligently rerun only affected tests on code changes

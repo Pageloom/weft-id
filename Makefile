@@ -2,7 +2,7 @@ COMPOSE := docker compose
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
+.PHONY: help status up down db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev test e2e check fix coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -26,10 +26,8 @@ up: ## Build and start all services (detached) - also builds docs first
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans
 
-db-reset: ## Wipe DB volume to force full reinit
-	$(COMPOSE) down -v
-
-db-init: db-reset up ## Wipe DB and restart (runs baseline + migrations)
+db-init: ## Wipe DB and restart (runs baseline + migrations)
+	$(COMPOSE) down -v && make up
 
 migrate: ## Run pending migrations on running dev DB
 	$(COMPOSE) run --rm migrate
@@ -53,8 +51,6 @@ sh-%: ## Open a shell to a service. Example: make sh-app
 	-$(COMPOSE) exec $* bash || $(COMPOSE) exec $* sh
 
 ## Dev
-dev: up status ## Start all services and show status
-
 build-css: ## Build Tailwind CSS for production
 	./$(TAILWIND_BIN) -i static/css/input.css -o static/css/output.css --minify
 

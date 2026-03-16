@@ -14,13 +14,15 @@ Selecting a provider type pre-fills attribute mappings for known providers.
 
 ## Step 2: Configure your IdP
 
-After creation, WeftId generates a per-connection metadata URL. This URL contains:
+After creation, WeftId generates a metadata URL for this connection. The metadata contains:
 
 - WeftId's entity ID (unique per IdP connection)
 - Assertion Consumer Service (ACS) URL
 - WeftId's SP signing certificate
 
 Share this metadata URL with your IdP. In your IdP's admin console, create a new SAML application using WeftId's metadata.
+
+Each IdP connection gets its own entity ID and certificate. This means you can connect the same upstream IdP multiple times (for example, two Okta orgs during a company merger) and manage each connection independently.
 
 ## Step 3: Establish trust
 

@@ -141,10 +141,6 @@ Distinguish between:
 - **Operational tasks** (fix a CVE, run checks, fix lint, upgrade a dependency): Just do it. These don't need to be tracked items.
 - **Untracked feature requests** (new functionality not in ISSUES.md or BACKLOG.md): Decline and suggest using `/pm` to add it as a backlog item first.
 
-## Architectural Decision Records
-
-If the backlog item says "Needs ADR" or changes how the system fundamentally works (identity model, entity ID scheme, tenant isolation, authentication flow, data model invariants), write an ADR in `docs/decisions/` using the next sequential number. See existing ADRs for the format. The ADR should explain the context, the decision, and its consequences.
-
 ## Completion
 
 When done:

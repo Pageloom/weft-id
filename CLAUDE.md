@@ -83,7 +83,6 @@ Request → Router → Service → Database → PostgreSQL
 | `mkdocs.yml` | Zensical documentation site configuration |
 | `docs/` | Documentation site source (Markdown) |
 | `site/` | Built documentation site (checked in, served at `/docs`) |
-| `docs/decisions/` | Architectural Decision Records (ADRs) for foundational design choices |
 | `.claude/THOUGHT_ERRORS.md` | Common mistakes to avoid |
 
 ## Directory Structure
@@ -119,8 +118,6 @@ db-init/              # Database schema baseline + migration runner
   migrations/         # Incremental migration files (0001_name.sql)
 scripts/              # Compliance and dependency checks
 docs/                 # Documentation site (Zensical source)
-  internal/           # Developer planning docs
-  decisions/          # Architectural Decision Records (ADRs)
   getting-started/    # Getting started guide
   admin-guide/        # Administrator documentation
   user-guide/         # End-user documentation

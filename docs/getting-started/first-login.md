@@ -24,6 +24,8 @@ administrative settings:
 - **Service Providers** -- Register downstream applications for SSO
 - **Settings** -- Security, branding, privileged domains, and audit
 
+Look for the information icon in the top-right corner of the navigation bar. It links to the documentation page for whichever screen you're on.
+
 ## Next steps
 
 1. [Connect an identity provider](connecting-an-idp.md) so users can sign in with their existing credentials

@@ -53,7 +53,7 @@ So that [benefit/value]
 - Keep the conversation focused on the "what" and "why"
 - If user wants to implement something, suggest using `/dev` instead
 - For items that touch SAML assertions, API endpoints, schema migrations, or env vars, note the expected version impact (patch/minor/major) per `VERSIONING.md`. SAML assertion or attribute mapping changes are always major.
-- If a backlog item changes how the system fundamentally works (entity ID scheme, tenant isolation model, authentication flow, data model invariants), flag it as needing an ADR in `docs/decisions/`. Use the next sequential number (e.g., `002-short-title.md`). The ADR should be written during implementation by `/dev`, not during planning, but the backlog item should note "Needs ADR" so it is not forgotten.
+- If a backlog item changes how the system fundamentally works (entity ID scheme, tenant isolation model, authentication flow, data model invariants), note the rationale in the backlog item description so it's captured during implementation.
 
 ## Start Here
 

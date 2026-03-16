@@ -34,3 +34,9 @@ Choose how group avatars appear across the application:
 - **Mandala** -- Unique geometric pattern derived from the group ID
 
 Individual groups can have a custom logo uploaded from the group's detail page, overriding the default style.
+
+### Custom acronyms
+
+When the acronym style is selected, each group's avatar shows initials auto-generated from the group name. You can override this with a custom acronym (up to 4 characters) from the group's **Details** tab. Useful when auto-generated initials are ambiguous or when a group has a well-known abbreviation.
+
+Leave the acronym field blank to revert to auto-generated initials.

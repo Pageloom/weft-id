@@ -7,7 +7,7 @@
 3. Enter a name and optional description
 4. Click **Create**
 
-The new group starts with no members and no parent-child relationships.
+The new group starts with no members and no parent-child relationships. After creation, you can set an optional [custom acronym](../branding/index.md#custom-acronyms) on the group's **Details** tab.
 
 ## Group types
 

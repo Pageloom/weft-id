@@ -373,6 +373,54 @@ Compared the complete application feature inventory (routers, templates, pages.p
 
 None.
 
+### Areas Not Yet Reviewed (as of 2026-03-08)
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-16 - Documentation Gap Fill (New Features)
+
+**Starting commit:** 40b6789
+**Mode:** Documentation
+
+### Gap Analysis
+
+Compared 40 commits since last session (8aa8fde..HEAD) against documentation pages. Found 5 undocumented features. 3 features (tenant provisioning CLI, self-hosting, versioning) were already well-documented.
+
+### Pages Updated (9)
+
+1. **`docs/admin-guide/service-providers/registering-an-sp.md`** -- Added Logo section (upload, formats, size requirements, removal). Added user access count explanation under Step 4.
+2. **`docs/admin-guide/service-providers/attribute-mapping.md`** -- Added Assertion Encryption section (AES-256-CBC, RSA-OAEP, automatic from metadata, UI status indicator).
+3. **`docs/admin-guide/service-providers/sso-flow.md`** -- Updated SP-initiated step 6 to mention encryption. Added encryption bullet to "What's in the assertion" section.
+4. **`docs/admin-guide/service-providers/index.md`** -- Updated attribute mapping link text to mention encryption.
+5. **`docs/admin-guide/branding/index.md`** -- Added "Custom acronyms" subsection under Group branding (up to 4 chars, override auto-generated initials, set from group Details tab).
+6. **`docs/admin-guide/groups/creating-groups.md`** -- Added cross-reference to custom acronyms after group creation.
+7. **`docs/user-guide/index.md`** -- Added note about contextual help icon in the navigation bar.
+8. **`docs/user-guide/dashboard.md`** -- Mentioned SP logos in My Apps section.
+9. **`docs/getting-started/first-login.md`** -- Added tip about contextual help icon before "Next steps".
+
+### Features Documented
+
+| Feature | Where Documented |
+|---------|-----------------|
+| SAML assertion encryption | attribute-mapping.md (new section), sso-flow.md (2 updates) |
+| SP logo/avatar | registering-an-sp.md (new section), dashboard.md (mention) |
+| Customizable group acronyms | branding/index.md (new subsection), creating-groups.md (cross-ref) |
+| Contextual help links | user-guide/index.md (note), first-login.md (tip) |
+| User access count on SP list | registering-an-sp.md (paragraph under Step 4) |
+
+### Already Documented (No Changes Needed)
+
+- Tenant provisioning CLI (self-hosting/index.md)
+- Self-hosting guide (self-hosting/index.md)
+- Versioning and release (VERSIONING.md, self-hosting/index.md)
+
+### Screenshots Requested
+
+None.
+
 ### Areas Not Yet Reviewed
 
 - API error response messages (app/routers/api/) -- copy review pending

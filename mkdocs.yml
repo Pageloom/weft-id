@@ -21,8 +21,6 @@ theme:
         name: Switch to light mode
   font: false
   features:
-    - navigation.sections
-    - navigation.expand
     - navigation.indexes
     - search.suggest
     - content.code.copy
@@ -36,10 +34,6 @@ markdown_extensions:
   - attr_list
   - toc:
       permalink: true
-
-exclude_docs: |
-  internal/
-  decisions/
 
 nav:
   - Home: index.md

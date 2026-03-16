@@ -37,3 +37,14 @@ The NameID identifies the user in the assertion. Configure the format on the SP'
 | **Persistent** | Stable opaque ID per user per SP | When the user's email might change. |
 | **Transient** | Random value per session | When no persistent identifier is needed. |
 | **Unspecified** | User's email (default) | When the SP does not specify a preference. |
+
+## Assertion encryption
+
+If the application provides an encryption certificate in its SAML metadata, WeftId automatically encrypts the signed assertion using AES-256-CBC with RSA-OAEP key transport. Only the application's private key can decrypt it.
+
+Encryption is fully automatic. There is nothing to configure. The **Attributes** tab shows the current encryption status:
+
+- **Encrypted** -- The application's metadata includes an encryption certificate. Assertions are encrypted before delivery.
+- **Unencrypted** -- No encryption certificate was found in the metadata. Assertions are sent in plain signed XML.
+
+To enable encryption for an application that doesn't currently advertise a certificate, update the application's SAML metadata to include an encryption `KeyDescriptor`, then re-import the metadata in WeftId.

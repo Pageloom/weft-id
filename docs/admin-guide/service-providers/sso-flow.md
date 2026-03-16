@@ -11,7 +11,7 @@ This is the most common flow. The user starts at the application and is redirect
 3. **Two-step verification.** If the IdP requires platform two-step verification, the user must complete that step.
 4. **Consent.** WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.
 5. **Access check.** WeftId verifies the user has access to the SP (via group assignment or "available to all").
-6. **Assertion issued.** WeftId builds a signed SAML response containing the user's attributes and posts it to the application's ACS URL.
+6. **Assertion issued.** WeftId builds a signed SAML response containing the user's attributes. If the application provides an [encryption certificate](attribute-mapping.md#assertion-encryption), the assertion is encrypted before delivery. The response is posted to the application's ACS URL.
 7. **User is signed in** to the application.
 
 ## IdP-initiated SSO
@@ -43,3 +43,4 @@ The SAML assertion contains:
 - **Attributes** -- Email, first name, last name, display name, and optionally group memberships
 - **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation
 - **Signature** -- Signed with the SP's per-SP signing certificate
+- **Encryption** -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).

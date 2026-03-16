@@ -26,6 +26,7 @@ theme:
     - content.code.copy
 
 markdown_extensions:
+  - def_list
   - admonition
   - pymdownx.details
   - pymdownx.superfences
@@ -91,3 +92,4 @@ nav:
     - api/index.md
   - Self-Hosting:
     - self-hosting/index.md
+  - Glossary: glossary.md

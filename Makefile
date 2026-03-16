@@ -2,7 +2,7 @@ COMPOSE := docker compose
 TAILWIND_BIN := tailwindcss-macos-arm64
 
 .DEFAULT_GOAL := help
-.PHONY: help status up down db-reset db-init migrate migrate-onprem prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
+.PHONY: help status up down db-reset db-init migrate prune restart logs logs-% up-% sh-% build-css watch-css watch-tests seed-sso seed-dev dev test e2e check fix coverage docs
 
 help:
 	@awk 'BEGIN{FS=":.*##"} /^## /{printf "\n\033[1m%s\033[0m\n", substr($$0,4)} /^[a-zA-Z0-9\-\_%]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -23,9 +23,6 @@ status: ## Show up/down for all services
 up: ## Build and start all services (detached) - also builds docs first
 	make docs && $(COMPOSE) up --build -d
 
-up-onprem: ## Build and start all onprem services (detached)
-	$(COMPOSE) -f docker-compose.onprem.yml up --build -d
-
 down: ## Stop and remove containers (keep volumes)
 	$(COMPOSE) down --remove-orphans
 
@@ -36,9 +33,6 @@ db-init: db-reset up ## Wipe DB and restart (runs baseline + migrations)
 
 migrate: ## Run pending migrations on running dev DB
 	$(COMPOSE) run --rm migrate
-
-migrate-onprem: ## Run pending migrations on running onprem DB
-	$(COMPOSE) -f docker-compose.onprem.yml --profile migrate run --rm migrate
 
 prune: ## Docker prune (containers/images/networks not in use)
 	docker system prune -f

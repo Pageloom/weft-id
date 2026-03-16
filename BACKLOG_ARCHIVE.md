@@ -4,6 +4,35 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Remove Legacy Onprem Setup
+
+**Status:** Complete
+
+**User Story:**
+As a developer
+I want to remove the old onprem files that are superseded by the new self-hosting setup
+So that the repository is clean and there is one clear path for self-hosting
+
+**Acceptance Criteria:**
+
+- [x] `docker-compose.onprem.yml` removed
+- [x] `devscripts/onprem-setup.sh` removed
+- [x] `.env.onprem.example` removed
+- [x] `nginx/conf.d/app.onprem.conf.template` removed
+- [x] `nginx/conf.d/app.onprem.conf` removed
+- [x] `up-onprem` Makefile target removed
+- [x] `migrate-onprem` Makefile target removed
+- [x] Both removed from `.PHONY` declaration
+- [x] `CLAUDE.md` updated to remove onprem references
+- [x] Archive files left as-is (historical context only)
+- [x] Dev setup (`docker-compose.yml`, `make up`, `make dev`) unaffected
+
+**Resolution:** Deleted the five legacy onprem files, removed both Makefile targets and their
+`.PHONY` entries, and removed the `migrate-onprem` line from CLAUDE.md. The new self-hosting
+setup (`docker-compose.production.yml`, `Caddyfile`, `install.sh`) is the sole production path.
+
+---
+
 ## Self-Hosting Upgrade & Operations Documentation
 
 **Status:** Complete

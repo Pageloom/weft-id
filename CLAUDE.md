@@ -417,7 +417,6 @@ Migrations run automatically on `make up` in dev (via the `migrate` one-shot ser
 
 ```bash
 make migrate         # Apply pending migrations on running dev DB
-make migrate-onprem  # Apply pending migrations on running onprem DB
 make db-init         # Wipe DB volume and reinitialize (baseline + migrations)
 ```
 

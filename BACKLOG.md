@@ -43,47 +43,7 @@ items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
 
 ---
 
-## 8. Remove Legacy Onprem Setup
-
-**User Story:**
-As a developer
-I want to remove the old onprem files that are superseded by the new self-hosting setup
-So that the repository is clean and there is one clear path for self-hosting
-
-**Context:**
-
-Once the production compose file (item 4) is in place, the following files are obsolete:
-- `docker-compose.onprem.yml`
-- `devscripts/onprem-setup.sh`
-- `.env.onprem.example`
-- `nginx/conf.d/app.onprem.conf.template`
-- `nginx/conf.d/app.onprem.conf` (generated file)
-
-The Makefile targets `up-onprem` and `migrate-onprem` should be updated to reference the
-new production compose file, or removed if the self-hosting docs cover the commands directly.
-
-**Acceptance Criteria:**
-
-Files to remove:
-- [ ] `docker-compose.onprem.yml`
-- [ ] `devscripts/onprem-setup.sh`
-- [ ] `.env.onprem.example`
-- [ ] `nginx/conf.d/app.onprem.conf.template`
-- [ ] `nginx/conf.d/app.onprem.conf` (generated file)
-
-Makefile cleanup:
-- [ ] Remove `up-onprem` target
-- [ ] Remove `migrate-onprem` target
-- [ ] Remove both from `.PHONY` declaration
-- [ ] Add targets for the new production compose if useful (e.g., `up-prod`, `migrate-prod`), or omit if self-hosting docs cover the commands directly
-
-Documentation updates:
-- [ ] Update `CLAUDE.md` to remove all onprem references (development commands, migration section, etc.)
-- [ ] Update `BACKLOG_ARCHIVE.md` and `ISSUES_ARCHIVE.md` if they reference onprem files (informational, no action needed if just historical context)
-- [ ] Verify dev setup (`docker-compose.yml`, `make up`, `make dev`) is completely unaffected
-
-**Effort:** S
-**Value:** Low (Cleanup, depends on items 4-6 being complete)
+## ~~8. Remove Legacy Onprem Setup~~ (Complete)
 
 ---
 

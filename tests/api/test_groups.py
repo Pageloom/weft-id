@@ -24,7 +24,13 @@ from schemas.groups import (
     GroupRelationship,
     GroupSummary,
 )
-from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
+from services.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ServiceError,
+    ValidationError,
+)
 from starlette.testclient import TestClient
 
 # =============================================================================
@@ -2064,3 +2070,109 @@ def test_group_detail_response_has_logo_field(make_user_dict, override_api_auth)
 
     assert response.status_code == 200
     assert response.json()["has_logo"] is True
+
+
+# =============================================================================
+# ServiceError Handler Coverage
+# =============================================================================
+
+
+def test_list_groups_service_error(make_user_dict, override_api_auth):
+    """list_groups returns 500 on ServiceError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_groups.side_effect = ServiceError(message="DB error", code="db_error")
+        client = TestClient(app)
+        response = client.get("/api/v1/groups")
+    assert response.status_code == 500
+
+
+def test_list_members_service_error(make_user_dict, override_api_auth):
+    """list_members returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    group_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_members_filtered.side_effect = NotFoundError(
+            message="Group not found", code="not_found"
+        )
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/members")
+    assert response.status_code == 404
+
+
+def test_remove_member_service_error(make_user_dict, override_api_auth):
+    """remove_member returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    group_id = str(uuid4())
+    user_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.remove_member.side_effect = NotFoundError(message="Not found", code="not_found")
+        client = TestClient(app)
+        response = client.delete(f"/api/v1/groups/{group_id}/members/{user_id}")
+    assert response.status_code == 404
+
+
+def test_list_parents_service_error(make_user_dict, override_api_auth):
+    """list_parents returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    group_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_parents.side_effect = NotFoundError(
+            message="Group not found", code="not_found"
+        )
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/parents")
+    assert response.status_code == 404
+
+
+def test_list_children_service_error(make_user_dict, override_api_auth):
+    """list_children returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    group_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_children.side_effect = NotFoundError(
+            message="Group not found", code="not_found"
+        )
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/children")
+    assert response.status_code == 404
+
+
+def test_list_idp_groups_service_error(make_user_dict, override_api_auth):
+    """list_idp_groups returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    idp_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.groups_service") as mock_svc:
+        mock_svc.list_groups_for_idp.side_effect = NotFoundError(
+            message="IdP not found", code="not_found"
+        )
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/idp/{idp_id}")
+    assert response.status_code == 404
+
+
+def test_list_group_service_providers_error(make_user_dict, override_api_auth):
+    """list_group_service_providers returns 404 on NotFoundError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+    group_id = str(uuid4())
+
+    with patch("routers.api.v1.groups.sp_service") as mock_svc:
+        mock_svc.list_group_sp_assignments.side_effect = NotFoundError(
+            message="Group not found", code="not_found"
+        )
+        client = TestClient(app)
+        response = client.get(f"/api/v1/groups/{group_id}/service-providers")
+    assert response.status_code == 404

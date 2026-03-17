@@ -1,5 +1,7 @@
 """Tests for Exports API endpoints."""
 
+import tempfile
+from unittest.mock import patch
 from uuid import uuid4
 
 # =============================================================================
@@ -119,3 +121,101 @@ def test_download_export_no_auth(client, test_tenant_host):
     )
 
     assert response.status_code == 401
+
+
+def test_download_export_local_storage(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Downloading export from local storage returns the file directly."""
+    export_id = str(uuid4())
+
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+        f.write(b"event_id,event_type\n1,user_created\n")
+        tmp_path = f.name
+
+    download_info = {
+        "storage_type": "local",
+        "path": tmp_path,
+        "filename": "export.csv",
+        "content_type": "text/csv",
+    }
+
+    with patch("routers.api.v1.exports.exports_service.get_download", return_value=download_info):
+        response = client.get(
+            f"/api/v1/exports/{export_id}/download",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 200
+    assert b"event_id,event_type" in response.content
+
+
+def test_download_export_spaces_redirect(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Downloading export from cloud storage returns a redirect."""
+    export_id = str(uuid4())
+    signed_url = "https://spaces.example.com/exports/file.csv?token=abc"
+
+    download_info = {
+        "storage_type": "spaces",
+        "url": signed_url,
+    }
+
+    with patch("routers.api.v1.exports.exports_service.get_download", return_value=download_info):
+        response = client.get(
+            f"/api/v1/exports/{export_id}/download",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 307
+    assert response.headers["location"] == signed_url
+
+
+def test_create_export_service_error(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Create export returns error when service raises ServiceError."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.exports.bg_tasks_service.create_export_task",
+        side_effect=ServiceError(message="Export failed", code="export_error"),
+    ):
+        response = client.post(
+            "/api/v1/exports",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Export failed"
+
+
+def test_create_export_returns_error_when_task_creation_fails(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Create export returns 500 when bg task creation returns None."""
+    with patch(
+        "routers.api.v1.exports.bg_tasks_service.create_export_task",
+        return_value=None,
+    ):
+        response = client.post(
+            "/api/v1/exports",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 500
+    assert "Failed to create export task" in response.json()["detail"]
+
+
+def test_list_exports_service_error(client, test_tenant_host, oauth2_admin_authorization_header):
+    """List exports returns error when service raises."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.exports.exports_service.list_exports",
+        side_effect=ServiceError(message="DB error", code="db_error"),
+    ):
+        response = client.get(
+            "/api/v1/exports",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        )
+
+    assert response.status_code == 500

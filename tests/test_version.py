@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 from app.version import __version__
 
@@ -17,3 +18,57 @@ def test_version_matches_pyproject():
     match = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
     assert match, "Could not find version in pyproject.toml"
     assert __version__ == match.group(1)
+
+
+# =============================================================================
+# Fallback paths (production Docker images where package isn't installed)
+# =============================================================================
+
+
+class TestVersionFallback:
+    """Tests for _get_version fallback paths when importlib.metadata fails."""
+
+    def test_fallback_reads_version_file(self, tmp_path):
+        """When package metadata is unavailable, reads VERSION file."""
+        from importlib.metadata import PackageNotFoundError
+
+        version_file = tmp_path / "VERSION"
+        version_file.write_text("2.5.1\n")
+
+        with (
+            patch(
+                "app.version.version",
+                side_effect=PackageNotFoundError("weft-id"),
+            ),
+            patch("app.version.Path") as mock_path_cls,
+        ):
+            mock_path_cls.return_value.__truediv__ = lambda self, other: tmp_path
+            # Simpler: just patch Path(__file__).parent / "VERSION"
+            mock_parent = mock_path_cls.return_value.parent
+            mock_parent.__truediv__ = lambda self, name: version_file
+
+            from app.version import _get_version
+
+            result = _get_version()
+
+        assert result == "2.5.1"
+
+    def test_fallback_unknown_when_no_file(self):
+        """When both package metadata and VERSION file are missing, returns unknown."""
+        from importlib.metadata import PackageNotFoundError
+
+        with (
+            patch(
+                "app.version.version",
+                side_effect=PackageNotFoundError("weft-id"),
+            ),
+            patch("app.version.Path") as mock_path_cls,
+        ):
+            mock_version_file = mock_path_cls.return_value.parent.__truediv__.return_value
+            mock_version_file.exists.return_value = False
+
+            from app.version import _get_version
+
+            result = _get_version()
+
+        assert result == "0.0.0-unknown"

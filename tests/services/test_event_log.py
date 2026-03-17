@@ -4,9 +4,11 @@ These tests verify that service layer write operations correctly log events.
 For unit tests, we mock the database and verify log_event is called.
 """
 
-from datetime import UTC
+from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
+
+import pytest
 
 
 def test_user_create_logs_event(make_requesting_user, make_user_dict, make_email_dict):
@@ -522,3 +524,183 @@ def test_users_role_change_logs_authorization_denied(make_requesting_user, make_
         assert call_kwargs["metadata"]["action"] == "role_change"
         assert call_kwargs["metadata"]["current_role"] == "member"
         assert call_kwargs["metadata"]["attempted_role"] == "admin"
+
+
+# =============================================================================
+# log_event Unit Tests - Edge Cases
+# =============================================================================
+
+
+def test_log_event_raises_runtime_error_without_request_context():
+    """log_event raises RuntimeError when no request context and not in system context."""
+    from services.event_log import log_event
+
+    with (
+        patch("services.event_log.get_request_context", return_value=None),
+        patch("services.event_log.is_system_context", return_value=False),
+    ):
+        with pytest.raises(RuntimeError, match="log_event called without request context"):
+            log_event(
+                tenant_id=str(uuid4()),
+                actor_user_id=str(uuid4()),
+                artifact_type="user",
+                artifact_id=str(uuid4()),
+                event_type="user_created",
+            )
+
+
+def test_log_event_merges_api_client_context():
+    """log_event includes API client info when available."""
+    from services.event_log import log_event
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+
+    api_context = {
+        "client_id": "oauth-client-123",
+        "client_name": "Test App",
+        "client_type": "normal",
+    }
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+        patch("services.event_log.get_request_context", return_value={"remote_address": "1.2.3.4"}),
+        patch("services.event_log.get_api_client_context", return_value=api_context),
+    ):
+        mock_db.event_log.create_event.return_value = None
+
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            artifact_type="user",
+            artifact_id=user_id,
+            event_type="user_created",
+        )
+
+        call_kwargs = mock_db.event_log.create_event.call_args.kwargs
+        meta = call_kwargs["combined_metadata"]
+        assert meta["api_client_id"] == "oauth-client-123"
+        assert meta["api_client_name"] == "Test App"
+        assert meta["api_client_type"] == "normal"
+
+
+# =============================================================================
+# _get_actor_name Unit Tests
+# =============================================================================
+
+
+def test_get_actor_name_system_actor_with_idp():
+    """System actor with IdP name shows 'IdP: <name>'."""
+    from services.event_log import SYSTEM_ACTOR_ID, _get_actor_name
+
+    result = _get_actor_name("t1", SYSTEM_ACTOR_ID, {"idp_name": "Okta Corp"})
+    assert result == "IdP: Okta Corp"
+
+
+def test_get_actor_name_anonymized_user():
+    """Anonymized users show '[Anonymized User]'."""
+    from services.event_log import _get_actor_name
+
+    user_id = str(uuid4())
+    with patch("services.event_log.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = {
+            "id": user_id,
+            "first_name": "Redacted",
+            "last_name": "User",
+            "is_anonymized": True,
+        }
+
+        result = _get_actor_name("t1", user_id)
+        assert result == "[Anonymized User]"
+
+
+def test_get_actor_name_user_not_found():
+    """Missing user returns 'Unknown User'."""
+    from services.event_log import _get_actor_name
+
+    with patch("services.event_log.database") as mock_db:
+        mock_db.users.get_user_by_id.return_value = None
+
+        result = _get_actor_name("t1", str(uuid4()))
+        assert result == "Unknown User"
+
+
+# =============================================================================
+# list_events / get_event - Artifact Name Tests
+# =============================================================================
+
+
+def _make_event_row(**overrides):
+    """Helper to build a fake event row dict."""
+    base = {
+        "id": uuid4(),
+        "actor_user_id": uuid4(),
+        "artifact_type": "user",
+        "artifact_id": uuid4(),
+        "event_type": "user_created",
+        "metadata": {},
+        "created_at": datetime.now(UTC),
+        "artifact_first_name": None,
+        "artifact_last_name": None,
+        "artifact_email": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_list_events_builds_artifact_name_for_users(make_requesting_user):
+    """list_events builds artifact_name from first+last for user artifacts."""
+    from services.event_log import list_events
+
+    tenant_id = str(uuid4())
+    admin = make_requesting_user(tenant_id=tenant_id, role="admin")
+    event = _make_event_row(
+        artifact_type="user",
+        artifact_first_name="Jane",
+        artifact_last_name="Doe",
+    )
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.list_events.return_value = [event]
+        mock_db.event_log.count_events.return_value = 1
+        mock_db.users.get_user_by_id.return_value = {
+            "first_name": "Admin",
+            "last_name": "User",
+            "is_anonymized": False,
+        }
+
+        result = list_events(admin)
+        assert result.items[0].artifact_name == "Jane Doe"
+
+
+def test_get_event_builds_artifact_name_for_users(make_requesting_user):
+    """get_event builds artifact_name from first+last for user artifacts."""
+    from services.event_log import get_event
+
+    tenant_id = str(uuid4())
+    admin = make_requesting_user(tenant_id=tenant_id, role="admin")
+    event_id = str(uuid4())
+    event = _make_event_row(
+        id=event_id,
+        artifact_type="user",
+        artifact_first_name="John",
+        artifact_last_name="Smith",
+    )
+
+    with (
+        patch("services.event_log.database") as mock_db,
+        patch("services.event_log.track_activity"),
+    ):
+        mock_db.event_log.get_event_by_id.return_value = event
+        mock_db.users.get_user_by_id.return_value = {
+            "first_name": "Admin",
+            "last_name": "User",
+            "is_anonymized": False,
+        }
+
+        result = get_event(admin, event_id)
+        assert result.artifact_name == "John Smith"

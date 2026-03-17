@@ -1,5 +1,8 @@
 """Tests for Settings API endpoints."""
 
+from unittest.mock import patch
+from uuid import uuid4
+
 import pytest
 
 # =============================================================================
@@ -570,3 +573,98 @@ def test_privileged_domains_list_includes_linked_groups(
     domain = next(d for d in data if d["id"] == domain_id)
     assert len(domain["linked_groups"]) == 1
     assert domain["linked_groups"][0]["group_id"] == group_id
+
+
+# =============================================================================
+# ServiceError Handler Coverage
+# =============================================================================
+
+
+class TestSettingsApiServiceErrors:
+    """Tests for ServiceError handling in Settings API endpoints."""
+
+    def test_list_privileged_domains_service_error(
+        self, client, test_tenant_host, oauth2_admin_authorization_header
+    ):
+        """list_privileged_domains returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.settings.settings_service.list_privileged_domains",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = client.get(
+                "/api/v1/settings/privileged-domains",
+                headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            )
+        assert response.status_code == 500
+
+    def test_add_domain_group_link_service_error(
+        self, client, test_tenant_host, oauth2_admin_authorization_header
+    ):
+        """add_domain_group_link returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_domain = str(uuid4())
+        fake_group = str(uuid4())
+        with patch(
+            "routers.api.v1.settings.settings_service.add_domain_group_link",
+            side_effect=NotFoundError(message="Domain not found", code="not_found"),
+        ):
+            response = client.post(
+                f"/api/v1/settings/privileged-domains/{fake_domain}/group-links",
+                headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+                json={"group_id": fake_group},
+            )
+        assert response.status_code == 404
+
+    def test_delete_domain_group_link_service_error(
+        self, client, test_tenant_host, oauth2_admin_authorization_header
+    ):
+        """delete_domain_group_link returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_domain = str(uuid4())
+        fake_link = str(uuid4())
+        with patch(
+            "routers.api.v1.settings.settings_service.delete_domain_group_link",
+            side_effect=NotFoundError(message="Link not found", code="not_found"),
+        ):
+            response = client.delete(
+                f"/api/v1/settings/privileged-domains/{fake_domain}/group-links/{fake_link}",
+                headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            )
+        assert response.status_code == 404
+
+    def test_get_tenant_security_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """get_tenant_security returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.settings.settings_service.get_security_settings",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = client.get(
+                "/api/v1/settings/tenant-security",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 500
+
+    def test_update_tenant_security_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """update_tenant_security returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.settings.settings_service.update_security_settings",
+            side_effect=ValidationError(message="Invalid timeout", code="invalid_timeout"),
+        ):
+            response = client.patch(
+                "/api/v1/settings/tenant-security",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+                json={"session_timeout_seconds": 300},
+            )
+        assert response.status_code == 400

@@ -15,6 +15,7 @@ from services.exceptions import (
     ConflictError,
     ForbiddenError,
     NotFoundError,
+    RateLimitError,
     ServiceError,
     ValidationError,
 )
@@ -277,3 +278,50 @@ def test_render_error_page_passes_context_to_template():
             call_args = mock_templates.TemplateResponse.call_args
             _, _, context = call_args[0]
             assert context == expected_context
+
+
+# =============================================================================
+# RateLimitError Tests
+# =============================================================================
+
+
+def test_translate_rate_limit_error_to_429():
+    """Test RateLimitError translates to 429 with Retry-After header."""
+    from utils.service_errors import translate_to_http_exception
+
+    exc = RateLimitError(message="Too many requests", code="rate_limited", retry_after=60)
+
+    result = translate_to_http_exception(exc)
+
+    assert isinstance(result, HTTPException)
+    assert result.status_code == 429
+    assert result.detail == "Too many requests"
+    assert result.headers["Retry-After"] == "60"
+
+
+def test_render_rate_limit_error_page():
+    """Test rendering 429 error page for RateLimitError with Retry-After header."""
+    from utils.service_errors import render_error_page
+
+    mock_request = MagicMock(spec=Request)
+    exc = RateLimitError(message="Rate limit exceeded", code="rate_limited", retry_after=30)
+
+    with patch("utils.service_errors.get_template_context") as mock_context:
+        with patch("utils.service_errors.templates") as mock_templates:
+            mock_context.return_value = {"error_title": "Too Many Requests"}
+            mock_response = MagicMock()
+            mock_response.headers = {}
+            mock_templates.TemplateResponse.return_value = mock_response
+
+            result = render_error_page(mock_request, "tenant-123", exc)
+
+            mock_context.assert_called_once_with(
+                mock_request,
+                "tenant-123",
+                error_title="Too Many Requests",
+                error_message="Rate limit exceeded",
+                error_code="rate_limited",
+            )
+            call_args = mock_templates.TemplateResponse.call_args
+            assert call_args[1]["status_code"] == 429
+            assert result.headers["Retry-After"] == "30"

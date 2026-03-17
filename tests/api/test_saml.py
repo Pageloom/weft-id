@@ -1,6 +1,7 @@
 """Tests for SAML API endpoints."""
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -1122,3 +1123,229 @@ def test_check_email_auth_route_inactivated_user(client, test_tenant_host, test_
         "UPDATE users SET is_inactivated = false WHERE id = :user_id",
         {"user_id": test_user["id"]},
     )
+
+
+# =============================================================================
+# ServiceError Handler Coverage
+# =============================================================================
+
+
+class TestSamlApiServiceErrors:
+    """Tests for ServiceError handling in SAML API endpoints."""
+
+    def test_list_idps_service_error(self, client, test_tenant_host, oauth2_super_admin_header):
+        """list_identity_providers returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.saml.saml_service.list_identity_providers",
+            side_effect=ServiceError(message="DB failure", code="db_error"),
+        ):
+            response = client.get(
+                "/api/v1/saml/idps",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 500
+
+    def test_create_idp_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header, sample_idp_data
+    ):
+        """create_identity_provider returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.saml.saml_service.create_identity_provider",
+            side_effect=ValidationError(message="Invalid cert", code="invalid_cert"),
+        ):
+            response = client.post(
+                "/api/v1/saml/idps",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+                json=sample_idp_data,
+            )
+        assert response.status_code == 400
+
+    def test_enable_idp_service_error(self, client, test_tenant_host, oauth2_super_admin_header):
+        """enable_identity_provider returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.set_idp_enabled",
+            side_effect=NotFoundError(message="IdP not found", code="not_found"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/enable",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 404
+
+    def test_disable_idp_service_error(self, client, test_tenant_host, oauth2_super_admin_header):
+        """disable_identity_provider returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.set_idp_enabled",
+            side_effect=NotFoundError(message="IdP not found", code="not_found"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/disable",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 404
+
+    def test_set_default_idp_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """set_default_identity_provider returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.set_idp_default",
+            side_effect=NotFoundError(message="IdP not found", code="not_found"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/set-default",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 404
+
+    def test_establish_trust_url_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """establish_trust_from_url returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.import_idp_from_metadata_url",
+            side_effect=ValidationError(message="Bad URL", code="bad_url"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/establish-trust-url",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+                json={"metadata_url": "https://example.com/metadata"},
+            )
+        assert response.status_code == 400
+
+    def test_establish_trust_xml_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """establish_trust_from_xml returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.import_idp_from_metadata_xml",
+            side_effect=ValidationError(message="Bad XML", code="bad_xml"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/establish-trust-xml",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+                json={"metadata_xml": "<xml/>"},
+            )
+        assert response.status_code == 400
+
+    def test_rotate_sp_certificate_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """rotate_idp_sp_certificate returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.rotate_idp_sp_certificate",
+            side_effect=NotFoundError(message="IdP not found", code="not_found"),
+        ):
+            response = client.post(
+                f"/api/v1/saml/idps/{fake_id}/rotate-sp-certificate",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 404
+
+    def test_import_idp_url_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """import_identity_provider returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.saml.saml_service.import_idp_from_metadata_url",
+            side_effect=ValidationError(message="Fetch failed", code="fetch_failed"),
+        ):
+            response = client.post(
+                "/api/v1/saml/idps/import",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+                json={
+                    "name": "Test",
+                    "provider_type": "generic",
+                    "metadata_url": "https://example.com/metadata",
+                },
+            )
+        assert response.status_code == 400
+
+    def test_list_domain_bindings_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """list_idp_domain_bindings returns 404 on NotFoundError."""
+        from services.exceptions import NotFoundError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.list_domain_bindings",
+            side_effect=NotFoundError(message="IdP not found", code="not_found"),
+        ):
+            response = client.get(
+                f"/api/v1/saml/idps/{fake_id}/domains",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 404
+
+    def test_get_unbound_domains_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """get_unbound_domains returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.saml.saml_service.get_unbound_domains",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = client.get(
+                "/api/v1/saml/domains/unbound",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 500
+
+    def test_get_sp_certificate_service_error(
+        self, client, test_tenant_host, oauth2_super_admin_header
+    ):
+        """get_idp_sp_certificate returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        fake_id = str(uuid.uuid4())
+        with patch(
+            "routers.api.v1.saml.saml_service.get_idp_sp_certificate_for_display",
+            side_effect=ServiceError(message="Cert error", code="cert_error"),
+        ):
+            response = client.get(
+                f"/api/v1/saml/idps/{fake_id}/sp-certificate",
+                headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+            )
+        assert response.status_code == 500
+
+    def test_check_email_service_error(self, client, test_tenant_host):
+        """check_email_auth_route returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.saml.saml_service.determine_auth_route",
+            side_effect=ServiceError(message="Routing error", code="route_error"),
+        ):
+            response = client.post(
+                "/api/v1/saml/auth/check-email",
+                headers={"Host": test_tenant_host},
+                json={"email": "test@example.com"},
+            )
+        assert response.status_code == 500

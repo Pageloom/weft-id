@@ -1102,3 +1102,90 @@ class TestUpdateSPAvailableToAllAPI:
 
         assert response.status_code == 200
         assert response.json()["available_to_all"] is False
+
+
+# =============================================================================
+# ServiceError Handler Coverage
+# =============================================================================
+
+
+class TestSPApiServiceErrors:
+    """Tests for ServiceError handling in SP API endpoints."""
+
+    def test_list_service_providers_error(self, sp_api_client, api_host):
+        """list_service_providers returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.list_service_providers",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = sp_api_client.get(
+                "/api/v1/service-providers/",
+                headers={"Host": api_host},
+            )
+        assert response.status_code == 500
+
+    def test_establish_trust_url_error(self, sp_api_client, api_host, sample_sp):
+        """establish_trust_from_url returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.establish_trust_from_metadata_url",
+            side_effect=ValidationError(message="Bad URL", code="bad_url"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/establish-trust/url",
+                headers={"Host": api_host},
+                json={"metadata_url": "https://example.com/metadata"},
+            )
+        assert response.status_code == 400
+
+    def test_establish_trust_xml_error(self, sp_api_client, api_host, sample_sp):
+        """establish_trust_from_xml returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.establish_trust_from_metadata_xml",
+            side_effect=ValidationError(message="Bad XML", code="bad_xml"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/establish-trust/xml",
+                headers={"Host": api_host},
+                json={"metadata_xml": "<xml/>"},
+            )
+        assert response.status_code == 400
+
+    def test_establish_trust_manual_error(self, sp_api_client, api_host, sample_sp):
+        """establish_trust_manually returns 400 on ValidationError."""
+        from services.exceptions import ValidationError
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.establish_trust_manually",
+            side_effect=ValidationError(message="Invalid entity_id", code="invalid"),
+        ):
+            response = sp_api_client.post(
+                f"/api/v1/service-providers/{sample_sp.id}/establish-trust/manual",
+                headers={"Host": api_host},
+                json={
+                    "entity_id": "https://sp.example.com",
+                    "acs_url": "https://sp.example.com/acs",
+                },
+            )
+        assert response.status_code == 400
+
+    def test_get_my_apps_service_error(self, client, api_user, api_host, override_api_auth):
+        """get_my_apps returns 500 on ServiceError."""
+        from services.exceptions import ServiceError
+
+        override_api_auth(api_user, level="user")
+
+        with patch(
+            "routers.api.v1.service_providers.sp_service.get_user_accessible_apps",
+            side_effect=ServiceError(message="DB error", code="db_error"),
+        ):
+            response = client.get(
+                "/api/v1/my-apps",
+                headers={"Host": api_host},
+            )
+        assert response.status_code == 500

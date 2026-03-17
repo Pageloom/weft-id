@@ -2425,3 +2425,131 @@ class TestSPCreateError:
 
         assert response.status_code == 303
         assert "error=" in response.headers["location"]
+
+
+# =============================================================================
+# SP Logo Upload / Delete
+# =============================================================================
+
+
+class TestSPLogoUpload:
+    """Tests for the SP logo upload admin route."""
+
+    def test_upload_success(self, sp_admin_session, sp_host, mocker):
+        """Successful logo upload redirects with success message."""
+        mocker.patch(f"{ROUTER_MODULE}.branding_service.upload_sp_logo")
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/logo/upload",
+            files={"file": ("logo.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "image/png")},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "success=logo_uploaded" in response.headers["location"]
+
+    def test_upload_service_error(self, sp_admin_session, sp_host, mocker):
+        """Upload service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        mocker.patch(
+            f"{ROUTER_MODULE}.branding_service.upload_sp_logo",
+            side_effect=ServiceError(message="Invalid format", code="invalid_format"),
+        )
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/logo/upload",
+            files={"file": ("bad.txt", b"not an image", "text/plain")},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_upload_access_denied_for_non_super_admin(self, client, sp_host, override_auth):
+        """Non-super-admin users are redirected away from logo upload."""
+        user = {
+            "id": str(uuid4()),
+            "tenant_id": str(uuid4()),
+            "role": "admin",
+            "email": "admin@test.com",
+            "first_name": "Test",
+            "last_name": "Admin",
+            "tz": "UTC",
+            "locale": "en_US",
+        }
+        override_auth(user, level="admin")
+
+        response = client.post(
+            f"/admin/settings/service-providers/{uuid4()}/logo/upload",
+            files={"file": ("logo.png", b"\x89PNG" + b"\x00" * 100, "image/png")},
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]
+
+
+class TestSPLogoDelete:
+    """Tests for the SP logo delete admin route."""
+
+    def test_delete_success(self, sp_admin_session, sp_host, mocker):
+        """Successful logo delete redirects with success message."""
+        mocker.patch(f"{ROUTER_MODULE}.branding_service.delete_sp_logo")
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/logo/delete",
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "success=logo_deleted" in response.headers["location"]
+
+    def test_delete_service_error(self, sp_admin_session, sp_host, mocker):
+        """Delete service error redirects with error message."""
+        from services.exceptions import ServiceError
+
+        mocker.patch(
+            f"{ROUTER_MODULE}.branding_service.delete_sp_logo",
+            side_effect=ServiceError(message="Not found", code="not_found"),
+        )
+        sp_id = str(uuid4())
+
+        response = sp_admin_session.post(
+            f"/admin/settings/service-providers/{sp_id}/logo/delete",
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "error=" in response.headers["location"]
+
+    def test_delete_access_denied_for_non_super_admin(self, client, sp_host, override_auth):
+        """Non-super-admin users are redirected away from logo delete."""
+        user = {
+            "id": str(uuid4()),
+            "tenant_id": str(uuid4()),
+            "role": "admin",
+            "email": "admin@test.com",
+            "first_name": "Test",
+            "last_name": "Admin",
+            "tz": "UTC",
+            "locale": "en_US",
+        }
+        override_auth(user, level="admin")
+
+        response = client.post(
+            f"/admin/settings/service-providers/{uuid4()}/logo/delete",
+            headers={"Host": sp_host},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert "/login" in response.headers["location"]

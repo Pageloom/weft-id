@@ -592,6 +592,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     - sub_nav_items: Sub-navigation items for the active top-level
     - active_sub_level: The active sub-level page (if any)
     - sub_sub_nav_items: Sub-sub-navigation items (if any)
+    - active_sub_sub_level: The active sub-sub-level page (if any)
     - docs_path: Documentation URL for the current page (inherited from nearest ancestor if not set)
     """
 
@@ -642,6 +643,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
     sub_nav_items = []
     active_sub_level = None
     sub_sub_nav_items = []
+    active_sub_sub_level = None
 
     if active_top_level and active_top_level.children:
         # Filter children by permission and show_in_nav
@@ -663,6 +665,10 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
                     if child.show_in_nav and has_permission(child, user_role)
                 ]
 
+                # Determine active sub-sub-level
+                if len(nav_chain) > 2:
+                    active_sub_sub_level = nav_chain[2]
+
     # Resolve docs_path: current page's own, or nearest ancestor's
     docs_path = None
     if current_page and current_page.docs_path:
@@ -681,6 +687,7 @@ def get_navigation_context(path: str, user_role: str | None = None) -> dict:
         "sub_nav_items": sub_nav_items,
         "active_sub_level": active_sub_level,
         "sub_sub_nav_items": sub_sub_nav_items,
+        "active_sub_sub_level": active_sub_sub_level,
         "docs_path": docs_path,
     }
 

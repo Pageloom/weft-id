@@ -80,7 +80,7 @@ def _get_super_admin(tenant_id: str) -> dict:
 
 
 def _base_url(subdomain: str) -> str:
-    return f"https://{subdomain}.pageloom.localhost"
+    return f"https://{subdomain}.weftid.localhost"
 
 
 def _configure_logging(json_mode: bool) -> logging.Logger:

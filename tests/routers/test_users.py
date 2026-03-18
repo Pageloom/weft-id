@@ -1874,7 +1874,7 @@ def test_set_password_with_invalid_email_id_returns_error(test_tenant):
     # Try to access /set-password with non-existent email_id
     response = client.get(
         f"/set-password?email_id={non_existent_email_id}",
-        headers={"host": f"{test_tenant['subdomain']}.pageloom.localhost"},
+        headers={"host": f"{test_tenant['subdomain']}.weftid.localhost"},
         follow_redirects=False,
     )
 

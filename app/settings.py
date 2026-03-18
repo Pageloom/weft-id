@@ -24,7 +24,7 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 SMTP_TLS = _parse_bool(os.environ.get("SMTP_TLS"))
 
-FROM_EMAIL = os.environ.get("FROM_EMAIL", "no-reply@pageloom.localhost")
+FROM_EMAIL = os.environ.get("FROM_EMAIL", "no-reply@weftid.localhost")
 
 # Email backend selection: smtp, resend, or sendgrid
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "smtp")

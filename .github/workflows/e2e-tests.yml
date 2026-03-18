@@ -72,12 +72,12 @@ jobs:
             -keyout .devcerts/dev.key \
             -out .devcerts/dev.crt \
             -days 1 \
-            -subj '/CN=pageloom.localhost' \
-            -addext 'subjectAltName=DNS:pageloom.localhost,DNS:*.pageloom.localhost'
+            -subj '/CN=weftid.localhost' \
+            -addext 'subjectAltName=DNS:weftid.localhost,DNS:*.weftid.localhost'
 
       - name: Add /etc/hosts entries
         run: |
-          echo "127.0.0.1 pageloom.localhost dev.pageloom.localhost e2e-idp.pageloom.localhost e2e-sp.pageloom.localhost" \
+          echo "127.0.0.1 weftid.localhost dev.weftid.localhost e2e-idp.weftid.localhost e2e-sp.weftid.localhost" \
             | sudo tee -a /etc/hosts
 
       - name: Start Docker Compose services
@@ -87,7 +87,7 @@ jobs:
         run: |
           echo "Waiting for app to be reachable via nginx..."
           for i in $(seq 1 60); do
-            if curl -sk -o /dev/null -w '%{http_code}' https://dev.pageloom.localhost/login 2>/dev/null | grep -q '200'; then
+            if curl -sk -o /dev/null -w '%{http_code}' https://dev.weftid.localhost/login 2>/dev/null | grep -q '200'; then
               echo "App is ready (attempt $i)"
               exit 0
             fi

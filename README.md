@@ -73,7 +73,7 @@ configuration, upgrades, and backups.
    make up
    ```
 
-7. Open your browser at https://dev.pageloom.localhost
+7. Open your browser at https://dev.weftid.localhost
    (A dev tenant has been automatically provisioned for you)
 
 ## Development Commands

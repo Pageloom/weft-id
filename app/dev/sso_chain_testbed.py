@@ -97,7 +97,7 @@ def _get_user_by_email(tenant_id: str, email: str) -> dict | None:
 
 
 def _base_url(subdomain: str) -> str:
-    return f"https://{subdomain}.pageloom.localhost"
+    return f"https://{subdomain}.weftid.localhost"
 
 
 def _configure_logging(json_mode: bool) -> logging.Logger:

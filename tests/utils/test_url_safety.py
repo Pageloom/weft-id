@@ -369,7 +369,7 @@ class TestDevModeReverseProxy:
     def test_base_domain_skips_ip_validation(self, mock_settings, mock_urlopen):
         """URLs matching *.BASE_DOMAIN skip IP validation in dev mode."""
         mock_settings.IS_DEV = True
-        mock_settings.BASE_DOMAIN = "pageloom.localhost"
+        mock_settings.BASE_DOMAIN = "weftid.localhost"
 
         mock_response = MagicMock()
         mock_response.headers = {}
@@ -378,7 +378,7 @@ class TestDevModeReverseProxy:
 
         # This URL targets BASE_DOMAIN, so IP validation is skipped.
         # No socket.getaddrinfo mock needed.
-        result = fetch_metadata_xml("https://tenant.pageloom.localhost/metadata")
+        result = fetch_metadata_xml("https://tenant.weftid.localhost/metadata")
         assert "EntityDescriptor" in result
 
         # Verify the request was rewritten to reverse-proxy
@@ -394,7 +394,7 @@ class TestDevModeReverseProxy:
     ):
         """Non-BASE_DOMAIN URLs in dev mode still get full IP validation."""
         mock_settings.IS_DEV = True
-        mock_settings.BASE_DOMAIN = "pageloom.localhost"
+        mock_settings.BASE_DOMAIN = "weftid.localhost"
         mock_getaddrinfo.return_value = [(2, 1, 6, "", ("127.0.0.1", 0))]
 
         with pytest.raises(ValueError, match="private or reserved"):
@@ -404,25 +404,25 @@ class TestDevModeReverseProxy:
     def test_base_domain_still_validates_scheme(self, mock_settings):
         """Even *.BASE_DOMAIN URLs must use http or https."""
         mock_settings.IS_DEV = True
-        mock_settings.BASE_DOMAIN = "pageloom.localhost"
+        mock_settings.BASE_DOMAIN = "weftid.localhost"
 
         with pytest.raises(ValueError, match="Unsupported URL scheme"):
-            fetch_metadata_xml("ftp://tenant.pageloom.localhost/metadata")
+            fetch_metadata_xml("ftp://tenant.weftid.localhost/metadata")
 
     @patch("app.utils.url_safety.urllib.request.urlopen")
     @patch("app.utils.url_safety.settings")
     def test_dev_proxy_sets_host_header(self, mock_settings, mock_urlopen):
         """Reverse-proxy rewrite preserves original hostname via Host header."""
         mock_settings.IS_DEV = True
-        mock_settings.BASE_DOMAIN = "pageloom.localhost"
+        mock_settings.BASE_DOMAIN = "weftid.localhost"
 
         mock_response = MagicMock()
         mock_response.headers = {}
         mock_response.read.return_value = SAMPLE_XML.encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
-        fetch_metadata_xml("https://tenant.pageloom.localhost/metadata")
+        fetch_metadata_xml("https://tenant.weftid.localhost/metadata")
 
         call_args = mock_urlopen.call_args
         req = call_args[0][0]
-        assert req.get_header("Host") == "tenant.pageloom.localhost"
+        assert req.get_header("Host") == "tenant.weftid.localhost"

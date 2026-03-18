@@ -4,6 +4,49 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Password Strength Policy
+
+**Status:** Complete
+
+**User Story:**
+As a super admin
+I want strong, enforceable password requirements that go beyond simple length and character rules
+So that every password-authenticated user in my tenant has a genuinely secure password
+
+**Acceptance Criteria:**
+
+Strength validation (applies to all password-setting flows: onboarding, change, reset):
+- [x] Minimum length configurable by super admin: 8, 10, 12, 14, 16, 18, or 20 characters. Default: 14
+- [x] Super admin accounts always require minimum 14 characters regardless of tenant setting
+- [x] zxcvbn minimum score: default 3 ("safely unguessable"), super admin can set to 4 ("very unguessable")
+- [x] HIBP k-anonymity breach check: reject passwords found in known breach databases
+- [x] If HIBP API is unreachable, fail open (allow the password, log a warning). Length and zxcvbn checks still apply.
+- [x] No password expiry. No rotation policy. No "password must differ from last N passwords."
+
+Client-side feedback:
+- [x] Real-time strength indicator as the user types (zxcvbn-ts or equivalent JS library)
+- [x] Clear messaging: show estimated crack time, flag specific weaknesses
+- [x] Encourage password manager use in help text
+
+Server-side enforcement:
+- [x] All client-side checks are repeated server-side (zxcvbn Python port + HIBP API call)
+- [x] Server is the authority. Client-side feedback is UX only.
+- [x] Validation errors return specific, actionable messages
+
+Admin configuration (security settings page):
+- [x] Minimum password length selector (dropdown: 8, 10, 12, 14, 16, 18, 20)
+- [x] Minimum zxcvbn score selector (3 or 4)
+- [x] Both settings persisted via migration, exposed via API
+- [x] Event logged when settings change (`password_policy_updated`)
+
+Database:
+- [x] Migration adds password policy columns to tenant settings (minimum_password_length, minimum_zxcvbn_score)
+- [x] Sensible defaults (14, 3) so existing tenants get strong policy without action
+
+**Resolution:** Implemented zxcvbn-based password strength validation with HIBP k-anonymity breach checking. Admin-configurable minimum length and zxcvbn score in security settings. Real-time client-side strength feedback with server-side enforcement on all password-setting flows.
+
+---
+
 ## Remove Legacy Onprem Setup
 
 **Status:** Complete

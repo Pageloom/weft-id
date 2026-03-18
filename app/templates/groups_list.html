@@ -1071,13 +1071,57 @@ WeftUtils.listManager({
       }
 
       function repositionTooltip(node) {
-        // Use the rendered bounding box so the tooltip sits just above the node
-        // at any zoom level. renderedBoundingBox() returns screen-pixel coords
-        // that already incorporate the current zoom, avoiding the hardcoded
-        // offset that caused the tooltip to overlap the node when zoomed in.
+        // Pick the side (top/bottom/left/right) that least overlaps connected
+        // nodes and edge midpoints, so the tooltip avoids the node's neighborhood.
         const bb = node.renderedBoundingBox({ includeLabels: false });
-        tooltip.style.left = (bb.x1 + (bb.x2 - bb.x1) / 2 - tooltip.offsetWidth / 2) + 'px';
-        tooltip.style.top  = (bb.y1 - tooltip.offsetHeight - 6) + 'px';
+        const bbLabel = node.renderedBoundingBox({ includeLabels: true });
+        const tw = tooltip.offsetWidth;
+        const th = tooltip.offsetHeight;
+        const gap = 8;
+        const cx = bb.x1 + (bb.x2 - bb.x1) / 2;
+        const midY = bb.y1 + (bb.y2 - bb.y1) / 2;
+
+        const candidates = [
+          { x: cx - tw / 2, y: bb.y1 - th - gap },           // top
+          { x: cx - tw / 2, y: bbLabel.y2 + gap },            // bottom (clear of label)
+          { x: bb.x1 - tw - gap, y: midY - th / 2 },         // left
+          { x: bb.x2 + gap, y: midY - th / 2 },              // right
+        ];
+
+        // Build obstacles from connected nodes and edge midpoints
+        const obstacles = [];
+        const edges = node.connectedEdges();
+        edges.connectedNodes().difference(node).forEach((n) => {
+          if (!n.data('isCluster')) obstacles.push(n.renderedBoundingBox({ includeLabels: false }));
+        });
+        edges.forEach((e) => {
+          const mp = e.renderedMidpoint();
+          obstacles.push({ x1: mp.x - 12, y1: mp.y - 12, x2: mp.x + 12, y2: mp.y + 12 });
+        });
+
+        const cw = cyEl.offsetWidth;
+        const ch = cyEl.offsetHeight;
+        let bestIdx = 0;
+        let bestScore = -Infinity;
+
+        candidates.forEach((pos, i) => {
+          const r = { x1: pos.x, y1: pos.y, x2: pos.x + tw, y2: pos.y + th };
+          let score = 0;
+          // Heavy penalty for going off-container
+          const clip = Math.max(0, -r.x1) + Math.max(0, -r.y1)
+                     + Math.max(0, r.x2 - cw) + Math.max(0, r.y2 - ch);
+          score -= clip * 1000;
+          // Penalty for overlapping obstacle bounding boxes
+          obstacles.forEach((ob) => {
+            const ox = Math.max(0, Math.min(r.x2, ob.x2) - Math.max(r.x1, ob.x1));
+            const oy = Math.max(0, Math.min(r.y2, ob.y2) - Math.max(r.y1, ob.y1));
+            score -= ox * oy;
+          });
+          if (score > bestScore) { bestScore = score; bestIdx = i; }
+        });
+
+        tooltip.style.left = candidates[bestIdx].x + 'px';
+        tooltip.style.top = candidates[bestIdx].y + 'px';
       }
 
       function showTooltipForNode(node, detailsHref) {

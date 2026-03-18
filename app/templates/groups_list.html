@@ -123,7 +123,7 @@
                     {{ icon("x-mark", class="w-5 h-5") }}
                 </button>
                 <span id="layout-hint" class="hidden text-sm text-blue-600 dark:text-blue-400">
-                    Drag to reposition.
+                    Drag to reposition. Hold Shift to include children.
                 </span>
                 {# Classes only referenced via JS — listed here so Tailwind includes them in the build #}
                 <span class="hidden bg-amber-500 border-amber-500 bg-red-500 border-red-500 bg-blue-600 border-blue-600 hover:bg-blue-700"></span>
@@ -522,6 +522,8 @@ WeftUtils.listManager({
   const GRID = 100;
   let layoutMode = false;
   let layoutPositionBackup = {};
+  let subtreeDragNodes = null;
+  let subtreeDragOffsets = null;
   let currentNodeIds = '';
 
   function saveLayout(cy) {
@@ -776,6 +778,7 @@ WeftUtils.listManager({
             }
           }
         ],
+        boxSelectionEnabled: false,
         userZoomingEnabled: false,
         userPanningEnabled: true,
         minZoom: 0.15,
@@ -831,6 +834,41 @@ WeftUtils.listManager({
         document.getElementById('btn-fullscreen').click();
       }
 
+      // Shift+drag in layout mode: drag children along with parent
+      cy.on('grab', 'node', (evt) => {
+        if (!layoutMode || !evt.originalEvent?.shiftKey) {
+          subtreeDragNodes = null;
+          subtreeDragOffsets = null;
+          return;
+        }
+        const node = evt.target;
+        const origin = node.position();
+        // predecessors follows incoming edges (child→parent), giving descendants
+        const descendants = node.predecessors('node').filter((n) => !n.data('isCluster'));
+        if (descendants.length === 0) {
+          subtreeDragNodes = null;
+          subtreeDragOffsets = null;
+          return;
+        }
+        subtreeDragNodes = descendants;
+        subtreeDragOffsets = {};
+        descendants.forEach((n) => {
+          subtreeDragOffsets[n.id()] = {
+            dx: n.position('x') - origin.x,
+            dy: n.position('y') - origin.y,
+          };
+        });
+      });
+
+      cy.on('drag', 'node', (evt) => {
+        if (!subtreeDragNodes) return;
+        const pos = evt.target.position();
+        subtreeDragNodes.forEach((n) => {
+          const off = subtreeDragOffsets[n.id()];
+          n.position({x: pos.x + off.dx, y: pos.y + off.dy});
+        });
+      });
+
       // Snap-to-grid on drag release (only active in layout mode)
       cy.on('dragfree', 'node', (evt) => {
         const node = evt.target;
@@ -839,6 +877,18 @@ WeftUtils.listManager({
           x: Math.round(pos.x / GRID) * GRID,
           y: Math.round(pos.y / GRID) * GRID,
         });
+        // Also snap subtree nodes
+        if (subtreeDragNodes) {
+          subtreeDragNodes.forEach((n) => {
+            const p = n.position();
+            n.position({
+              x: Math.round(p.x / GRID) * GRID,
+              y: Math.round(p.y / GRID) * GRID,
+            });
+          });
+          subtreeDragNodes = null;
+          subtreeDragOffsets = null;
+        }
       });
 
       // Snap back if the user pans all nodes off screen

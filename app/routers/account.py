@@ -180,6 +180,10 @@ def password_settings(
         return RedirectResponse(url="/account/profile", status_code=303)
 
     policy = settings_service.get_password_policy(tenant_id)
+    min_length = policy["minimum_password_length"]
+    # Super admins always require at least 14 characters
+    if user.get("role") == "super_admin" and min_length < 14:
+        min_length = 14
     success = request.query_params.get("success")
     error = request.query_params.get("error")
 
@@ -189,7 +193,7 @@ def password_settings(
         get_template_context(
             request,
             tenant_id,
-            minimum_password_length=policy["minimum_password_length"],
+            minimum_password_length=min_length,
             minimum_zxcvbn_score=policy["minimum_zxcvbn_score"],
             success=success,
             error=error,

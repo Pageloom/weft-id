@@ -103,6 +103,9 @@ def set_password_page(
 
     # Load password policy for this tenant
     policy = settings_service.get_password_policy(tenant_id)
+    min_length = policy["minimum_password_length"]
+    if user.get("role") == "super_admin" and min_length < 14:
+        min_length = 14
 
     # Get success/error messages from query params
     success = request.query_params.get("success")
@@ -115,7 +118,7 @@ def set_password_page(
             "request": request,
             "email": email["email"],
             "email_id": email_id,
-            "minimum_password_length": policy["minimum_password_length"],
+            "minimum_password_length": min_length,
             "minimum_zxcvbn_score": policy["minimum_zxcvbn_score"],
             "success": success,
             "error": error,

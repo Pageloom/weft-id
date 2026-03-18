@@ -525,6 +525,11 @@ def forced_password_reset_page(
         return RedirectResponse(url="/login", status_code=303)
 
     policy = settings_service.get_password_policy(tenant_id)
+    min_length = policy["minimum_password_length"]
+    # Check if user is super_admin (requires minimum 14)
+    pending_user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
+    if pending_user and pending_user.get("role") == "super_admin" and min_length < 14:
+        min_length = 14
     error = request.query_params.get("error")
 
     return templates.TemplateResponse(
@@ -532,7 +537,7 @@ def forced_password_reset_page(
         "forced_password_reset.html",
         {
             "request": request,
-            "minimum_password_length": policy["minimum_password_length"],
+            "minimum_password_length": min_length,
             "minimum_zxcvbn_score": policy["minimum_zxcvbn_score"],
             "error": error,
             "csrf_token": make_csrf_token_func(request),

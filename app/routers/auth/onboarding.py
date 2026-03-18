@@ -165,9 +165,9 @@ def set_password(
         user_inputs=[email["email"]],
     )
     if not strength.is_valid:
-        error_msg = strength.issues[0].message
+        error_code = strength.issues[0].code
         return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&error={error_msg}", status_code=303
+            url=f"/set-password?email_id={email_id}&error={error_code}", status_code=303
         )
 
     # Set the password

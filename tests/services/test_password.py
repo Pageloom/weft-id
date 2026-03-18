@@ -80,7 +80,7 @@ class TestChangePassword:
 
         strength_result = MagicMock()
         strength_result.is_valid = False
-        strength_result.issues = [MagicMock(message="Password too weak")]
+        strength_result.issues = [MagicMock(code="password_too_weak", message="Password too weak")]
 
         with (
             patch("services.users.password.database") as mock_db,
@@ -241,7 +241,7 @@ class TestCompleteForcedPasswordReset:
 
         strength_result = MagicMock()
         strength_result.is_valid = False
-        strength_result.issues = [MagicMock(message="Too weak")]
+        strength_result.issues = [MagicMock(code="password_too_weak", message="Too weak")]
 
         with (
             patch("services.users.password.database") as mock_db,

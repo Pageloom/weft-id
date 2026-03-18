@@ -62,10 +62,8 @@ def change_password(
         user_inputs=user_inputs,
     )
     if not strength.is_valid:
-        raise ValidationError(
-            message=strength.issues[0].message,
-            code="password_too_weak",
-        )
+        issue = strength.issues[0]
+        raise ValidationError(message=issue.message, code=issue.code)
 
     # Update password
     password_hash = hash_password(new_password)
@@ -181,10 +179,8 @@ def complete_forced_password_reset(
         user_inputs=user_inputs,
     )
     if not strength.is_valid:
-        raise ValidationError(
-            message=strength.issues[0].message,
-            code="password_too_weak",
-        )
+        issue = strength.issues[0]
+        raise ValidationError(message=issue.message, code=issue.code)
 
     # Update password (also clears password_reset_required flag)
     password_hash = hash_password(new_password)

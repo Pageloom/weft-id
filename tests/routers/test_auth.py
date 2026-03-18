@@ -21,6 +21,7 @@ DEPS_AUTH = "dependencies.auth"
 SERVICES_EMAILS = "services.emails"
 SERVICES_USERS = "services.users"
 UTILS_TEMPLATE = "utils.template_context"
+SERVICES_SETTINGS = "services.settings"
 UTILS_PASSWORD = "utils.password"
 
 
@@ -456,6 +457,10 @@ def test_set_password_page_renders(test_tenant, mocker):
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
     mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
     mock_template = mocker.patch(f"{AUTH_ONBOARDING}.templates.TemplateResponse")
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 14, "minimum_zxcvbn_score": 3},
+    )
 
     mock_get_email.return_value = {
         "id": "email-123",
@@ -480,6 +485,8 @@ def test_set_password_success(test_tenant, mocker):
     """Test successful password setting and auto-login."""
     from datetime import UTC, datetime
 
+    from utils.password_strength import PasswordStrengthResult
+
     override_tenant(app, test_tenant["id"])
 
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
@@ -489,6 +496,14 @@ def test_set_password_success(test_tenant, mocker):
     mock_create_otp = mocker.patch(f"{AUTH_ONBOARDING}.create_email_otp")
     mock_get_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_send_email = mocker.patch(f"{AUTH_ONBOARDING}.send_mfa_code_email")
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 14, "minimum_zxcvbn_score": 3},
+    )
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.validate_password",
+        return_value=PasswordStrengthResult(),
+    )
 
     mock_get_email.return_value = {
         "id": "email-123",
@@ -560,14 +575,31 @@ def test_set_password_passwords_dont_match(test_tenant, mocker):
 
 
 def test_set_password_too_short(test_tenant, mocker):
-    """Test password setting with password too short."""
+    """Test password setting with weak password rejected by validate_password."""
     from datetime import UTC, datetime
+
+    from utils.password_strength import PasswordIssue, PasswordStrengthResult
 
     override_tenant(app, test_tenant["id"])
 
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
     mock_get_user = mocker.patch(f"{SERVICES_USERS}.get_user_by_id_raw")
     mock_update = mocker.patch(f"{SERVICES_USERS}.update_password")
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 14, "minimum_zxcvbn_score": 3},
+    )
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.validate_password",
+        return_value=PasswordStrengthResult(
+            issues=[
+                PasswordIssue(
+                    code="password_too_short",
+                    message="Password must be at least 14 characters long.",
+                )
+            ]
+        ),
+    )
 
     mock_get_email.return_value = {
         "id": "email-123",
@@ -592,7 +624,7 @@ def test_set_password_too_short(test_tenant, mocker):
     )
 
     assert response.status_code == 303
-    assert "error=password_too_short" in response.headers["location"]
+    assert "error=" in response.headers["location"]
     mock_update.assert_not_called()
 
 
@@ -1264,6 +1296,8 @@ def test_set_password_logs_event(test_tenant, mocker):
     """Test that setting password logs an event."""
     from datetime import UTC, datetime
 
+    from utils.password_strength import PasswordStrengthResult
+
     override_tenant(app, test_tenant["id"])
 
     mock_get_email = mocker.patch(f"{SERVICES_EMAILS}.get_email_for_verification")
@@ -1274,6 +1308,14 @@ def test_set_password_logs_event(test_tenant, mocker):
     mock_get_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mocker.patch(f"{AUTH_ONBOARDING}.send_mfa_code_email")
     mock_log = mocker.patch(f"{AUTH_ONBOARDING}.log_event")
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 14, "minimum_zxcvbn_score": 3},
+    )
+    mocker.patch(
+        f"{AUTH_ONBOARDING}.validate_password",
+        return_value=PasswordStrengthResult(),
+    )
 
     mock_get_email.return_value = {
         "id": "email-123",

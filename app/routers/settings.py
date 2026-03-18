@@ -269,6 +269,8 @@ def _get_security_template_context(
             inactivity_threshold_days=settings.inactivity_threshold_days,
             max_certificate_lifetime_years=settings.max_certificate_lifetime_years,
             certificate_rotation_window_days=settings.certificate_rotation_window_days,
+            minimum_password_length=settings.minimum_password_length,
+            minimum_zxcvbn_score=settings.minimum_zxcvbn_score,
             success=success,
             error=error,
         ),
@@ -302,6 +304,22 @@ def admin_security_certificates(
     """Display certificates security settings tab."""
     return _get_security_template_context(
         request, tenant_id, user, "settings_security_tab_certificates.html"
+    )
+
+
+@router.get(
+    "/security/passwords",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_super_admin)],
+)
+def admin_security_passwords(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display passwords security settings tab."""
+    return _get_security_template_context(
+        request, tenant_id, user, "settings_security_tab_passwords.html"
     )
 
 
@@ -392,6 +410,69 @@ def update_admin_security_sessions(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url="/admin/settings/security/sessions?success=1", status_code=303)
+
+
+@router.post("/security/passwords/update", dependencies=[Depends(require_super_admin)])
+def update_admin_security_passwords(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    minimum_password_length: Annotated[str, Form()] = "",
+    minimum_zxcvbn_score: Annotated[str, Form()] = "",
+):
+    """Update password policy security settings for the tenant."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+
+    # Parse minimum password length
+    pw_length: Literal[8, 10, 12, 14, 16, 18, 20] | None = None
+    if minimum_password_length:
+        try:
+            parsed_length = int(minimum_password_length)
+            if parsed_length not in (8, 10, 12, 14, 16, 18, 20):
+                raise ValueError("Invalid length value")
+            pw_length = parsed_length  # type: ignore[assignment]
+        except ValueError:
+            exc = ValidationError(
+                message="Minimum password length must be 8, 10, 12, 14, 16, 18, or 20",
+                code="invalid_password_length",
+                field="minimum_password_length",
+            )
+            return render_error_page(request, tenant_id, exc)
+
+    # Parse minimum zxcvbn score
+    zxcvbn_score: Literal[3, 4] | None = None
+    if minimum_zxcvbn_score:
+        try:
+            parsed_score = int(minimum_zxcvbn_score)
+            if parsed_score not in (3, 4):
+                raise ValueError("Invalid score value")
+            zxcvbn_score = parsed_score  # type: ignore[assignment]
+        except ValueError:
+            exc = ValidationError(
+                message="Minimum strength score must be 3 or 4",
+                code="invalid_zxcvbn_score",
+                field="minimum_zxcvbn_score",
+            )
+            return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_update = TenantSecuritySettingsUpdate(
+            minimum_password_length=pw_length,
+            minimum_zxcvbn_score=zxcvbn_score,
+        )
+    except PydanticValidationError as e:
+        exc = ValidationError(
+            message=str(e.errors()[0]["msg"]) if e.errors() else "Invalid input",
+            code="validation_error",
+        )
+        return render_error_page(request, tenant_id, exc)
+
+    try:
+        settings_service.update_security_settings(requesting_user, settings_update)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(url="/admin/settings/security/passwords?success=1", status_code=303)
 
 
 @router.post("/security/certificates/update", dependencies=[Depends(require_super_admin)])

@@ -576,6 +576,73 @@ def test_privileged_domains_list_includes_linked_groups(
 
 
 # =============================================================================
+# Tenant Security - Password Policy
+# =============================================================================
+
+
+def test_get_tenant_security_includes_password_policy(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """GET security settings includes password policy fields."""
+    response = client.get(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "minimum_password_length" in data
+    assert "minimum_zxcvbn_score" in data
+    assert data["minimum_password_length"] in [8, 10, 12, 14, 16, 18, 20]
+    assert data["minimum_zxcvbn_score"] in [3, 4]
+
+
+def test_update_tenant_security_password_policy(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """PATCH security settings can update password policy."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={
+            "minimum_password_length": 16,
+            "minimum_zxcvbn_score": 4,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["minimum_password_length"] == 16
+    assert data["minimum_zxcvbn_score"] == 4
+
+
+def test_update_tenant_security_invalid_password_length(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """Invalid password length returns 422."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"minimum_password_length": 15},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_tenant_security_invalid_zxcvbn_score(
+    client, test_tenant_host, oauth2_super_admin_header
+):
+    """Invalid zxcvbn score returns 422."""
+    response = client.patch(
+        "/api/v1/settings/tenant-security",
+        headers={"Host": test_tenant_host, **oauth2_super_admin_header},
+        json={"minimum_zxcvbn_score": 2},
+    )
+
+    assert response.status_code == 422
+
+
+# =============================================================================
 # ServiceError Handler Coverage
 # =============================================================================
 

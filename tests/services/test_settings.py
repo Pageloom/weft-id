@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import database
 import pytest
+from schemas.settings import TenantSecuritySettingsUpdate
 from services import settings as settings_service
 from services.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
@@ -881,6 +882,131 @@ def test_rotation_window_valid_values():
     for days in [14, 30, 60, 90]:
         update = TenantSecuritySettingsUpdate(certificate_rotation_window_days=days)
         assert update.certificate_rotation_window_days == days
+
+
+# =============================================================================
+# Password Policy Tests
+# =============================================================================
+
+
+def test_get_security_settings_includes_password_policy_defaults(
+    test_tenant, test_super_admin_user
+):
+    """Test that security settings include password policy defaults."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    result = settings_service.get_security_settings(requesting_user)
+    assert result.minimum_password_length == 14
+    assert result.minimum_zxcvbn_score == 3
+
+
+def test_update_security_settings_with_password_policy(test_tenant, test_super_admin_user):
+    """Test updating password policy fields."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    settings_update = TenantSecuritySettingsUpdate(
+        minimum_password_length=16, minimum_zxcvbn_score=4
+    )
+    result = settings_service.update_security_settings(requesting_user, settings_update)
+    assert result.minimum_password_length == 16
+    assert result.minimum_zxcvbn_score == 4
+
+    # Verify persistence
+    result2 = settings_service.get_security_settings(requesting_user)
+    assert result2.minimum_password_length == 16
+    assert result2.minimum_zxcvbn_score == 4
+
+
+def test_update_password_policy_logs_dedicated_event(test_tenant, test_super_admin_user):
+    """Test that changing password policy logs a dedicated event."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    settings_update = TenantSecuritySettingsUpdate(minimum_password_length=20)
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    pw_events = [e for e in events if e["event_type"] == "password_policy_updated"]
+    assert len(pw_events) == 1
+
+
+def test_update_password_policy_no_event_when_unchanged(test_tenant, test_super_admin_user):
+    """Test that no dedicated event is logged when password policy doesn't change."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set initial value
+    settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(minimum_password_length=12)
+    )
+
+    # Clear events by getting count
+    events_before = database.event_log.list_events(test_tenant["id"], limit=100)
+    pw_events_before = len(
+        [e for e in events_before if e["event_type"] == "password_policy_updated"]
+    )
+
+    # Set same value again
+    settings_service.update_security_settings(
+        requesting_user, TenantSecuritySettingsUpdate(minimum_password_length=12)
+    )
+
+    events_after = database.event_log.list_events(test_tenant["id"], limit=100)
+    pw_events_after = len([e for e in events_after if e["event_type"] == "password_policy_updated"])
+    assert pw_events_after == pw_events_before
+
+
+def test_get_password_policy_returns_defaults(test_tenant):
+    """Test get_password_policy returns defaults when not configured."""
+    result = settings_service.get_password_policy(test_tenant["id"])
+    assert result["minimum_password_length"] == 14
+    assert result["minimum_zxcvbn_score"] == 3
+
+
+def test_get_password_policy_returns_configured(test_tenant, test_super_admin_user):
+    """Test get_password_policy returns configured values."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_service.update_security_settings(
+        requesting_user,
+        TenantSecuritySettingsUpdate(minimum_password_length=20, minimum_zxcvbn_score=4),
+    )
+
+    result = settings_service.get_password_policy(test_tenant["id"])
+    assert result["minimum_password_length"] == 20
+    assert result["minimum_zxcvbn_score"] == 4
+
+
+def test_password_length_invalid_values():
+    """Test that invalid password length values are rejected."""
+    from pydantic_core import ValidationError as PydanticValidationError
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(minimum_password_length=9)  # Not in allowed set
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(minimum_password_length=15)
+
+
+def test_password_length_valid_values():
+    """Test that all valid password length values are accepted."""
+    for length in [8, 10, 12, 14, 16, 18, 20]:
+        update = TenantSecuritySettingsUpdate(minimum_password_length=length)
+        assert update.minimum_password_length == length
+
+
+def test_zxcvbn_score_invalid_values():
+    """Test that invalid zxcvbn score values are rejected."""
+    from pydantic_core import ValidationError as PydanticValidationError
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(minimum_zxcvbn_score=2)
+
+    with pytest.raises(PydanticValidationError):
+        TenantSecuritySettingsUpdate(minimum_zxcvbn_score=5)
+
+
+def test_zxcvbn_score_valid_values():
+    """Test that all valid zxcvbn score values are accepted."""
+    for score in [3, 4]:
+        update = TenantSecuritySettingsUpdate(minimum_zxcvbn_score=score)
+        assert update.minimum_zxcvbn_score == score
 
 
 # =============================================================================

@@ -220,11 +220,15 @@ CREATE TABLE public.tenant_security_settings (
     allow_users_add_emails boolean DEFAULT true NOT NULL,
     inactivity_threshold_days integer,
     max_certificate_lifetime_years integer DEFAULT 10 NOT NULL,
+    minimum_password_length integer DEFAULT 14 NOT NULL,
+    minimum_zxcvbn_score integer DEFAULT 3 NOT NULL,
     CONSTRAINT tenant_security_settings_pkey PRIMARY KEY (id),
     CONSTRAINT tenant_security_settings_tenant_id_key UNIQUE (tenant_id),
     CONSTRAINT tenant_security_settings_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE,
     CONSTRAINT fk_updated_by_user FOREIGN KEY (updated_by, tenant_id) REFERENCES public.users(id, tenant_id) ON DELETE SET NULL,
     CONSTRAINT chk_certificate_lifetime_years CHECK ((max_certificate_lifetime_years = ANY (ARRAY[1, 2, 3, 5, 10]))),
+    CONSTRAINT chk_minimum_password_length CHECK ((minimum_password_length = ANY (ARRAY[8, 10, 12, 14, 16, 18, 20]))),
+    CONSTRAINT chk_minimum_zxcvbn_score CHECK ((minimum_zxcvbn_score = ANY (ARRAY[3, 4]))),
     CONSTRAINT tenant_security_settings_inactivity_threshold_days_check CHECK (((inactivity_threshold_days IS NULL) OR (inactivity_threshold_days > 0))),
     CONSTRAINT tenant_security_settings_session_timeout_seconds_check CHECK (((session_timeout_seconds IS NULL) OR (session_timeout_seconds > 0)))
 );

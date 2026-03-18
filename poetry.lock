@@ -3299,7 +3299,19 @@ pygments = ">=2.16"
 pymdown-extensions = ">=10.15"
 pyyaml = ">=6.0.2"
 
+[[package]]
+name = "zxcvbn"
+version = "4.5.0"
+description = ""
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "zxcvbn-4.5.0-py2.py3-none-any.whl", hash = "sha256:2b6eed621612ce6d65e6e4c7455b966acee87d0280e257956b1f06ccc66bd5ff"},
+    {file = "zxcvbn-4.5.0.tar.gz", hash = "sha256:70392c0fff39459d7f55d0211151401e79e76fcc6e2c22b61add62900359c7c1"},
+]
+
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "9dfa48d66785e7e8f0d3808794db1b3b3fa2a7b9dbeb59c0d52a1efcd77b0337"
+content-hash = "f23859cdc467874f920eaf170acdb39a60934b9472f197cf01cbee02ea076058"

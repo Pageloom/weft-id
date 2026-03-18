@@ -9,6 +9,7 @@ flow (tied to session establishment), not a regular user profile mutation.
 from typing import Annotated
 
 import services.emails as emails_service
+import services.settings as settings_service
 import services.users as users_service
 from dependencies import get_tenant_id_from_request
 from fastapi import APIRouter, Depends, Form, Request
@@ -18,6 +19,8 @@ from services.event_log import log_event
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
+from utils.password import hash_password
+from utils.password_strength import validate_password
 from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 
@@ -98,6 +101,9 @@ def set_password_page(
     if not user or user.get("password_hash"):
         return RedirectResponse(url="/login", status_code=303)
 
+    # Load password policy for this tenant
+    policy = settings_service.get_password_policy(tenant_id)
+
     # Get success/error messages from query params
     success = request.query_params.get("success")
     error = request.query_params.get("error")
@@ -109,6 +115,8 @@ def set_password_page(
             "request": request,
             "email": email["email"],
             "email_id": email_id,
+            "minimum_password_length": policy["minimum_password_length"],
+            "minimum_zxcvbn_score": policy["minimum_zxcvbn_score"],
             "success": success,
             "error": error,
             "csrf_token": make_csrf_token_func(request),
@@ -148,11 +156,18 @@ def set_password(
         )
 
     # Validate password strength
-    from utils.password import hash_password
-
-    if len(password) < 8:
+    policy = settings_service.get_password_policy(tenant_id)
+    strength = validate_password(
+        password,
+        minimum_length=policy["minimum_password_length"],
+        minimum_score=policy["minimum_zxcvbn_score"],
+        user_role=user.get("role"),
+        user_inputs=[email["email"]],
+    )
+    if not strength.is_valid:
+        error_msg = strength.issues[0].message
         return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&error=password_too_short", status_code=303
+            url=f"/set-password?email_id={email_id}&error={error_msg}", status_code=303
         )
 
     # Set the password

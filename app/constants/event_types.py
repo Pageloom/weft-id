@@ -89,6 +89,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "privileged_domain_deleted": "Privileged email domain removed",
     "tenant_certificate_lifetime_updated": "Certificate lifetime setting changed",
     "tenant_certificate_rotation_window_updated": "Certificate rotation window setting changed",
+    "password_policy_updated": "Password strength policy settings changed",
     "tenant_settings_updated": "Tenant settings updated",
     "domain_group_link_created": "Group linked to privileged domain for auto-assignment",
     "domain_group_link_deleted": "Group unlinked from privileged domain",

@@ -1090,6 +1090,119 @@ def test_update_security_pydantic_validation_error(test_super_admin_user, overri
 
 
 # =============================================================================
+# Passwords Tab Tests
+# =============================================================================
+
+
+def test_tenant_security_passwords_page(test_super_admin_user, override_auth, mocker):
+    """Test passwords security settings tab renders."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{DB_SECURITY}.get_security_settings",
+        return_value={
+            "session_timeout_seconds": None,
+            "persistent_sessions": True,
+            "allow_users_edit_profile": True,
+            "allow_users_add_emails": True,
+            "inactivity_threshold_days": None,
+            "max_certificate_lifetime_years": 10,
+            "certificate_rotation_window_days": 90,
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        },
+    )
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>passwords</html>"),
+    )
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/security/passwords")
+
+    assert response.status_code == 200
+
+
+def test_update_tenant_security_passwords(test_super_admin_user, override_auth, mocker):
+    """Test updating password policy settings."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(
+        f"{DB_SECURITY}.get_security_settings",
+        return_value={
+            "session_timeout_seconds": None,
+            "persistent_sessions": True,
+            "allow_users_edit_profile": True,
+            "allow_users_add_emails": True,
+            "inactivity_threshold_days": None,
+            "max_certificate_lifetime_years": 10,
+            "certificate_rotation_window_days": 90,
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+        },
+    )
+    mock_update = mocker.patch(f"{DB_SECURITY}.update_security_settings", return_value=1)
+    mocker.patch("services.event_log.log_event")
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/passwords/update",
+        data={
+            "minimum_password_length": "16",
+            "minimum_zxcvbn_score": "4",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/settings/security/passwords?success=1"
+    mock_update.assert_called_once()
+
+
+def test_update_passwords_invalid_length_error(test_super_admin_user, override_auth, mocker):
+    """Test that invalid password length value shows error page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/passwords/update",
+        data={
+            "minimum_password_length": "15",
+            "minimum_zxcvbn_score": "3",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+def test_update_passwords_invalid_score_error(test_super_admin_user, override_auth, mocker):
+    """Test that invalid zxcvbn score value shows error page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error.return_value = HTMLResponse(content="Error", status_code=400)
+
+    client = TestClient(app)
+    response = client.post(
+        "/admin/settings/security/passwords/update",
+        data={
+            "minimum_password_length": "14",
+            "minimum_zxcvbn_score": "2",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    mock_error.assert_called_once()
+
+
+# =============================================================================
 # Branding Route Tests
 # =============================================================================
 

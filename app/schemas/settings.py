@@ -84,6 +84,14 @@ class TenantSecuritySettings(BaseModel):
         90,
         description="Days before expiry to trigger auto-rotation and grace period duration",
     )
+    minimum_password_length: int = Field(
+        14,
+        description="Minimum password length required for new passwords",
+    )
+    minimum_zxcvbn_score: int = Field(
+        3,
+        description="Minimum zxcvbn strength score (3 = strong, 4 = very strong)",
+    )
 
 
 class TenantSecuritySettingsUpdate(BaseModel):
@@ -113,4 +121,12 @@ class TenantSecuritySettingsUpdate(BaseModel):
     certificate_rotation_window_days: Literal[14, 30, 60, 90] | None = Field(
         None,
         description="Days before expiry to trigger auto-rotation and grace period duration",
+    )
+    minimum_password_length: Literal[8, 10, 12, 14, 16, 18, 20] | None = Field(
+        None,
+        description="Minimum password length required for new passwords",
+    )
+    minimum_zxcvbn_score: Literal[3, 4] | None = Field(
+        None,
+        description="Minimum zxcvbn strength score (3 = strong, 4 = very strong)",
     )

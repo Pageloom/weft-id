@@ -185,6 +185,12 @@ PAGES = [
                                 docs_path="/docs/admin-guide/security/certificates/",
                             ),
                             Page(
+                                path="/admin/settings/security/passwords",
+                                title="Passwords",
+                                permission=PagePermission.SUPER_ADMIN,
+                                show_in_nav=True,
+                            ),
+                            Page(
                                 path="/admin/settings/security/permissions",
                                 title="Permissions",
                                 permission=PagePermission.SUPER_ADMIN,

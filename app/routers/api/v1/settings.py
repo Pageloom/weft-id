@@ -244,6 +244,8 @@ def update_tenant_security(
         inactivity_threshold_days: Days of inactivity before auto-inactivation (null = disabled)
         max_certificate_lifetime_years: Lifetime for new signing certs (1, 2, 3, 5, or 10)
         certificate_rotation_window_days: Days before expiry for auto-rotation (14, 30, 60, or 90)
+        minimum_password_length: Minimum password length (8, 10, 12, 14, 16, 18, or 20)
+        minimum_zxcvbn_score: Minimum zxcvbn strength score (3 or 4)
 
     Returns:
         Updated security settings

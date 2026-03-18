@@ -29,6 +29,7 @@ python3-saml = "^1.16.0"
 qrcode = {extras = ["pil"], version = "^8.0"}
 ua-parser = "^1.0.1"
 werkzeug = ">=3.1.6"
+zxcvbn = "^4.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

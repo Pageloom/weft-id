@@ -26,6 +26,15 @@
       "file": "static/js/cytoscape-dagre.min.js",
       "sri": "sha384-u69h9ebXeSjlg6q/rb1zKTRAGu/h8deCl0409xpS/QJctMKnc4M9Fzkm01VOQdeF",
       "sha256": "bf70fe402991dcbff33e05a7e4a5271c78020bb75e85d1c80ab7538e4157112e"
+    },
+    {
+      "name": "zxcvbn",
+      "osv_name": "zxcvbn",
+      "version": "4.4.2",
+      "source": "https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js",
+      "file": "static/js/zxcvbn.min.js",
+      "sri": "sha384-jhGcGHNZytnBnH1wbEM3KxJYyRDy9Q0QLKjE65xk+aMqXFCdvFuYIjzMWAAWBBtR",
+      "sha256": "6677fc15d245f397f52d5d0998f3a86f9aae752ae7b3ca4b3d9eaa91dffe174a"
     }
   ]
 }

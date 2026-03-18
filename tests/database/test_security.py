@@ -15,6 +15,8 @@ def test_get_security_settings(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -42,6 +44,8 @@ def test_get_session_settings(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -67,6 +71,8 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -91,6 +97,8 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -110,6 +118,8 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -134,6 +144,8 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -153,6 +165,8 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -177,6 +191,8 @@ def test_update_security_settings(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -194,6 +210,8 @@ def test_update_security_settings(test_tenant, test_admin_user):
         inactivity_threshold_days=30,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -219,6 +237,8 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -240,6 +260,8 @@ def test_get_security_settings_includes_certificate_lifetime(test_tenant, test_a
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=3,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -272,6 +294,8 @@ def test_get_certificate_lifetime_configured(test_tenant, test_admin_user):
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=5,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -294,6 +318,8 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=2,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -311,6 +337,8 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=5,
         certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )

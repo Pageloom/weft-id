@@ -589,6 +589,8 @@ def get_security_settings(
             inactivity_threshold_days=None,
             max_certificate_lifetime_years=10,
             certificate_rotation_window_days=90,
+            minimum_password_length=14,
+            minimum_zxcvbn_score=3,
         )
 
     return TenantSecuritySettings(
@@ -599,6 +601,8 @@ def get_security_settings(
         inactivity_threshold_days=settings.get("inactivity_threshold_days"),
         max_certificate_lifetime_years=settings.get("max_certificate_lifetime_years", 10),
         certificate_rotation_window_days=settings.get("certificate_rotation_window_days", 90),
+        minimum_password_length=settings.get("minimum_password_length", 14),
+        minimum_zxcvbn_score=settings.get("minimum_zxcvbn_score", 3),
     )
 
 
@@ -734,6 +738,28 @@ def get_certificate_rotation_window(tenant_id: str) -> int:
     return database.security.get_certificate_rotation_window(tenant_id)
 
 
+def get_password_policy(tenant_id: str) -> dict:
+    """
+    Get password policy for a tenant.
+
+    This is a utility function without authorization, intended for
+    unauthenticated flows (onboarding, password reset).
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Dict with minimum_password_length and minimum_zxcvbn_score
+    """
+    result = database.security.get_password_policy(tenant_id)
+    if not result:
+        return {"minimum_password_length": 14, "minimum_zxcvbn_score": 3}
+    return {
+        "minimum_password_length": result.get("minimum_password_length", 14),
+        "minimum_zxcvbn_score": result.get("minimum_zxcvbn_score", 3),
+    }
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,
@@ -808,6 +834,16 @@ def update_security_settings(
         if settings_update.certificate_rotation_window_days is not None
         else current.get("certificate_rotation_window_days", 90)
     )
+    min_pw_length = (
+        settings_update.minimum_password_length
+        if settings_update.minimum_password_length is not None
+        else current.get("minimum_password_length", 14)
+    )
+    min_zxcvbn = (
+        settings_update.minimum_zxcvbn_score
+        if settings_update.minimum_zxcvbn_score is not None
+        else current.get("minimum_zxcvbn_score", 3)
+    )
 
     # Build changes metadata for logging
     changes: dict = {}
@@ -846,6 +882,16 @@ def update_security_settings(
             "old": current.get("certificate_rotation_window_days", 90),
             "new": rotation_window,
         }
+    if settings_update.minimum_password_length is not None:
+        changes["minimum_password_length"] = {
+            "old": current.get("minimum_password_length", 14),
+            "new": min_pw_length,
+        }
+    if settings_update.minimum_zxcvbn_score is not None:
+        changes["minimum_zxcvbn_score"] = {
+            "old": current.get("minimum_zxcvbn_score", 3),
+            "new": min_zxcvbn,
+        }
 
     # Update in database
     database.security.update_security_settings(
@@ -857,6 +903,8 @@ def update_security_settings(
         inactivity_threshold_days=inactivity_days,
         max_certificate_lifetime_years=cert_lifetime,
         certificate_rotation_window_days=rotation_window,
+        minimum_password_length=min_pw_length,
+        minimum_zxcvbn_score=min_zxcvbn,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -903,6 +951,27 @@ def update_security_settings(
                 },
             )
 
+    # Log dedicated event when password policy changes
+    pw_policy_changed = False
+    if settings_update.minimum_password_length is not None:
+        if current.get("minimum_password_length", 14) != min_pw_length:
+            pw_policy_changed = True
+    if settings_update.minimum_zxcvbn_score is not None:
+        if current.get("minimum_zxcvbn_score", 3) != min_zxcvbn:
+            pw_policy_changed = True
+    if pw_policy_changed:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=requesting_user["id"],
+            artifact_type="tenant_settings",
+            artifact_id=tenant_id,
+            event_type="password_policy_updated",
+            metadata={
+                "minimum_password_length": min_pw_length,
+                "minimum_zxcvbn_score": min_zxcvbn,
+            },
+        )
+
     return TenantSecuritySettings(
         session_timeout_seconds=timeout,
         persistent_sessions=persistent,
@@ -911,4 +980,6 @@ def update_security_settings(
         inactivity_threshold_days=inactivity_days,
         max_certificate_lifetime_years=cert_lifetime,
         certificate_rotation_window_days=rotation_window,
+        minimum_password_length=min_pw_length,
+        minimum_zxcvbn_score=min_zxcvbn,
     )

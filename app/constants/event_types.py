@@ -16,6 +16,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     # Authentication & Login
     "login_failed": "Login attempt failed",
     "password_set": "Password set or changed",
+    "password_changed": "User changed their password",
+    "password_reset_forced": "Admin forced password reset for user",
+    "password_reset_completed": "User completed forced password reset",
     "user_signed_in": "User signed in successfully",
     "user_signed_in_saml": "User signed in via SAML SSO",
     "user_signed_out": "User signed out",

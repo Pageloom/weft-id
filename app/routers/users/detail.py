@@ -382,3 +382,29 @@ def update_user_idp_route(
         return render_error_page(request, tenant_id, exc)
 
     return RedirectResponse(url=f"/users/{user_id}/profile?success=idp_updated", status_code=303)
+
+
+@router.post("/{user_id}/force-password-reset")
+def force_password_reset_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Force a user to change their password on next login."""
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        users_service.force_password_reset(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}/danger?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    return RedirectResponse(
+        url=f"/users/{user_id}/danger?success=password_reset_forced", status_code=303
+    )

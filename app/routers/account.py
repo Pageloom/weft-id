@@ -168,6 +168,60 @@ def update_theme(
     return RedirectResponse(url="/account/profile", status_code=303)
 
 
+@router.get("/password", response_class=HTMLResponse)
+def password_settings(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display password change form. Only for password-authenticated users."""
+    # Only show for users with a password (not IdP-federated)
+    if user.get("saml_idp_id"):
+        return RedirectResponse(url="/account/profile", status_code=303)
+
+    policy = settings_service.get_password_policy(tenant_id)
+    success = request.query_params.get("success")
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        request,
+        "settings_password.html",
+        get_template_context(
+            request,
+            tenant_id,
+            minimum_password_length=policy["minimum_password_length"],
+            minimum_zxcvbn_score=policy["minimum_zxcvbn_score"],
+            success=success,
+            error=error,
+        ),
+    )
+
+
+@router.post("/password")
+def change_password(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    current_password: Annotated[str, Form()],
+    new_password: Annotated[str, Form()],
+    new_password_confirm: Annotated[str, Form()],
+):
+    """Handle password change form submission."""
+    if user.get("saml_idp_id"):
+        return RedirectResponse(url="/account/profile", status_code=303)
+
+    if new_password != new_password_confirm:
+        return RedirectResponse(url="/account/password?error=passwords_dont_match", status_code=303)
+
+    requesting_user = build_requesting_user(user, user["tenant_id"], request)
+    try:
+        users_service.change_password(requesting_user, current_password, new_password)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/account/password?error={exc.code}", status_code=303)
+
+    return RedirectResponse(url="/account/password?success=password_changed", status_code=303)
+
+
 @router.get("/emails", response_class=HTMLResponse)
 def email_settings(
     request: Request,

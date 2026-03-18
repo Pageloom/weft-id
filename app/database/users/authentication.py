@@ -3,6 +3,25 @@
 from database._core import TenantArg, execute, fetchall, fetchone
 
 
+def get_password_hash(tenant_id: TenantArg, user_id: str) -> str | None:
+    """
+    Get a user's password hash.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID
+
+    Returns:
+        The password hash string, or None if user not found or no password set.
+    """
+    row = fetchone(
+        tenant_id,
+        "select password_hash from users where id = :user_id",
+        {"user_id": user_id},
+    )
+    return row["password_hash"] if row else None
+
+
 def update_user_role(tenant_id: TenantArg, user_id: str, role: str) -> int:
     """
     Update a user's role (admin operation).
@@ -24,7 +43,9 @@ def update_user_role(tenant_id: TenantArg, user_id: str, role: str) -> int:
 
 def update_password(tenant_id: TenantArg, user_id: str, password_hash: str) -> int:
     """
-    Update a user's password hash.
+    Update a user's password hash and record the change timestamp.
+
+    Also clears password_reset_required flag if set.
 
     Args:
         tenant_id: Tenant ID
@@ -36,8 +57,31 @@ def update_password(tenant_id: TenantArg, user_id: str, password_hash: str) -> i
     """
     return execute(
         tenant_id,
-        "update users set password_hash = :password_hash where id = :user_id",
+        """update users
+           set password_hash = :password_hash,
+               password_changed_at = now(),
+               password_reset_required = false
+           where id = :user_id""",
         {"password_hash": password_hash, "user_id": user_id},
+    )
+
+
+def set_password_reset_required(tenant_id: TenantArg, user_id: str, required: bool) -> int:
+    """
+    Set or clear the password_reset_required flag on a user.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID to update
+        required: Whether password reset is required
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        "update users set password_reset_required = :required where id = :user_id",
+        {"required": required, "user_id": user_id},
     )
 
 

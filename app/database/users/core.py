@@ -11,7 +11,7 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
         User record with id, tenant_id, first_name, last_name, role, created_at,
         last_login, mfa_enabled, mfa_method, tz, locale, theme, is_inactivated,
         is_anonymized, inactivated_at, anonymized_at, reactivation_denied_at,
-        saml_idp_id, saml_idp_name, has_password
+        saml_idp_id, saml_idp_name, has_password, password_reset_required
     """
     return fetchone(
         tenant_id,
@@ -21,7 +21,8 @@ def get_user_by_id(tenant_id: TenantArg, user_id: str) -> dict | None:
                u.is_inactivated, u.is_anonymized, u.inactivated_at, u.anonymized_at,
                u.reactivation_denied_at,
                u.saml_idp_id, idp.name as saml_idp_name,
-               u.password_hash is not null as has_password
+               u.password_hash is not null as has_password,
+               u.password_reset_required
         from users u
         left join saml_identity_providers idp on u.saml_idp_id = idp.id
         where u.id = :user_id
@@ -112,6 +113,7 @@ def get_user_with_saml_info(tenant_id: TenantArg, user_id: str) -> dict | None:
                u.tz, u.locale, u.theme, u.is_inactivated, u.is_anonymized,
                u.inactivated_at, u.anonymized_at, u.reactivation_denied_at,
                u.saml_idp_id, u.password_hash is not null as has_password,
+               u.password_reset_required,
                idp.name as saml_idp_name
         from users u
         left join saml_identity_providers idp on u.saml_idp_id = idp.id

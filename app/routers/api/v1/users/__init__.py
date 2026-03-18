@@ -5,6 +5,7 @@ from routers.api.v1.users.admin import router as admin_router
 from routers.api.v1.users.emails import router as emails_router
 from routers.api.v1.users.groups import router as groups_router
 from routers.api.v1.users.mfa import router as mfa_router
+from routers.api.v1.users.password import router as password_router
 from routers.api.v1.users.profile import router as profile_router
 
 # Re-export services for backwards compatibility with test mocks
@@ -29,6 +30,7 @@ from utils.email import (
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 router.include_router(profile_router)
+router.include_router(password_router)
 router.include_router(emails_router)
 router.include_router(mfa_router)
 router.include_router(admin_router)

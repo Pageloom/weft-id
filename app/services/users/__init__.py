@@ -36,6 +36,13 @@ from services.users.crud import (
     update_user,
 )
 
+# Re-export from password module
+from services.users.password import (
+    change_password,
+    complete_forced_password_reset,
+    force_password_reset,
+)
+
 # Re-export from profile module
 from services.users.profile import (
     get_current_user_profile,
@@ -79,6 +86,10 @@ __all__ = [
     "get_user",
     "list_users",
     "update_user",
+    # Password
+    "change_password",
+    "complete_forced_password_reset",
+    "force_password_reset",
     # Profile
     "get_current_user_profile",
     "update_current_user_profile",

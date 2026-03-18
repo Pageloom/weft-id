@@ -63,6 +63,24 @@ class UserProfileUpdate(BaseModel):
 
 
 # ============================================================================
+# Password Schemas
+# ============================================================================
+
+
+class PasswordChange(BaseModel):
+    """Password change request schema."""
+
+    current_password: str = Field(..., min_length=1, max_length=255, description="Current password")
+    new_password: str = Field(..., min_length=8, max_length=255, description="New password")
+
+
+class PasswordResetForce(BaseModel):
+    """Empty body for force password reset (all info is in the URL)."""
+
+    pass
+
+
+# ============================================================================
 # Email Management Schemas
 # ============================================================================
 
@@ -228,6 +246,9 @@ class UserDetail(BaseModel):
     saml_idp_id: str | None = Field(None, description="Assigned SAML IdP UUID")
     saml_idp_name: str | None = Field(None, description="Assigned SAML IdP name")
     has_password: bool = Field(False, description="Whether user has a password set")
+    password_reset_required: bool = Field(
+        False, description="Whether user must change password on next login"
+    )
 
 
 class UserCreate(BaseModel):

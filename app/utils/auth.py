@@ -106,4 +106,9 @@ def get_current_user(request: Request, tenant_id: str) -> dict | None:
         request.session.clear()
         return None
 
+    # Check if admin has forced a password reset since session started
+    if user and user.get("password_reset_required"):
+        request.session.clear()
+        return None
+
     return user

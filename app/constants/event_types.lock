@@ -47,7 +47,10 @@ oauth2_client_reactivated
 oauth2_client_role_changed
 oauth2_client_secret_regenerated
 oauth2_client_updated
+password_changed
 password_policy_updated
+password_reset_completed
+password_reset_forced
 password_set
 primary_email_changed
 privileged_domain_added

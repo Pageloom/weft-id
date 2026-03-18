@@ -10,6 +10,8 @@ from database.users.activity import (
 from database.users.authentication import (
     count_active_super_admins,
     get_admin_emails,
+    get_password_hash,
+    set_password_reset_required,
     update_mfa_status,
     update_password,
     update_user_role,
@@ -85,6 +87,8 @@ __all__ = [
     # authentication
     "update_user_role",
     "update_password",
+    "get_password_hash",
+    "set_password_reset_required",
     "update_mfa_status",
     "count_active_super_admins",
     "get_admin_emails",

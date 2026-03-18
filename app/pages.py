@@ -102,6 +102,12 @@ PAGES = [
                 docs_path="/docs/user-guide/profile/",
             ),
             Page(
+                path="/account/password",
+                title="Password",
+                permission=PagePermission.AUTHENTICATED,
+                show_in_nav=True,
+            ),
+            Page(
                 path="/account/emails",
                 title="Email Addresses",
                 permission=PagePermission.AUTHENTICATED,

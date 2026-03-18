@@ -81,6 +81,7 @@ def _user_row_to_detail(user: dict, emails: list[dict], is_service: bool) -> Use
         saml_idp_id=str(user["saml_idp_id"]) if user.get("saml_idp_id") else None,
         saml_idp_name=user.get("saml_idp_name"),
         has_password=user.get("has_password", False),
+        password_reset_required=user.get("password_reset_required", False),
     )
 
 

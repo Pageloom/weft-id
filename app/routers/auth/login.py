@@ -11,6 +11,7 @@ from typing import Annotated
 
 import services.emails as emails_service
 import services.saml as saml_service
+import services.settings as settings_service
 import services.users as users_service
 import settings
 from dependencies import get_current_user, get_tenant_id_from_request
@@ -19,7 +20,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
 from routers.auth._helpers import _get_client_ip, _route_after_email_verification
 from services.event_log import log_event
-from services.exceptions import RateLimitError
+from services.exceptions import RateLimitError, ServiceError
 from utils.auth import verify_login_with_status
 from utils.csp_nonce import get_csp_nonce
 from utils.email import (
@@ -481,6 +482,11 @@ def login(
 
     user = result["user"]
 
+    # Check for forced password reset before proceeding to MFA
+    if user.get("password_reset_required"):
+        request.session["pending_password_reset_user_id"] = str(user["id"])
+        return RedirectResponse(url="/login/reset-password", status_code=303)
+
     # MFA is now mandatory for all users
     # Store pending MFA info in session
     request.session["pending_mfa_user_id"] = str(user["id"])
@@ -500,4 +506,82 @@ def login(
             send_mfa_code_email(primary_email, code)
 
     # Redirect to MFA verification
+    return RedirectResponse(url="/mfa/verify", status_code=303)
+
+
+@router.get("/login/reset-password", response_class=HTMLResponse)
+def forced_password_reset_page(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+):
+    """Display forced password reset page.
+
+    Shown after successful password authentication when an admin has flagged
+    the account for a forced reset. The user cannot proceed without changing
+    their password.
+    """
+    pending_user_id = request.session.get("pending_password_reset_user_id")
+    if not pending_user_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    policy = settings_service.get_password_policy(tenant_id)
+    error = request.query_params.get("error")
+
+    return templates.TemplateResponse(
+        request,
+        "forced_password_reset.html",
+        {
+            "request": request,
+            "minimum_password_length": policy["minimum_password_length"],
+            "minimum_zxcvbn_score": policy["minimum_zxcvbn_score"],
+            "error": error,
+            "csrf_token": make_csrf_token_func(request),
+            "csp_nonce": get_csp_nonce(request),
+        },
+    )
+
+
+@router.post("/login/reset-password")
+def forced_password_reset(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    new_password: Annotated[str, Form()],
+    new_password_confirm: Annotated[str, Form()],
+):
+    """Handle forced password reset form submission.
+
+    After successful reset, the user proceeds to MFA verification as normal.
+    """
+    pending_user_id = request.session.get("pending_password_reset_user_id")
+    if not pending_user_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    if new_password != new_password_confirm:
+        return RedirectResponse(
+            url="/login/reset-password?error=passwords_dont_match", status_code=303
+        )
+
+    try:
+        users_service.complete_forced_password_reset(tenant_id, pending_user_id, new_password)
+    except ServiceError as exc:
+        return RedirectResponse(url=f"/login/reset-password?error={exc.code}", status_code=303)
+
+    # Clear forced reset session and proceed to MFA
+    request.session.pop("pending_password_reset_user_id", None)
+
+    # Fetch user for MFA setup
+    user = users_service.get_user_by_id_raw(tenant_id, pending_user_id)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    request.session["pending_mfa_user_id"] = str(user["id"])
+    request.session["pending_mfa_method"] = user.get("mfa_method", "email")
+
+    # If email MFA, send code
+    if user.get("mfa_method") == "email":
+        code = create_email_otp(tenant_id, user["id"])
+        primary_email = emails_service.get_primary_email(tenant_id, user["id"])
+        if primary_email:
+            send_mfa_code_email(primary_email, code)
+
     return RedirectResponse(url="/mfa/verify", status_code=303)

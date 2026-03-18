@@ -57,6 +57,31 @@
         {% endif %}
     </div>
 
+    <!-- Password Reset Section -->
+    {% if target_user.has_password and target_user.id != user.id and not target_user.is_anonymized and not target_user.is_inactivated %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 border border-red-200 dark:border-red-800">
+        <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Password</h2>
+
+        {% if target_user.password_reset_required %}
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            This user has a pending forced password reset. They will be required to change their password on next sign-in.
+        </p>
+        {% else %}
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Force this user to change their password on their next sign-in. Use this if you suspect their credentials may have been compromised.
+        </p>
+        <form method="post" action="/users/{{ target_user.id }}/force-password-reset" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="confirm-btn bg-amber-600 text-white hover:bg-amber-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                    data-confirm="Force password reset for {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;They will be required to change their password on their next sign-in.">
+                Force Password Reset
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- MFA Section -->
     {% if target_user.mfa_enabled and target_user.id != user.id and not target_user.is_anonymized %}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">

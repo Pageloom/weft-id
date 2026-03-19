@@ -428,11 +428,11 @@ description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main", "dev"]
-markers = "platform_system == \"Windows\" or sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
+markers = {main = "sys_platform == \"win32\" or platform_system == \"Windows\"", dev = "platform_system == \"Windows\" or sys_platform == \"win32\""}
 
 [[package]]
 name = "coverage"
@@ -2602,14 +2602,14 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "resend"
-version = "2.23.0"
+version = "2.25.0"
 description = "Resend Python SDK"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "resend-2.23.0-py2.py3-none-any.whl", hash = "sha256:eca6d28a1ffd36c1fc489fa83cb6b511f384792c9f07465f7c92d96c8b4d5636"},
-    {file = "resend-2.23.0.tar.gz", hash = "sha256:df613827dcc40eb1c9de2e5ff600cd4081b89b206537dec8067af1a5016d23c7"},
+    {file = "resend-2.25.0-py2.py3-none-any.whl", hash = "sha256:5c8995589a81e3a8585b24a1141676ffa6c7924eef4361d2093289d2cfe0e442"},
+    {file = "resend-2.25.0.tar.gz", hash = "sha256:e6b51c01638eade1d9ac28bfe5ad9b3183100bbfbcedd9303e22379cf79b6b7b"},
 ]
 
 [package.dependencies]
@@ -3314,4 +3314,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "f23859cdc467874f920eaf170acdb39a60934b9472f197cf01cbee02ea076058"
+content-hash = "cc3eeada7152cf60230c2a0986088a3ac091b2285652c71250ec86c835162d6f"

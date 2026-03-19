@@ -97,6 +97,14 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 - External links, anchors, static assets, and fully dynamic Jinja2 paths are skipped
 - Conditional Jinja2 blocks (`{% if %}`) are skipped to avoid false positives
 
+### 11. Outbound Request Timeouts
+
+**Rule:** All outbound HTTP/network calls must have explicit timeouts to prevent indefinite hangs.
+
+- Direct HTTP library calls (`httpx`, `requests`, `urllib`, `smtplib`) must pass `timeout=`
+- SDK clients that make HTTP requests should configure timeout on their transport
+- Suppress with `# outbound-timeout: ok` on the call line
+
 ### 7. RLS Policy Consistency
 
 **Rule:** Every table with `ENABLE ROW LEVEL SECURITY` must have a correct policy.
@@ -125,7 +133,8 @@ Compliance-only options:
 --check sql-length      # SQL TEXT columns without length CHECK constraints
 --check rls             # RLS policies: USING + WITH CHECK, current_setting(true)
 --check migration-safety # Backwards compatibility of migration files
---check template-links   # Template href/action link validity
+--check template-links       # Template href/action link validity
+--check outbound-timeouts    # Outbound HTTP calls must have timeouts
 ```
 
 ### 2. Investigate Findings
@@ -168,6 +177,10 @@ Request context (IP, user agent, device, session) is handled automatically by `R
 | `ALTER COLUMN TYPE` in migration | Migration Safety |
 | `CREATE INDEX` without `CONCURRENTLY` in migration | Migration Safety |
 | Template `href`/`action` not matching any route | Template Links |
+| `httpx.get/post(...)` without `timeout=` | Outbound Timeouts |
+| `urllib.request.urlopen(...)` without `timeout=` | Outbound Timeouts |
+| `smtplib.SMTP(...)` without `timeout=` | Outbound Timeouts |
+| SDK client constructor without timeout config | Outbound Timeouts |
 
 See `.claude/references/compliance-patterns.md` for detailed patterns and checklists.
 

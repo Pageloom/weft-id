@@ -26,6 +26,8 @@ Principles checked:
                         COLUMN/TABLE, RENAME, type changes, etc.)
    10. template-links  - Template href/action attributes must match registered
                         routes (catches dead links at CI time)
+   11. outbound-timeouts - Outbound HTTP/network calls must have explicit
+                        timeouts to prevent indefinite hangs
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -2222,6 +2224,190 @@ def check_template_links_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# Principle 11: Outbound Request Timeouts
+# =============================================================================
+
+# Suppress comment: place "# outbound-timeout: ok" on the call line to suppress
+_OUTBOUND_TIMEOUT_SUPPRESS = "# outbound-timeout: ok"
+
+# Direct HTTP library calls that accept a timeout= keyword argument.
+# Any match without timeout= is flagged as medium severity.
+_OUTBOUND_NEEDS_TIMEOUT: dict[str, str] = {
+    # httpx convenience functions
+    "httpx.get": "httpx.get()",
+    "httpx.post": "httpx.post()",
+    "httpx.put": "httpx.put()",
+    "httpx.delete": "httpx.delete()",
+    "httpx.patch": "httpx.patch()",
+    "httpx.head": "httpx.head()",
+    "httpx.options": "httpx.options()",
+    "httpx.request": "httpx.request()",
+    # httpx client constructors (timeout on client applies to all requests)
+    "httpx.Client": "httpx.Client()",
+    "httpx.AsyncClient": "httpx.AsyncClient()",
+    # requests library (not currently used, but catch if added)
+    "requests.get": "requests.get()",
+    "requests.post": "requests.post()",
+    "requests.put": "requests.put()",
+    "requests.delete": "requests.delete()",
+    "requests.patch": "requests.patch()",
+    "requests.head": "requests.head()",
+    "requests.options": "requests.options()",
+    "requests.request": "requests.request()",
+    "requests.Session": "requests.Session()",
+    # smtplib
+    "smtplib.SMTP": "smtplib.SMTP()",
+    "smtplib.SMTP_SSL": "smtplib.SMTP_SSL()",
+}
+
+# Methods where timeout= should be present regardless of how the
+# module is imported (catches `urlopen(...)` and `urllib.request.urlopen(...)`).
+_OUTBOUND_METHODS_NEED_TIMEOUT: set[str] = {"urlopen"}
+
+# SDK constructors/calls that make HTTP requests but don't accept a timeout=
+# parameter directly. These are flagged at low severity with guidance to
+# configure timeout on the underlying transport.
+_SDK_NO_BUILTIN_TIMEOUT: dict[str, tuple[str, str]] = {
+    "SendGridAPIClient": (
+        "SendGrid client has no built-in request timeout",
+        "Set timeout on underlying client: sg.client.timeout = 10",
+    ),
+}
+
+
+def _get_dotted_call_name(node: ast.expr) -> str | None:
+    """Extract the full dotted name from a Call func expression.
+
+    For ``httpx.get(...)`` returns ``"httpx.get"``.
+    For ``urllib.request.urlopen(...)`` returns ``"urllib.request.urlopen"``.
+    For a bare ``urlopen(...)`` returns ``"urlopen"``.
+    """
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parts: list[str] = [node.attr]
+        current: ast.expr = node.value
+        while isinstance(current, ast.Attribute):
+            parts.append(current.attr)
+            current = current.value
+        if isinstance(current, ast.Name):
+            parts.append(current.id)
+        return ".".join(reversed(parts))
+    return None
+
+
+def check_outbound_timeout_violations(report: ComplianceReport) -> None:
+    """Check that outbound HTTP/network calls have explicit timeouts.
+
+    Scans ``app/`` for known outbound call patterns and verifies that
+    each call passes a ``timeout=`` keyword argument.  SDK clients that
+    don't support timeout directly are flagged separately.
+
+    Place ``# outbound-timeout: ok`` on the call line to suppress a finding.
+    """
+    app_path = get_app_path()
+    if not app_path.exists():
+        return
+
+    for py_file in app_path.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+
+        report.files_scanned += 1
+
+        try:
+            source = py_file.read_text()
+            tree = ast.parse(source)
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        source_lines = source.splitlines()
+        rel_path = str(py_file.relative_to(get_project_root()))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            call_name = _get_dotted_call_name(node.func)
+            if call_name is None:
+                continue
+
+            line_num = node.lineno
+
+            # Check for suppression comment on the call line
+            if line_num <= len(source_lines):
+                if _OUTBOUND_TIMEOUT_SUPPRESS in source_lines[line_num - 1]:
+                    continue
+
+            has_timeout = any(kw.arg == "timeout" for kw in node.keywords)
+
+            # 1. Direct HTTP library calls that accept timeout=
+            if call_name in _OUTBOUND_NEEDS_TIMEOUT and not has_timeout:
+                report.add(
+                    Violation(
+                        principle="Outbound Timeouts",
+                        severity="medium",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=(
+                            f"{_OUTBOUND_NEEDS_TIMEOUT[call_name]} "
+                            f"missing explicit timeout"
+                        ),
+                        evidence=f"{call_name}(...)",
+                        suggested_fix=(
+                            "Add timeout= parameter (e.g. timeout=10) "
+                            "to prevent indefinite hangs"
+                        ),
+                    )
+                )
+
+            # 2. urlopen() regardless of import style
+            method_name = (
+                call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
+            )
+            if (
+                method_name in _OUTBOUND_METHODS_NEED_TIMEOUT
+                and call_name not in _OUTBOUND_NEEDS_TIMEOUT
+                and not has_timeout
+            ):
+                report.add(
+                    Violation(
+                        principle="Outbound Timeouts",
+                        severity="medium",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=f"{call_name}() missing explicit timeout",
+                        evidence=f"{call_name}(...)",
+                        suggested_fix=(
+                            "Add timeout= parameter (e.g. timeout=10) "
+                            "to prevent indefinite hangs"
+                        ),
+                    )
+                )
+
+            # 3. SDK clients without built-in timeout support
+            bare_name = (
+                call_name.rsplit(".", 1)[-1] if "." in call_name else call_name
+            )
+            if bare_name in _SDK_NO_BUILTIN_TIMEOUT:
+                desc, fix = _SDK_NO_BUILTIN_TIMEOUT[bare_name]
+                report.add(
+                    Violation(
+                        principle="Outbound Timeouts",
+                        severity="low",
+                        file_path=rel_path,
+                        line_number=line_num,
+                        function_name=None,
+                        description=desc,
+                        evidence=f"{call_name}(...)",
+                        suggested_fix=fix,
+                    )
+                )
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2254,6 +2440,7 @@ def run_compliance_check(
         "rls",
         "migration-safety",
         "template-links",
+        "outbound-timeouts",
     ]
     if principles is None:
         principles = all_principles
@@ -2288,6 +2475,9 @@ def run_compliance_check(
 
     if "template-links" in principles:
         check_template_links_violations(report)
+
+    if "outbound-timeouts" in principles:
+        check_outbound_timeout_violations(report)
 
     return report
 
@@ -2352,6 +2542,7 @@ def main() -> int:
             "rls",
             "migration-safety",
             "template-links",
+            "outbound-timeouts",
             "all",
         ],
         default="all",

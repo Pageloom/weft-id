@@ -5,8 +5,46 @@ from services.auth import require_admin
 from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
+from utils.crypto import derive_hmac_key
 from utils.password import hash_password, verify_password
-from utils.password_strength import validate_password
+from utils.password_strength import compute_hibp_monitoring_data, validate_password
+
+
+def _get_policy(tenant_id: str) -> tuple[int, int]:
+    """Get password policy for a tenant, returning (min_length, min_score)."""
+    policy = database.security.get_password_policy(tenant_id)
+    min_length = policy["minimum_password_length"] if policy else 14
+    min_score = policy["minimum_zxcvbn_score"] if policy else 3
+    return min_length, min_score
+
+
+def _compute_hibp_and_policy_data(password: str, min_length: int, min_score: int) -> dict:
+    """Compute HIBP monitoring data and policy-at-set values.
+
+    Returns a dict of keyword arguments for update_password().
+    """
+    hmac_key = derive_hmac_key("hibp")
+    prefix, check_hmac = compute_hibp_monitoring_data(password, hmac_key)
+    return {
+        "hibp_prefix": prefix,
+        "hibp_check_hmac": check_hmac,
+        "policy_length_at_set": min_length,
+        "policy_score_at_set": min_score,
+    }
+
+
+def _revoke_oauth2_tokens(tenant_id: str, user_id: str, reason: str) -> None:
+    """Revoke all OAuth2 tokens for a user and log the event."""
+    revoked = database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+    if revoked > 0:
+        log_event(
+            tenant_id=tenant_id,
+            actor_user_id=user_id,
+            event_type="oauth2_user_tokens_revoked",
+            artifact_type="user",
+            artifact_id=user_id,
+            metadata={"reason": reason, "tokens_revoked": revoked},
+        )
 
 
 def change_password(
@@ -45,10 +83,15 @@ def change_password(
             code="invalid_current_password",
         )
 
+    # Reject same-password reuse
+    if verify_password(password_hash_val, new_password):
+        raise ValidationError(
+            message="New password must be different from your current password.",
+            code="password_same_as_current",
+        )
+
     # Validate new password strength
-    policy = database.security.get_password_policy(tenant_id)
-    min_length = policy["minimum_password_length"] if policy else 14
-    min_score = policy["minimum_zxcvbn_score"] if policy else 3
+    min_length, min_score = _get_policy(tenant_id)
 
     # Get user email for zxcvbn context
     primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
@@ -65,9 +108,10 @@ def change_password(
         issue = strength.issues[0]
         raise ValidationError(message=issue.message, code=issue.code)
 
-    # Update password
-    password_hash = hash_password(new_password)
-    database.users.update_password(tenant_id, user_id, password_hash)
+    # Update password with HIBP monitoring and policy data
+    new_hash = hash_password(new_password)
+    lifecycle_data = _compute_hibp_and_policy_data(new_password, min_length, min_score)
+    database.users.update_password(tenant_id, user_id, new_hash, **lifecycle_data)
 
     log_event(
         tenant_id=tenant_id,
@@ -86,6 +130,11 @@ def force_password_reset(
 
     Authorization: Requires admin role. Admins can force reset on any user
     including super admins. Cannot force reset on yourself.
+
+    Also revokes all OAuth2 tokens for the user, since tokens issued via
+    authorization_code flow represent user-level grants that are no longer
+    trustworthy. Client credentials tokens use a different user_id and
+    are not affected.
 
     Args:
         requesting_user: The admin performing the action
@@ -128,6 +177,9 @@ def force_password_reset(
 
     database.users.set_password_reset_required(tenant_id, target_user_id, True)
 
+    # Revoke OAuth2 tokens (authorization_code grants)
+    _revoke_oauth2_tokens(tenant_id, target_user_id, "admin_forced")
+
     log_event(
         tenant_id=tenant_id,
         actor_user_id=requesting_user["id"],
@@ -163,10 +215,16 @@ def complete_forced_password_reset(
     if not user:
         raise ValidationError(message="User not found.", code="user_not_found")
 
+    # Reject same-password reuse
+    password_hash_val = database.users.get_password_hash(tenant_id, user_id)
+    if password_hash_val and verify_password(password_hash_val, new_password):
+        raise ValidationError(
+            message="New password must be different from your current password.",
+            code="password_same_as_current",
+        )
+
     # Validate new password strength
-    policy = database.security.get_password_policy(tenant_id)
-    min_length = policy["minimum_password_length"] if policy else 14
-    min_score = policy["minimum_zxcvbn_score"] if policy else 3
+    min_length, min_score = _get_policy(tenant_id)
 
     primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
     user_inputs = [primary_email["email"]] if primary_email else []
@@ -183,8 +241,9 @@ def complete_forced_password_reset(
         raise ValidationError(message=issue.message, code=issue.code)
 
     # Update password (also clears password_reset_required flag)
-    password_hash = hash_password(new_password)
-    database.users.update_password(tenant_id, user_id, password_hash)
+    new_hash = hash_password(new_password)
+    lifecycle_data = _compute_hibp_and_policy_data(new_password, min_length, min_score)
+    database.users.update_password(tenant_id, user_id, new_hash, **lifecycle_data)
 
     log_event(
         tenant_id=tenant_id,

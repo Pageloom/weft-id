@@ -706,3 +706,63 @@ If you did not expect this change, please contact your administrator.
     # fmt: on
 
     return send_email(to_email, subject, html_body, text_body)
+
+
+def send_hibp_breach_admin_notification(
+    to_email: str,
+    breach_count: int,
+) -> bool:
+    """Send notification to admin about passwords found in HIBP breaches."""
+    # ruff: noqa: E501
+    user_word = "user" if breach_count == 1 else "users"
+    subject = f"Password breach detected: {breach_count} {user_word} affected"
+
+    text_body = f"""
+Password Breach Detection
+
+The automated HIBP (Have I Been Pwned) breach monitor has detected that {breach_count} {user_word} in your organization have passwords that appear in known data breaches.
+
+These users have been automatically flagged and will be required to change their password on their next sign-in. Their active API tokens have been revoked.
+
+No action is required from you. Affected users will see a password reset prompt at their next login.
+
+This is an automated message, please do not reply.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .warning-box {{ background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Password Breach Detected</h1>
+        <div class="warning-box">
+            <p><strong>{breach_count} {user_word}</strong> in your organization have passwords that appear in known data breaches.</p>
+        </div>
+        <p>The automated HIBP (Have I Been Pwned) breach monitor detected these compromised passwords during its periodic scan.</p>
+        <p><strong>What has been done:</strong></p>
+        <ul>
+            <li>Affected users have been flagged for a mandatory password reset</li>
+            <li>Their active API tokens have been revoked</li>
+        </ul>
+        <p><strong>What happens next:</strong></p>
+        <p>Each affected user will be prompted to set a new password at their next sign-in. No action is required from you.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)

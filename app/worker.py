@@ -57,6 +57,13 @@ def _load_certificate_rotation() -> Any:
     return rotate_and_cleanup_certificates()
 
 
+def _load_hibp_check() -> Any:
+    """Import and run the HIBP breach check job."""
+    from jobs.check_hibp_breaches import check_hibp_breaches
+
+    return check_hibp_breaches()
+
+
 class PeriodicJob:
     """A periodic background job with interval-based scheduling."""
 
@@ -79,6 +86,7 @@ class Worker:
         inactivation_interval_hours: int = 24,
         saml_refresh_interval_hours: int = 24,
         cert_rotation_interval_hours: int = 24,
+        hibp_check_interval_hours: int = 168,
     ) -> None:
         """Initialize the worker.
 
@@ -88,6 +96,7 @@ class Worker:
             inactivation_interval_hours: Hours between idle user inactivation checks
             saml_refresh_interval_hours: Hours between SAML metadata refresh runs
             cert_rotation_interval_hours: Hours between certificate rotation/cleanup checks
+            hibp_check_interval_hours: Hours between HIBP breach checks (default: weekly)
         """
         self.poll_interval = poll_interval
         self.running = True
@@ -111,6 +120,11 @@ class Worker:
                 "certificate rotation",
                 _load_certificate_rotation,
                 timedelta(hours=cert_rotation_interval_hours),
+            ),
+            PeriodicJob(
+                "HIBP breach check",
+                _load_hibp_check,
+                timedelta(hours=hibp_check_interval_hours),
             ),
         ]
 

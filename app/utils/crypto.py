@@ -46,3 +46,23 @@ def derive_session_key() -> str:
         info=b"session-signing",
     )
     return hkdf.derive(settings.SECRET_KEY.encode()).hex()
+
+
+def derive_hmac_key(purpose: str) -> bytes:
+    """Derive a raw HMAC key from the master secret for a given purpose.
+
+    Uses HKDF-SHA256 with the purpose as the info parameter.
+
+    Args:
+        purpose: Purpose identifier (e.g. "hibp").
+
+    Returns:
+        Raw 32-byte key suitable for HMAC-SHA256.
+    """
+    hkdf = HKDF(
+        algorithm=SHA256(),
+        length=32,
+        salt=None,
+        info=purpose.encode(),
+    )
+    return hkdf.derive(settings.SECRET_KEY.encode())

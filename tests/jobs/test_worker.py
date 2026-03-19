@@ -48,7 +48,7 @@ def test_worker_init_defaults():
 
     assert worker.poll_interval == 10
     assert worker.running is True
-    assert len(worker._periodic_jobs) == 4
+    assert len(worker._periodic_jobs) == 5
 
     cleanup = worker._periodic_jobs[0]
     assert cleanup.name == "cleanup"
@@ -69,6 +69,11 @@ def test_worker_init_defaults():
     assert cert_rotation.name == "certificate rotation"
     assert cert_rotation.interval == timedelta(hours=24)
     assert cert_rotation.last_run is None
+
+    hibp_check = worker._periodic_jobs[4]
+    assert hibp_check.name == "HIBP breach check"
+    assert hibp_check.interval == timedelta(hours=168)
+    assert hibp_check.last_run is None
 
 
 def test_worker_init_custom_values():
@@ -130,7 +135,7 @@ def test_check_periodic_jobs_first_run(mock_datetime):
 
     worker._check_periodic_jobs()
 
-    assert worker._run_job.call_count == 4
+    assert worker._run_job.call_count == 5
     for job in worker._periodic_jobs:
         assert job.last_run == now
 
@@ -169,10 +174,12 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
     worker._periodic_jobs[1].last_run = now - timedelta(minutes=5)
     worker._periodic_jobs[2].last_run = now - timedelta(minutes=5)
     worker._periodic_jobs[3].last_run = now - timedelta(minutes=5)
+    worker._periodic_jobs[4].last_run = now - timedelta(minutes=5)
 
     old_last_run_1 = worker._periodic_jobs[1].last_run
     old_last_run_2 = worker._periodic_jobs[2].last_run
     old_last_run_3 = worker._periodic_jobs[3].last_run
+    old_last_run_4 = worker._periodic_jobs[4].last_run
 
     worker._check_periodic_jobs()
 
@@ -183,6 +190,7 @@ def test_check_periodic_jobs_runs_overdue_only(mock_datetime):
     assert worker._periodic_jobs[1].last_run == old_last_run_1
     assert worker._periodic_jobs[2].last_run == old_last_run_2
     assert worker._periodic_jobs[3].last_run == old_last_run_3
+    assert worker._periodic_jobs[4].last_run == old_last_run_4
 
 
 # =============================================================================

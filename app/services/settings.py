@@ -760,6 +760,56 @@ def get_password_policy(tenant_id: str) -> dict:
     }
 
 
+def _enforce_password_policy_compliance(
+    tenant_id: str,
+    actor_user_id: str,
+    new_min_length: int,
+    new_min_score: int,
+) -> int:
+    """Flag users whose passwords were set under a weaker policy.
+
+    When an admin tightens the password policy, users whose stored
+    password_policy_*_at_set values are weaker than the new policy
+    are flagged for forced reset. Their OAuth2 tokens are also revoked.
+
+    Args:
+        tenant_id: Tenant ID
+        actor_user_id: Admin who changed the policy
+        new_min_length: New minimum password length
+        new_min_score: New minimum zxcvbn score
+
+    Returns:
+        Number of users flagged
+    """
+    non_compliant = database.users.get_users_with_weak_policy(
+        tenant_id, new_min_length, new_min_score
+    )
+    if not non_compliant:
+        return 0
+
+    user_ids = [str(u["id"]) for u in non_compliant]
+    database.users.bulk_set_password_reset_required(tenant_id, user_ids)
+
+    # Revoke OAuth2 tokens for all affected users
+    for uid in user_ids:
+        database.oauth2.revoke_all_user_tokens(tenant_id, uid)
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        event_type="password_policy_compliance_enforced",
+        artifact_type="tenant_settings",
+        artifact_id=tenant_id,
+        metadata={
+            "affected_users": len(user_ids),
+            "new_minimum_password_length": new_min_length,
+            "new_minimum_zxcvbn_score": new_min_score,
+        },
+    )
+
+    return len(user_ids)
+
+
 def update_security_settings(
     requesting_user: RequestingUser,
     settings_update: TenantSecuritySettingsUpdate,
@@ -953,11 +1003,13 @@ def update_security_settings(
 
     # Log dedicated event when password policy changes
     pw_policy_changed = False
+    old_pw_length = current.get("minimum_password_length", 14)
+    old_pw_score = current.get("minimum_zxcvbn_score", 3)
     if settings_update.minimum_password_length is not None:
-        if current.get("minimum_password_length", 14) != min_pw_length:
+        if old_pw_length != min_pw_length:
             pw_policy_changed = True
     if settings_update.minimum_zxcvbn_score is not None:
-        if current.get("minimum_zxcvbn_score", 3) != min_zxcvbn:
+        if old_pw_score != min_zxcvbn:
             pw_policy_changed = True
     if pw_policy_changed:
         log_event(
@@ -971,6 +1023,17 @@ def update_security_settings(
                 "minimum_zxcvbn_score": min_zxcvbn,
             },
         )
+
+        # Enforce policy compliance: flag users whose passwords were set
+        # under a weaker policy and require them to reset.
+        policy_tightened = min_pw_length > old_pw_length or min_zxcvbn > old_pw_score
+        if policy_tightened:
+            _enforce_password_policy_compliance(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                new_min_length=min_pw_length,
+                new_min_score=min_zxcvbn,
+            )
 
     return TenantSecuritySettings(
         session_timeout_seconds=timeout,

@@ -163,7 +163,15 @@ def test_update_password_delegates():
 
     with patch("services.users.utilities.database") as mock_db:
         update_password("t1", "u1", "hash123")
-        mock_db.users.update_password.assert_called_once_with("t1", "u1", "hash123")
+        mock_db.users.update_password.assert_called_once_with(
+            "t1",
+            "u1",
+            "hash123",
+            hibp_prefix=None,
+            hibp_check_hmac=None,
+            policy_length_at_set=None,
+            policy_score_at_set=None,
+        )
 
 
 # =============================================================================

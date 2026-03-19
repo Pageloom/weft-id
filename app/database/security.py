@@ -276,3 +276,19 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
         where inactivity_threshold_days is not null
         """,
     )
+
+
+def get_all_tenant_ids() -> list[dict]:
+    """
+    Get all tenant IDs.
+
+    This is a cross-tenant query used by background jobs that need
+    to iterate over all tenants. Uses UNSCOPED to bypass RLS.
+
+    Returns:
+        List of dicts with tenant_id
+    """
+    return fetchall(
+        UNSCOPED,
+        "select id as tenant_id from tenants",
+    )

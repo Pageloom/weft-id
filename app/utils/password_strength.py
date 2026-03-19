@@ -7,6 +7,7 @@ Provides NIST SP 800-63B-aligned password strength enforcement:
 """
 
 import hashlib
+import hmac
 import logging
 from dataclasses import dataclass, field
 
@@ -154,3 +155,53 @@ def validate_password(
         )
 
     return result
+
+
+def compute_hibp_monitoring_data(password: str, hmac_key: bytes) -> tuple[str, str]:
+    """Compute HIBP monitoring data for continuous breach detection.
+
+    Stores two values at password-set time:
+    - prefix: first 5 hex chars of SHA-1 (sent to HIBP API)
+    - check_hmac: HMAC-SHA256 of the full SHA-1, keyed with an HKDF-derived
+      key. The HMAC cannot be reversed even with the key.
+
+    Args:
+        password: The plaintext password (before hashing for storage)
+        hmac_key: HKDF-derived key for HMAC computation
+
+    Returns:
+        Tuple of (prefix, check_hmac_hex)
+    """
+    sha1 = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()  # noqa: S324
+    prefix = sha1[:5]
+    check_hmac = hmac.new(hmac_key, sha1.encode(), hashlib.sha256).hexdigest()
+    return prefix, check_hmac
+
+
+def check_hibp_suffix_against_hmac(
+    prefix: str,
+    stored_hmac: str,
+    hmac_key: bytes,
+    suffixes: list[str],
+) -> bool:
+    """Check if any HIBP-returned suffix matches the stored HMAC.
+
+    Called by the background job after querying the HIBP API with a prefix.
+    Reconstructs the full SHA-1 from prefix + each suffix, computes its HMAC,
+    and compares against the stored value.
+
+    Args:
+        prefix: The stored 5-char SHA-1 prefix
+        stored_hmac: The stored HMAC-SHA256 hex string
+        hmac_key: HKDF-derived key for HMAC computation
+        suffixes: List of SHA-1 suffixes returned by HIBP API
+
+    Returns:
+        True if a match is found (password is breached)
+    """
+    for suffix in suffixes:
+        candidate_sha1 = (prefix + suffix).upper()
+        candidate_hmac = hmac.new(hmac_key, candidate_sha1.encode(), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(candidate_hmac, stored_hmac):
+            return True
+    return False

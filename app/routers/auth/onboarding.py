@@ -16,11 +16,12 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from middleware.csrf import make_csrf_token_func
 from services.event_log import log_event
+from utils.crypto import derive_hmac_key
 from utils.csp_nonce import get_csp_nonce
 from utils.email import send_mfa_code_email
 from utils.mfa import create_email_otp
 from utils.password import hash_password
-from utils.password_strength import validate_password
+from utils.password_strength import compute_hibp_monitoring_data, validate_password
 from utils.request_metadata import extract_request_metadata
 from utils.templates import templates
 
@@ -160,10 +161,12 @@ def set_password(
 
     # Validate password strength
     policy = settings_service.get_password_policy(tenant_id)
+    min_length = policy["minimum_password_length"]
+    min_score = policy["minimum_zxcvbn_score"]
     strength = validate_password(
         password,
-        minimum_length=policy["minimum_password_length"],
-        minimum_score=policy["minimum_zxcvbn_score"],
+        minimum_length=min_length,
+        minimum_score=min_score,
         user_role=user.get("role"),
         user_inputs=[email["email"]],
     )
@@ -173,9 +176,19 @@ def set_password(
             url=f"/set-password?email_id={email_id}&error={error_code}", status_code=303
         )
 
-    # Set the password
+    # Set the password with HIBP monitoring and policy data
     password_hash = hash_password(password)
-    users_service.update_password(tenant_id, user["id"], password_hash)
+    hmac_key = derive_hmac_key("hibp")
+    hibp_prefix, hibp_check_hmac = compute_hibp_monitoring_data(password, hmac_key)
+    users_service.update_password(
+        tenant_id,
+        user["id"],
+        password_hash,
+        hibp_prefix=hibp_prefix,
+        hibp_check_hmac=hibp_check_hmac,
+        policy_length_at_set=min_length,
+        policy_score_at_set=min_score,
+    )
 
     # Log the password set event
     log_event(

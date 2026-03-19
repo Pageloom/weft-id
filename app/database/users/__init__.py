@@ -8,9 +8,13 @@ from database.users.activity import (
     update_timezone_locale_and_last_login,
 )
 from database.users.authentication import (
+    bulk_set_password_reset_required,
+    clear_hibp_data,
     count_active_super_admins,
     get_admin_emails,
     get_password_hash,
+    get_users_with_hibp_prefix,
+    get_users_with_weak_policy,
     set_password_reset_required,
     update_mfa_status,
     update_password,
@@ -92,6 +96,10 @@ __all__ = [
     "update_mfa_status",
     "count_active_super_admins",
     "get_admin_emails",
+    "get_users_with_hibp_prefix",
+    "clear_hibp_data",
+    "get_users_with_weak_policy",
+    "bulk_set_password_reset_required",
     # saml_assignment
     "get_user_auth_info",
     "update_user_saml_idp",

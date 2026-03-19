@@ -4,6 +4,93 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Password Lifecycle Hardening
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want passwords to be continuously validated against breach databases, policy changes, and reuse
+So that compromised or non-compliant passwords are caught and forced to change, not just at set-time
+
+**Acceptance Criteria:**
+
+Same-password reuse prevention:
+- [x] Password change (self-service), forced reset, and HIBP-triggered reset all reject the
+      new password if it matches the current password hash
+- [x] Clear, non-alarming error message: "New password must be different from your current password"
+
+OAuth2 token revocation:
+- [x] When `password_reset_required` is set (by admin or HIBP job), all OAuth2 access and
+      refresh tokens issued to the user via authorization_code flow are revoked
+- [x] Client credentials tokens are NOT affected (those belong to the client, not the user)
+- [x] Event logged: `oauth2_user_tokens_revoked` with reason (admin_forced, hibp_breach, policy_change)
+
+Continuous HIBP monitoring:
+- [x] Migration adds `hibp_prefix` (char(5), nullable) and `hibp_check_hmac` (varchar(64), nullable)
+      to the users table
+- [x] Both values are set at password-set time (onboarding, change, forced reset)
+- [x] New HKDF-derived key with purpose "hibp" in `app/utils/crypto.py`
+- [x] Background job queries HIBP API for each user's prefix, compares returned suffix HMACs
+- [x] On match: sets `password_reset_required`, clears `hibp_prefix` and `hibp_check_hmac`
+- [x] Job runs on a configurable schedule (default: weekly, 168 hours)
+- [x] Job respects HIBP rate limits (1 request per 1.5 seconds for free tier)
+- [x] Event logged: `password_breach_detected`
+- [x] Admin notification (email to admins) when breaches are detected
+
+Policy compliance enforcement:
+- [x] Migration adds `password_policy_length_at_set` (integer, nullable) and
+      `password_policy_score_at_set` (integer, nullable) to the users table
+- [x] Both values are recorded at password-set time
+- [x] When admin tightens password policy, users with weaker stored policy values
+      are flagged for reset and their OAuth2 tokens are revoked
+- [x] Event logged: `password_policy_compliance_enforced` with count of affected users
+- [ ] Admin shown a confirmation before saving a stricter policy (deferred to frontend work)
+
+---
+
+## Password Change and Admin-Forced Reset
+
+**Status:** Complete
+
+**User Story:**
+As a user who authenticates with a password
+I want to change my password from my account page
+So that I can update my credentials when needed
+
+As an admin
+I want to force a user to change their password on next login
+So that I can respond to suspected credential compromise without rotating everyone's passwords
+
+**Acceptance Criteria:**
+
+Password tab (account page):
+- [x] New "Password" tab on account page, positioned after "Profile"
+- [x] Only visible for users who authenticate with a password (not IdP-federated users)
+- [x] Requires current password to set a new password
+- [x] New password subject to the password strength policy (length, zxcvbn, HIBP)
+- [x] Client-side strength feedback (same component as onboarding)
+- [x] Success confirmation shown after password change
+- [x] Event logged: `password_changed`
+- [x] API endpoint for programmatic password change (`PUT /api/v1/users/me/password`)
+
+Admin-forced password reset:
+- [x] Admin action on user detail page: "Force password reset"
+- [x] Sets `password_reset_required` flag on the user record
+- [x] On next login, after successful authentication, user is redirected to a password change screen
+- [x] User cannot navigate away until password is changed
+- [x] Flag is cleared after successful password change
+- [x] Permission model: admins can force reset on any user including super admins
+- [x] Event logged: `password_reset_forced` (actor = admin, target = user)
+- [x] Event logged: `password_reset_completed` when the user completes the forced change
+- [x] API endpoint for forcing reset (`POST /api/v1/users/{user_id}/force-password-reset`)
+
+Database:
+- [x] Migration `0016_password_change.sql` adds `password_reset_required` boolean (default false) to users table
+- [x] Migration adds `password_changed_at` timestamp to users table (nullable, set on every password change)
+
+---
+
 ## Password Strength Policy
 
 **Status:** Complete

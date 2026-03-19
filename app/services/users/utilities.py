@@ -321,7 +321,15 @@ def get_user_by_id_raw(tenant_id: str, user_id: str) -> dict | None:
     return database.users.get_user_by_id(tenant_id, user_id)
 
 
-def update_password(tenant_id: str, user_id: str, password_hash: str) -> None:
+def update_password(
+    tenant_id: str,
+    user_id: str,
+    password_hash: str,
+    hibp_prefix: str | None = None,
+    hibp_check_hmac: str | None = None,
+    policy_length_at_set: int | None = None,
+    policy_score_at_set: int | None = None,
+) -> None:
     """
     Update a user's password hash.
 
@@ -332,8 +340,20 @@ def update_password(tenant_id: str, user_id: str, password_hash: str) -> None:
         tenant_id: Tenant ID
         user_id: User UUID
         password_hash: Hashed password to store
+        hibp_prefix: First 5 hex chars of SHA-1 for HIBP monitoring
+        hibp_check_hmac: HMAC of full SHA-1 for breach verification
+        policy_length_at_set: Minimum password length policy when set
+        policy_score_at_set: Minimum zxcvbn score policy when set
     """
-    database.users.update_password(tenant_id, user_id, password_hash)
+    database.users.update_password(
+        tenant_id,
+        user_id,
+        password_hash,
+        hibp_prefix=hibp_prefix,
+        hibp_check_hmac=hibp_check_hmac,
+        policy_length_at_set=policy_length_at_set,
+        policy_score_at_set=policy_score_at_set,
+    )
 
 
 def update_last_login(tenant_id: str, user_id: str) -> None:

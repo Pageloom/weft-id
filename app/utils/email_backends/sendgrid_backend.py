@@ -14,7 +14,8 @@ class SendGridBackend:
 
     def __init__(self):
         """Initialize SendGrid client with API key."""
-        self.client = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        self.client = SendGridAPIClient(settings.SENDGRID_API_KEY)  # outbound-timeout: ok
+        self.client.timeout = 10
 
     def send(
         self,

@@ -5,6 +5,15 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [COMPLIANCE] SendGrid client missing request timeout
+
+**Status:** Resolved (2026-03-19)
+**Original Severity:** Low
+
+**Resolution:** Set `self.client.timeout = 10` after `SendGridAPIClient` construction. The SDK's underlying `python_http_client` transport defaults to no timeout, which could block threads indefinitely if the SendGrid API hangs. Added a test verifying the timeout is set, and a suppression comment for the compliance checker.
+
+---
+
 ### [COPY] "Login" vs "Sign in" inconsistency in navigation labels
 
 **Status:** Resolved (2026-03-08)

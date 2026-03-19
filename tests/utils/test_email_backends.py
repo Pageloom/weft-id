@@ -149,6 +149,17 @@ class TestResendBackend:
 class TestSendGridBackend:
     """Tests for SendGrid email backend."""
 
+    def test_client_has_timeout(self):
+        """Test that SendGrid client is initialized with a request timeout."""
+        with patch("utils.email_backends.sendgrid_backend.SendGridAPIClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+
+            from utils.email_backends.sendgrid_backend import SendGridBackend
+
+            backend = SendGridBackend()
+            assert backend.client.timeout == 10
+
     def test_send_success(self):
         """Test successful email sending via SendGrid."""
         with patch("utils.email_backends.sendgrid_backend.SendGridAPIClient") as mock_client_class:

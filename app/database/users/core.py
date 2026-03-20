@@ -50,6 +50,28 @@ def get_user_by_email(tenant_id: TenantArg, email: str) -> dict | None:
     )
 
 
+def get_user_by_email_for_reset(tenant_id: TenantArg, email: str) -> dict | None:
+    """
+    Get user info needed for password reset by verified email.
+
+    Returns:
+        Dict with user_id, password_changed_at, has_password, is_inactivated,
+        saml_idp_id, role, or None if not found or email not verified.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select ue.user_id, u.password_changed_at,
+               u.password_hash is not null as has_password,
+               u.is_inactivated, u.saml_idp_id, u.role
+        from user_emails ue
+        join users u on u.id = ue.user_id
+        where ue.email = :email and ue.verified_at is not null
+        """,
+        {"email": email},
+    )
+
+
 def get_user_by_email_with_status(tenant_id: TenantArg, email: str) -> dict | None:
     """
     Get full user record by verified email for authentication (SAML/OAuth).

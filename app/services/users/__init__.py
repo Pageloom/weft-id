@@ -40,7 +40,10 @@ from services.users.crud import (
 from services.users.password import (
     change_password,
     complete_forced_password_reset,
+    complete_self_service_password_reset,
     force_password_reset,
+    request_password_reset,
+    validate_reset_token,
 )
 
 # Re-export from profile module
@@ -89,7 +92,10 @@ __all__ = [
     # Password
     "change_password",
     "complete_forced_password_reset",
+    "complete_self_service_password_reset",
     "force_password_reset",
+    "request_password_reset",
+    "validate_reset_token",
     # Profile
     "get_current_user_profile",
     "update_current_user_profile",

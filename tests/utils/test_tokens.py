@@ -6,8 +6,11 @@ from app.utils.tokens import (
     PURPOSE_MFA_EMAIL,
     PURPOSE_PASSWORD_RESET,
     _compute_code,
+    extract_user_id_from_url_token,
     generate_code,
+    generate_url_token,
     verify_code,
+    verify_url_token,
 )
 
 
@@ -172,3 +175,81 @@ def test_compute_code_zero_padding():
         code = _compute_code("user-1", PURPOSE_MFA_EMAIL, step, state=None)
         assert len(code) == 6
         assert code.isdigit()
+
+
+# ---------------------------------------------------------------------------
+# URL token tests
+# ---------------------------------------------------------------------------
+
+
+def test_generate_url_token_returns_string():
+    """URL token is a non-empty string."""
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET)
+    assert isinstance(token, str)
+    assert len(token) > 0
+
+
+def test_verify_url_token_valid():
+    """A freshly generated URL token is valid."""
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET, ttl_seconds=1800)
+    user_id = verify_url_token(token, PURPOSE_PASSWORD_RESET, ttl_seconds=1800)
+    assert user_id == "user-1"
+
+
+def test_verify_url_token_wrong_purpose():
+    """URL token is rejected when purpose doesn't match."""
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET)
+    assert verify_url_token(token, PURPOSE_MFA_EMAIL) is None
+
+
+def test_verify_url_token_expired():
+    """URL token is rejected after TTL expires."""
+    import time as time_mod
+
+    with patch("utils.tokens.time.time", return_value=time_mod.time() - 3600):
+        token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET, ttl_seconds=1800)
+
+    # Now verify at current time (token was issued 1 hour ago, TTL is 30 min)
+    assert verify_url_token(token, PURPOSE_PASSWORD_RESET, ttl_seconds=1800) is None
+
+
+def test_verify_url_token_tampered():
+    """Tampered URL token is rejected."""
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET)
+    # Flip a character in the token
+    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    assert verify_url_token(tampered, PURPOSE_PASSWORD_RESET) is None
+
+
+def test_verify_url_token_with_state():
+    """URL token with matching state is accepted."""
+    state = "2026-01-01T00:00:00"
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET, state=state)
+    assert verify_url_token(token, PURPOSE_PASSWORD_RESET, state=state) == "user-1"
+
+
+def test_verify_url_token_state_changed():
+    """URL token is rejected when state has changed."""
+    old_state = "2026-01-01T00:00:00"
+    new_state = "2026-03-20T12:00:00"
+    token = generate_url_token("user-1", PURPOSE_PASSWORD_RESET, state=old_state)
+    assert verify_url_token(token, PURPOSE_PASSWORD_RESET, state=new_state) is None
+
+
+def test_extract_user_id_from_url_token():
+    """User ID can be extracted from a URL token without verification."""
+    token = generate_url_token("user-123", PURPOSE_PASSWORD_RESET)
+    assert extract_user_id_from_url_token(token) == "user-123"
+
+
+def test_extract_user_id_from_invalid_token():
+    """Extracting from garbage returns None."""
+    assert extract_user_id_from_url_token("not-a-token") is None
+    assert extract_user_id_from_url_token("") is None
+
+
+def test_verify_url_token_malformed():
+    """Completely invalid tokens return None."""
+    assert verify_url_token("", PURPOSE_PASSWORD_RESET) is None
+    assert verify_url_token("garbage", PURPOSE_PASSWORD_RESET) is None
+    assert verify_url_token("!!!invalid!!!", PURPOSE_PASSWORD_RESET) is None

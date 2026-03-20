@@ -1,4 +1,6 @@
-"""Password change and admin-forced reset service functions."""
+"""Password change, admin-forced reset, and self-service reset service functions."""
+
+import logging
 
 import database
 from services.auth import require_admin
@@ -6,8 +8,17 @@ from services.event_log import log_event
 from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.crypto import derive_hmac_key
+from utils.email import send_password_reset_email
 from utils.password import hash_password, verify_password
 from utils.password_strength import compute_hibp_monitoring_data, validate_password
+from utils.tokens import (
+    PURPOSE_PASSWORD_RESET,
+    extract_user_id_from_url_token,
+    generate_url_token,
+    verify_url_token,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _get_policy(tenant_id: str) -> tuple[int, int]:
@@ -252,3 +263,154 @@ def complete_forced_password_reset(
         artifact_type="user",
         artifact_id=user_id,
     )
+
+
+def request_password_reset(
+    tenant_id: str,
+    email: str,
+    base_url: str,
+    client_ip: str | None = None,
+) -> None:
+    """Request a self-service password reset.
+
+    Sends a reset link to the user's email if the account is eligible.
+    Always returns normally (never reveals whether the email exists).
+
+    Args:
+        tenant_id: Tenant ID
+        email: Email address to send the reset link to
+        base_url: Base URL for building the reset link
+        client_ip: Client IP for audit logging
+    """
+    email = email.strip().lower()
+
+    user = database.users.get_user_by_email_for_reset(tenant_id, email)
+
+    # Silently bail for non-existent, IdP-federated, no-password, or inactivated users
+    if not user:
+        return
+    if user.get("saml_idp_id"):
+        return
+    if not user.get("has_password"):
+        return
+    if user.get("is_inactivated"):
+        return
+
+    user_id = str(user["user_id"])
+    state = str(user["password_changed_at"]) if user.get("password_changed_at") else ""
+
+    token = generate_url_token(user_id, PURPOSE_PASSWORD_RESET, ttl_seconds=1800, state=state)
+
+    reset_url = f"{base_url.rstrip('/')}/reset-password/{token}"
+    send_password_reset_email(email, reset_url)
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        event_type="password_reset_requested",
+        artifact_type="user",
+        artifact_id=user_id,
+        metadata={"email": email, "ip": client_ip},
+    )
+
+
+def complete_self_service_password_reset(
+    tenant_id: str,
+    user_id: str,
+    new_password: str,
+) -> None:
+    """Complete a self-service password reset.
+
+    Called after the user clicks the reset link and submits a new password.
+    Authorization is handled by token verification in the router.
+
+    No same-password reuse check (user has forgotten their password).
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User completing the reset
+        new_password: New password
+
+    Raises:
+        ValidationError: If password is weak or user not found
+    """
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        raise ValidationError(message="User not found.", code="user_not_found")
+
+    # Validate new password strength
+    min_length, min_score = _get_policy(tenant_id)
+
+    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
+    user_inputs = [primary_email["email"]] if primary_email else []
+
+    strength = validate_password(
+        new_password,
+        minimum_length=min_length,
+        minimum_score=min_score,
+        user_role=user.get("role"),
+        user_inputs=user_inputs,
+    )
+    if not strength.is_valid:
+        issue = strength.issues[0]
+        raise ValidationError(message=issue.message, code=issue.code)
+
+    # Update password (sets password_changed_at, which invalidates the token)
+    new_hash = hash_password(new_password)
+    lifecycle_data = _compute_hibp_and_policy_data(new_password, min_length, min_score)
+    database.users.update_password(tenant_id, user_id, new_hash, **lifecycle_data)
+
+    # Revoke OAuth2 tokens
+    _revoke_oauth2_tokens(tenant_id, user_id, "self_service_reset")
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=user_id,
+        event_type="password_self_reset_completed",
+        artifact_type="user",
+        artifact_id=user_id,
+    )
+
+
+_RESET_TTL = 1800  # 30 minutes
+
+
+def validate_reset_token(tenant_id: str, token: str) -> dict | None:
+    """Validate a password reset URL token.
+
+    Extracts the user_id from the token, looks up the user to get
+    password_changed_at for state verification, then verifies the HMAC.
+
+    Args:
+        tenant_id: Tenant ID
+        token: The URL token from the reset link
+
+    Returns:
+        A dict with user_id, role, and password policy info if valid,
+        or None if the token is invalid or expired.
+    """
+    user_id = extract_user_id_from_url_token(token)
+    if not user_id:
+        return None
+
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        return None
+
+    state = str(user.get("password_changed_at") or "")
+    verified_user_id = verify_url_token(
+        token, PURPOSE_PASSWORD_RESET, ttl_seconds=_RESET_TTL, state=state
+    )
+    if not verified_user_id:
+        return None
+
+    min_length, min_score = _get_policy(tenant_id)
+    if user.get("role") == "super_admin":
+        min_length = max(min_length, 20)
+
+    return {
+        "user_id": verified_user_id,
+        "role": user.get("role"),
+        "minimum_password_length": min_length,
+        "minimum_zxcvbn_score": min_score,
+    }

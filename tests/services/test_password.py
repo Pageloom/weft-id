@@ -1,4 +1,4 @@
-"""Unit tests for password change and force reset service functions."""
+"""Unit tests for password change, force reset, and self-service reset service functions."""
 
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -397,3 +397,290 @@ class TestCompleteForcedPasswordReset:
             with pytest.raises(ValidationError) as exc_info:
                 complete_forced_password_reset(tenant_id, user_id, "same_password")
             assert exc_info.value.code == "password_same_as_current"
+
+
+class TestRequestPasswordReset:
+    """Tests for users.request_password_reset()."""
+
+    def test_sends_email_for_valid_user(self):
+        from services.users.password import request_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_password_reset_email") as mock_send,
+            patch("services.users.password.generate_url_token", return_value="test-token"),
+            patch("services.users.password.log_event") as mock_log,
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": user_id,
+                "has_password": True,
+                "is_inactivated": False,
+                "saml_idp_id": None,
+                "password_changed_at": "2026-01-01T00:00:00",
+                "role": "member",
+            }
+
+            request_password_reset(tenant_id, "user@example.com", "https://example.com")
+
+            mock_send.assert_called_once_with(
+                "user@example.com", "https://example.com/reset-password/test-token"
+            )
+            mock_log.assert_called_once()
+            assert mock_log.call_args.kwargs["event_type"] == "password_reset_requested"
+
+    def test_silent_for_unknown_email(self):
+        from services.users.password import request_password_reset
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_password_reset_email") as mock_send,
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = None
+
+            request_password_reset(str(uuid4()), "nobody@example.com", "https://example.com")
+
+            mock_send.assert_not_called()
+
+    def test_silent_for_idp_user(self):
+        from services.users.password import request_password_reset
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_password_reset_email") as mock_send,
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": str(uuid4()),
+                "has_password": True,
+                "is_inactivated": False,
+                "saml_idp_id": str(uuid4()),
+                "password_changed_at": None,
+                "role": "member",
+            }
+
+            request_password_reset(str(uuid4()), "saml@example.com", "https://example.com")
+
+            mock_send.assert_not_called()
+
+    def test_silent_for_inactivated_user(self):
+        from services.users.password import request_password_reset
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_password_reset_email") as mock_send,
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": str(uuid4()),
+                "has_password": True,
+                "is_inactivated": True,
+                "saml_idp_id": None,
+                "password_changed_at": None,
+                "role": "member",
+            }
+
+            request_password_reset(str(uuid4()), "inactive@example.com", "https://example.com")
+
+            mock_send.assert_not_called()
+
+    def test_silent_for_no_password_user(self):
+        from services.users.password import request_password_reset
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.send_password_reset_email") as mock_send,
+        ):
+            mock_db.users.get_user_by_email_for_reset.return_value = {
+                "user_id": str(uuid4()),
+                "has_password": False,
+                "is_inactivated": False,
+                "saml_idp_id": None,
+                "password_changed_at": None,
+                "role": "member",
+            }
+
+            request_password_reset(str(uuid4()), "nopass@example.com", "https://example.com")
+
+            mock_send.assert_not_called()
+
+
+class TestCompleteSelfServicePasswordReset:
+    """Tests for users.complete_self_service_password_reset()."""
+
+    def test_success(self):
+        from services.users.password import complete_self_service_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        strength_result = MagicMock()
+        strength_result.is_valid = True
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.validate_password", return_value=strength_result),
+            patch("services.users.password.hash_password", return_value="new_hash"),
+            patch("services.users.password.log_event") as mock_log,
+            patch(
+                "services.users.password.compute_hibp_monitoring_data",
+                return_value=("ABCDE", "hmac_hex"),
+            ),
+            patch("services.users.password.derive_hmac_key", return_value=b"key"),
+        ):
+            mock_db.users.get_user_by_id.return_value = {"role": "member"}
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+            mock_db.user_emails.get_primary_email.return_value = {"email": "test@example.com"}
+            mock_db.oauth2.revoke_all_user_tokens.return_value = 0
+
+            complete_self_service_password_reset(tenant_id, user_id, "new_strong_password")
+
+            mock_db.users.update_password.assert_called_once()
+            assert mock_log.call_args.kwargs["event_type"] == "password_self_reset_completed"
+
+    def test_weak_password_raises_validation_error(self):
+        from services.users.password import complete_self_service_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        strength_result = MagicMock()
+        strength_result.is_valid = False
+        issue = MagicMock()
+        issue.message = "Password too short"
+        issue.code = "password_too_short"
+        strength_result.issues = [issue]
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.validate_password", return_value=strength_result),
+        ):
+            mock_db.users.get_user_by_id.return_value = {"role": "member"}
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+            mock_db.user_emails.get_primary_email.return_value = {"email": "test@example.com"}
+
+            with pytest.raises(ValidationError) as exc_info:
+                complete_self_service_password_reset(tenant_id, user_id, "weak")
+            assert exc_info.value.code == "password_too_short"
+
+    def test_user_not_found_raises_validation_error(self):
+        from services.users.password import complete_self_service_password_reset
+
+        with patch("services.users.password.database") as mock_db:
+            mock_db.users.get_user_by_id.return_value = None
+
+            with pytest.raises(ValidationError) as exc_info:
+                complete_self_service_password_reset(str(uuid4()), str(uuid4()), "password")
+            assert exc_info.value.code == "user_not_found"
+
+    def test_revokes_oauth2_tokens(self):
+        from services.users.password import complete_self_service_password_reset
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+        strength_result = MagicMock()
+        strength_result.is_valid = True
+
+        with (
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.validate_password", return_value=strength_result),
+            patch("services.users.password.hash_password", return_value="new_hash"),
+            patch("services.users.password.log_event"),
+            patch(
+                "services.users.password.compute_hibp_monitoring_data",
+                return_value=("ABCDE", "hmac_hex"),
+            ),
+            patch("services.users.password.derive_hmac_key", return_value=b"key"),
+        ):
+            mock_db.users.get_user_by_id.return_value = {"role": "member"}
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+            mock_db.user_emails.get_primary_email.return_value = {"email": "test@example.com"}
+            mock_db.oauth2.revoke_all_user_tokens.return_value = 2
+
+            complete_self_service_password_reset(tenant_id, user_id, "new_strong_password")
+
+            mock_db.oauth2.revoke_all_user_tokens.assert_called_once_with(tenant_id, user_id)
+
+
+class TestValidateResetToken:
+    """Tests for users.validate_reset_token()."""
+
+    def test_valid_token(self):
+        from services.users.password import validate_reset_token
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=user_id),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "member",
+                "password_changed_at": "2026-01-01",
+            }
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+
+            result = validate_reset_token(tenant_id, "valid-token")
+
+            assert result is not None
+            assert result["user_id"] == user_id
+            assert result["minimum_password_length"] == 14
+            assert result["minimum_zxcvbn_score"] == 3
+
+    def test_invalid_token_returns_none(self):
+        from services.users.password import validate_reset_token
+
+        with patch("services.users.password.extract_user_id_from_url_token", return_value=None):
+            assert validate_reset_token(str(uuid4()), "bad-token") is None
+
+    def test_expired_token_returns_none(self):
+        from services.users.password import validate_reset_token
+
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=None),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "member",
+                "password_changed_at": "2026-01-01",
+            }
+
+            assert validate_reset_token(str(uuid4()), "expired-token") is None
+
+    def test_super_admin_gets_higher_min_length(self):
+        from services.users.password import validate_reset_token
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("services.users.password.extract_user_id_from_url_token", return_value=user_id),
+            patch("services.users.password.database") as mock_db,
+            patch("services.users.password.verify_url_token", return_value=user_id),
+        ):
+            mock_db.users.get_user_by_id.return_value = {
+                "role": "super_admin",
+                "password_changed_at": "2026-01-01",
+            }
+            mock_db.security.get_password_policy.return_value = {
+                "minimum_password_length": 14,
+                "minimum_zxcvbn_score": 3,
+            }
+
+            result = validate_reset_token(tenant_id, "valid-token")
+            assert result["minimum_password_length"] == 20

@@ -18,6 +18,8 @@
                 Your email is already verified. Please sign in.
                 {% elif success == 'account_reactivated' %}
                 Your account has been reactivated! You can now sign in.
+                {% elif success == 'password_reset' %}
+                Your password has been reset. You can now sign in.
                 {% elif success == 'account_reactivated_no_password' %}
                 Your account has been reactivated, but you don't have a password set. Please contact an administrator to set a password or assign you to an identity provider.
                 {% else %}
@@ -87,7 +89,10 @@
                     Sign In
                 </button>
 
-                <div class="mt-4 text-center">
+                <div class="mt-4 flex justify-between">
+                    <a href="/forgot-password" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                        Forgot password?
+                    </a>
                     <a href="/login" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
                         Use a different email
                     </a>

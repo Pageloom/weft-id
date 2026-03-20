@@ -19,6 +19,8 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "password_changed": "User changed their password",
     "password_reset_forced": "Admin forced password reset for user",
     "password_reset_completed": "User completed forced password reset",
+    "password_reset_requested": "Self-service password reset requested",
+    "password_self_reset_completed": "User completed self-service password reset",
     "password_breach_detected": "Password found in breach database by HIBP monitor",
     "password_policy_compliance_enforced": "Users flagged for reset after policy tightened",
     "oauth2_user_tokens_revoked": "OAuth2 tokens revoked for user",

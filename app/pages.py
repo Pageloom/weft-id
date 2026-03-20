@@ -50,6 +50,20 @@ PAGES = [
         creates_nav_level=False,
     ),
     Page(
+        path="/forgot-password",
+        title="Forgot Password",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
+        path="/reset-password",
+        title="Reset Password",
+        permission=PagePermission.PUBLIC,
+        show_in_nav=False,
+        creates_nav_level=False,
+    ),
+    Page(
         path="/dashboard",
         title="Dashboard",
         permission=PagePermission.AUTHENTICATED,

@@ -24,6 +24,7 @@ from database.users.core import (
     create_user,
     delete_user,
     get_user_by_email,
+    get_user_by_email_for_reset,
     get_user_by_email_for_saml,
     get_user_by_email_with_status,
     get_user_by_id,
@@ -61,6 +62,7 @@ __all__ = [
     # core
     "get_user_by_id",
     "get_user_by_email",
+    "get_user_by_email_for_reset",
     "get_user_by_email_for_saml",
     "get_user_by_email_with_status",
     "get_user_with_saml_info",

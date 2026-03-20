@@ -4,6 +4,45 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Forgot Password (Self-Service Reset)
+
+**Status:** Complete
+
+**User Story:**
+As a user who has forgotten my password
+I want to request a password reset link via email
+So that I can regain access to my account without admin intervention
+
+**Acceptance Criteria:**
+
+User flow:
+- [x] "Forgot password?" link on the login page (password step)
+- [x] User enters their email address on `/forgot-password`
+- [x] If the email exists and belongs to a password-authenticated user, a reset email is sent
+- [x] If the email does not exist, belongs to an IdP-federated user, or is inactivated: same success message (anti-enumeration)
+- [x] Reset email contains a time-limited URL token (30-minute TTL)
+- [x] Clicking the link opens a "set new password" page with zxcvbn strength meter
+- [x] No same-password reuse check (user forgot their password)
+- [x] After successful reset, user is redirected to login with confirmation message
+- [x] Token is invalidated after use (state-based: `password_changed_at` changes on reset)
+
+Security:
+- [x] Token expiry: 30 minutes (stateless, HMAC-based with embedded timestamp)
+- [x] Tokens are effectively single-use (changing password changes state, invalidating token)
+- [x] Rate limiting: 3 per email/hour, 10 per IP/hour
+- [x] Rate limit errors swallowed silently (same success message)
+- [x] No information leakage: same response regardless of email existence
+- [x] Event logged: `password_reset_requested` (with email, IP)
+- [x] Event logged: `password_self_reset_completed`
+- [x] OAuth2 tokens revoked after successful reset
+
+**Notes:**
+- Uses stateless URL tokens from `app/utils/tokens.py` (no database storage).
+- Token format: `base64url(user_id.timestamp.hmac_hex)`. The HMAC covers user_id, purpose, timestamp, and `password_changed_at` state.
+- Cookie-based sessions cannot be server-side invalidated, but `password_changed_at` updates and OAuth2 tokens are revoked.
+
+---
+
 ## Stateless Time-Windowed Token Generation
 
 **Status:** Complete

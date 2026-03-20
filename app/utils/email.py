@@ -708,6 +708,55 @@ If you did not expect this change, please contact your administrator.
     return send_email(to_email, subject, html_body, text_body)
 
 
+def send_password_reset_email(to_email: str, reset_url: str) -> bool:
+    """Send a password reset link."""
+    # ruff: noqa: E501
+    subject = "Reset your password"
+
+    text_body = f"""
+You requested a password reset. Click the link below to set a new password:
+
+{reset_url}
+
+This link will expire in 30 minutes.
+
+If you did not request this, you can safely ignore this email. Your password will not be changed.
+"""
+
+    # fmt: off
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reset Your Password</h1>
+        <p>You requested a password reset. Click the button below to set a new password:</p>
+        <a href="{reset_url}" class="button">Reset Password</a>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280;">{reset_url}</p>
+        <p>This link will expire in <strong>30 minutes</strong>.</p>
+        <p>If you did not request this, you can safely ignore this email. Your password will not be changed.</p>
+        <div class="footer">
+            <p>This is an automated message, please do not reply.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+    # fmt: on
+
+    return send_email(to_email, subject, html_body, text_body)
+
+
 def send_hibp_breach_admin_notification(
     to_email: str,
     breach_count: int,

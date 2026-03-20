@@ -17,32 +17,19 @@ def test_verify_email_otp_bypass_accepts_any_6_digit_code():
 def test_verify_email_otp_bypass_rejects_invalid_codes():
     """Test that bypass mode rejects invalid codes (non-6-digit, non-numeric)."""
     with patch("settings.BYPASS_OTP", True):
-        # Need to reload the module to pick up the patched setting
-        import importlib
+        from utils.mfa import verify_email_otp
 
-        import utils.mfa
+        # 5-digit code - falls through to real verification, rejected
+        assert verify_email_otp("t", "u", "12345") is False
 
-        importlib.reload(utils.mfa)
+        # 7-digit code
+        assert verify_email_otp("t", "u", "1234567") is False
 
-        # These should fall through to the real verification (which will fail without DB)
-        # Since we can't easily test the rejection without a real DB, we'll test the
-        # validation logic by checking that the bypass condition isn't met
+        # Non-numeric code
+        assert verify_email_otp("t", "u", "abcdef") is False
 
-        # 5-digit code - bypass condition not met
-        code = "12345"
-        assert not (len(code) == 6 and code.isdigit())
-
-        # 7-digit code - bypass condition not met
-        code = "1234567"
-        assert not (len(code) == 6 and code.isdigit())
-
-        # Non-numeric code - bypass condition not met
-        code = "abcdef"
-        assert not (len(code) == 6 and code.isdigit())
-
-        # Mixed code - bypass condition not met
-        code = "12345a"
-        assert not (len(code) == 6 and code.isdigit())
+        # Mixed code
+        assert verify_email_otp("t", "u", "12345a") is False
 
 
 def test_verify_totp_code_bypass_accepts_any_6_digit_code():

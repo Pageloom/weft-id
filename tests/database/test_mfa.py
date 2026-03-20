@@ -1,7 +1,6 @@
 """Tests for database.mfa module."""
 
 import hashlib
-from datetime import UTC, datetime, timedelta
 
 
 def test_set_mfa_method(test_user):
@@ -143,84 +142,6 @@ def test_create_totp_secret_replaces_existing(test_user):
         test_user["tenant_id"], test_user["id"], "totp"
     )
     assert verified_record is None
-
-
-# Email OTP tests
-
-
-def test_create_and_verify_email_otp(test_user):
-    """Test creating and verifying email OTP code."""
-    import database
-
-    code = "123456"
-    code_hash = hashlib.sha256(code.encode()).hexdigest()
-    expires_at = datetime.now(UTC) + timedelta(minutes=10)
-
-    # Create email OTP
-    database.mfa.create_email_otp(
-        test_user["tenant_id"], test_user["id"], code_hash, expires_at, test_user["tenant_id"]
-    )
-
-    # Verify the OTP
-    is_valid = database.mfa.verify_email_otp(test_user["tenant_id"], test_user["id"], code_hash)
-
-    assert is_valid is True
-
-
-def test_verify_invalid_email_otp(test_user):
-    """Test verifying invalid email OTP returns False."""
-    import database
-
-    wrong_code_hash = hashlib.sha256(b"wrong_code").hexdigest()
-
-    is_valid = database.mfa.verify_email_otp(
-        test_user["tenant_id"], test_user["id"], wrong_code_hash
-    )
-
-    assert is_valid is False
-
-
-def test_verify_expired_email_otp(test_user):
-    """Test that expired OTP cannot be verified."""
-
-    import database
-
-    code = "123456"
-    code_hash = hashlib.sha256(code.encode()).hexdigest()
-    # Set expiry to a time well in the past to ensure it's expired
-    expires_at = datetime.now(UTC) - timedelta(hours=1)
-
-    # Create expired email OTP
-    database.mfa.create_email_otp(
-        test_user["tenant_id"], test_user["id"], code_hash, expires_at, test_user["tenant_id"]
-    )
-
-    # Should not verify
-    is_valid = database.mfa.verify_email_otp(test_user["tenant_id"], test_user["id"], code_hash)
-
-    assert is_valid is False
-
-
-def test_email_otp_cannot_be_reused(test_user):
-    """Test that email OTP can only be used once."""
-    import database
-
-    code = "654321"
-    code_hash = hashlib.sha256(code.encode()).hexdigest()
-    expires_at = datetime.now(UTC) + timedelta(minutes=10)
-
-    # Create and verify OTP
-    database.mfa.create_email_otp(
-        test_user["tenant_id"], test_user["id"], code_hash, expires_at, test_user["tenant_id"]
-    )
-
-    # First verification should succeed
-    assert database.mfa.verify_email_otp(test_user["tenant_id"], test_user["id"], code_hash) is True
-
-    # Second verification should fail (already used)
-    assert (
-        database.mfa.verify_email_otp(test_user["tenant_id"], test_user["id"], code_hash) is False
-    )
 
 
 # Backup code tests

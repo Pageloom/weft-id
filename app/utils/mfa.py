@@ -1,6 +1,5 @@
 """Multi-factor authentication utilities."""
 
-import datetime
 import hashlib
 import secrets
 
@@ -9,6 +8,7 @@ import pyotp
 import settings
 from cryptography.fernet import Fernet
 from utils.crypto import derive_fernet_key
+from utils.tokens import PURPOSE_MFA_EMAIL, generate_code, verify_code
 
 _cipher = Fernet(derive_fernet_key(b"mfa-encryption"))
 
@@ -75,7 +75,7 @@ def generate_backup_codes(count: int = 10) -> list[str]:
 
 def hash_code(code: str) -> str:
     """
-    Hash a backup code or email OTP for storage.
+    Hash a backup code for storage.
     Uses SHA-256 (codes are random, not user passwords).
     """
     return hashlib.sha256(code.encode()).hexdigest()
@@ -90,36 +90,39 @@ def verify_backup_code(tenant_id: str, user_id: str, code: str) -> bool:
     return database.mfa.verify_backup_code(tenant_id, user_id, code_hash)
 
 
-def generate_email_otp() -> str:
-    """Generate a 6-digit OTP for email verification."""
-    return str(secrets.randbelow(1000000)).zfill(6)
-
-
 def create_email_otp(tenant_id: str, user_id: str, expiry_minutes: int = 10) -> str:
-    """
-    Create and store an email OTP code.
-    Returns the plaintext code (to be sent via email).
-    """
-    code = generate_email_otp()
-    code_hash = hash_code(code)
-    expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=expiry_minutes)
+    """Generate a time-windowed email OTP code.
 
-    database.mfa.create_email_otp(tenant_id, user_id, code_hash, expires_at, tenant_id)
+    Uses stateless HMAC-based generation. The code is deterministic for the
+    current time window (5 minutes). No database storage is needed.
 
-    return code
+    Args:
+        tenant_id: Tenant ID (retained for API compatibility, not used).
+        user_id: User ID to bind the code to.
+        expiry_minutes: Retained for API compatibility, not used. The code
+            validity is controlled by the time window and verify_code window.
+
+    Returns:
+        A 6-digit numeric code to be sent via email.
+    """
+    return generate_code(user_id, PURPOSE_MFA_EMAIL, step_seconds=300)
 
 
 def verify_email_otp(tenant_id: str, user_id: str, code: str) -> bool:
-    """
-    Verify an email OTP code and mark it as used.
-    Returns True if valid and not expired, False otherwise.
-    """
-    # Bypass mode: accept any valid 6-digit code
-    if settings.BYPASS_OTP and len(code) == 6 and code.isdigit():
-        return True
+    """Verify an email OTP code against the current time window.
 
-    code_hash = hash_code(code)
-    return database.mfa.verify_email_otp(tenant_id, user_id, code_hash)
+    Checks the submitted code against the current window and one adjacent
+    window in each direction (total coverage: ~15 minutes with 5-minute steps).
+
+    Args:
+        tenant_id: Tenant ID (retained for API compatibility, not used).
+        user_id: User ID the code was generated for.
+        code: The 6-digit code to verify.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    return verify_code(code, user_id, PURPOSE_MFA_EMAIL, step_seconds=300, window=1)
 
 
 def get_totp_secret(tenant_id: str, user_id: str, method: str) -> str | None:

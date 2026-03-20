@@ -4,6 +4,41 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Stateless Time-Windowed Token Generation
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want one-time codes and verification tokens to be derived deterministically from a secret
+rather than stored in the database
+So that token flows are simpler, require no storage or cleanup, and scale without database pressure
+
+**Acceptance Criteria:**
+
+Core infrastructure:
+- [x] New derived key via HKDF with purpose `"token"` (used by `derive_hmac_key("token")` in `app/utils/tokens.py`)
+- [x] Token generation function: `generate_code(user_id, purpose, step_seconds, state=None) -> str`
+- [x] Token verification function: `verify_code(code, user_id, purpose, step_seconds, window=3, state=None) -> bool`
+- [x] Purpose strings as explicit constants: `PURPOSE_MFA_EMAIL`, `PURPOSE_PASSWORD_RESET`
+- [x] Step duration and window size are caller-specified
+
+Migration of existing flows:
+- [x] MFA email codes: migrated from database-stored codes to stateless generation
+- [ ] Email verification tokens: already cookie-based/stateless, no migration needed
+- [x] Forgot-password tokens: infrastructure ready (`PURPOSE_PASSWORD_RESET` with state-based invalidation via `password_changed_at`)
+
+State-based invalidation:
+- [x] `state` parameter included in HMAC derivation input. Changing state silently invalidates outstanding codes.
+- [x] Documented per-purpose state fields (password_changed_at for password reset)
+
+**Notes:**
+- Email possession verification was already cookie-based (no DB storage), so no migration was needed.
+- Email address verification uses a nonce on the record itself (not a separate token table), so it was out of scope.
+- The `mfa_email_codes` table is now unused. Dropping it is tracked in the "Remove Legacy One-Time Token Storage" backlog item.
+
+---
+
 ## Password Lifecycle Hardening
 
 **Status:** Complete

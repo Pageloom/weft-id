@@ -5,14 +5,15 @@ import re
 import pyotp
 
 from app.utils.mfa import (
+    create_email_otp,
     decrypt_secret,
     encrypt_secret,
     format_secret_for_display,
     generate_backup_codes,
-    generate_email_otp,
     generate_totp_secret,
     generate_totp_uri,
     hash_code,
+    verify_email_otp,
     verify_totp_code,
 )
 
@@ -168,29 +169,9 @@ def test_hash_code_different_inputs():
     assert hash1 != hash2
 
 
-def test_generate_email_otp():
-    """Test email OTP generation."""
-    otp = generate_email_otp()
-
-    # Should be a 6-digit string
-    assert isinstance(otp, str)
-    assert len(otp) == 6
-    assert otp.isdigit()
-
-
-def test_generate_email_otp_uniqueness():
-    """Test that email OTPs are different (statistically)."""
-    otps = [generate_email_otp() for _ in range(10)]
-
-    # Should have some variation (statistically very unlikely to be all the same)
-    assert len(set(otps)) > 1
-
-
-def test_create_email_otp(test_user):
-    """Test creating and storing an email OTP."""
-    from utils.mfa import create_email_otp
-
-    code = create_email_otp(test_user["tenant_id"], test_user["id"], expiry_minutes=10)
+def test_create_email_otp():
+    """Test creating a stateless email OTP."""
+    code = create_email_otp("tenant-1", "user-1")
 
     # Should be a 6-digit code
     assert isinstance(code, str)
@@ -198,27 +179,24 @@ def test_create_email_otp(test_user):
     assert code.isdigit()
 
 
-def test_verify_email_otp_valid(test_user):
+def test_create_email_otp_deterministic():
+    """Same user in the same time window gets the same code."""
+    code1 = create_email_otp("tenant-1", "user-1")
+    code2 = create_email_otp("tenant-1", "user-1")
+
+    assert code1 == code2
+
+
+def test_verify_email_otp_valid():
     """Test verifying a valid email OTP."""
-    from utils.mfa import create_email_otp, verify_email_otp
-
-    # Create OTP
-    code = create_email_otp(test_user["tenant_id"], test_user["id"], expiry_minutes=10)
-
-    # Verify it
-    is_valid = verify_email_otp(test_user["tenant_id"], test_user["id"], code)
-
-    assert is_valid is True
+    code = create_email_otp("tenant-1", "user-1")
+    assert verify_email_otp("tenant-1", "user-1", code) is True
 
 
-def test_verify_email_otp_invalid(test_user):
-    """Test verifying an invalid email OTP."""
-    from utils.mfa import verify_email_otp
-
-    # Try to verify a code that was never created
-    is_valid = verify_email_otp(test_user["tenant_id"], test_user["id"], "999999")
-
-    assert is_valid is False
+def test_verify_email_otp_wrong_user():
+    """Code generated for one user is rejected for another."""
+    code = create_email_otp("tenant-1", "user-1")
+    assert verify_email_otp("tenant-1", "user-2", code) is False
 
 
 def test_verify_backup_code_valid(test_user):

@@ -6,92 +6,58 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Epic: Self-Hosting & Release Infrastructure
-
-The items below form a connected initiative to make WeftId easy to self-host with good
-security defaults, and to establish versioning, release, and upgrade practices. They are
-listed in dependency order. Items 1-3 are foundational (do once before going public),
-items 4-7 are the self-hosting deliverables, and item 8 is cleanup.
-
----
-
-## ~~1. Version Management Policy~~ (Complete)
-
----
-
-## ~~2. GHCR Publish Workflow~~ (Complete)
-
----
-
-## ~~3. Changelog & Release Gate~~ (Complete)
-
----
-
-## ~~4. Production Docker Compose for Self-Hosting~~ (Complete)
-
----
-
-## ~~5. Self-Hosting Install Script~~ (Complete)
-
----
-
-## ~~6. Tenant Provisioning CLI~~ (Complete)
-
----
-
-## ~~7. Self-Hosting Upgrade & Operations Documentation~~ (Complete)
-
----
-
-## ~~8. Remove Legacy Onprem Setup~~ (Complete)
-
----
-
----
-
----
-
 ## SAML: Group Assertion Transparency (Trunk-Only Mode + Consent Screen Visibility)
 
 **User Story:**
-As a super admin
-I want to control whether full group memberships or only trunk groups are communicated in
-SAML assertions, and as a user I want to see which groups will be shared during authentication
-So that admins can minimize group exposure to service providers, and users understand what
-identity information is being disclosed before they consent
+As a super admin or admin
+I want to control better control over which group memberships are communicated to downstream
+service providers, whether all/trunk/access relevant groups. An access relevant group is a group
+that actually gives access to the SP. As a user I want to see which groups will be shared 
+during authentication. This, so that admins can minimize group exposure to service providers, 
+and users understand what identity information is being disclosed before they consent
 
 **Context:**
 
-Currently, SAML assertions include all of the user's group memberships. Two related gaps:
+Currently, SAML assertions include all of the user's group memberships. Three related gaps:
 
 1. **Trunk-only mode:** A "trunk group" is any group the user belongs to that has no parent
    groups in the DAG. It represents the broadest, most concise outline of the user's group
    footprint without enumerating every nested membership. Communicating only trunk groups
    reduces how much internal group structure is leaked to service providers.
 
+2. **Access relevant-only mode:** An "access relevant" group is any group that the user belongs
+   to that ALSO grants access to the SP that is currently being authenticated. An outstanding
+   question is what group should be communicated for an SP where access is granted to everybody
+   in this scenario.
+
 2. **Consent screen visibility:** The consent screen during SAML authentication does not show
    which groups will be shared with the SP. If group attributes are being asserted, the user
    should see exactly which groups are being disclosed before completing sign-in.
 
-These are linked: if trunk-only mode is active, the consent screen should reflect the filtered
-group set (not the full membership list).
+These are linked: if trunk-only mode or access relevant-mode is active, the consent screen
+should reflect the filtered group set (not the full membership list).
 
 **Acceptance Criteria:**
 
 Trunk-only admin setting:
-- [ ] New tenant-level setting in admin security settings: "Group assertion scope" with two
+- [ ] New tenant-level setting in admin security settings: "Group assertion scope" with three
       options: "All groups" (share all group memberships) and "Trunk groups only" (share only
-      groups with no parent groups in the DAG). Default: "Trunk groups only"
+      groups with no parent groups in the DAG) and "Access relevant groups only" (share only 
+      groups that grant access to the authenticating SP)
 - [ ] "Trunk groups only" filters the group list included in any SAML assertion to those
       where the user has no parent group in the `group_lineage` table
+- [ ] "Access relevant groups only" filters the group list in any SAML assertion to those
+      groups that grant access to the authenticating SP.
 - [ ] Setting is persisted with a migration; readable via the settings service
 - [ ] Event logged (`group_assertion_scope_updated`) when the setting changes
 - [ ] API endpoint exposes and allows updating the setting
+- [ ] If the SP is not set up to receive groups, no groups are communicated to the SP.
 
 Consent screen group disclosure:
 - [ ] If the SP's attribute mapping includes a groups attribute, the consent screen displays
       the list of groups that will be shared in the assertion
 - [ ] If trunk-only mode is active, the displayed groups reflect the filtered set
+- [ ] If access relevant-only mode is active, the displayed groups reflect the filtered set
 - [ ] If the SP does not request a groups attribute, this section is hidden
 - [ ] Groups are listed by name; if the list is long (>10), show a count with a collapsible
       "show all" expansion

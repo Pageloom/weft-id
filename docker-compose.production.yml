@@ -36,7 +36,6 @@ services:
       POSTGRES_USER: appuser
       POSTGRES_PASSWORD: apppass
       POSTGRES_DB: appdb
-      IS_DEV: ${IS_DEV:-False}
       BASE_DOMAIN: ${BASE_DOMAIN}
       SECRET_KEY: ${SECRET_KEY}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -48,7 +47,6 @@ services:
       EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      BYPASS_OTP: "false"
       ENABLE_OPENAPI_DOCS: ${ENABLE_OPENAPI_DOCS:-false}
       MEMCACHED_HOST: memcached
       MEMCACHED_PORT: "11211"
@@ -77,7 +75,6 @@ services:
       POSTGRES_USER: appuser
       POSTGRES_PASSWORD: apppass
       POSTGRES_DB: appdb
-      IS_DEV: ${IS_DEV:-False}
       BASE_DOMAIN: ${BASE_DOMAIN}
       SECRET_KEY: ${SECRET_KEY}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -89,7 +86,6 @@ services:
       EMAIL_BACKEND: ${EMAIL_BACKEND:-smtp}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      BYPASS_OTP: "false"
       MEMCACHED_HOST: memcached
       MEMCACHED_PORT: "11211"
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}

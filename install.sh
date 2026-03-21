@@ -146,9 +146,7 @@ SMTP_PASS=${SMTP_PASS}
 SMTP_TLS=true
 FROM_EMAIL=${FROM_EMAIL}
 
-# Production defaults
-IS_DEV=False
-BYPASS_OTP=false
+# Optional
 ENABLE_OPENAPI_DOCS=false
 ENVEOF
 

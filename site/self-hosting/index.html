@@ -2775,28 +2775,13 @@ can copy <code>.env.production.example</code> and edit it manually.</p>
 </tbody>
 </table>
 <h4 id="security-defaults">Security defaults<a class="headerlink" href="#security-defaults" title="Permanent link">&para;</a></h4>
-<p>These are set by the production compose file and <code>.env.production.example</code>. Do not change them:</p>
-<table>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Value</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>IS_DEV</code></td>
-<td><code>False</code></td>
-<td>Enforces production security validation</td>
-</tr>
-<tr>
-<td><code>BYPASS_OTP</code></td>
-<td><code>false</code></td>
-<td>Ensures verification codes are always checked</td>
-</tr>
-</tbody>
-</table>
+<p>The following settings default to secure values when not set. They are intentionally omitted
+from the production compose file and <code>.env</code>:</p>
+<ul>
+<li><code>IS_DEV</code> defaults to <code>False</code> (enforces production security validation)</li>
+<li><code>BYPASS_OTP</code> defaults to <code>false</code> (ensures verification codes are always checked)</li>
+</ul>
+<p>If either is set to <code>true</code> with <code>IS_DEV=False</code>, the app refuses to start.</p>
 <h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
 <h4 id="schema-management">Schema management<a class="headerlink" href="#schema-management" title="Permanent link">&para;</a></h4>
 <p>The <code>migrate</code> service runs automatically on every <code>docker compose up</code>. It applies the baseline

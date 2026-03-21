@@ -4,6 +4,31 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## CLI: Verify Email Deliverability
+
+**Status:** Complete
+
+**User Story:**
+As a self-hosting operator provisioning a new Weft ID instance
+I want to verify that email delivery is working before I create my first tenant
+So that I know invitations, MFA codes, and notifications will reach users
+
+**Acceptance Criteria:**
+
+- [x] New module at `app/cli/verify_email.py`, invoked via `docker compose exec app python -m app.cli.verify_email --to <address>`
+- [x] `--to` is the only required argument
+- [x] Exits 0 on success, non-zero on failure
+- [x] Auto-detects configured backend (smtp/sendgrid/resend)
+- [x] Sends test email with clear success/failure reporting
+- [x] SPF, DMARC, DKIM DNS checks with PASS/WARN/MISSING labels
+- [x] DKIM uses backend-aware selectors (s1/s2 for SendGrid, resend for Resend, common selectors for SMTP)
+- [x] DNS checks are informational (do not block exit 0 if email sent)
+- [x] `dnspython` added as dependency
+- [x] 35 unit tests, 98% coverage
+- [x] Self-hosting docs updated to recommend running before `provision_tenant`
+
+---
+
 ## SAML: Group Assertion Transparency (Scope Filtering + Consent Screen Visibility)
 
 **Status:** Complete

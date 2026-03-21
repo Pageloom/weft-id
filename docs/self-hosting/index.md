@@ -347,12 +347,13 @@ can copy `.env.production.example` and edit it manually.
 
 #### Security defaults
 
-These are set by the production compose file and `.env.production.example`. Do not change them:
+The following settings default to secure values when not set. They are intentionally omitted
+from the production compose file and `.env`:
 
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `IS_DEV` | `False` | Enforces production security validation |
-| `BYPASS_OTP` | `false` | Ensures verification codes are always checked |
+* `IS_DEV` defaults to `False` (enforces production security validation)
+* `BYPASS_OTP` defaults to `false` (ensures verification codes are always checked)
+
+If either is set to `true` with `IS_DEV=False`, the app refuses to start.
 
 ### Database
 

@@ -2095,8 +2095,8 @@ def _should_skip_link(raw_value: str) -> bool:
     # Query-only
     if raw_value.startswith("?"):
         return True
-    # Static and branding assets
-    if raw_value.startswith(("/static/", "/branding/")):
+    # Static, branding, and documentation assets
+    if raw_value.startswith(("/static/", "/branding/", "/docs/")):
         return True
     # Entirely Jinja2 (fully dynamic path)
     if raw_value.startswith("{{"):

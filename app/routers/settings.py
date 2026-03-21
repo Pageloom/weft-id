@@ -1,4 +1,4 @@
-"""Settings routes (privileged domains, branding, security)."""
+"""Settings routes (privileged domains, branding, security, about)."""
 
 from typing import Annotated, Literal
 
@@ -23,10 +23,12 @@ from services import branding as branding_service
 from services import groups as groups_service
 from services import saml as saml_service
 from services import settings as settings_service
+from services.activity import track_activity
 from services.exceptions import ServiceError, ValidationError
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
+from version import __version__
 
 router = APIRouter(
     prefix="/admin/settings",
@@ -228,6 +230,23 @@ def unbind_domain_from_idp(
     return RedirectResponse(
         url="/admin/settings/privileged-domains?success=domain_unbound",
         status_code=303,
+    )
+
+
+@router.get("/about", response_class=HTMLResponse)
+def admin_about(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+):
+    """Display the About Weft ID page with version and documentation links."""
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    return templates.TemplateResponse(
+        request,
+        "settings_about.html",
+        get_template_context(request, tenant_id, version=__version__),
     )
 
 

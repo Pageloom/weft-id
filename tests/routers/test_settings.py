@@ -1586,3 +1586,95 @@ def test_delete_group_logo_service_error(test_admin_user, override_auth, mocker)
 
     assert response.status_code == 404
     mock_error.assert_called_once()
+
+
+# =============================================================================
+# About Page
+# =============================================================================
+
+
+def test_about_page_accessible_by_admin(test_admin_user, override_auth, mocker):
+    """Admin can access the about page."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>about</html>"),
+    )
+    mocker.patch(f"{ROUTERS_SETTINGS}.track_activity")
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/about")
+
+    assert response.status_code == 200
+
+
+def test_about_page_accessible_by_super_admin(test_super_admin_user, override_auth, mocker):
+    """Super admin can access the about page."""
+    override_auth(test_super_admin_user, level="super_admin")
+
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>about</html>"),
+    )
+    mocker.patch(f"{ROUTERS_SETTINGS}.track_activity")
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/about")
+
+    assert response.status_code == 200
+
+
+def test_about_page_passes_version_to_template(test_admin_user, override_auth, mocker):
+    """About page passes version to template context."""
+    override_auth(test_admin_user, level="admin")
+
+    mock_context = mocker.patch(
+        f"{ROUTERS_SETTINGS}.get_template_context", return_value={"request": Mock()}
+    )
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>about</html>"),
+    )
+    mocker.patch(f"{ROUTERS_SETTINGS}.track_activity")
+
+    client = TestClient(app)
+    client.get("/admin/settings/about")
+
+    mock_context.assert_called_once()
+    call_kwargs = mock_context.call_args.kwargs
+    assert "version" in call_kwargs
+    assert isinstance(call_kwargs["version"], str)
+
+
+def test_about_page_tracks_activity(test_admin_user, override_auth, mocker):
+    """About page tracks user activity."""
+    override_auth(test_admin_user, level="admin")
+
+    mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
+    mocker.patch(
+        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        return_value=HTMLResponse(content="<html>about</html>"),
+    )
+    mock_track = mocker.patch(f"{ROUTERS_SETTINGS}.track_activity")
+
+    client = TestClient(app)
+    client.get("/admin/settings/about")
+
+    mock_track.assert_called_once_with(
+        str(test_admin_user["tenant_id"]),
+        str(test_admin_user["id"]),
+    )
+
+
+def test_about_page_forbidden_for_regular_user(test_user, override_auth, mocker):
+    """Regular user cannot access the about page."""
+    override_auth(test_user, level="user")
+
+    client = TestClient(app)
+    response = client.get("/admin/settings/about", follow_redirects=False)
+
+    # Admin-required routes redirect non-admins
+    assert response.status_code in (303, 403)

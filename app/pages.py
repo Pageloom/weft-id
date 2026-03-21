@@ -360,6 +360,12 @@ PAGES = [
                         ],
                     ),
                     Page(
+                        path="/admin/settings/about",
+                        title="About",
+                        permission=PagePermission.ADMIN,
+                        show_in_nav=True,
+                    ),
+                    Page(
                         path="/admin/settings/branding",
                         title="Branding",
                         permission=PagePermission.ADMIN,

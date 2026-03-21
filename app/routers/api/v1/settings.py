@@ -12,12 +12,35 @@ from schemas.settings import (
     PrivilegedDomainCreate,
     TenantSecuritySettings,
     TenantSecuritySettingsUpdate,
+    VersionInfo,
 )
 from services import settings as settings_service
 from services.exceptions import ServiceError
 from utils.service_errors import translate_to_http_exception
+from version import __version__
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
+
+
+# =============================================================================
+# Version Info (Admin access)
+# =============================================================================
+
+
+@router.get("/version", response_model=VersionInfo)
+def get_version(
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+):
+    """
+    Get the current Weft ID version.
+
+    Requires admin role.
+
+    Returns:
+        Version information
+    """
+    return VersionInfo(version=__version__)
 
 
 # =============================================================================

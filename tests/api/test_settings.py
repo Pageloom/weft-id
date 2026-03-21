@@ -6,6 +6,59 @@ from uuid import uuid4
 import pytest
 
 # =============================================================================
+# Version Info
+# =============================================================================
+
+
+def test_get_version_as_admin(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can get version info."""
+    response = client.get(
+        "/api/v1/settings/version",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "version" in data
+    assert isinstance(data["version"], str)
+
+
+def test_get_version_as_super_admin(client, test_tenant_host, oauth2_super_admin_access_token):
+    """Super admin can get version info."""
+    response = client.get(
+        "/api/v1/settings/version",
+        headers={
+            "Host": test_tenant_host,
+            "Authorization": f"Bearer {oauth2_super_admin_access_token}",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "version" in data
+
+
+def test_get_version_as_member_forbidden(client, test_tenant_host, oauth2_authorization_header):
+    """Regular member cannot get version info."""
+    response = client.get(
+        "/api/v1/settings/version",
+        headers={"Host": test_tenant_host, **oauth2_authorization_header},
+    )
+
+    assert response.status_code == 403
+
+
+def test_get_version_unauthenticated(client, test_tenant_host):
+    """Unauthenticated request returns 401."""
+    response = client.get(
+        "/api/v1/settings/version",
+        headers={"Host": test_tenant_host},
+    )
+
+    assert response.status_code == 401
+
+
+# =============================================================================
 # Fixtures
 # =============================================================================
 

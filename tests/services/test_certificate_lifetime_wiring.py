@@ -37,7 +37,7 @@ def test_get_or_create_sp_certificate_uses_configured_lifetime(test_tenant, test
         ) as mock_gen,
         patch("services.saml.certificates.encrypt_private_key", return_value=b"enc"),
         patch("services.saml.certificates.get_certificate_expiry", return_value=NOW),
-        patch("services.settings.database") as mock_settings_db,
+        patch("services.settings.security.database") as mock_settings_db,
         patch("services.saml.certificates.log_event"),
     ):
         mock_db.saml.get_sp_certificate.return_value = None
@@ -73,7 +73,7 @@ def test_get_or_create_sp_signing_certificate_uses_configured_lifetime(
         ) as mock_gen,
         patch("utils.saml.encrypt_private_key", return_value=b"enc"),
         patch("utils.saml.get_certificate_expiry", return_value=NOW),
-        patch("services.settings.database") as mock_settings_db,
+        patch("services.settings.security.database") as mock_settings_db,
         patch("services.service_providers.crud.log_event"),
     ):
         mock_db.sp_signing_certificates.get_signing_certificate.return_value = None
@@ -112,7 +112,7 @@ def test_rotate_sp_signing_certificate_uses_configured_lifetime(test_tenant, tes
         ) as mock_gen,
         patch("utils.saml.encrypt_private_key", return_value=b"enc"),
         patch("utils.saml.get_certificate_expiry", return_value=NOW),
-        patch("services.settings.database") as mock_settings_db,
+        patch("services.settings.security.database") as mock_settings_db,
         patch("services.service_providers.signing_certs.log_event"),
     ):
         mock_db.service_providers.get_service_provider.return_value = {

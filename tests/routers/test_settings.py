@@ -8,6 +8,7 @@ from main import app
 
 # Module path constants for cleaner patch targets
 ROUTERS_SETTINGS = "routers.settings"
+ROUTERS_SETTINGS_BRANDING = "routers.settings_branding"
 DB_SETTINGS = "database.settings"
 DB_SECURITY = "database.security"
 UTILS_TEMPLATE = "utils.template_context"
@@ -1238,12 +1239,12 @@ def test_branding_global_page(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         return_value=_mock_branding_settings(),
     )
     mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        f"{ROUTERS_SETTINGS_BRANDING}.templates.TemplateResponse",
         return_value=HTMLResponse(content="<html>branding</html>"),
     )
 
@@ -1260,10 +1261,10 @@ def test_branding_global_service_error(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         side_effect=ServiceError(message="DB error"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
     client = TestClient(app)
@@ -1278,12 +1279,12 @@ def test_branding_groups_page(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         return_value=_mock_branding_settings(),
     )
     mocker.patch(f"{UTILS_TEMPLATE}.get_template_context", return_value={"request": Mock()})
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.templates.TemplateResponse",
+        f"{ROUTERS_SETTINGS_BRANDING}.templates.TemplateResponse",
         return_value=HTMLResponse(content="<html>groups branding</html>"),
     )
 
@@ -1300,10 +1301,10 @@ def test_branding_groups_service_error(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         side_effect=ServiceError(message="DB error"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
     client = TestClient(app)
@@ -1318,7 +1319,7 @@ def test_upload_branding_logo_success(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.upload_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.upload_logo",
         return_value=_mock_branding_settings(),
     )
 
@@ -1340,10 +1341,10 @@ def test_upload_branding_logo_service_error(test_admin_user, override_auth, mock
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.upload_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.upload_logo",
         side_effect=ServiceError(message="Invalid image"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=400)
 
     client = TestClient(app)
@@ -1362,7 +1363,7 @@ def test_delete_branding_logo_success(test_admin_user, override_auth, mocker):
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.delete_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.delete_logo",
         return_value=_mock_branding_settings(),
     )
 
@@ -1383,10 +1384,10 @@ def test_delete_branding_logo_service_error(test_admin_user, override_auth, mock
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.delete_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.delete_logo",
         side_effect=ServiceError(message="Logo not found"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=404)
 
     client = TestClient(app)
@@ -1404,11 +1405,11 @@ def test_update_branding_settings_success(test_admin_user, override_auth, mocker
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         return_value=_mock_branding_settings(),
     )
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.update_branding_settings",
         return_value=_mock_branding_settings(),
     )
 
@@ -1433,10 +1434,10 @@ def test_update_branding_settings_invalid_logo_mode(test_admin_user, override_au
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         return_value=_mock_branding_settings(),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=400)
 
     client = TestClient(app)
@@ -1460,10 +1461,10 @@ def test_update_branding_settings_get_current_error(test_admin_user, override_au
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         side_effect=ServiceError(message="DB error"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
     client = TestClient(app)
@@ -1484,14 +1485,14 @@ def test_update_branding_settings_update_service_error(test_admin_user, override
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.get_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.get_branding_settings",
         return_value=_mock_branding_settings(),
     )
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.update_branding_settings",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.update_branding_settings",
         side_effect=ServiceError(message="Update failed"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=500)
 
     client = TestClient(app)
@@ -1512,7 +1513,7 @@ def test_upload_group_logo_success(test_admin_user, override_auth, mocker):
     """Test uploading a group logo redirects with success."""
     override_auth(test_admin_user, level="admin")
 
-    mocker.patch(f"{ROUTERS_SETTINGS}.branding_service.upload_group_logo")
+    mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.branding_service.upload_group_logo")
 
     client = TestClient(app)
     response = client.post(
@@ -1532,10 +1533,10 @@ def test_upload_group_logo_service_error(test_admin_user, override_auth, mocker)
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.upload_group_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.upload_group_logo",
         side_effect=ServiceError(message="Invalid image"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=400)
 
     client = TestClient(app)
@@ -1553,7 +1554,7 @@ def test_delete_group_logo_success(test_admin_user, override_auth, mocker):
     """Test deleting a group logo redirects with success."""
     override_auth(test_admin_user, level="admin")
 
-    mocker.patch(f"{ROUTERS_SETTINGS}.branding_service.delete_group_logo")
+    mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.branding_service.delete_group_logo")
 
     client = TestClient(app)
     response = client.post(
@@ -1572,10 +1573,10 @@ def test_delete_group_logo_service_error(test_admin_user, override_auth, mocker)
     override_auth(test_admin_user, level="admin")
 
     mocker.patch(
-        f"{ROUTERS_SETTINGS}.branding_service.delete_group_logo",
+        f"{ROUTERS_SETTINGS_BRANDING}.branding_service.delete_group_logo",
         side_effect=ServiceError(message="Group not found"),
     )
-    mock_error = mocker.patch(f"{ROUTERS_SETTINGS}.render_error_page")
+    mock_error = mocker.patch(f"{ROUTERS_SETTINGS_BRANDING}.render_error_page")
     mock_error.return_value = HTMLResponse(content="Error", status_code=404)
 
     client = TestClient(app)

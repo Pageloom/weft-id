@@ -119,7 +119,7 @@ class TestPolicyComplianceEnforcement:
     """Tests for _enforce_password_policy_compliance()."""
 
     def test_flags_users_with_weaker_policy(self):
-        from services.settings import _enforce_password_policy_compliance
+        from services.settings.security import _enforce_password_policy_compliance
 
         tenant_id = str(uuid4())
         actor_id = str(uuid4())
@@ -127,8 +127,8 @@ class TestPolicyComplianceEnforcement:
         user2_id = str(uuid4())
 
         with (
-            patch("services.settings.database") as mock_db,
-            patch("services.settings.log_event") as mock_log,
+            patch("services.settings.security.database") as mock_db,
+            patch("services.settings.security.log_event") as mock_log,
         ):
             mock_db.users.get_users_with_weak_policy.return_value = [
                 {"id": user1_id},
@@ -159,14 +159,14 @@ class TestPolicyComplianceEnforcement:
             assert compliance_events[0].kwargs["metadata"]["affected_users"] == 2
 
     def test_no_users_affected(self):
-        from services.settings import _enforce_password_policy_compliance
+        from services.settings.security import _enforce_password_policy_compliance
 
         tenant_id = str(uuid4())
         actor_id = str(uuid4())
 
         with (
-            patch("services.settings.database") as mock_db,
-            patch("services.settings.log_event") as mock_log,
+            patch("services.settings.security.database") as mock_db,
+            patch("services.settings.security.log_event") as mock_log,
         ):
             mock_db.users.get_users_with_weak_policy.return_value = []
 

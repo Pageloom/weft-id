@@ -212,9 +212,9 @@ def test_privileged_domain_add_logs_event(make_requesting_user):
     domain_id = str(uuid4())
 
     with (
-        patch("services.settings.database") as mock_db,
-        patch("services.settings.track_activity"),
-        patch("services.settings.log_event") as mock_log,
+        patch("services.settings.domains.database") as mock_db,
+        patch("services.settings.domains.track_activity"),
+        patch("services.settings.domains.log_event") as mock_log,
     ):
         # Check domain doesn't exist
         mock_db.settings.privileged_domain_exists.return_value = False
@@ -253,9 +253,9 @@ def test_privileged_domain_delete_logs_event(make_requesting_user):
     unique_domain = f"delete-{uuid4().hex[:8]}.example.com"
 
     with (
-        patch("services.settings.database") as mock_db,
-        patch("services.settings.track_activity"),
-        patch("services.settings.log_event") as mock_log,
+        patch("services.settings.domains.database") as mock_db,
+        patch("services.settings.domains.track_activity"),
+        patch("services.settings.domains.log_event") as mock_log,
     ):
         # Domain lookup returns list of domains
         mock_db.settings.list_privileged_domains.return_value = [
@@ -285,9 +285,9 @@ def test_tenant_settings_update_logs_event(make_requesting_user):
     )
 
     with (
-        patch("services.settings.database") as mock_db,
-        patch("services.settings.track_activity"),
-        patch("services.settings.log_event") as mock_log,
+        patch("services.settings.security.database") as mock_db,
+        patch("services.settings.security.track_activity"),
+        patch("services.settings.security.log_event") as mock_log,
     ):
         # Mock getting current settings to calculate changes
         mock_db.security.get_security_settings.return_value = {

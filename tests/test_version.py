@@ -70,7 +70,8 @@ class TestVersionFallback:
 
             # pyproject.toml candidates don't exist either
             mock_path_cls.return_value.exists.return_value = False
-            pyproject_mock = mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value
+            path_chain = mock_path_cls.return_value.resolve.return_value
+            pyproject_mock = path_chain.parent.parent.__truediv__.return_value
             pyproject_mock.exists.return_value = False
 
             from app.version import _get_version
@@ -101,7 +102,8 @@ class TestVersionFallback:
             mock_path_cls.return_value.exists.return_value = False
 
             # Second candidate (Path(__file__).resolve().parent.parent / "pyproject.toml") exists
-            mock_pyproject = mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value
+            path_chain = mock_path_cls.return_value.resolve.return_value
+            mock_pyproject = path_chain.parent.parent.__truediv__.return_value
             mock_pyproject.exists.return_value = True
             mock_pyproject.read_text.return_value = pyproject.read_text()
 

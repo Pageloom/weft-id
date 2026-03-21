@@ -21,7 +21,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last router refactor:** 2026-02-06 (all 4 large routers split into packages)
 **Last service refactor:** 2026-02-13 (service_providers.py split into package)
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
-**Last copy review:** 2026-03-08 (structural IA review, 2 direct fixes, 6 issues resolved)
+**Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
 
 ---
 

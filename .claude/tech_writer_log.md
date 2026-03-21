@@ -526,3 +526,83 @@ None.
 
 - API error response messages (app/routers/api/) -- copy review pending
 - Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-21 - Copy Review + Documentation (Self-Hosting Restructure)
+
+**Starting commit:** ea01468
+**Mode:** Both (copy review + documentation)
+
+### Mode 2: Documentation — Self-Hosting Restructure
+
+Rewrote `docs/self-hosting/index.md` for a clearer first-setup flow. The previous version mixed
+setup steps with reference material, making it hard for a first-time deployer to follow.
+
+**Structural changes:**
+- Restructured as numbered steps: 1. DNS → 2. Install → 3. Configure email → 4. Start → 5. Provision
+- DNS setup moved from a subsection of "Quick start" to step 1 (DNS propagation takes time, start early)
+- Email configuration extracted as its own step between install and start (clarifies that non-SMTP users need to edit .env before starting)
+- Added "Manual install" collapsible note for users who prefer not to pipe the script
+- Added troubleshooting guidance in step 4 (check service status, view migration logs)
+- Merged "Provisioning additional tenants" into step 5 (was a disconnected section at the bottom)
+- Day-2 operations (Upgrading, Backups, Monitoring) grouped together after the setup steps
+- Architecture, Configuration reference, Database, and TLS details moved under a "Reference" heading at the end
+
+**Content fixes:**
+- Fixed Postgres version: `postgres:16-alpine` → `postgres:18-alpine` (matching docker-compose.production.yml)
+- Updated "MFA secrets" → "two-step verification secrets" in SECRET_KEY description (terminology)
+- Updated "Ensures MFA codes are always verified" → "Ensures verification codes are always checked" (terminology)
+- Clarified that install script only handles SMTP interactively; SendGrid/Resend require editing .env after
+
+### Mode 1: Copy Review — Password Templates + API/Service Error Messages
+
+**Password template copy fixes (5 files):**
+
+1. **forced_password_reset.html:22** — Intro tightened: "An administrator has required you to change your password before continuing. Please choose a new password." → "An administrator has required a password change. Choose a new password."
+2. **forced_password_reset.html:32** — "The password is not strong enough. Please choose a stronger password." → "Password is not strong enough. Choose a stronger password."
+3. **reset_password.html:32** — Same password_too_weak fix (was "The password")
+4. **set_password.html:38** — "Please choose" → "Choose" (already dropped article)
+5. **settings_password.html:39** — "The new password is not strong enough. Please choose..." → "New password is not strong enough. Choose..."
+6. **settings_password.html:21** — "Update your password. We recommend using a password manager to generate and store a strong password." → "Update your password."
+7. **forgot_password.html:11** — "Enter your email address and we'll send you a link to reset your password." → "We'll send a reset link to your email address."
+8. **set_password.html:101** — "After setting your password, you'll be able to sign in and access your account." → "After setting your password, you can sign in."
+
+**Password error message standardization:**
+
+| Error | Before | After |
+|-------|--------|-------|
+| password_too_weak (forced_password_reset) | "The password is not strong enough. Please choose a stronger password." | "Password is not strong enough. Choose a stronger password." |
+| password_too_weak (reset_password) | "The password is not strong enough. Please choose a stronger password." | "Password is not strong enough. Choose a stronger password." |
+| password_too_weak (set_password) | "Password is not strong enough. Please choose a stronger password." | "Password is not strong enough. Choose a stronger password." |
+| password_too_weak (settings_password) | "The new password is not strong enough. Please choose a stronger password." | "New password is not strong enough. Choose a stronger password." |
+
+**API error message review (app/routers/api/):**
+
+Reviewed all files in `app/routers/api/v1/`. Found 11 total messages:
+- 7 "Client not found" in oauth2_clients.py (consistent)
+- 1 "Per-IdP SP certificate not found" in saml.py (correct)
+- 1 "Unknown provider type" in saml.py (uses internal identifiers, acceptable for API consumers)
+- 1 "Failed to create export task" in exports.py
+- 1 "Verification email sent" in users/emails.py
+
+Most API endpoints delegate error handling to `translate_to_http_exception()`, which converts service-layer exceptions to HTTP responses. The direct HTTPException raises are consistent.
+
+**Service layer error message review (app/services/):**
+
+Reviewed 288+ error occurrences across all service modules. Messages are well-structured with descriptive `code` parameters and consistent patterns. Minor inconsistency: some messages have trailing periods, some don't. Not user-facing (these surface through the API or get mapped to template error codes).
+
+### Issues Logged
+
+None. All findings were directly fixable copy changes.
+
+### Screenshots Requested
+
+None.
+
+### Areas Fully Reviewed
+
+All pending areas from previous sessions are now covered:
+- API error response messages (app/routers/api/) — reviewed, consistent
+- Service layer error messages (app/services/) — reviewed, consistent
+- Self-hosting documentation — restructured for first-setup flow

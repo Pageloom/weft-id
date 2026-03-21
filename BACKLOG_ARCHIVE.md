@@ -4,6 +4,47 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## SAML: Group Assertion Transparency (Scope Filtering + Consent Screen Visibility)
+
+**Status:** Complete
+
+**User Story:**
+As a super admin or admin
+I want better control over which group memberships are communicated to downstream service
+providers (all, trunk, or access-relevant groups). As a user I want to see which groups will
+be shared during authentication. This so that admins can minimize group exposure to service
+providers, and users understand what identity information is being disclosed before they consent.
+
+**Acceptance Criteria:**
+
+Group assertion scope setting:
+- [x] New tenant-level setting in admin security settings: "Group assertion scope" with three
+      options: "All groups", "Trunk groups only", "Access-relevant groups only" (default)
+- [x] Per-SP override: each SP can override the tenant default with its own scope setting
+      (null means inherit tenant default)
+- [x] "Trunk groups only" filters the group list to the user's topmost memberships (groups
+      where none of the user's other groups is an ancestor in `group_lineage`)
+- [x] "Access-relevant groups only" filters the group list to groups that grant access to the
+      authenticating SP via `sp_group_assignments`. For `available_to_all` SPs, falls back to
+      trunk groups.
+- [x] Per-SP `include_group_claims = false` takes precedence: no groups communicated regardless
+      of scope (this is existing behavior, unchanged)
+- [x] Setting is persisted with a migration; readable via the settings service
+- [x] Event logged (`group_assertion_scope_updated`) when the tenant setting changes
+- [x] API endpoint exposes and allows updating the tenant setting and per-SP override
+
+Consent screen group disclosure:
+- [x] The consent screen computes the same filtered group list that will appear in the assertion
+- [x] If the SP's `include_group_claims` is true, the consent screen displays the list of groups
+      that will be shared
+- [x] Displayed groups reflect the effective scope (tenant default or SP override)
+- [x] If groups are not being communicated (include_group_claims false, or empty list), the
+      groups section is hidden
+- [x] Groups are listed by name; if the list is long (>10), show a count with a collapsible
+      "show all" expansion
+
+---
+
 ## About Weft ID Page
 
 **Status:** Complete

@@ -70,7 +70,8 @@ class TestVersionFallback:
 
             # pyproject.toml candidates don't exist either
             mock_path_cls.return_value.exists.return_value = False
-            mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value.exists.return_value = False
+            pyproject_mock = mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value
+            pyproject_mock.exists.return_value = False
 
             from app.version import _get_version
 

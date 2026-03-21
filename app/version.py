@@ -22,9 +22,7 @@ def _get_version() -> str:
         Path(__file__).resolve().parent.parent / "pyproject.toml",
     ]:
         if candidate.exists():
-            match = re.search(
-                r'^version\s*=\s*"([^"]+)"', candidate.read_text(), re.MULTILINE
-            )
+            match = re.search(r'^version\s*=\s*"([^"]+)"', candidate.read_text(), re.MULTILINE)
             if match:
                 return match.group(1)
 

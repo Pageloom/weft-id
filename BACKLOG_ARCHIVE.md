@@ -4,6 +4,14 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## About Weft ID Page
+
+**Status:** Complete
+
+Admin settings page at `/admin/settings/about` showing the current version, documentation links, and a link to pageloom.com. Includes API endpoint at `GET /api/v1/settings/version`.
+
+---
+
 ## Forgot Password (Self-Service Reset)
 
 **Status:** Complete

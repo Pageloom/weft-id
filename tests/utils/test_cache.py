@@ -278,7 +278,8 @@ def test_get_client_returns_none_on_import_failure():
     cache._client = None
 
     try:
-        with patch.dict("sys.modules", {"pymemcache": None, "pymemcache.client": None, "pymemcache.client.base": None}):
+        blocked = {"pymemcache": None, "pymemcache.client": None, "pymemcache.client.base": None}
+        with patch.dict("sys.modules", blocked):
             with patch("builtins.__import__", side_effect=ImportError("No module")):
                 result = cache.get_client()
                 assert result is None

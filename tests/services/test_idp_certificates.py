@@ -769,9 +769,7 @@ class TestPrepareAuthMultiCert:
     @patch("services.saml.auth.decrypt_private_key")
     @patch("services.saml.auth.database")
     @patch("services.saml.auth.get_idp_for_saml_login")
-    def test_raises_when_no_certificates(
-        self, mock_get_idp, mock_db, mock_decrypt, mock_get_certs
-    ):
+    def test_raises_when_no_certificates(self, mock_get_idp, mock_db, mock_decrypt, mock_get_certs):
         """When IdP has no certificates at all, raises ValidationError."""
         from services.exceptions import ValidationError
 

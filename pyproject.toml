@@ -28,6 +28,7 @@ pymemcache = "^4.0.0"
 python3-saml = "^1.16.0"
 qrcode = {extras = ["pil"], version = "^8.0"}
 ua-parser = "^1.0.1"
+defusedxml = "^0.7.1"
 httpx = "^0.28.1"
 werkzeug = ">=3.1.6"
 zxcvbn = "^4.5.0"

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-03-21
+
+### Fixed
+
+- Fixed missing `httpx` runtime dependency that could cause import errors in production
+
 ## [1.0.1] - 2026-03-21
 
 ### Changed

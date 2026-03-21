@@ -30,9 +30,12 @@ The consent screen shows:
 
 - The application name
 - The user's name and email
+- The groups that will be shared (if [group claims](attribute-mapping.md#group-claims) are enabled for the SP). If the list exceeds ten groups, a "Show all" toggle reveals the rest.
 - A **Continue** button to proceed
 - A **Cancel** button to return to the dashboard
 - A **Switch account** option to sign in as a different user
+
+The groups displayed on the consent screen are the same groups that will appear in the assertion, filtered according to the effective [group assertion scope](attribute-mapping.md#group-assertion-scope).
 
 ## What's in the assertion
 
@@ -40,7 +43,7 @@ The SAML assertion contains:
 
 - **Issuer** -- WeftId's entity ID (unique per SP connection)
 - **NameID** -- User identifier in the configured format (email, persistent, or transient)
-- **Attributes** -- Email, first name, last name, display name, and optionally group memberships
+- **Attributes** -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective [group assertion scope](attribute-mapping.md#group-assertion-scope))
 - **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation
 - **Signature** -- Signed with the SP's per-SP signing certificate
 - **Encryption** -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC, RSA-OAEP key transport). See [Assertion Encryption](attribute-mapping.md#assertion-encryption).

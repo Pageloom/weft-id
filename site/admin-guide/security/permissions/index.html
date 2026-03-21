@@ -1546,6 +1546,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#group-assertion-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group assertion scope
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2181,6 +2192,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#group-assertion-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group assertion scope
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2203,6 +2225,32 @@
 <p>When enabled, users can change their own name on the profile page. When disabled, only admins can update user names.</p>
 <h2 id="allow-users-to-add-email-addresses">Allow users to add email addresses<a class="headerlink" href="#allow-users-to-add-email-addresses" title="Permanent link">&para;</a></h2>
 <p>When enabled, users can add and verify additional email addresses on their account. When disabled, only admins can manage user email addresses.</p>
+<h2 id="group-assertion-scope">Group assertion scope<a class="headerlink" href="#group-assertion-scope" title="Permanent link">&para;</a></h2>
+<p>Controls which group memberships are shared with service providers during SAML sign-in. This setting is the tenant-wide default. Each SP can override it on its <strong>Attributes</strong> tab.</p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>What's shared</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Access-granting groups only</strong> (default)</td>
+<td>Only the groups that grant the user access to the SP. For SPs available to everyone, top-level groups are shared instead.</td>
+</tr>
+<tr>
+<td><strong>Top-level groups only</strong></td>
+<td>The user's highest-level group memberships, without enumerating nested groups.</td>
+</tr>
+<tr>
+<td><strong>All groups</strong></td>
+<td>All of the user's group memberships, including nested and inherited groups.</td>
+</tr>
+</tbody>
+</table>
+<p>If group claims are disabled on a specific SP, no groups are shared regardless of this setting.</p>
+<p>For details on how scope affects assertions, see <a href="../../service-providers/attribute-mapping/#group-claims">Group claims</a>. Changes to this setting are recorded in the <a href="../../audit/">audit log</a>.</p>
 
 
 

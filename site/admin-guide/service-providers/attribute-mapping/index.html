@@ -1166,6 +1166,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Group claims">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#group-assertion-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group assertion scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2223,6 +2240,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Group claims">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#group-assertion-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group assertion scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2315,7 +2349,38 @@
 </tbody>
 </table>
 <h2 id="group-claims">Group claims<a class="headerlink" href="#group-claims" title="Permanent link">&para;</a></h2>
-<p>To include the user's group memberships in the assertion, enable <strong>Include group claims</strong> on the SP's settings. When enabled, a <code>groups</code> attribute is added containing the names of all groups the user belongs to.</p>
+<p>To include the user's group memberships in the assertion, enable <strong>Share group membership information</strong> on the SP's <strong>Attributes</strong> tab. When enabled, a <code>groups</code> attribute is added to the assertion.</p>
+<h3 id="group-assertion-scope">Group assertion scope<a class="headerlink" href="#group-assertion-scope" title="Permanent link">&para;</a></h3>
+<p>Which groups are included depends on the <strong>group assertion scope</strong> setting. The tenant-wide default is set in <strong>Settings &gt; Security &gt; <a href="../../security/permissions/">Permissions</a></strong>. Each SP can override it on its <strong>Attributes</strong> tab.</p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>What's shared</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Access-granting groups only</strong> (default)</td>
+<td>Only the groups that grant the user access to this SP (via <a href="../../groups/group-based-access/">group assignments</a>). For SPs set to "available to all", top-level groups are shared instead since there are no access-granting groups.</td>
+</tr>
+<tr>
+<td><strong>Top-level groups only</strong></td>
+<td>The user's highest-level group memberships. Nested groups are omitted. A top-level group is one where none of the user's other effective groups is an ancestor of it.</td>
+</tr>
+<tr>
+<td><strong>All groups</strong></td>
+<td>Every group the user belongs to, including nested and inherited groups.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Scope resolution order:</strong></p>
+<ol>
+<li>If <strong>Share group membership information</strong> is disabled on the SP, no groups are shared (regardless of scope).</li>
+<li>If the SP has a scope override, that scope is used.</li>
+<li>Otherwise, the tenant default applies.</li>
+</ol>
+<p>The <a href="../sso-flow/#consent-screen">consent screen</a> shows users exactly which groups will be shared before they approve the sign-in.</p>
 <h2 id="custom-mappings">Custom mappings<a class="headerlink" href="#custom-mappings" title="Permanent link">&para;</a></h2>
 <p>If the application expects attributes with specific names, configure custom mappings on the SP's <strong>Attributes</strong> tab. Each mapping translates a WeftId attribute to the name the application expects.</p>
 <p>For example, if the application expects <code>urn:oid:0.9.2342.19200300.100.1.3</code> for email, create a mapping from <code>email</code> to that OID.</p>

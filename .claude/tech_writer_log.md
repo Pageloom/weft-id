@@ -476,6 +476,52 @@ Compared 37 commits since last session against documentation pages. Identified 2
 
 None.
 
+### Areas Not Yet Reviewed (as of 2026-03-21)
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-21 - Documentation Update (Group Assertion Scope)
+
+**Starting commit:** 2e66a95
+**Mode:** Documentation
+
+### Gap Analysis
+
+Compared 8 commits since last session (3b452dc..HEAD) against documentation pages. One new feature needed documenting: group assertion scope with consent screen disclosure.
+
+### Pages Updated (7)
+
+1. **`docs/admin-guide/service-providers/attribute-mapping.md`** -- Expanded "Group claims" section. Added "Group assertion scope" subsection with scope table (access-granting, top-level, all), resolution order, and consent screen cross-reference.
+2. **`docs/admin-guide/service-providers/sso-flow.md`** -- Updated consent screen section to mention group disclosure with 10-item threshold. Updated "What's in the assertion" to reference group assertion scope.
+3. **`docs/admin-guide/security/permissions.md`** -- Added "Group assertion scope" section with scope table, default behavior, and cross-references to attribute mapping and audit docs.
+4. **`docs/admin-guide/groups/group-based-access.md`** -- Added "Groups in assertions" section explaining relationship between access and assertion scope.
+5. **`docs/admin-guide/security/index.md`** -- Added group assertion scope to the overview description.
+6. **`docs/admin-guide/audit/index.md`** -- Added group assertion scope changes to Settings event category.
+7. **`docs/glossary.md`** -- Added "Group assertion scope" definition. Updated "Consent screen" to mention group disclosure.
+
+### Features Documented
+
+| Feature | Where Documented |
+|---------|-----------------|
+| Group assertion scope (tenant default) | permissions.md (new section), attribute-mapping.md (new subsection) |
+| Per-SP scope override | attribute-mapping.md (scope resolution order) |
+| Consent screen group disclosure | sso-flow.md (updated consent screen section) |
+| Scope options (access-granting, trunk, all) | attribute-mapping.md, permissions.md, glossary.md |
+
+### Not Documented (Intentional)
+
+- Version bumps (1.0.4) -- no user-facing changes
+- Dependency bumps -- no user-facing changes
+- Zensical 0.0.28 docs rebuild -- infrastructure only
+- Production Dockerfile version extraction -- internal build change
+
+### Screenshots Requested
+
+None.
+
 ### Areas Not Yet Reviewed
 
 - API error response messages (app/routers/api/) -- copy review pending

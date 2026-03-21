@@ -2317,7 +2317,7 @@
 <dt><strong>Trust relationship</strong></dt>
 <dd>A cryptographic agreement between an IdP and an SP, established by exchanging metadata and certificates. Each side knows the other's entity ID and public key, enabling signature verification and secure communication. In WeftId, each connection gets its own trust relationship with independent certificates.</dd>
 <dt><strong>Consent screen</strong></dt>
-<dd>A confirmation page shown to the user during SSO before WeftId sends an assertion to the application. Displays the application name and the user's identity. The user can proceed, cancel, or switch accounts.</dd>
+<dd>A confirmation page shown to the user during SSO before WeftId sends an assertion to the application. Displays the application name, the user's identity, and (when group claims are enabled) the groups that will be shared. The user can proceed, cancel, or switch accounts.</dd>
 </dl>
 <h2 id="saml-20">SAML 2.0<a class="headerlink" href="#saml-20" title="Permanent link">&para;</a></h2>
 <dl>
@@ -2395,6 +2395,8 @@
 <dd>Parent-child relationships between groups, forming a directed acyclic graph (DAG). A group can have multiple parents and multiple children. The only constraint is that no group can be both an ancestor and a descendant of another (no cycles). See <a href="../admin-guide/groups/group-hierarchy/">Group Hierarchy</a>.</dd>
 <dt><strong>DAG (Directed Acyclic Graph)</strong></dt>
 <dd>A graph structure where edges have direction and no cycles exist. WeftId uses a DAG for group hierarchy rather than a simple tree, allowing groups to have multiple parents. For example, an "Engineering" group could be a child of both "Product" and "Technology".</dd>
+<dt><strong>Group assertion scope</strong></dt>
+<dd>A setting that controls which group memberships are included in SAML assertions sent to service providers. Three options: "access-granting groups only" (default, shares only groups that grant access to the specific SP), "top-level groups only" (shares the user's highest-level memberships without nested groups), and "all groups" (shares every effective membership). The tenant-wide default is set in security permissions. Each SP can override it. See <a href="../admin-guide/service-providers/attribute-mapping/#group-claims">Group claims</a>.</dd>
 <dt><strong>Group-based access</strong></dt>
 <dd>Restricting which users can access an application by assigning specific groups to the SP. Only users who belong to an assigned group (directly or through the hierarchy) can access the application. The alternative is "available to all", which grants access to every active user. See <a href="../admin-guide/groups/group-based-access/">Group-Based Access</a>.</dd>
 <dt><strong>IdP group</strong></dt>

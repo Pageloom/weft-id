@@ -1,6 +1,6 @@
 # Security Settings
 
-Configure password policy, session behavior, certificate lifecycle, user permissions, and two-step verification for your tenant.
+Configure password policy, session behavior, certificate lifecycle, user permissions, group assertion scope, and two-step verification for your tenant.
 
 - [Passwords](passwords.md) — Password strength, breach detection, forced resets
 - [Sessions](sessions.md) — Session timeout, persistent sessions, inactivation thresholds

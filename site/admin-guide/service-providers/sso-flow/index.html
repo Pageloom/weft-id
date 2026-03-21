@@ -2267,16 +2267,18 @@
 <ul>
 <li>The application name</li>
 <li>The user's name and email</li>
+<li>The groups that will be shared (if <a href="../attribute-mapping/#group-claims">group claims</a> are enabled for the SP). If the list exceeds ten groups, a "Show all" toggle reveals the rest.</li>
 <li>A <strong>Continue</strong> button to proceed</li>
 <li>A <strong>Cancel</strong> button to return to the dashboard</li>
 <li>A <strong>Switch account</strong> option to sign in as a different user</li>
 </ul>
+<p>The groups displayed on the consent screen are the same groups that will appear in the assertion, filtered according to the effective <a href="../attribute-mapping/#group-assertion-scope">group assertion scope</a>.</p>
 <h2 id="whats-in-the-assertion">What's in the assertion<a class="headerlink" href="#whats-in-the-assertion" title="Permanent link">&para;</a></h2>
 <p>The SAML assertion contains:</p>
 <ul>
 <li><strong>Issuer</strong> -- WeftId's entity ID (unique per SP connection)</li>
 <li><strong>NameID</strong> -- User identifier in the configured format (email, persistent, or transient)</li>
-<li><strong>Attributes</strong> -- Email, first name, last name, display name, and optionally group memberships</li>
+<li><strong>Attributes</strong> -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective <a href="../attribute-mapping/#group-assertion-scope">group assertion scope</a>)</li>
 <li><strong>Session index</strong> -- Unique session identifier for <a href="../slo/">Single Logout</a> correlation</li>
 <li><strong>Signature</strong> -- Signed with the SP's per-SP signing certificate</li>
 <li><strong>Encryption</strong> -- If the application provides an encryption certificate, the signed assertion is encrypted (AES-256-CBC, RSA-OAEP key transport). See <a href="../attribute-mapping/#assertion-encryption">Assertion Encryption</a>.</li>

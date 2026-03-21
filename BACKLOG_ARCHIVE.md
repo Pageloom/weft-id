@@ -4,6 +4,25 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Rename Production Compose File to docker-compose.yml on Install
+
+**Status:** Complete
+
+**User Story:**
+As a self-hosting operator
+I want the production compose file to be named `docker-compose.yml` in my install directory
+So that I can run `docker compose up -d` without remembering the `-f` flag every time
+
+**Acceptance Criteria:**
+
+- [x] `install.sh` downloads `docker-compose.production.yml` but saves it as `docker-compose.yml`
+- [x] Post-install output in `install.sh` uses `docker compose up -d` (no `-f` flag)
+- [x] Self-hosting docs manual download instructions encourage renaming to `docker-compose.yml`
+- [x] All `docker compose -f docker-compose.production.yml` examples in docs are replaced with plain `docker compose`
+- [x] Documentation site rebuilt (`make docs`)
+
+---
+
 ## CLI: Verify Email Deliverability
 
 **Status:** Complete

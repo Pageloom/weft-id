@@ -45,7 +45,7 @@ curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | b
 
 This creates three files in the current directory:
 
-* `docker-compose.production.yml` — service definitions
+* `docker-compose.yml` — service definitions (downloaded from `docker-compose.production.yml` in the repo)
 * `Caddyfile` — reverse proxy with automatic HTTPS
 * `.env` — your configuration (secrets, domain, SMTP)
 
@@ -57,8 +57,9 @@ email backend (see [Email configuration](#email)).
     If you prefer not to pipe a script, download the three files yourself:
 
     ```bash
-    # Download production files
-    curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml
+    # Download production compose file and rename so docker compose finds it by default
+    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml \
+      -o docker-compose.yml
     curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
 
     # Copy and edit .env
@@ -111,7 +112,7 @@ provider, edit `.env` before starting the services.
 ## 4. Start the services
 
 ```bash
-docker compose -f docker-compose.production.yml up -d
+docker compose up -d
 ```
 
 On first start, the `migrate` service applies the database schema, then the app starts. Caddy
@@ -120,13 +121,13 @@ obtains a TLS certificate for each subdomain automatically as tenants are first 
 Check that everything is running:
 
 ```bash
-docker compose -f docker-compose.production.yml ps
+docker compose ps
 ```
 
 All services should show as healthy. If the migrate service failed, check its logs:
 
 ```bash
-docker compose -f docker-compose.production.yml logs migrate
+docker compose logs migrate
 ```
 
 ## 5. Verify email delivery
@@ -135,7 +136,7 @@ Before provisioning a tenant, verify that email delivery is working. The foundin
 receives an invitation email, so broken email configuration means they cannot complete setup.
 
 ```bash
-docker compose -f docker-compose.production.yml exec app \
+docker compose exec app \
   python -m app.cli.verify_email --to you@example.com
 ```
 
@@ -153,7 +154,7 @@ production to improve deliverability.
 Once the services are running, create a tenant and its founding super admin:
 
 ```bash
-docker compose -f docker-compose.production.yml exec app \
+docker compose exec app \
   python -m app.cli.provision_tenant \
     --subdomain acme \
     --tenant-name "Acme Corp" \
@@ -193,10 +194,10 @@ and those changes cannot be reversed automatically.
 2. **Back up the database** (data and roles):
 
     ```bash
-    docker compose -f docker-compose.production.yml exec db \
+    docker compose exec db \
       pg_dumpall -U postgres --roles-only > roles-$(date +%Y%m%d).sql
 
-    docker compose -f docker-compose.production.yml exec db \
+    docker compose exec db \
       pg_dump -U postgres appdb > backup-$(date +%Y%m%d).sql
     ```
 
@@ -220,8 +221,8 @@ and those changes cannot be reversed automatically.
 3. Pull the new image and restart:
 
 ```bash
-docker compose -f docker-compose.production.yml pull
-docker compose -f docker-compose.production.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 The `migrate` service runs automatically and applies any pending schema migrations before the
@@ -244,7 +245,7 @@ requires a fresh database because the migrated schema cannot be downgraded in pl
 1. Stop the services:
 
     ```bash
-    docker compose -f docker-compose.production.yml down
+    docker compose down
     ```
 
 2. Remove the database volume to start clean:
@@ -258,23 +259,23 @@ requires a fresh database because the migrated schema cannot be downgraded in pl
 4. Start the database only (so the baseline schema is applied):
 
     ```bash
-    docker compose -f docker-compose.production.yml up -d db
+    docker compose up -d db
     ```
 
 5. Wait for the database to be healthy, then restore roles and data:
 
     ```bash
-    docker compose -f docker-compose.production.yml exec -T db \
+    docker compose exec -T db \
       psql -U postgres < roles-20250315.sql
 
-    docker compose -f docker-compose.production.yml exec -T db \
+    docker compose exec -T db \
       psql -U postgres appdb < backup-20250315.sql
     ```
 
 6. Start the remaining services:
 
     ```bash
-    docker compose -f docker-compose.production.yml up -d
+    docker compose up -d
     ```
 
 7. If using local file storage, restore the storage volume from your backup.
@@ -290,21 +291,21 @@ creates Postgres roles (`appowner` and `appuser`) that `pg_dump` does not captur
 
 ```bash
 # Roles (appowner, appuser, migrator)
-docker compose -f docker-compose.production.yml exec db \
+docker compose exec db \
   pg_dumpall -U postgres --roles-only > roles-$(date +%Y%m%d).sql
 
 # Data
-docker compose -f docker-compose.production.yml exec db \
+docker compose exec db \
   pg_dump -U postgres appdb > backup-$(date +%Y%m%d).sql
 ```
 
 To restore onto a fresh database, apply roles first, then data:
 
 ```bash
-docker compose -f docker-compose.production.yml exec -T db \
+docker compose exec -T db \
   psql -U postgres < roles-20250315.sql
 
-docker compose -f docker-compose.production.yml exec -T db \
+docker compose exec -T db \
   psql -U postgres appdb < backup-20250315.sql
 ```
 
@@ -352,13 +353,13 @@ View logs for all services or a specific one:
 
 ```bash
 # All services
-docker compose -f docker-compose.production.yml logs -f
+docker compose logs -f
 
 # App only
-docker compose -f docker-compose.production.yml logs -f app
+docker compose logs -f app
 
 # Migration output
-docker compose -f docker-compose.production.yml logs migrate
+docker compose logs migrate
 ```
 
 ---
@@ -440,7 +441,7 @@ The migrate service connects as the PostgreSQL superuser (`postgres`). The app c
 #### Checking migration status
 
 ```bash
-docker compose -f docker-compose.production.yml exec db \
+docker compose exec db \
   psql -U postgres -d appdb \
   -c "SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id"
 ```

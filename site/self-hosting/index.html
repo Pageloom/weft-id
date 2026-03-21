@@ -2703,9 +2703,12 @@ docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> 
 <span class="w">  </span>alpine<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>/backup/storage-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.tar.gz<span class="w"> </span>-C<span class="w"> </span>/data<span class="w"> </span>.
 </code></pre></div>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
-<p>Keep a copy of your <code>.env</code> file. It contains your secrets and all configuration. Losing
-<code>SECRET_KEY</code> invalidates all active sessions, two-step verification secrets, and SAML signing
-keys.</p>
+<p>Your <code>.env</code> file contains <code>SECRET_KEY</code> (the master encryption key) and <code>POSTGRES_PASSWORD</code>.
+These cannot be recovered or regenerated. Losing <code>SECRET_KEY</code> invalidates all active sessions,
+two-step verification secrets, and SAML signing keys. Losing <code>POSTGRES_PASSWORD</code> locks you out
+of the database.</p>
+<p>Store a copy of <code>.env</code> somewhere secure outside the server (for example, in a password manager
+or an encrypted vault). Do not commit it to version control.</p>
 <h2 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h2>
 <h3 id="health-check">Health check<a class="headerlink" href="#health-check" title="Permanent link">&para;</a></h3>
 <p>The app exposes a health endpoint at <code>/healthz</code> that returns:</p>

@@ -303,9 +303,13 @@ docker run --rm \
 
 ### Configuration
 
-Keep a copy of your `.env` file. It contains your secrets and all configuration. Losing
-`SECRET_KEY` invalidates all active sessions, two-step verification secrets, and SAML signing
-keys.
+Your `.env` file contains `SECRET_KEY` (the master encryption key) and `POSTGRES_PASSWORD`.
+These cannot be recovered or regenerated. Losing `SECRET_KEY` invalidates all active sessions,
+two-step verification secrets, and SAML signing keys. Losing `POSTGRES_PASSWORD` locks you out
+of the database.
+
+Store a copy of `.env` somewhere secure outside the server (for example, in a password manager
+or an encrypted vault). Do not commit it to version control.
 
 ## Monitoring
 

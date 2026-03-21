@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Missing rate limiting on password change endpoints
+
+**Status:** Resolved (2026-03-21)
+**Original Severity:** Medium
+
+**Resolution:** Added `ratelimit.prevent()` calls (5 per user per hour, 10 per IP per hour) to both the web form handler (`POST /account/password`) and API endpoint (`PUT /api/v1/users/me/password`). Uses the same pattern as forgot-password rate limiting. Web form returns `?error=too_many_attempts` redirect. API returns 429 via `translate_to_http_exception`. Added 4 tests covering both endpoints (rate limit triggered, service not called).
+
+---
+
+### [SECURITY] Content injection via unvalidated query parameters in flash messages
+
+**Status:** Resolved (2026-03-21)
+**Original Severity:** Medium
+
+**Resolution:** Replaced all fallthrough `{{ error }}` and `{{ success }}` template branches with "An unexpected error occurred. Please try again." in 5 templates: `set_password.html`, `settings_password.html`, `forced_password_reset.html`, `reset_password.html`, `forgot_password.html`. Also added `too_many_attempts` as a known error code in `settings_password.html` for the new rate limiting. Attackers can no longer inject arbitrary text via crafted URLs.
+
+---
+
 ### [COMPLIANCE] SendGrid client missing request timeout
 
 **Status:** Resolved (2026-03-19)

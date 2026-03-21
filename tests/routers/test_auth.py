@@ -1720,3 +1720,275 @@ def test_dashboard_shows_empty_my_apps(test_user, mocker):
     ctx_kwargs = mock_context.call_args
     assert "user_apps" in ctx_kwargs.kwargs
     assert ctx_kwargs.kwargs["user_apps"] == []
+
+
+# =============================================================================
+# Forced Password Reset (Login Flow)
+# =============================================================================
+
+
+def test_password_step_redirects_to_forced_reset(test_tenant, mocker):
+    """When password_reset_required is set, login redirects to forced reset page."""
+    from fastapi.responses import HTMLResponse
+
+    override_tenant(app, test_tenant["id"])
+
+    user_id = "user-123"
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(
+        f"{AUTH_LOGIN}.verify_login_with_status",
+        return_value={
+            "status": "success",
+            "user": {
+                "id": user_id,
+                "mfa_method": "email",
+                "password_reset_required": True,
+            },
+        },
+    )
+    mocker.patch(f"{AUTH_LOGIN}.saml_service.get_enabled_idps_for_login", return_value=[])
+    mocker.patch(f"{AUTH_LOGIN}.ratelimit")
+    mocker.patch(f"{AUTH_LOGIN}.templates.TemplateResponse", return_value=HTMLResponse(""))
+    mocker.patch("starlette.requests.Request.session", {})
+
+    client = TestClient(app)
+    response = client.post(
+        "/login",
+        data={"email": "user@example.com", "password": "testpass"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login/reset-password"
+
+
+def test_forced_reset_page_renders(test_tenant, mocker):
+    """GET /login/reset-password renders the reset page when session is valid."""
+    from fastapi.responses import HTMLResponse
+
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mock_template = mocker.patch(
+        f"{AUTH_LOGIN}.templates.TemplateResponse",
+        return_value=HTMLResponse("<html>reset</html>"),
+    )
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 14, "minimum_zxcvbn_score": 3},
+    )
+    mocker.patch(f"{AUTH_LOGIN}.users_service.get_user_by_id_raw", return_value={"role": "user"})
+    mocker.patch(
+        "starlette.requests.Request.session", {"pending_password_reset_user_id": "user-123"}
+    )
+
+    client = TestClient(app)
+    response = client.get("/login/reset-password")
+
+    assert response.status_code == 200
+    mock_template.assert_called_once()
+    call_args = mock_template.call_args[0]
+    assert call_args[1] == "forced_password_reset.html"
+
+
+def test_forced_reset_page_super_admin_minimum_length(test_tenant, mocker):
+    """Super admin forced reset enforces minimum 14 char even if policy is lower."""
+    from fastapi.responses import HTMLResponse
+
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mock_template = mocker.patch(
+        f"{AUTH_LOGIN}.templates.TemplateResponse",
+        return_value=HTMLResponse("<html>reset</html>"),
+    )
+    mocker.patch(
+        f"{AUTH_LOGIN}.settings_service.get_password_policy",
+        return_value={"minimum_password_length": 8, "minimum_zxcvbn_score": 3},
+    )
+    mocker.patch(
+        f"{AUTH_LOGIN}.users_service.get_user_by_id_raw",
+        return_value={"role": "super_admin"},
+    )
+    mocker.patch(
+        "starlette.requests.Request.session", {"pending_password_reset_user_id": "user-123"}
+    )
+
+    client = TestClient(app)
+    response = client.get("/login/reset-password")
+
+    assert response.status_code == 200
+    ctx = mock_template.call_args[0][2]
+    assert ctx["minimum_password_length"] == 14
+
+
+def test_forced_reset_page_no_session_redirects(test_tenant, mocker):
+    """GET /login/reset-password without session redirects to login."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch("starlette.requests.Request.session", {})
+
+    client = TestClient(app)
+    response = client.get("/login/reset-password", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_forced_reset_post_success(test_tenant, mocker):
+    """POST /login/reset-password completes reset and proceeds to MFA."""
+    override_tenant(app, test_tenant["id"])
+
+    user_id = "user-123"
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mock_complete = mocker.patch(f"{AUTH_LOGIN}.users_service.complete_forced_password_reset")
+    mocker.patch(
+        f"{AUTH_LOGIN}.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "mfa_method": "totp"},
+    )
+    mocker.patch("starlette.requests.Request.session", {"pending_password_reset_user_id": user_id})
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "NewSecurePass1!", "new_password_confirm": "NewSecurePass1!"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/mfa/verify"
+    mock_complete.assert_called_once()
+
+
+def test_forced_reset_post_sends_email_mfa(test_tenant, mocker):
+    """POST /login/reset-password sends MFA code for email MFA users."""
+    override_tenant(app, test_tenant["id"])
+
+    user_id = "user-123"
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(f"{AUTH_LOGIN}.users_service.complete_forced_password_reset")
+    mocker.patch(
+        f"{AUTH_LOGIN}.users_service.get_user_by_id_raw",
+        return_value={"id": user_id, "mfa_method": "email"},
+    )
+    mocker.patch(f"{AUTH_LOGIN}.create_email_otp", return_value="123456")
+    mocker.patch(f"{AUTH_LOGIN}.emails_service.get_primary_email", return_value="user@example.com")
+    mock_send = mocker.patch(f"{AUTH_LOGIN}.send_mfa_code_email")
+    mocker.patch("starlette.requests.Request.session", {"pending_password_reset_user_id": user_id})
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "NewSecurePass1!", "new_password_confirm": "NewSecurePass1!"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    mock_send.assert_called_once_with("user@example.com", "123456")
+
+
+def test_forced_reset_post_no_session_redirects(test_tenant, mocker):
+    """POST /login/reset-password without session redirects to login."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch("starlette.requests.Request.session", {})
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "pass", "new_password_confirm": "pass"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_forced_reset_post_passwords_dont_match(test_tenant, mocker):
+    """POST /login/reset-password with mismatched passwords redirects with error."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(
+        "starlette.requests.Request.session", {"pending_password_reset_user_id": "user-123"}
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "pass1", "new_password_confirm": "pass2"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=passwords_dont_match" in response.headers["location"]
+
+
+def test_forced_reset_post_service_error(test_tenant, mocker):
+    """POST /login/reset-password with service error redirects with error code."""
+    from services.exceptions import ServiceError
+
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(
+        f"{AUTH_LOGIN}.users_service.complete_forced_password_reset",
+        side_effect=ServiceError(message="Password too weak", code="weak_password"),
+    )
+    mocker.patch(
+        "starlette.requests.Request.session", {"pending_password_reset_user_id": "user-123"}
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "weak", "new_password_confirm": "weak"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=weak_password" in response.headers["location"]
+
+
+def test_forced_reset_post_user_not_found_after_reset(test_tenant, mocker):
+    """POST /login/reset-password redirects to login if user disappears after reset."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(f"{AUTH_LOGIN}.users_service.complete_forced_password_reset")
+    mocker.patch(f"{AUTH_LOGIN}.users_service.get_user_by_id_raw", return_value=None)
+    mocker.patch(
+        "starlette.requests.Request.session", {"pending_password_reset_user_id": "user-123"}
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/login/reset-password",
+        data={"new_password": "pass", "new_password_confirm": "pass"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+# =============================================================================
+# Email Verification Edge Cases
+# =============================================================================
+
+
+def test_verify_page_expired_cookie(test_tenant, mocker):
+    """GET /login/verify with expired/invalid cookie redirects to login."""
+    override_tenant(app, test_tenant["id"])
+
+    mocker.patch(f"{AUTH_LOGIN}.get_current_user", return_value=None)
+    mocker.patch(f"{AUTH_LOGIN}.get_verification_cookie_email", return_value=None)
+
+    client = TestClient(app)
+    client.cookies.set("email_verify_pending", "expired-token")
+    response = client.get("/login/verify", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "error=session_expired" in response.headers["location"]

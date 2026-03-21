@@ -226,3 +226,94 @@ class TestCheckHibpBreaches:
 
             assert result["tenants_processed"] == 0
             assert result["breaches_found"] == 0
+
+    def test_tenant_exception_logged_and_continues(self):
+        """When processing one tenant fails, error is logged and other tenants still run."""
+        from jobs.check_hibp_breaches import check_hibp_breaches
+
+        tenant1 = str(uuid4())
+        tenant2 = str(uuid4())
+
+        with (
+            patch("jobs.check_hibp_breaches.database") as mock_db,
+            patch("jobs.check_hibp_breaches.derive_hmac_key", return_value=b"k" * 32),
+            patch("jobs.check_hibp_breaches.session") as mock_session,
+            patch("jobs.check_hibp_breaches._process_tenant") as mock_process,
+        ):
+            mock_db.security.get_all_tenant_ids.return_value = [
+                {"tenant_id": tenant1},
+                {"tenant_id": tenant2},
+            ]
+            # First tenant fails, second succeeds
+            mock_session.side_effect = [
+                MagicMock(__enter__=MagicMock(side_effect=RuntimeError("DB crash"))),
+                MagicMock(
+                    __enter__=MagicMock(return_value=None),
+                    __exit__=MagicMock(return_value=False),
+                ),
+            ]
+            mock_process.return_value = {"count": 0, "user_ids": []}
+
+            result = check_hibp_breaches()
+
+            assert result["tenants_processed"] == 2
+            # First tenant's error is recorded in details
+            assert any("error" in d for d in result["details"])
+
+    def test_breaches_appended_to_details(self):
+        """When breaches are found, tenant details include user IDs."""
+        from jobs.check_hibp_breaches import check_hibp_breaches
+
+        tenant_id = str(uuid4())
+        user_id = str(uuid4())
+
+        with (
+            patch("jobs.check_hibp_breaches.database") as mock_db,
+            patch("jobs.check_hibp_breaches.derive_hmac_key", return_value=b"k" * 32),
+            patch("jobs.check_hibp_breaches.session"),
+            patch("jobs.check_hibp_breaches._process_tenant") as mock_process,
+        ):
+            mock_db.security.get_all_tenant_ids.return_value = [{"tenant_id": tenant_id}]
+            mock_process.return_value = {"count": 1, "user_ids": [user_id]}
+
+            result = check_hibp_breaches()
+
+            assert result["breaches_found"] == 1
+            assert len(result["details"]) == 1
+            assert result["details"][0]["tenant_id"] == tenant_id
+            assert result["details"][0]["user_ids"] == [user_id]
+
+
+class TestNotifyAdmins:
+    """Tests for _notify_admins()."""
+
+    def test_sends_email_to_all_admins(self):
+        from jobs.check_hibp_breaches import _notify_admins
+
+        with (
+            patch("jobs.check_hibp_breaches.database") as mock_db,
+            patch("jobs.check_hibp_breaches.send_hibp_breach_admin_notification") as mock_send,
+        ):
+            mock_db.users.get_admin_emails.return_value = ["admin1@test.com", "admin2@test.com"]
+
+            _notify_admins("tenant-1", 3)
+
+            assert mock_send.call_count == 2
+            mock_send.assert_any_call("admin1@test.com", 3)
+            mock_send.assert_any_call("admin2@test.com", 3)
+
+    def test_email_failure_does_not_raise(self):
+        """If sending one admin email fails, the others still send."""
+        from jobs.check_hibp_breaches import _notify_admins
+
+        with (
+            patch("jobs.check_hibp_breaches.database") as mock_db,
+            patch("jobs.check_hibp_breaches.send_hibp_breach_admin_notification") as mock_send,
+        ):
+            mock_db.users.get_admin_emails.return_value = ["fail@test.com", "ok@test.com"]
+            mock_send.side_effect = [Exception("SMTP error"), None]
+
+            # Should not raise
+            _notify_admins("tenant-1", 1)
+
+            assert mock_send.call_count == 2

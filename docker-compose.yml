@@ -29,6 +29,7 @@ services:
       - ./app:/app:cached
       - ./storage:/app/storage
       - ./static:/app/static:cached
+      - ./pyproject.toml:/pyproject.toml:ro
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
     depends_on:
       migrate:
@@ -97,6 +98,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: appdb
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - dbdata:/var/lib/postgresql/data
     ports:

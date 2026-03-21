@@ -52,6 +52,21 @@ current_version() {
     fi
 }
 
+compose_volume() {
+    # Resolve the full Docker volume name for a compose-defined volume.
+    # Usage: compose_volume dbdata
+    docker volume ls -q --filter "name=_${1}$" | head -1
+}
+
+validate_version() {
+    # Ensure a version string contains only digits and dots (e.g., 1.2.3).
+    case "$1" in
+        *[!0-9.]*) die "Version must contain only digits and dots (e.g., 1.2.0)" ;;
+        .* | *. ) die "Version must not start or end with a dot" ;;
+        "") die "Version is required" ;;
+    esac
+}
+
 wait_healthy() {
     # Wait for core services to be healthy. Timeout after 90 seconds.
     echo ""
@@ -264,6 +279,11 @@ cmd_backup() {
     stamp=$(today)
     ver=$(current_version)
     tag="${ver:-unknown}-${stamp}"
+
+    # Restrict backup file permissions (owner-only) since dumps contain
+    # password hashes, session data, and PII.
+    umask 077
+
     echo ""
     echo "Weft ID Backup (version ${ver:-unknown})"
     echo "=============="
@@ -285,7 +305,7 @@ cmd_backup() {
 
     # Storage
     echo "Backing up file storage..."
-    storage_vol=$(docker volume ls -q | grep storage || true)
+    storage_vol=$(compose_volume storage)
     if [ -n "$storage_vol" ]; then
         docker run --rm \
             -v "${storage_vol}:/data" \
@@ -337,7 +357,7 @@ cmd_upgrade() {
 
     prompt "Target version (e.g., 1.2.0): "
     target="$REPLY"
-    [ -z "$target" ] && die "Version is required"
+    validate_version "$target"
 
     # Validate the version exists
     echo "Checking version ${target}..."
@@ -366,7 +386,7 @@ cmd_upgrade() {
 
     # Update .env
     if [ -n "$current" ]; then
-        sed -i.bak "s/^WEFT_VERSION=.*/WEFT_VERSION=${target}/" .env && rm -f .env.bak
+        sed -i.bak "s|^WEFT_VERSION=.*|WEFT_VERSION=${target}|" .env && rm -f .env.bak
     else
         echo "WEFT_VERSION=${target}" >> .env
     fi
@@ -422,6 +442,7 @@ cmd_rollback() {
 
     previous=$(tail -1 .previous_versions)
     [ -z "$previous" ] && die "No previous version found in .previous_versions"
+    validate_version "$previous"
 
     # Find backup files for the previous version
     find_latest_backup "$previous"
@@ -488,7 +509,7 @@ cmd_rollback() {
 
     # 2. Remove the database volume
     echo "Removing database volume..."
-    db_vol=$(docker volume ls -q | grep dbdata || true)
+    db_vol=$(compose_volume dbdata)
     if [ -n "$db_vol" ]; then
         docker volume rm "$db_vol"
     else
@@ -496,7 +517,7 @@ cmd_rollback() {
     fi
 
     # 3. Set version back
-    sed -i.bak "s/^WEFT_VERSION=.*/WEFT_VERSION=${previous}/" .env && rm -f .env.bak
+    sed -i.bak "s|^WEFT_VERSION=.*|WEFT_VERSION=${previous}|" .env && rm -f .env.bak
     echo "  Set WEFT_VERSION to ${previous} in .env"
 
     # 4. Start database only (applies baseline schema)
@@ -524,7 +545,7 @@ cmd_rollback() {
     # 6. Restore storage if available
     if [ -n "$ROLLBACK_STORAGE" ]; then
         echo "Restoring file storage from ${ROLLBACK_STORAGE}..."
-        storage_vol=$(docker volume ls -q | grep storage || true)
+        storage_vol=$(compose_volume storage)
         if [ -n "$storage_vol" ]; then
             docker run --rm \
                 -v "${storage_vol}:/data" \

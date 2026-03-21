@@ -386,3 +386,63 @@ being fully deployed and confirmed working.
 
 ---
 
+## Self-Hosting Management Script (`weftid`)
+
+**User Story:**
+As a self-hosting operator
+I want a single management script with simple subcommands
+So that I can manage my Weft ID instance without remembering long docker compose invocations
+
+**Context:**
+
+Self-hosters currently need to type `docker compose exec app python -m app.cli.provision_tenant
+--subdomain acme ...` and similar verbose commands for routine operations. A `weftid` shell script
+with subcommands wraps these into memorable one-liners. The install script generates `weftid`
+alongside the other files. No Make or additional dependencies required (POSIX shell only).
+
+**Subcommands:**
+
+| Command | Action |
+|---------|--------|
+| `./weftid up` | `docker compose up -d` |
+| `./weftid down` | `docker compose down` |
+| `./weftid restart` | `docker compose restart` |
+| `./weftid status` | `docker compose ps` |
+| `./weftid logs [service]` | Tail logs (all services, or a specific one) |
+| `./weftid version` | Show the running Weft ID version |
+| `./weftid email <address>` | Run the email deliverability verification CLI |
+| `./weftid tenant` | Interactive tenant provisioning (prompt for each field, validate, then call `provision_tenant` CLI) |
+| `./weftid backup` | Full three-part backup: roles, data, and file storage. Timestamps output files. |
+| `./weftid upgrade` | Interactive upgrade: prompt for target version, validate it exists on GHCR, warn if no backup from today (confirm to continue), update `.env`, pull, and restart |
+| `./weftid migrate-status` | Show the migration log table |
+| `./weftid shell` | Open a shell in the app container |
+| `./weftid help` | List all commands with descriptions |
+
+**Interactive commands:**
+
+`tenant` prompts for subdomain, tenant name, email, first name, and last name one at a time,
+validating each before moving on. Then calls `python -m app.cli.provision_tenant` with the
+collected arguments.
+
+`upgrade` prompts for the target version, checks that the tag exists on GHCR, checks for backup
+files from today (warns and asks for confirmation if none found), updates `WEFT_VERSION` in `.env`,
+runs `docker compose pull`, and `docker compose up -d`.
+
+**Acceptance Criteria:**
+
+- [ ] `weftid` shell script in the repo root with all subcommands listed above
+- [ ] POSIX shell compatible (no bash-isms), matching the `install.sh` standard
+- [ ] `install.sh` downloads `weftid` alongside the other files and makes it executable
+- [ ] `./weftid help` lists all commands with one-line descriptions
+- [ ] `./weftid tenant` interactively prompts for each required field and validates before proceeding
+- [ ] `./weftid backup` produces timestamped files for roles, data, and storage in the current directory
+- [ ] `./weftid upgrade` validates the version exists on GHCR before pulling
+- [ ] `./weftid upgrade` warns if no backup files from today exist and asks for confirmation
+- [ ] Self-hosting docs updated to use `./weftid` commands instead of raw `docker compose` where appropriate
+- [ ] Documentation site rebuilt (`make docs`)
+
+**Effort:** M
+**Value:** High
+
+---
+

@@ -386,63 +386,44 @@ being fully deployed and confirmed working.
 
 ---
 
-## Self-Hosting Management Script (`weftid`)
+## Self-Updating Management Script and Env Var Diffing
 
 **User Story:**
-As a self-hosting operator
-I want a single management script with simple subcommands
-So that I can manage my Weft ID instance without remembering long docker compose invocations
+As a self-hosting operator upgrading to a new version
+I want the management script to update itself and tell me about new configuration variables
+So that I don't miss required settings or run stale management tooling
 
 **Context:**
 
-Self-hosters currently need to type `docker compose exec app python -m app.cli.provision_tenant
---subdomain acme ...` and similar verbose commands for routine operations. A `weftid` shell script
-with subcommands wraps these into memorable one-liners. The install script generates `weftid`
-alongside the other files. No Make or additional dependencies required (POSIX shell only).
+The `weftid` management script is downloaded once during install and never updated. New versions
+may add subcommands, change upgrade behavior, or introduce new `.env` variables. Today the
+operator has no way to discover this except reading the changelog.
 
-**Subcommands:**
+Two related problems to solve:
 
-| Command | Action |
-|---------|--------|
-| `./weftid up` | `docker compose up -d` |
-| `./weftid down` | `docker compose down` |
-| `./weftid restart` | `docker compose restart` |
-| `./weftid status` | `docker compose ps` |
-| `./weftid logs [service]` | Tail logs (all services, or a specific one) |
-| `./weftid version` | Show the running Weft ID version |
-| `./weftid email <address>` | Run the email deliverability verification CLI |
-| `./weftid tenant` | Interactive tenant provisioning (prompt for each field, validate, then call `provision_tenant` CLI) |
-| `./weftid backup` | Full three-part backup: roles, data, and file storage. Timestamps output files. |
-| `./weftid upgrade` | Interactive upgrade: prompt for target version, validate it exists on GHCR, warn if no backup from today (confirm to continue), update `.env`, pull, and restart |
-| `./weftid migrate-status` | Show the migration log table |
-| `./weftid shell` | Open a shell in the app container |
-| `./weftid help` | List all commands with descriptions |
+1. **Self-updating `weftid`:** During `./weftid upgrade`, after pulling the new image but before
+   restarting, download the matching `weftid` script from GitHub (same tag as the target version)
+   and overwrite the local copy. The current version's upgrade flow runs to completion using the
+   old script. The next command uses the new one. No mid-execution weirdness.
 
-**Interactive commands:**
-
-`tenant` prompts for subdomain, tenant name, email, first name, and last name one at a time,
-validating each before moving on. Then calls `python -m app.cli.provision_tenant` with the
-collected arguments.
-
-`upgrade` prompts for the target version, checks that the tag exists on GHCR, checks for backup
-files from today (warns and asks for confirmation if none found), updates `WEFT_VERSION` in `.env`,
-runs `docker compose pull`, and `docker compose up -d`.
+2. **Env var diffing:** After pulling the new image, extract `.env.production.example` from it
+   (`docker compose run --rm app cat /app/.env.production.example`), diff the keys against the
+   current `.env`, and show any new variables with their descriptions and defaults. Per
+   `VERSIONING.md`, minor versions add vars with sensible defaults (informational). Major versions
+   may add required vars without defaults (blocking).
 
 **Acceptance Criteria:**
 
-- [ ] `weftid` shell script in the repo root with all subcommands listed above
-- [ ] POSIX shell compatible (no bash-isms), matching the `install.sh` standard
-- [ ] `install.sh` downloads `weftid` alongside the other files and makes it executable
-- [ ] `./weftid help` lists all commands with one-line descriptions
-- [ ] `./weftid tenant` interactively prompts for each required field and validates before proceeding
-- [ ] `./weftid backup` produces timestamped files for roles, data, and storage in the current directory
-- [ ] `./weftid upgrade` validates the version exists on GHCR before pulling
-- [ ] `./weftid upgrade` warns if no backup files from today exist and asks for confirmation
-- [ ] Self-hosting docs updated to use `./weftid` commands instead of raw `docker compose` where appropriate
-- [ ] Documentation site rebuilt (`make docs`)
+- [ ] `./weftid upgrade` downloads the new `weftid` script from GitHub after pulling the image
+- [ ] The old script completes the upgrade before being overwritten
+- [ ] `./weftid upgrade` extracts `.env.production.example` from the new image
+- [ ] New env vars are shown to the operator with descriptions and default values
+- [ ] Required vars without defaults block the upgrade until the operator adds them to `.env`
+- [ ] Optional vars with defaults are informational (operator can accept defaults or customize)
 
 **Effort:** M
 **Value:** High
 
 ---
+
 

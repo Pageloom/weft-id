@@ -12,6 +12,7 @@ from dependencies import (
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child
+from routers.auth._helpers import _get_client_ip
 from schemas.api import UserProfileUpdate
 from services import bg_tasks as bg_tasks_service
 from services import emails as emails_service
@@ -19,9 +20,16 @@ from services import exports as exports_service
 from services import mfa as mfa_service
 from services import settings as settings_service
 from services import users as users_service
-from services.exceptions import ConflictError, NotFoundError, ServiceError, ValidationError
+from services.exceptions import (
+    ConflictError,
+    NotFoundError,
+    RateLimitError,
+    ServiceError,
+    ValidationError,
+)
 from utils.email import send_email_verification, send_mfa_code_email
 from utils.qr import generate_qr_code_base64
+from utils.ratelimit import HOUR, ratelimit
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -213,6 +221,12 @@ def change_password(
     """Handle password change form submission."""
     if user.get("saml_idp_id"):
         return RedirectResponse(url="/account/profile", status_code=303)
+
+    try:
+        ratelimit.prevent("pw_change:user:{user_id}", limit=5, timespan=HOUR, user_id=user["id"])
+        ratelimit.prevent("pw_change:ip:{ip}", limit=10, timespan=HOUR, ip=_get_client_ip(request))
+    except RateLimitError:
+        return RedirectResponse(url="/account/password?error=too_many_attempts", status_code=303)
 
     if new_password != new_password_confirm:
         return RedirectResponse(url="/account/password?error=passwords_dont_match", status_code=303)

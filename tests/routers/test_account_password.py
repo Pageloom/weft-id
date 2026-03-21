@@ -3,7 +3,7 @@
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
-from services.exceptions import ValidationError
+from services.exceptions import RateLimitError, ValidationError
 
 
 def test_password_page_renders(test_user, override_auth, mocker):
@@ -103,3 +103,55 @@ def test_change_password_validation_error(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert "error=invalid_current_password" in response.headers["location"]
+
+
+def test_change_password_rate_limited(test_user, override_auth, mocker):
+    """Test password change returns error when rate limited."""
+    override_auth(test_user)
+
+    mocker.patch(
+        "routers.account.ratelimit.prevent",
+        side_effect=RateLimitError(
+            message="Too many requests", code="rate_limit_exceeded", retry_after=3600
+        ),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/account/password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password_123!",
+            "new_password_confirm": "new_password_123!",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "error=too_many_attempts" in response.headers["location"]
+
+
+def test_change_password_rate_limit_skips_service(test_user, override_auth, mocker):
+    """Test that rate limited requests don't call the service."""
+    override_auth(test_user)
+
+    mocker.patch(
+        "routers.account.ratelimit.prevent",
+        side_effect=RateLimitError(
+            message="Too many requests", code="rate_limit_exceeded", retry_after=3600
+        ),
+    )
+    mock_change = mocker.patch("services.users.change_password")
+
+    client = TestClient(app)
+    client.post(
+        "/account/password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password_123!",
+            "new_password_confirm": "new_password_123!",
+        },
+        follow_redirects=False,
+    )
+
+    mock_change.assert_not_called()

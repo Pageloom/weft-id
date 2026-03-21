@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from services.exceptions import NotFoundError, ValidationError
+from services.exceptions import NotFoundError, RateLimitError, ValidationError
 
 
 def test_change_password_api_success(test_user, override_api_auth, mocker):
@@ -86,3 +86,56 @@ def test_force_password_reset_api_not_found(test_user, override_api_auth, mocker
     response = client.post(f"/api/v1/users/{uuid4()}/force-password-reset")
 
     assert response.status_code == 404
+
+
+def test_change_password_api_rate_limited(test_user, override_api_auth, mocker):
+    """Test PUT /api/v1/users/me/password returns 429 when rate limited."""
+    from fastapi.testclient import TestClient
+    from main import app
+
+    override_api_auth(test_user, level="user")
+
+    mocker.patch(
+        "routers.api.v1.users.password.ratelimit.prevent",
+        side_effect=RateLimitError(
+            message="Too many requests", code="rate_limit_exceeded", retry_after=3600
+        ),
+    )
+
+    client = TestClient(app)
+    response = client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "old_password",
+            "new_password": "new_strong_password!",
+        },
+    )
+
+    assert response.status_code == 429
+
+
+def test_change_password_api_rate_limit_skips_service(test_user, override_api_auth, mocker):
+    """Test that rate limited API requests don't call the service."""
+    from fastapi.testclient import TestClient
+    from main import app
+
+    override_api_auth(test_user, level="user")
+
+    mocker.patch(
+        "routers.api.v1.users.password.ratelimit.prevent",
+        side_effect=RateLimitError(
+            message="Too many requests", code="rate_limit_exceeded", retry_after=3600
+        ),
+    )
+    mock_change = mocker.patch("routers.api.v1.users.users_service.change_password")
+
+    client = TestClient(app)
+    client.put(
+        "/api/v1/users/me/password",
+        json={
+            "current_password": "old_password",
+            "new_password": "new_strong_password!",
+        },
+    )
+
+    mock_change.assert_not_called()

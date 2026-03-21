@@ -5,9 +5,11 @@ from typing import Annotated
 import routers.api.v1.users as _pkg
 from api_dependencies import get_current_user_api, require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from routers.auth._helpers import _get_client_ip
 from schemas.api import PasswordChange
-from services.exceptions import ServiceError
+from services.exceptions import RateLimitError, ServiceError
+from utils.ratelimit import HOUR, ratelimit
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter()
@@ -15,6 +17,7 @@ router = APIRouter()
 
 @router.put("/me/password")
 def change_password(
+    request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user_api)],
     body: PasswordChange,
@@ -40,7 +43,14 @@ def change_password(
     Errors:
         400: invalid_current_password, password_too_weak, no_password
         401: Not authenticated
+        429: Too many password change attempts
     """
+    try:
+        ratelimit.prevent("pw_change:user:{user_id}", limit=5, timespan=HOUR, user_id=user["id"])
+        ratelimit.prevent("pw_change:ip:{ip}", limit=10, timespan=HOUR, ip=_get_client_ip(request))
+    except RateLimitError as exc:
+        raise translate_to_http_exception(exc)
+
     requesting_user = build_requesting_user(user, tenant_id, None)
     try:
         _pkg.users_service.change_password(

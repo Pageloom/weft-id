@@ -17,6 +17,7 @@ def test_get_security_settings(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -46,6 +47,7 @@ def test_get_session_settings(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -73,6 +75,7 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -99,6 +102,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -120,6 +124,7 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -146,6 +151,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -167,6 +173,7 @@ def test_can_user_add_emails(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -193,6 +200,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -212,6 +220,7 @@ def test_update_security_settings(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -239,6 +248,7 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -262,6 +272,7 @@ def test_get_security_settings_includes_certificate_lifetime(test_tenant, test_a
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -296,6 +307,7 @@ def test_get_certificate_lifetime_configured(test_tenant, test_admin_user):
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -320,6 +332,7 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -339,6 +352,7 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         certificate_rotation_window_days=90,
         minimum_password_length=14,
         minimum_zxcvbn_score=3,
+        group_assertion_scope="access_relevant",
         updated_by=test_admin_user["id"],
         tenant_id_value=test_tenant["id"],
     )
@@ -514,3 +528,93 @@ def test_count_users_with_idp_in_domain_zero_for_unknown_domain(test_tenant, tes
     )
 
     assert count == 0
+
+
+# =============================================================================
+# get_group_assertion_scope
+# =============================================================================
+
+
+def test_get_group_assertion_scope_default(test_tenant):
+    """Test get_group_assertion_scope returns 'access_relevant' when no settings exist."""
+    import database
+
+    result = database.security.get_group_assertion_scope(test_tenant["id"])
+
+    assert result == "access_relevant"
+
+
+def test_get_group_assertion_scope_configured(test_tenant, test_admin_user):
+    """Test get_group_assertion_scope returns configured value."""
+    import database
+
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=None,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
+        certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
+        group_assertion_scope="trunk",
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    result = database.security.get_group_assertion_scope(test_tenant["id"])
+
+    assert result == "trunk"
+
+
+def test_get_group_assertion_scope_all_values(test_tenant, test_admin_user):
+    """Test get_group_assertion_scope returns each valid scope value."""
+    import database
+
+    for scope in ["all", "trunk", "access_relevant"]:
+        database.security.update_security_settings(
+            test_tenant["id"],
+            timeout_seconds=None,
+            persistent_sessions=True,
+            allow_users_edit_profile=True,
+            allow_users_add_emails=True,
+            inactivity_threshold_days=None,
+            max_certificate_lifetime_years=10,
+            certificate_rotation_window_days=90,
+            minimum_password_length=14,
+            minimum_zxcvbn_score=3,
+            group_assertion_scope=scope,
+            updated_by=test_admin_user["id"],
+            tenant_id_value=test_tenant["id"],
+        )
+
+        result = database.security.get_group_assertion_scope(test_tenant["id"])
+        assert result == scope
+
+
+def test_get_security_settings_includes_group_assertion_scope(test_tenant, test_admin_user):
+    """Test that get_security_settings returns group_assertion_scope field."""
+    import database
+
+    database.security.update_security_settings(
+        test_tenant["id"],
+        timeout_seconds=3600,
+        persistent_sessions=True,
+        allow_users_edit_profile=True,
+        allow_users_add_emails=True,
+        inactivity_threshold_days=None,
+        max_certificate_lifetime_years=10,
+        certificate_rotation_window_days=90,
+        minimum_password_length=14,
+        minimum_zxcvbn_score=3,
+        group_assertion_scope="all",
+        updated_by=test_admin_user["id"],
+        tenant_id_value=test_tenant["id"],
+    )
+
+    settings = database.security.get_security_settings(test_tenant["id"])
+
+    assert settings is not None
+    assert settings["group_assertion_scope"] == "all"

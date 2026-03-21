@@ -419,6 +419,10 @@ def update_service_provider(
         update_fields["nameid_format"] = NAMEID_FORMAT_LABELS[data.nameid_format]
     if data.include_group_claims is not None:
         update_fields["include_group_claims"] = data.include_group_claims
+    # group_assertion_scope: None means "clear override" (inherit tenant default),
+    # which is different from "not provided". Use model_fields_set to distinguish.
+    if "group_assertion_scope" in data.model_fields_set:
+        update_fields["group_assertion_scope"] = data.group_assertion_scope
     if data.available_to_all is not None:
         update_fields["available_to_all"] = data.available_to_all
     if data.attribute_mapping is not None:

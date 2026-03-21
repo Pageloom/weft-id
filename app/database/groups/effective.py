@@ -143,6 +143,111 @@ def get_effective_group_names(tenant_id: TenantArg, user_id: str) -> list[str]:
     return [r["name"] for r in rows]
 
 
+def get_trunk_group_names(tenant_id: TenantArg, user_id: str) -> list[str]:
+    """Get the user's topmost group memberships (trunk groups).
+
+    A trunk group is one where none of the user's other effective groups is
+    an ancestor of it. These represent the broadest outline of the user's
+    group footprint without enumerating nested memberships.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        with direct_groups as (
+            select gm.group_id
+            from group_memberships gm
+            where gm.user_id = :user_id
+        ),
+        effective_groups as (
+            select dg.group_id
+            from direct_groups dg
+            union
+            select gl.ancestor_id as group_id
+            from direct_groups dg
+            join group_lineage gl on gl.descendant_id = dg.group_id
+            where gl.depth > 0
+        ),
+        -- A trunk group has no ancestor that is also in the effective set
+        trunk_groups as (
+            select eg.group_id
+            from effective_groups eg
+            where not exists (
+                select 1
+                from group_lineage gl
+                join effective_groups eg2 on eg2.group_id = gl.ancestor_id
+                where gl.descendant_id = eg.group_id
+                  and gl.depth > 0
+                  and eg2.group_id != eg.group_id
+            )
+        )
+        select g.name
+        from trunk_groups tg
+        join groups g on tg.group_id = g.id
+        order by g.name
+        """,
+        {"user_id": user_id},
+    )
+    return [r["name"] for r in rows]
+
+
+def get_access_relevant_group_names(tenant_id: TenantArg, user_id: str, sp_id: str) -> list[str]:
+    """Get group names that grant the user access to a specific SP.
+
+    Returns the intersection of the user's effective groups and the groups
+    assigned to the SP (via sp_group_assignments), using the closure table
+    for hierarchical matching.
+    """
+    rows = fetchall(
+        tenant_id,
+        """
+        with direct_groups as (
+            select gm.group_id
+            from group_memberships gm
+            where gm.user_id = :user_id
+        ),
+        effective_groups as (
+            select dg.group_id
+            from direct_groups dg
+            union
+            select gl.ancestor_id as group_id
+            from direct_groups dg
+            join group_lineage gl on gl.descendant_id = dg.group_id
+            where gl.depth > 0
+        ),
+        -- Groups assigned to the SP
+        assigned_groups as (
+            select sga.group_id
+            from sp_group_assignments sga
+            where sga.sp_id = :sp_id
+        ),
+        -- Effective groups that are assigned to the SP or are descendants
+        -- of an assigned group (user's membership path that grants access)
+        access_relevant as (
+            select distinct eg.group_id
+            from effective_groups eg
+            where exists (
+                select 1
+                from assigned_groups ag
+                where ag.group_id = eg.group_id
+            )
+            or exists (
+                select 1
+                from group_lineage gl
+                join assigned_groups ag on ag.group_id = gl.ancestor_id
+                where gl.descendant_id = eg.group_id
+                  and gl.depth > 0
+            )
+        )
+        select g.name
+        from access_relevant ar
+        join groups g on ar.group_id = g.id
+        order by g.name
+        """,
+        {"user_id": user_id, "sp_id": sp_id},
+    )
+    return [r["name"] for r in rows]
+
+
 def count_effective_members(tenant_id: TenantArg, group_id: str) -> int:
     """Count all effective members of a group (direct + via descendants)."""
     result = fetchone(

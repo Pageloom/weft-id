@@ -191,6 +191,11 @@ def consent_page(
             sp_has_logo = True
             sp_logo_updated_at = int(logo_data["updated_at"].timestamp())
 
+    # Get groups that will be shared in the assertion
+    consent_groups: list[str] = []
+    if sp_id:
+        consent_groups = sp_service.get_groups_for_consent(tenant_id, user_id, sp_id)
+
     context = get_template_context(
         request,
         tenant_id,
@@ -201,6 +206,7 @@ def consent_page(
         user_email=user_info["email"],
         user_first_name=user_info["first_name"],
         user_last_name=user_info["last_name"],
+        consent_groups=consent_groups,
     )
 
     return templates.TemplateResponse(request, "saml_idp_sso_consent.html", context)

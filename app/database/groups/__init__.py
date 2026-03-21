@@ -11,9 +11,11 @@ from database.groups.core import (
 )
 from database.groups.effective import (
     count_effective_members,
+    get_access_relevant_group_names,
     get_effective_group_names,
     get_effective_members,
     get_effective_memberships,
+    get_trunk_group_names,
     get_user_groups_with_context,
 )
 from database.groups.idp import (
@@ -91,6 +93,8 @@ __all__ = [
     # effective membership
     "get_user_groups_with_context",
     "get_effective_group_names",
+    "get_trunk_group_names",
+    "get_access_relevant_group_names",
     "get_effective_memberships",
     "get_effective_members",
     "count_effective_members",

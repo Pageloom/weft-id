@@ -56,6 +56,57 @@
         </div>
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Group assertion scope</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Controls which group memberships are shared with service providers during SAML sign-in. This is the tenant default. Individual service providers can override this setting.
+            </p>
+
+            <div class="space-y-3">
+                <label class="flex items-start">
+                    <input type="radio" name="group_assertion_scope" value="access_relevant"
+                           {% if group_assertion_scope == 'access_relevant' %}checked{% endif %}
+                           class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Access-granting groups only
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            Only share groups that grant the user access to the service provider. For applications available to everyone, top-level groups are shared instead.
+                        </span>
+                    </span>
+                </label>
+
+                <label class="flex items-start">
+                    <input type="radio" name="group_assertion_scope" value="trunk"
+                           {% if group_assertion_scope == 'trunk' %}checked{% endif %}
+                           class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Top-level groups only
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            Only share the user's highest-level group memberships, without enumerating nested groups.
+                        </span>
+                    </span>
+                </label>
+
+                <label class="flex items-start">
+                    <input type="radio" name="group_assertion_scope" value="all"
+                           {% if group_assertion_scope == 'all' %}checked{% endif %}
+                           class="mt-1 h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <span class="ml-2">
+                        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            All groups
+                        </span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            Share all of the user's group memberships, including nested and inherited groups.
+                        </span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mt-6">
             <div class="flex gap-3">
                 <button type="submit"
                         class="bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150">

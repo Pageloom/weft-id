@@ -7,7 +7,8 @@ from database._core import TenantArg, execute, fetchall, fetchone
 _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
                certificate_pem, encryption_certificate_pem,
                nameid_format, metadata_xml, metadata_url,
-               slo_url, include_group_claims, sp_requested_attributes,
+               slo_url, include_group_claims, group_assertion_scope,
+               sp_requested_attributes,
                attribute_mapping, enabled, trust_established, available_to_all,
                created_by, created_at, updated_at"""
 
@@ -15,7 +16,8 @@ _SP_COLUMNS = """id, tenant_id, name, description, entity_id, acs_url,
 _SP_COLUMNS_Q = """sp.id, sp.tenant_id, sp.name, sp.description, sp.entity_id, sp.acs_url,
                sp.certificate_pem, sp.encryption_certificate_pem,
                sp.nameid_format, sp.metadata_xml, sp.metadata_url,
-               sp.slo_url, sp.include_group_claims, sp.sp_requested_attributes,
+               sp.slo_url, sp.include_group_claims, sp.group_assertion_scope,
+               sp.sp_requested_attributes,
                sp.attribute_mapping, sp.enabled, sp.trust_established, sp.available_to_all,
                sp.created_by, sp.created_at, sp.updated_at"""
 
@@ -161,6 +163,7 @@ def update_service_provider(
         "slo_url",
         "nameid_format",
         "include_group_claims",
+        "group_assertion_scope",
         "attribute_mapping",
         "enabled",
         "available_to_all",

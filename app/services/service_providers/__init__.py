@@ -81,6 +81,7 @@ from services.service_providers.slo import (
 # Re-export from sso module
 from services.service_providers.sso import (
     build_sso_response,
+    get_groups_for_consent,
     get_service_provider_by_id,
     get_sp_by_entity_id,
     get_user_consent_info,
@@ -116,6 +117,7 @@ __all__ = [
     "propagate_logout_to_sps",
     # SSO
     "build_sso_response",
+    "get_groups_for_consent",
     "get_service_provider_by_id",
     "get_sp_by_entity_id",
     "get_user_consent_info",

@@ -92,6 +92,14 @@ class TenantSecuritySettings(BaseModel):
         3,
         description="Minimum zxcvbn strength score (3 = strong, 4 = very strong)",
     )
+    group_assertion_scope: str = Field(
+        "access_relevant",
+        description=(
+            "Which groups to include in SAML assertions: "
+            "all (every effective group), trunk (user's topmost memberships), "
+            "or access_relevant (only groups granting SP access)"
+        ),
+    )
 
 
 class VersionInfo(BaseModel):
@@ -135,4 +143,8 @@ class TenantSecuritySettingsUpdate(BaseModel):
     minimum_zxcvbn_score: Literal[3, 4] | None = Field(
         None,
         description="Minimum zxcvbn strength score (3 = strong, 4 = very strong)",
+    )
+    group_assertion_scope: Literal["all", "trunk", "access_relevant"] | None = Field(
+        None,
+        description=("Which groups to include in SAML assertions: all, trunk, or access_relevant"),
     )

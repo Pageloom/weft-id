@@ -174,6 +174,7 @@ def update_service_provider(
     - slo_url: Single Logout URL
     - nameid_format: NameID format (emailAddress, persistent, transient, unspecified)
     - include_group_claims: Whether to include group claims in assertions
+    - group_assertion_scope: Per-SP group scope override (null to inherit)
     - available_to_all: Whether the SP is accessible to all users
     - attribute_mapping: Custom SAML attribute name mappings (dict)
     """

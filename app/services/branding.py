@@ -548,8 +548,44 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
 
 
 # =============================================================================
-# Group Logo Operations
+# Entity Logo Operations (groups and service providers)
 # =============================================================================
+
+
+def _store_entity_logo(
+    tenant_id: str,
+    entity_id: str,
+    data: bytes,
+    store_fn,
+    artifact_type: str,
+    filename: str | None = None,
+) -> str:
+    """Validate and store a logo for an entity. Returns the MIME type."""
+    mime_type = _validate_logo(data, filename)
+    store_fn(
+        tenant_id=tenant_id,
+        **{("group_id" if artifact_type == "group" else "sp_id"): entity_id},
+        logo_data=data,
+        mime_type=mime_type,
+    )
+    return mime_type
+
+
+def _remove_entity_logo(
+    tenant_id: str,
+    entity_id: str,
+    delete_fn,
+    artifact_type: str,
+    not_found_message: str,
+    not_found_code: str,
+) -> None:
+    """Delete a logo for an entity. Raises NotFoundError if none exists."""
+    rows = delete_fn(
+        tenant_id=tenant_id,
+        **{("group_id" if artifact_type == "group" else "sp_id"): entity_id},
+    )
+    if rows == 0:
+        raise NotFoundError(message=not_found_message, code=not_found_code)
 
 
 def upload_group_logo(
@@ -561,23 +597,16 @@ def upload_group_logo(
     """Upload a custom logo for a specific group.
 
     Authorization: Requires admin role.
-
-    Args:
-        requesting_user: The authenticated admin user.
-        group_id: The group UUID to attach the logo to.
-        data: Raw image bytes.
-        filename: Optional original filename for format detection.
     """
     require_admin(requesting_user)
-    mime_type = _validate_logo(data, filename)
-
-    database.branding.upsert_group_logo(
-        tenant_id=requesting_user["tenant_id"],
-        group_id=group_id,
-        logo_data=data,
-        mime_type=mime_type,
+    mime_type = _store_entity_logo(
+        requesting_user["tenant_id"],
+        group_id,
+        data,
+        store_fn=database.branding.upsert_group_logo,
+        artifact_type="group",
+        filename=filename,
     )
-
     log_event(
         tenant_id=requesting_user["tenant_id"],
         actor_user_id=requesting_user["id"],
@@ -595,23 +624,16 @@ def delete_group_logo(
     """Remove a custom logo from a group.
 
     Authorization: Requires admin role.
-
-    Raises:
-        NotFoundError: If no logo exists for the group.
     """
     require_admin(requesting_user)
-
-    rows = database.branding.delete_group_logo(
-        tenant_id=requesting_user["tenant_id"],
-        group_id=group_id,
+    _remove_entity_logo(
+        requesting_user["tenant_id"],
+        group_id,
+        delete_fn=database.branding.delete_group_logo,
+        artifact_type="group",
+        not_found_message="No logo found for this group",
+        not_found_code="group_logo_not_found",
     )
-
-    if rows == 0:
-        raise NotFoundError(
-            message="No logo found for this group",
-            code="group_logo_not_found",
-        )
-
     log_event(
         tenant_id=requesting_user["tenant_id"],
         actor_user_id=requesting_user["id"],
@@ -620,11 +642,6 @@ def delete_group_logo(
         artifact_id=group_id,
         metadata={},
     )
-
-
-# =============================================================================
-# SP Logo Operations
-# =============================================================================
 
 
 def upload_sp_logo(
@@ -636,23 +653,16 @@ def upload_sp_logo(
     """Upload a custom logo for a specific service provider.
 
     Authorization: Requires admin role.
-
-    Args:
-        requesting_user: The authenticated admin user.
-        sp_id: The service provider UUID to attach the logo to.
-        data: Raw image bytes.
-        filename: Optional original filename for format detection.
     """
     require_admin(requesting_user)
-    mime_type = _validate_logo(data, filename)
-
-    database.branding.upsert_sp_logo(
-        tenant_id=requesting_user["tenant_id"],
-        sp_id=sp_id,
-        logo_data=data,
-        mime_type=mime_type,
+    mime_type = _store_entity_logo(
+        requesting_user["tenant_id"],
+        sp_id,
+        data,
+        store_fn=database.branding.upsert_sp_logo,
+        artifact_type="service_provider",
+        filename=filename,
     )
-
     log_event(
         tenant_id=requesting_user["tenant_id"],
         actor_user_id=requesting_user["id"],
@@ -670,23 +680,16 @@ def delete_sp_logo(
     """Remove a custom logo from a service provider.
 
     Authorization: Requires admin role.
-
-    Raises:
-        NotFoundError: If no logo exists for the SP.
     """
     require_admin(requesting_user)
-
-    rows = database.branding.delete_sp_logo(
-        tenant_id=requesting_user["tenant_id"],
-        sp_id=sp_id,
+    _remove_entity_logo(
+        requesting_user["tenant_id"],
+        sp_id,
+        delete_fn=database.branding.delete_sp_logo,
+        artifact_type="service_provider",
+        not_found_message="No logo found for this service provider",
+        not_found_code="sp_logo_not_found",
     )
-
-    if rows == 0:
-        raise NotFoundError(
-            message="No logo found for this service provider",
-            code="sp_logo_not_found",
-        )
-
     log_event(
         tenant_id=requesting_user["tenant_id"],
         actor_user_id=requesting_user["id"],

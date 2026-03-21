@@ -28,6 +28,7 @@ from routers import health as health_router  # noqa: E402
 from routers import integrations as integrations_router  # noqa: E402
 from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
+from routers import settings_branding as settings_branding_router  # noqa: E402
 from routers.api.v1 import branding as branding_api  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
 from routers.api.v1 import exports as exports_api  # noqa: E402
@@ -114,6 +115,7 @@ app.include_router(groups_router.router)
 app.include_router(integrations_router.router)
 app.include_router(saml_idp_router.router)
 app.include_router(settings_router.router)
+app.include_router(settings_branding_router.router)
 app.include_router(tenants.router)
 app.include_router(users.router)
 

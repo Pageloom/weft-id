@@ -348,7 +348,7 @@ def test_list_privileged_domains_tracks_activity(test_tenant, test_admin_user):
         "role": "admin",
     }
 
-    with patch("services.settings.track_activity") as mock_track:
+    with patch("services.settings.domains.track_activity") as mock_track:
         settings.list_privileged_domains(requesting_user)
         mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_admin_user["id"]))
 
@@ -365,7 +365,7 @@ def test_get_security_settings_tracks_activity(test_tenant, test_super_admin_use
         "role": "super_admin",
     }
 
-    with patch("services.settings.track_activity") as mock_track:
+    with patch("services.settings.security.track_activity") as mock_track:
         settings.get_security_settings(requesting_user)
         mock_track.assert_called_once_with(str(test_tenant["id"]), str(test_super_admin_user["id"]))
 

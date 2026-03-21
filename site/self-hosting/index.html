@@ -2227,28 +2227,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#database" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Database
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#file-storage" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        File storage
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2388,7 +2366,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#database_1" class="md-nav__link">
+  <a href="#database" class="md-nav__link">
     <span class="md-ellipsis">
       
         Database
@@ -2507,22 +2485,24 @@ will run <code>docker compose</code> commands from this directory.</p>
 you through initial configuration:</p>
 <div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-sSL<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </code></pre></div>
-<p>This creates three files in the current directory:</p>
+<p>This creates four files in the current directory:</p>
 <ul>
 <li><code>docker-compose.yml</code> — service definitions (downloaded from <code>docker-compose.production.yml</code> in the repo)</li>
 <li><code>Caddyfile</code> — reverse proxy with automatic HTTPS</li>
 <li><code>.env</code> — your configuration (secrets, domain, SMTP)</li>
+<li><code>weftid</code> — management script (run <code>./weftid help</code> to see all commands)</li>
 </ul>
 <p>The script asks for your domain and SMTP settings interactively. If you use SendGrid or Resend
 instead of SMTP, press Enter to skip the SMTP prompts. Then edit <code>.env</code> to configure your
 email backend (see <a href="#email">Email configuration</a>).</p>
 <details class="note">
 <summary>Manual install</summary>
-<p>If you prefer not to pipe a script, download the three files yourself:</p>
+<p>If you prefer not to pipe a script, download the files yourself:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Download production compose file and rename so docker compose finds it by default</span>
 curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-o<span class="w"> </span>docker-compose.yml
 curl<span class="w"> </span>-fsSLO<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
+curl<span class="w"> </span>-fsSLO<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/weftid<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>chmod<span class="w"> </span>+x<span class="w"> </span>weftid
 
 <span class="c1"># Copy and edit .env</span>
 curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/.env.production.example<span class="w"> </span>-o<span class="w"> </span>.env
@@ -2564,21 +2544,20 @@ block outbound SMTP ports.</p>
 </div>
 </div>
 <h2 id="4-start-the-services">4. Start the services<a class="headerlink" href="#4-start-the-services" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>up
 </code></pre></div>
 <p>On first start, the <code>migrate</code> service applies the database schema, then the app starts. Caddy
 obtains a TLS certificate for each subdomain automatically as tenants are first accessed.</p>
 <p>Check that everything is running:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>ps
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>status
 </code></pre></div>
 <p>All services should show as healthy. If the migrate service failed, check its logs:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>migrate
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>logs<span class="w"> </span>migrate
 </code></pre></div>
 <h2 id="5-verify-email-delivery">5. Verify email delivery<a class="headerlink" href="#5-verify-email-delivery" title="Permanent link">&para;</a></h2>
 <p>Before provisioning a tenant, verify that email delivery is working. The founding super admin
 receives an invitation email, so broken email configuration means they cannot complete setup.</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.verify_email<span class="w"> </span>--to<span class="w"> </span>you@example.com
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>email<span class="w"> </span>you@example.com
 </code></pre></div>
 <p>Replace <code>you@example.com</code> with an address you can check. The command:</p>
 <ul>
@@ -2590,23 +2569,19 @@ are informational and do not block the command. Fix any issues flagged before go
 production to improve deliverability.</p>
 <h2 id="6-provision-your-first-tenant">6. Provision your first tenant<a class="headerlink" href="#6-provision-your-first-tenant" title="Permanent link">&para;</a></h2>
 <p>Once the services are running, create a tenant and its founding super admin:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.provision_tenant<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--subdomain<span class="w"> </span>acme<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--tenant-name<span class="w"> </span><span class="s2">&quot;Acme Corp&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--email<span class="w"> </span>admin@acme.com<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--first-name<span class="w"> </span>Jane<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--last-name<span class="w"> </span>Smith
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>tenant
 </code></pre></div>
+<p>The script prompts for the subdomain, tenant name, admin email, first name, and last name,
+validating each field as you go. It then provisions the tenant and sends an invitation email.</p>
 <p>The super admin receives an invitation email with a link to verify their email address and set
 a password. This also validates that email delivery is working.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If email delivery fails, the command prints a warning and the verification URL as a
-fallback. Fix your email settings in <code>.env</code>, restart the app, and visit the printed URL
-to continue setup.</p>
+fallback. Fix your email settings in <code>.env</code>, run <code>./weftid restart</code>, and visit the printed
+URL to continue setup.</p>
 </div>
-<p>To add more tenants later, run the same command with a different subdomain and tenant name.
+<p>To add more tenants later, run <code>./weftid tenant</code> again with a different subdomain and tenant name.
 If the subdomain already exists, the command reuses the existing tenant and adds a new super
 admin.</p>
 <hr />
@@ -2614,119 +2589,51 @@ admin.</p>
 <h3 id="before-you-upgrade">Before you upgrade<a class="headerlink" href="#before-you-upgrade" title="Permanent link">&para;</a></h3>
 <p>Always back up before upgrading. An upgrade runs migrations that change the database schema,
 and those changes cannot be reversed automatically.</p>
-<ol>
-<li>
-<p><strong>Note your current version.</strong> You need this to restore the exact same environment if
-   something goes wrong.</p>
-<div class="highlight"><pre><span></span><code>grep<span class="w"> </span>WEFT_VERSION<span class="w"> </span>.env
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>backup
 </code></pre></div>
-</li>
-<li>
-<p><strong>Back up the database</strong> (data and roles):</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
-
-docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
-</code></pre></div>
-<p>The first command captures the <code>appowner</code> and <code>appuser</code> roles that WeftId
-creates. <code>pg_dump</code> does not include roles, so without this file you cannot restore onto a
-fresh Postgres instance.</p>
-</li>
-<li>
-<p><strong>Back up file storage</strong> if using local storage (the default):</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>storage<span class="k">)</span>:/data<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>:/backup<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>alpine<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>/backup/storage-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.tar.gz<span class="w"> </span>-C<span class="w"> </span>/data<span class="w"> </span>.
-</code></pre></div>
-</li>
-</ol>
+<p>This creates timestamped, version-tagged backup files for database roles, data, and file storage
+(e.g., <code>roles-1.0.4-20260321.sql</code>, <code>backup-1.0.4-20260321.sql</code>, <code>storage-1.0.4-20260321.tar.gz</code>).</p>
 <h3 id="upgrade-procedure">Upgrade procedure<a class="headerlink" href="#upgrade-procedure" title="Permanent link">&para;</a></h3>
-<ol>
-<li>Check the <a href="https://github.com/pageloom/weft-id/releases">changelog</a> for the target version</li>
-<li>Edit <code>WEFT_VERSION</code> in <code>.env</code> to the new version</li>
-<li>Pull the new image and restart:</li>
-</ol>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>pull
-docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>upgrade
 </code></pre></div>
+<p>The script prompts for the target version, validates it exists, warns if no backup from today
+is found, updates <code>WEFT_VERSION</code> in <code>.env</code>, pulls the new image, and restarts. The current
+version is recorded in <code>.previous_versions</code> for rollback.</p>
 <p>The <code>migrate</code> service runs automatically and applies any pending schema migrations before the
 app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
-Check migration logs and retry.</p>
+Check migration logs with <code>./weftid logs migrate</code>.</p>
 <h3 id="rolling-back">Rolling back<a class="headerlink" href="#rolling-back" title="Permanent link">&para;</a></h3>
-<p>Migrations are forward-only. There is no automatic rollback. If an upgrade fails or causes
-problems, you have two options depending on the situation.</p>
-<p><strong>If the migration succeeded but the app misbehaves:</strong> You may be able to revert <code>WEFT_VERSION</code>
-in <code>.env</code> to the previous version and restart. This works only if the new schema is
-backward-compatible with the old application code. Within a minor version (1.1 back to 1.0)
-this is generally safe. Across major versions (2.0 back to 1.x) it is not.</p>
-<p><strong>If you need a full rollback:</strong> Restore from the backup you took before upgrading. This
-requires a fresh database because the migrated schema cannot be downgraded in place.</p>
-<ol>
-<li>
-<p>Stop the services:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>down
+<p>Migrations are forward-only. If an upgrade fails or causes problems, roll back to the previous
+version:</p>
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>rollback
 </code></pre></div>
-</li>
-<li>
-<p>Remove the database volume to start clean:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>volume<span class="w"> </span>rm<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>dbdata<span class="k">)</span>
-</code></pre></div>
-</li>
-<li>
-<p>Set <code>WEFT_VERSION</code> in <code>.env</code> back to the version you were running before the upgrade.</p>
-</li>
-<li>
-<p>Start the database only (so the baseline schema is applied):</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>db
-</code></pre></div>
-</li>
-<li>
-<p>Wait for the database to be healthy, then restore roles and data:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
-
-docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
-</code></pre></div>
-</li>
-<li>
-<p>Start the remaining services:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
-</code></pre></div>
-</li>
-<li>
-<p>If using local file storage, restore the storage volume from your backup.</p>
-</li>
-</ol>
+<p>This performs a full rollback: stops all services, deletes the database volume, restores from
+the backup files you created before upgrading, and restarts on the previous version.</p>
+<p>The command finds the most recent backup files for the previous version (recorded in
+<code>.previous_versions</code> during upgrade) and shows exactly what it will do before asking for
+confirmation. You must type <code>rollback</code> to proceed.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Rollback is a destructive operation. The current database is deleted and replaced with
+the backup. Any data created or changed since the backup (users, settings, audit logs)
+will be lost. This cannot be undone.</p>
+</div>
 <h2 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h2>
 <p>Back up regularly. At a minimum, back up before every upgrade.</p>
-<h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
-<p>A complete database backup requires two commands: one for roles and one for data. WeftId
-creates Postgres roles (<code>appowner</code> and <code>appuser</code>) that <code>pg_dump</code> does not capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Roles (appowner, appuser, migrator)</span>
-docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
-
-<span class="c1"># Data</span>
-docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>backup
 </code></pre></div>
+<p>This creates three version-tagged, timestamped files in the current directory:</p>
+<ul>
+<li><code>roles-&lt;version&gt;-&lt;date&gt;.sql</code> — Postgres roles (<code>appowner</code>, <code>appuser</code>). Required for restoring onto a fresh database.</li>
+<li><code>backup-&lt;version&gt;-&lt;date&gt;.sql</code> — full database dump.</li>
+<li><code>storage-&lt;version&gt;-&lt;date&gt;.tar.gz</code> — uploaded files (logos, exports) from the storage volume.</li>
+</ul>
 <p>To restore onto a fresh database, apply roles first, then data:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-1.0.4-20260321.sql
 
 docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
-</code></pre></div>
-<h3 id="file-storage">File storage<a class="headerlink" href="#file-storage" title="Permanent link">&para;</a></h3>
-<p>If using local storage (the default), the <code>storage</code> Docker volume contains uploaded files
-(logos, exports). Back it up alongside the database:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>storage<span class="k">)</span>:/data<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>:/backup<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>alpine<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>/backup/storage-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.tar.gz<span class="w"> </span>-C<span class="w"> </span>/data<span class="w"> </span>.
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-1.0.4-20260321.sql
 </code></pre></div>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
 <p>Your <code>.env</code> file contains <code>SECRET_KEY</code> (the master encryption key) and <code>POSTGRES_PASSWORD</code>.
@@ -2749,13 +2656,13 @@ Use it for load balancer probes or uptime monitoring:</p>
 <h3 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h3>
 <p>View logs for all services or a specific one:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># All services</span>
-docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f
+./weftid<span class="w"> </span>logs
 
 <span class="c1"># App only</span>
-docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>app
+./weftid<span class="w"> </span>logs<span class="w"> </span>app
 
 <span class="c1"># Migration output</span>
-docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>migrate
+./weftid<span class="w"> </span>logs<span class="w"> </span>migrate
 </code></pre></div>
 <hr />
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
@@ -2890,7 +2797,7 @@ can copy <code>.env.production.example</code> and edit it manually.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="database_1">Database<a class="headerlink" href="#database_1" title="Permanent link">&para;</a></h3>
+<h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
 <h4 id="schema-management">Schema management<a class="headerlink" href="#schema-management" title="Permanent link">&para;</a></h4>
 <p>The <code>migrate</code> service runs automatically on every <code>docker compose up</code>. It applies the baseline
 schema on a fresh database and any pending migrations on an existing one. Migrations are
@@ -2898,9 +2805,7 @@ forward-only and logged in the <code>schema_migration_log</code> table.</p>
 <p>The migrate service connects as the PostgreSQL superuser (<code>postgres</code>). The app connects as
 <code>appuser</code>, a restricted role created by the baseline schema that enforces row-level security.</p>
 <h4 id="checking-migration-status">Checking migration status<a class="headerlink" href="#checking-migration-status" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-d<span class="w"> </span>appdb<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-c<span class="w"> </span><span class="s2">&quot;SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id&quot;</span>
+<div class="highlight"><pre><span></span><code>./weftid<span class="w"> </span>migrate-status
 </code></pre></div>
 <h3 id="tls-and-reverse-proxy">TLS and reverse proxy<a class="headerlink" href="#tls-and-reverse-proxy" title="Permanent link">&para;</a></h3>
 <p>Caddy handles TLS automatically using Let's Encrypt HTTP-01 challenges. It uses on-demand TLS,

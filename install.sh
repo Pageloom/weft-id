@@ -16,7 +16,7 @@ set -e
 REPO="pageloom/weft-id"
 RAW_URL="https://raw.githubusercontent.com/${REPO}"
 API_URL="https://api.github.com/repos/${REPO}"
-FILES="Caddyfile"
+FILES="Caddyfile weftid"
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -72,6 +72,8 @@ download_files() {
         curl -fsSL "${RAW_URL}/${ref}/${f}" -o "$f" || die "Failed to download ${f}"
         echo "  $f"
     done
+
+    chmod +x weftid
 }
 
 # --- Interactive prompts ----------------------------------------------------
@@ -191,7 +193,9 @@ main() {
     echo "  1. Review .env and adjust settings if needed"
     echo "  2. Start Weft ID:"
     echo ""
-    echo "     docker compose up -d"
+    echo "     ./weftid up"
+    echo ""
+    echo "  Run ./weftid help to see all available commands."
     echo ""
 }
 

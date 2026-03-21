@@ -4,6 +4,32 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Self-Hosting Management Script (`weftid`)
+
+**Status:** Complete
+
+**User Story:**
+As a self-hosting operator
+I want a single management script with simple subcommands
+So that I can manage my Weft ID instance without remembering long docker compose invocations
+
+**Acceptance Criteria:**
+
+- [x] `weftid` shell script in the repo root with all subcommands (up, down, restart, status, logs, version, email, tenant, backup, upgrade, rollback, migrate-status, shell, help)
+- [x] POSIX shell compatible (no bash-isms), matching the `install.sh` standard
+- [x] `install.sh` downloads `weftid` alongside the other files and makes it executable
+- [x] `./weftid help` lists all commands with one-line descriptions
+- [x] `./weftid tenant` interactively prompts for each required field and validates before proceeding
+- [x] `./weftid backup` produces version-tagged, timestamped files for roles, data, and storage
+- [x] `./weftid upgrade` validates the version exists on GitHub before pulling
+- [x] `./weftid upgrade` warns if no backup files from today exist and asks for confirmation
+- [x] `./weftid upgrade` records current version in `.previous_versions` for rollback
+- [x] `./weftid rollback` reverts to the previous version from `.previous_versions`
+- [x] Self-hosting docs updated to use `./weftid` commands instead of raw `docker compose`
+- [x] Documentation site rebuilt (`make docs`)
+
+---
+
 ## Rename Production Compose File to docker-compose.yml on Install
 
 **Status:** Complete

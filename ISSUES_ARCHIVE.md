@@ -5,6 +5,39 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Imprecise Docker volume matching in weftid script
+
+**Status:** Resolved (2026-03-21)
+**Found in:** `weftid:491`, `weftid:286`, `weftid:527`
+**Severity:** Medium
+**OWASP Category:** A05:2021 - Security Misconfiguration
+**Description:** The script used `docker volume ls -q | grep dbdata` and `grep storage` to find Docker volumes. This could match volumes from other compose projects on the same host.
+**Fix:** Added `compose_volume()` helper that uses `docker volume ls -q --filter "name=_${1}$"` to scope lookups to the current compose project. All volume references in backup, upgrade, and rollback now use this helper.
+
+---
+
+### [SECURITY] sed injection from version strings in weftid script
+
+**Status:** Resolved (2026-03-21)
+**Found in:** `weftid:368`, `weftid:499`
+**Severity:** Low
+**OWASP Category:** A03:2021 - Injection
+**Description:** User-provided version strings were interpolated into `sed` replacement expressions without validation. Special characters could corrupt `.env`.
+**Fix:** Added `validate_version()` that rejects any version containing characters other than digits and dots. Applied in both `cmd_upgrade` (user input) and `cmd_rollback` (from `.previous_versions` file). Also switched sed delimiter from `/` to `|`.
+
+---
+
+### [SECURITY] Backup files written with default permissions
+
+**Status:** Resolved (2026-03-21)
+**Found in:** `weftid:277-298`
+**Severity:** Low
+**OWASP Category:** A01:2021 - Broken Access Control
+**Description:** Database dumps containing password hashes and PII were written with default umask permissions (typically 644, world-readable).
+**Fix:** Added `umask 077` at the start of `cmd_backup()` so backup files are created with 600 permissions (owner-only).
+
+---
+
 ### [SECURITY] LIKE wildcard injection in search queries
 
 **Status:** Resolved (2026-03-21)

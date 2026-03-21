@@ -1,11 +1,12 @@
-"""Tests for IdP certificate management (multi-cert support).
+"""Tests for IdP certificate management and SAML auth error paths.
 
 Covers:
 - get_certificate_fingerprint utility
 - build_saml_settings with multi-cert
 - parse_idp_metadata_xml certificate extraction
-- Service layer: list, validation fallback, sync
+- Service layer: list, validation fallback, sync, backfill
 - SAML auth multi-cert integration
+- SAML auth/test error handling paths
 """
 
 import datetime
@@ -286,6 +287,86 @@ class TestGetCertificatesForValidation:
         assert result == []
 
 
+class TestBackfillFingerprint:
+    """Tests for _backfill_fingerprint internal function."""
+
+    @patch("services.saml.idp_certificates.database")
+    def test_backfill_when_fingerprint_empty(self, mock_db, sample_cert_pem):
+        """When fingerprint is empty string, backfill from certificate PEM."""
+        from services.saml.idp_certificates import _backfill_fingerprint
+
+        cert_id = str(uuid4())
+        tenant_id = str(uuid4())
+        row = {
+            "id": cert_id,
+            "certificate_pem": sample_cert_pem,
+            "fingerprint": "",
+            "expires_at": None,
+        }
+
+        updated_row = {**row, "fingerprint": "AA:BB:CC"}
+        mock_db.saml.update_idp_certificate_fingerprint.return_value = updated_row
+
+        result = _backfill_fingerprint(tenant_id, row)
+
+        assert result == updated_row
+        mock_db.saml.update_idp_certificate_fingerprint.assert_called_once()
+        call_args = mock_db.saml.update_idp_certificate_fingerprint.call_args
+        assert call_args[0][0] == tenant_id
+        assert call_args[0][1] == cert_id
+
+    @patch("services.saml.idp_certificates.database")
+    def test_backfill_returns_original_when_update_returns_none(self, mock_db, sample_cert_pem):
+        """When database update returns None, return original row."""
+        from services.saml.idp_certificates import _backfill_fingerprint
+
+        tenant_id = str(uuid4())
+        row = {
+            "id": str(uuid4()),
+            "certificate_pem": sample_cert_pem,
+            "fingerprint": "",
+            "expires_at": None,
+        }
+
+        mock_db.saml.update_idp_certificate_fingerprint.return_value = None
+
+        result = _backfill_fingerprint(tenant_id, row)
+        assert result is row
+
+    @patch("services.saml.idp_certificates.database")
+    @patch("services.saml.idp_certificates.get_certificate_fingerprint")
+    def test_backfill_handles_exception_gracefully(self, mock_fp, mock_db):
+        """When fingerprint calculation fails, return original row."""
+        from services.saml.idp_certificates import _backfill_fingerprint
+
+        mock_fp.side_effect = Exception("Invalid certificate")
+
+        row = {
+            "id": str(uuid4()),
+            "certificate_pem": "bad-cert",
+            "fingerprint": "",
+            "expires_at": None,
+        }
+
+        result = _backfill_fingerprint(str(uuid4()), row)
+        assert result is row
+        mock_db.saml.update_idp_certificate_fingerprint.assert_not_called()
+
+    def test_backfill_skips_when_fingerprint_present(self, sample_cert_pem):
+        """When fingerprint is already present, return row unchanged."""
+        from services.saml.idp_certificates import _backfill_fingerprint
+
+        row = {
+            "id": str(uuid4()),
+            "certificate_pem": sample_cert_pem,
+            "fingerprint": "AA:BB:CC:DD",
+            "expires_at": None,
+        }
+
+        result = _backfill_fingerprint(str(uuid4()), row)
+        assert result is row
+
+
 class TestSyncCertificatesFromMetadata:
     """Tests for sync_certificates_from_metadata."""
 
@@ -360,6 +441,193 @@ class TestSyncCertificatesFromMetadata:
 
         sync_certificates_from_metadata(str(uuid4()), str(uuid4()), [])
         mock_db.saml.list_idp_certificates.assert_not_called()
+
+    @patch("services.saml.idp_certificates.database")
+    @patch("services.saml.idp_certificates.get_certificate_expiry")
+    def test_sync_handles_cert_expiry_exception(self, mock_expiry, mock_db, sample_cert_pem):
+        """When get_certificate_expiry raises, cert is still added with expires_at=None."""
+        from services.saml.idp_certificates import sync_certificates_from_metadata
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        mock_db.saml.list_idp_certificates.return_value = []
+        mock_expiry.side_effect = Exception("Cannot parse expiry")
+
+        sync_certificates_from_metadata(tenant_id, idp_id, [sample_cert_pem])
+
+        mock_db.saml.create_idp_certificate.assert_called_once()
+        call_kwargs = mock_db.saml.create_idp_certificate.call_args[1]
+        assert call_kwargs["expires_at"] is None
+
+    @patch("services.saml.idp_certificates.database")
+    @patch("services.saml.idp_certificates.get_certificate_fingerprint")
+    def test_sync_handles_fingerprint_exception(self, mock_fp, mock_db):
+        """When fingerprint calculation fails for a cert, it is skipped."""
+        from services.saml.idp_certificates import sync_certificates_from_metadata
+
+        tenant_id = str(uuid4())
+        idp_id = str(uuid4())
+
+        mock_db.saml.list_idp_certificates.return_value = []
+        mock_fp.side_effect = Exception("Bad cert")
+
+        sync_certificates_from_metadata(tenant_id, idp_id, ["invalid-pem"])
+
+        mock_db.saml.create_idp_certificate.assert_not_called()
+
+
+# =============================================================================
+# SAML Auth: get_idp_for_saml_login / get_idp_by_issuer error paths
+# =============================================================================
+
+
+class TestGetIdPForSamlLoginEdgeCases:
+    """Tests for untested error paths in get_idp_for_saml_login."""
+
+    @patch("services.saml.auth.database")
+    def test_trust_not_established_raises_forbidden(self, mock_db):
+        """When trust_established is False, raises ForbiddenError."""
+        from services.exceptions import ForbiddenError
+        from services.saml.auth import get_idp_for_saml_login
+
+        mock_db.saml.get_identity_provider.return_value = {
+            "id": str(uuid4()),
+            "name": "Test IdP",
+            "is_enabled": True,
+            "trust_established": False,
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "slo_url": None,
+            "certificate_pem": "cert",
+            "sp_entity_id": "https://sp.example.com",
+            "require_platform_mfa": False,
+            "jit_provisioning": False,
+        }
+
+        with pytest.raises(ForbiddenError, match="trust not yet established"):
+            get_idp_for_saml_login(str(uuid4()), str(uuid4()))
+
+
+class TestGetIdPByIssuerEdgeCases:
+    """Tests for untested error paths in get_idp_by_issuer."""
+
+    @patch("services.saml.auth.database")
+    def test_disabled_idp_raises_forbidden(self, mock_db):
+        """When IdP is disabled, get_idp_by_issuer raises ForbiddenError."""
+        from services.exceptions import ForbiddenError
+        from services.saml.auth import get_idp_by_issuer
+
+        mock_db.saml.get_identity_provider_by_entity_id.return_value = {
+            "id": str(uuid4()),
+            "name": "Test IdP",
+            "is_enabled": False,
+            "trust_established": True,
+            "entity_id": "https://idp.example.com",
+            "sso_url": "https://idp.example.com/sso",
+            "slo_url": None,
+            "certificate_pem": "cert",
+            "sp_entity_id": "https://sp.example.com",
+            "require_platform_mfa": False,
+            "jit_provisioning": False,
+        }
+
+        with pytest.raises(ForbiddenError, match="not enabled"):
+            get_idp_by_issuer(str(uuid4()), "https://idp.example.com")
+
+
+# =============================================================================
+# SAML Response Processing: Error Paths
+# =============================================================================
+
+
+class TestProcessSamlResponseErrors:
+    """Tests for error paths in process_saml_response."""
+
+    @patch("services.saml.auth._prepare_saml_auth")
+    def test_not_authenticated_raises_validation_error(self, mock_prepare):
+        """When auth.is_authenticated() returns False, raises ValidationError."""
+        from services.exceptions import ValidationError
+        from services.saml.auth import process_saml_response
+
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = []
+        mock_auth.is_authenticated.return_value = False
+
+        mock_idp = MagicMock()
+        mock_prepare.return_value = (mock_auth, mock_idp)
+
+        with pytest.raises(ValidationError, match="authentication failed") as exc_info:
+            process_saml_response("tenant-id", "idp-id", "dummy-response")
+
+        assert exc_info.value.code == "saml_auth_failed"
+
+
+class TestProcessSamlTestResponseErrors:
+    """Tests for error paths in process_saml_test_response."""
+
+    @patch("services.saml.auth._prepare_saml_auth")
+    def test_invalid_response_error_type(self, mock_prepare):
+        """When error reason doesn't match signature/expired, returns invalid_response."""
+        from services.saml.auth import process_saml_test_response
+
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = ["some_error"]
+        mock_auth.get_last_error_reason.return_value = "Unknown XML parsing failure"
+
+        mock_idp = MagicMock()
+        mock_prepare.return_value = (mock_auth, mock_idp)
+
+        result = process_saml_test_response("tenant-id", "idp-id", "dummy-response")
+
+        assert result.success is False
+        assert result.error_type == "invalid_response"
+        assert "Unknown XML parsing failure" in result.error_detail
+
+    @patch("services.saml.auth._prepare_saml_auth")
+    def test_not_authenticated_returns_auth_failed(self, mock_prepare):
+        """When auth passes validation but is_authenticated() is False."""
+        from services.saml.auth import process_saml_test_response
+
+        mock_auth = MagicMock()
+        mock_auth.get_errors.return_value = []
+        mock_auth.is_authenticated.return_value = False
+
+        mock_idp = MagicMock()
+        mock_prepare.return_value = (mock_auth, mock_idp)
+
+        result = process_saml_test_response("tenant-id", "idp-id", "dummy-response")
+
+        assert result.success is False
+        assert result.error_type == "auth_failed"
+
+    @patch("services.saml.auth._prepare_saml_auth")
+    def test_forbidden_error_returns_idp_disabled(self, mock_prepare):
+        """When _prepare_saml_auth raises ForbiddenError, returns idp_disabled."""
+        from services.exceptions import ForbiddenError
+        from services.saml.auth import process_saml_test_response
+
+        mock_prepare.side_effect = ForbiddenError(
+            message="Identity provider is not enabled", code="idp_disabled"
+        )
+
+        result = process_saml_test_response("tenant-id", "idp-id", "dummy-response")
+
+        assert result.success is False
+        assert result.error_type == "idp_disabled"
+
+    @patch("services.saml.auth._prepare_saml_auth")
+    def test_unexpected_exception_returns_unexpected_error(self, mock_prepare):
+        """When _prepare_saml_auth raises an unexpected exception."""
+        from services.saml.auth import process_saml_test_response
+
+        mock_prepare.side_effect = RuntimeError("Something went very wrong")
+
+        result = process_saml_test_response("tenant-id", "idp-id", "dummy-response")
+
+        assert result.success is False
+        assert result.error_type == "unexpected_error"
+        assert "Something went very wrong" in result.error_detail
 
 
 # =============================================================================
@@ -467,3 +735,62 @@ class TestPrepareAuthMultiCert:
         call_kwargs = mock_build.call_args.kwargs
         assert call_kwargs["idp_certificate_pem"] == "fallback-cert"
         assert call_kwargs["idp_certificate_pems"] == ["fallback-cert"]
+
+    @patch("services.saml.auth.get_certificates_for_validation")
+    @patch("services.saml.auth.decrypt_private_key")
+    @patch("services.saml.auth.database")
+    @patch("services.saml.auth.get_idp_for_saml_login")
+    def test_raises_when_idp_config_incomplete(
+        self, mock_get_idp, mock_db, mock_decrypt, mock_get_certs
+    ):
+        """When IdP has no entity_id or sso_url, raises ValidationError."""
+        from services.exceptions import ValidationError
+
+        idp = MagicMock()
+        idp.sp_entity_id = "https://sp.example.com/saml/metadata"
+        idp.entity_id = None  # Missing
+        idp.sso_url = None  # Missing
+        idp.certificate_pem = "cert1"
+        idp.slo_url = None
+
+        mock_get_idp.return_value = idp
+        mock_db.saml.get_sp_certificate.return_value = {
+            "certificate_pem": "sp-cert",
+            "private_key_pem_enc": "encrypted-key",
+        }
+        mock_decrypt.return_value = "decrypted-key"
+
+        from services.saml.auth import _prepare_saml_auth
+
+        with pytest.raises(ValidationError, match="entity ID and SSO URL"):
+            _prepare_saml_auth("tenant-id", "idp-id")
+
+    @patch("services.saml.auth.get_certificates_for_validation")
+    @patch("services.saml.auth.decrypt_private_key")
+    @patch("services.saml.auth.database")
+    @patch("services.saml.auth.get_idp_for_saml_login")
+    def test_raises_when_no_certificates(
+        self, mock_get_idp, mock_db, mock_decrypt, mock_get_certs
+    ):
+        """When IdP has no certificates at all, raises ValidationError."""
+        from services.exceptions import ValidationError
+
+        idp = MagicMock()
+        idp.sp_entity_id = "https://sp.example.com/saml/metadata"
+        idp.entity_id = "https://idp.example.com"
+        idp.sso_url = "https://idp.example.com/sso"
+        idp.certificate_pem = None  # No fallback cert
+        idp.slo_url = None
+
+        mock_get_idp.return_value = idp
+        mock_db.saml.get_sp_certificate.return_value = {
+            "certificate_pem": "sp-cert",
+            "private_key_pem_enc": "encrypted-key",
+        }
+        mock_decrypt.return_value = "decrypted-key"
+        mock_get_certs.return_value = []  # No certs in DB
+
+        from services.saml.auth import _prepare_saml_auth
+
+        with pytest.raises(ValidationError, match="no certificates"):
+            _prepare_saml_auth("tenant-id", "idp-id")

@@ -64,11 +64,48 @@ class TestVersionFallback:
             ),
             patch("app.version.Path") as mock_path_cls,
         ):
+            # VERSION file doesn't exist
             mock_version_file = mock_path_cls.return_value.parent.__truediv__.return_value
             mock_version_file.exists.return_value = False
+
+            # pyproject.toml candidates don't exist either
+            mock_path_cls.return_value.exists.return_value = False
+            mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value.exists.return_value = False
 
             from app.version import _get_version
 
             result = _get_version()
 
         assert result == "0.0.0-unknown"
+
+    def test_fallback_reads_pyproject_toml(self, tmp_path):
+        """When package metadata and VERSION file are missing, reads pyproject.toml."""
+        from importlib.metadata import PackageNotFoundError
+
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text('[project]\nversion = "3.7.2"\n')
+
+        with (
+            patch(
+                "app.version.version",
+                side_effect=PackageNotFoundError("weft-id"),
+            ),
+            patch("app.version.Path") as mock_path_cls,
+        ):
+            # VERSION file doesn't exist
+            mock_version_file = mock_path_cls.return_value.parent.__truediv__.return_value
+            mock_version_file.exists.return_value = False
+
+            # First pyproject.toml candidate (Path("/pyproject.toml")) doesn't exist
+            mock_path_cls.return_value.exists.return_value = False
+
+            # Second candidate (Path(__file__).resolve().parent.parent / "pyproject.toml") exists
+            mock_pyproject = mock_path_cls.return_value.resolve.return_value.parent.parent.__truediv__.return_value
+            mock_pyproject.exists.return_value = True
+            mock_pyproject.read_text.return_value = pyproject.read_text()
+
+            from app.version import _get_version
+
+            result = _get_version()
+
+        assert result == "3.7.2"

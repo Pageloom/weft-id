@@ -152,3 +152,135 @@ def test_delete_calls_client_with_correct_args():
         with patch("utils.cache.get_client", return_value=mock_client):
             cache.delete("test_key")
             mock_client.delete.assert_called_once_with("test_key")
+
+
+# =============================================================================
+# incr() tests
+# =============================================================================
+
+
+def test_incr_returns_new_value():
+    """Test that incr returns the incremented value."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.incr.return_value = 5
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.incr("counter_key")
+            assert result == 5
+            mock_client.incr.assert_called_once_with("counter_key", 1)
+
+
+def test_incr_with_custom_value():
+    """Test that incr passes custom increment value."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.incr.return_value = 10
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.incr("counter_key", 5)
+            assert result == 10
+            mock_client.incr.assert_called_once_with("counter_key", 5)
+
+
+def test_incr_returns_none_when_client_unavailable():
+    """Test that incr returns None when Memcached client is unavailable."""
+    from utils import cache
+
+    with patch.object(cache, "_client", None):
+        with patch("utils.cache.get_client", return_value=None):
+            result = cache.incr("counter_key")
+            assert result is None
+
+
+def test_incr_handles_exception_gracefully():
+    """Test that incr returns None on client exception."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.incr.side_effect = Exception("Connection lost")
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.incr("counter_key")
+            assert result is None
+
+
+# =============================================================================
+# add() tests
+# =============================================================================
+
+
+def test_add_returns_true_on_success():
+    """Test that add returns True when key is added."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.add.return_value = True
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.add("new_key", b"value", ttl=300)
+            assert result is True
+            mock_client.add.assert_called_once_with("new_key", b"value", expire=300)
+
+
+def test_add_returns_false_when_key_exists():
+    """Test that add returns False when key already exists."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.add.return_value = False
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.add("existing_key", b"value")
+            assert result is False
+
+
+def test_add_returns_false_when_client_unavailable():
+    """Test that add returns False when Memcached client is unavailable."""
+    from utils import cache
+
+    with patch.object(cache, "_client", None):
+        with patch("utils.cache.get_client", return_value=None):
+            result = cache.add("new_key", b"value")
+            assert result is False
+
+
+def test_add_handles_exception_gracefully():
+    """Test that add returns False on client exception."""
+    from utils import cache
+
+    mock_client = MagicMock()
+    mock_client.add.side_effect = Exception("Connection lost")
+
+    with patch.object(cache, "_client", mock_client):
+        with patch("utils.cache.get_client", return_value=mock_client):
+            result = cache.add("new_key", b"value")
+            assert result is False
+
+
+# =============================================================================
+# get_client() error path
+# =============================================================================
+
+
+def test_get_client_returns_none_on_import_failure():
+    """Test that get_client returns None when pymemcache import fails."""
+    from utils import cache
+
+    original_client = cache._client
+    cache._client = None
+
+    try:
+        with patch.dict("sys.modules", {"pymemcache": None, "pymemcache.client": None, "pymemcache.client.base": None}):
+            with patch("builtins.__import__", side_effect=ImportError("No module")):
+                result = cache.get_client()
+                assert result is None
+    finally:
+        cache._client = original_client

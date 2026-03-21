@@ -90,7 +90,7 @@ class SPConfig(BaseModel):
     encryption_certificate_pem: str | None = None
     nameid_format: str
     include_group_claims: bool = False
-    group_assertion_scope: str | None = None
+    group_assertion_scope: Literal["all", "trunk", "access_relevant"] | None = None
     sp_requested_attributes: list[dict] | None = None
     attribute_mapping: dict[str, str] | None = None
     metadata_url: str | None = None

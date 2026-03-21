@@ -5,6 +5,24 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] LIKE wildcard injection in search queries
+
+**Status:** Resolved (2026-03-21)
+**Original Severity:** Medium
+
+**Resolution:** Added `escape_like()` helper to `app/database/_core.py` that escapes `\`, `%`, and `_` before they reach ILIKE/LIKE queries. Applied it in all 5 affected modules: `users/listing.py`, `groups/memberships.py`, `groups/listing.py`, `users/saml_assignment.py`, `saml/security.py`. Added unit tests for the helper and integration tests verifying that `_` and `%` in search terms no longer act as SQL wildcards.
+
+---
+
+### [SECURITY] Response schemas missing max_length on group_assertion_scope
+
+**Status:** Resolved (2026-03-21)
+**Original Severity:** Low
+
+**Resolution:** Changed `group_assertion_scope` field type from bare `str` to `Literal["all", "trunk", "access_relevant"]` in both `TenantSecuritySettings` (`app/schemas/settings.py`) and `SPConfig` (`app/schemas/service_providers.py`) response schemas, matching the input schemas.
+
+---
+
 ### [SECURITY] Missing rate limiting on password change endpoints
 
 **Status:** Resolved (2026-03-21)

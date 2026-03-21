@@ -1,6 +1,6 @@
 """User SAML IdP assignment database operations."""
 
-from database._core import TenantArg, execute, fetchall, fetchone
+from database._core import TenantArg, escape_like, execute, fetchall, fetchone
 
 
 def get_user_auth_info(tenant_id: TenantArg, email: str) -> dict | None:
@@ -120,7 +120,7 @@ def get_users_by_email_domain(tenant_id: TenantArg, domain: str) -> list[dict]:
         List of user dicts with id, saml_idp_id, has_password
     """
     # Build the pattern in Python to avoid SQL placeholder issues with %
-    pattern = f"%@{domain.lower()}"
+    pattern = f"%@{escape_like(domain.lower())}"
     return fetchall(
         tenant_id,
         """

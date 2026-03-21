@@ -13,6 +13,31 @@ def test_unscoped_constant():
     assert repr(database.UNSCOPED) == "UNSCOPED"
 
 
+class TestEscapeLike:
+    """Tests for escape_like helper."""
+
+    def test_no_special_characters(self):
+        assert database.escape_like("hello") == "hello"
+
+    def test_percent_escaped(self):
+        assert database.escape_like("100%") == "100\\%"
+
+    def test_underscore_escaped(self):
+        assert database.escape_like("user_1") == "user\\_1"
+
+    def test_backslash_escaped(self):
+        assert database.escape_like("path\\file") == "path\\\\file"
+
+    def test_all_special_characters(self):
+        assert database.escape_like("a\\b%c_d") == "a\\\\b\\%c\\_d"
+
+    def test_empty_string(self):
+        assert database.escape_like("") == ""
+
+    def test_multiple_wildcards(self):
+        assert database.escape_like("%%__") == "\\%\\%\\_\\_"
+
+
 def test_database_pool_operations(test_tenant):
     """Test database pool can be created and closed."""
     # Get pool (should already be initialized)

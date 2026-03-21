@@ -1,6 +1,6 @@
 """SAML security check database operations."""
 
-from database._core import TenantArg, fetchone
+from database._core import TenantArg, escape_like, fetchone
 
 
 def count_users_with_idp(tenant_id: TenantArg, idp_id: str) -> int:
@@ -60,7 +60,7 @@ def count_users_without_idp_in_domain(tenant_id: TenantArg, domain: str) -> int:
         Number of users without IdP assignment
     """
     # Build the pattern in Python to avoid SQL placeholder issues with %
-    pattern = f"%@{domain.lower()}"
+    pattern = f"%@{escape_like(domain.lower())}"
     result = fetchone(
         tenant_id,
         """
@@ -95,7 +95,7 @@ def count_users_with_idp_in_domain(
         Number of users assigned to the IdP with emails in this domain
     """
     # Build the pattern in Python to avoid SQL placeholder issues with %
-    pattern = f"%@{domain.lower()}"
+    pattern = f"%@{escape_like(domain.lower())}"
     result = fetchone(
         tenant_id,
         """

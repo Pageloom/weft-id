@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from database._core import TenantArg, execute, fetchall, fetchone, session
+from database._core import TenantArg, escape_like, execute, fetchall, fetchone, session
 
 
 def _build_member_search_clauses(
@@ -26,7 +26,7 @@ def _build_member_search_clauses(
             f" or u.last_name ilike :{param_name}"
             f" or ue.email ilike :{param_name})"
         )
-        params[param_name] = f"%{token}%"
+        params[param_name] = f"%{escape_like(token)}%"
 
 
 def _build_role_clauses(

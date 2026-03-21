@@ -159,6 +159,36 @@ def test_list_groups_with_search(test_tenant):
     assert len(groups) >= 1
 
 
+def test_list_groups_search_escapes_like_wildcards(test_tenant):
+    """Test that % and _ in search terms are treated as literals, not SQL wildcards."""
+    import database
+
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="Team_Alpha",
+        description="Has underscore",
+    )
+    database.groups.create_group(
+        tenant_id=test_tenant["id"],
+        tenant_id_value=str(test_tenant["id"]),
+        name="TeamXAlpha",
+        description="No underscore",
+    )
+
+    # Searching for "_" should match literal underscore, not any single character
+    groups = database.groups.list_groups(test_tenant["id"], search="Team_A")
+    assert any(g["name"] == "Team_Alpha" for g in groups)
+    assert not any(g["name"] == "TeamXAlpha" for g in groups)
+
+    count = database.groups.count_groups(test_tenant["id"], search="Team_A")
+    assert count == 1
+
+    # Searching with % should not act as wildcard
+    groups = database.groups.list_groups(test_tenant["id"], search="100%")
+    assert len(groups) == 0
+
+
 def test_count_groups(test_tenant):
     """Test counting groups."""
     import database

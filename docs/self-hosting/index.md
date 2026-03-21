@@ -7,9 +7,27 @@ Deploy WeftId on your own infrastructure with Docker Compose and Caddy.
 * Docker Engine 24+ and Docker Compose v2
 * A domain name with DNS access (you will create an A record and a wildcard record)
 * A server with ports 80 and 443 open (for HTTPS via Let's Encrypt)
-* An SMTP server or email API service (Resend, SendGrid) for invitations and MFA codes
+* An SMTP server or email API service (Resend, SendGrid) for invitations and verification codes
 
-## Quick start
+## 1. Set up DNS
+
+Before installing, point two DNS records at your server. Each tenant gets its own subdomain
+(for example, `acme.id.example.com`), and the wildcard record ensures all subdomains resolve.
+
+| Record | Name | Value |
+|--------|------|-------|
+| A | `id.example.com` | your server IP |
+| A (wildcard) | `*.id.example.com` | your server IP |
+
+Replace `id.example.com` with your chosen domain. Set this up first so DNS has time to
+propagate while you configure the rest.
+
+!!! tip
+    TLS certificates are separate from DNS. Caddy obtains a per-subdomain certificate
+    automatically via Let's Encrypt (see [TLS and reverse proxy](#tls-and-reverse-proxy)).
+    You do not need a wildcard certificate.
+
+## 2. Install
 
 The install script downloads the production files, generates secrets, and walks you through
 initial configuration:
@@ -24,101 +42,29 @@ This creates three files in the current directory:
 * `Caddyfile` — reverse proxy with automatic HTTPS
 * `.env` — your configuration (secrets, domain, SMTP)
 
-### DNS setup
+The script asks for your domain and SMTP settings interactively. If you use SendGrid or Resend
+instead of SMTP, press Enter to skip the SMTP prompts. Then edit `.env` to configure your
+email backend (see [Email configuration](#email)).
 
-Before starting, point two DNS records at your server:
+??? note "Manual install"
+    If you prefer not to pipe a script, download the three files yourself:
 
-| Record | Name | Value |
-|--------|------|-------|
-| A | `id.example.com` | your server IP |
-| A (wildcard) | `*.id.example.com` | your server IP |
+    ```bash
+    # Download production files
+    curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml
+    curl -fsSLO https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
 
-Replace `id.example.com` with your chosen `BASE_DOMAIN`. Each tenant gets its own subdomain
-(for example, `acme.id.example.com`). The wildcard DNS record ensures all subdomains resolve
-to your server. TLS certificates are handled separately by Caddy (see
-[TLS and reverse proxy](#tls-and-reverse-proxy)).
+    # Copy and edit .env
+    curl -fsSL https://raw.githubusercontent.com/pageloom/weft-id/main/.env.production.example -o .env
+    ```
 
-### Start the services
+    Then edit `.env` to fill in all required values. Generate secrets with `openssl rand -base64 32`.
 
-```bash
-docker compose -f docker-compose.production.yml up -d
-```
+## 3. Configure email {: #email }
 
-On first start, the `migrate` service applies the database schema, then the app starts. Caddy
-obtains a TLS certificate for each subdomain automatically via Let's Encrypt as tenants are
-first accessed.
-
-### Provision your first tenant
-
-Once the services are running, create a tenant and its founding super admin:
-
-```bash
-docker compose -f docker-compose.production.yml exec app \
-  python -m app.cli.provision_tenant \
-    --subdomain acme \
-    --tenant-name "Acme Corp" \
-    --email admin@acme.com \
-    --first-name Jane \
-    --last-name Smith
-```
-
-The super admin receives an invitation email with a link to verify their email address and set
-a password. This also validates that email delivery is working before the admin gains access.
-
-!!! note
-    If email delivery fails, the command prints a warning and the verification URL as a
-    fallback. Fix your SMTP settings in `.env`, restart the app, and visit the printed URL
-    to continue setup.
-
-## Architecture
-
-The production stack has six services:
-
-| Service | Image | Purpose |
-|---------|-------|---------|
-| **caddy** | `caddy:2-alpine` | Reverse proxy with automatic HTTPS (Let's Encrypt) |
-| **app** | `ghcr.io/pageloom/weft-id` | Web application (FastAPI) |
-| **worker** | `ghcr.io/pageloom/weft-id` | Background job processor |
-| **db** | `postgres:16-alpine` | PostgreSQL database |
-| **memcached** | `memcached:1.6-alpine` | Activity cache |
-| **migrate** | `ghcr.io/pageloom/weft-id` | One-shot schema migration runner |
-
-The `migrate` service runs before `app` starts and exits when done. The `app` service has a
-health check that Caddy waits for before routing traffic.
-
-### Docker image
-
-Production images are published to GitHub Container Registry:
-
-```
-ghcr.io/pageloom/weft-id
-```
-
-Available tags:
-
-* `1.0.0` — exact version (recommended for production)
-* `1.0` — latest patch for a minor version
-* `1` — latest minor for a major version
-* `latest` — newest stable release
-
-## Configuration
-
-All configuration is in `.env`. The install script generates this file interactively, or you
-can copy `.env.production.example` and edit it manually.
-
-### Required variables
-
-| Variable | Description |
-|----------|-------------|
-| `WEFT_VERSION` | Image tag to run (e.g., `1.0.0`). Pin to a specific version for stability. |
-| `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
-| `SECRET_KEY` | Master encryption key. Session signing, MFA secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
-| `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |
-
-### Email
-
-Email delivery is required for user invitations, MFA verification codes, and lifecycle
-notifications. Choose one backend:
+Email delivery is required for user invitations, verification codes, and lifecycle
+notifications. The install script writes SMTP settings by default. If you use a different
+provider, edit `.env` before starting the services.
 
 === "SMTP"
 
@@ -155,40 +101,54 @@ notifications. Choose one backend:
 
     Uses the Resend HTTP API. No SMTP configuration needed.
 
-### Optional variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ENABLE_OPENAPI_DOCS` | Show Swagger UI at `/api/docs` | `false` |
-| `STORAGE_BACKEND` | File storage: `local` or `spaces` (DigitalOcean Spaces) | `local` |
-
-### Security defaults
-
-These are set by the production compose file and `.env.production.example`. Do not change them:
-
-| Variable | Value | Purpose |
-|----------|-------|---------|
-| `IS_DEV` | `False` | Enforces production security validation |
-| `BYPASS_OTP` | `false` | Ensures MFA codes are always verified |
-
-## Database
-
-### Schema management
-
-The `migrate` service runs automatically on every `docker compose up`. It applies the baseline
-schema on a fresh database and any pending migrations on an existing one. Migrations are
-forward-only and logged in the `schema_migration_log` table.
-
-The migrate service connects as the PostgreSQL superuser (`postgres`). The app connects as
-`appuser`, a restricted role created by the baseline schema that enforces row-level security.
-
-### Checking migration status
+## 4. Start the services
 
 ```bash
-docker compose -f docker-compose.production.yml exec db \
-  psql -U postgres -d appdb \
-  -c "SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id"
+docker compose -f docker-compose.production.yml up -d
 ```
+
+On first start, the `migrate` service applies the database schema, then the app starts. Caddy
+obtains a TLS certificate for each subdomain automatically as tenants are first accessed.
+
+Check that everything is running:
+
+```bash
+docker compose -f docker-compose.production.yml ps
+```
+
+All services should show as healthy. If the migrate service failed, check its logs:
+
+```bash
+docker compose -f docker-compose.production.yml logs migrate
+```
+
+## 5. Provision your first tenant
+
+Once the services are running, create a tenant and its founding super admin:
+
+```bash
+docker compose -f docker-compose.production.yml exec app \
+  python -m app.cli.provision_tenant \
+    --subdomain acme \
+    --tenant-name "Acme Corp" \
+    --email admin@acme.com \
+    --first-name Jane \
+    --last-name Smith
+```
+
+The super admin receives an invitation email with a link to verify their email address and set
+a password. This also validates that email delivery is working.
+
+!!! note
+    If email delivery fails, the command prints a warning and the verification URL as a
+    fallback. Fix your email settings in `.env`, restart the app, and visit the printed URL
+    to continue setup.
+
+To add more tenants later, run the same command with a different subdomain and tenant name.
+If the subdomain already exists, the command reuses the existing tenant and adds a new super
+admin.
+
+---
 
 ## Upgrading
 
@@ -205,7 +165,7 @@ docker compose -f docker-compose.production.yml up -d
 
 The `migrate` service runs automatically and applies any pending schema migrations before the
 app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
-Fix the issue (check migration logs) and retry.
+Check migration logs and retry.
 
 ### Rollback considerations
 
@@ -213,7 +173,7 @@ Migrations are forward-only. Rolling back the image version works only if the ne
 schema is backward-compatible with the old application code. This is generally true within a
 minor version (1.1 to 1.0), but not guaranteed across major versions (2.0 to 1.x).
 
-Before upgrading across a major version, back up your database (see below).
+Before upgrading across a major version, back up your database.
 
 ## Backups
 
@@ -251,7 +211,8 @@ To find the volume name, run `docker volume ls | grep storage`.
 ### Configuration
 
 Keep a copy of your `.env` file. It contains your secrets and all configuration. Losing
-`SECRET_KEY` invalidates all active sessions, MFA secrets, and SAML signing keys.
+`SECRET_KEY` invalidates all active sessions, two-step verification secrets, and SAML signing
+keys.
 
 ## Monitoring
 
@@ -284,34 +245,95 @@ docker compose -f docker-compose.production.yml logs -f app
 docker compose -f docker-compose.production.yml logs migrate
 ```
 
-### Service status
+---
 
-```bash
-docker compose -f docker-compose.production.yml ps
+## Reference
+
+### Architecture
+
+The production stack has six services:
+
+| Service | Image | Purpose |
+|---------|-------|---------|
+| **caddy** | `caddy:2-alpine` | Reverse proxy with automatic HTTPS (Let's Encrypt) |
+| **app** | `ghcr.io/pageloom/weft-id` | Web application (FastAPI) |
+| **worker** | `ghcr.io/pageloom/weft-id` | Background job processor |
+| **db** | `postgres:18-alpine` | PostgreSQL database |
+| **memcached** | `memcached:1.6-alpine` | Activity cache |
+| **migrate** | `ghcr.io/pageloom/weft-id` | One-shot schema migration runner |
+
+The `migrate` service runs before `app` starts and exits when done. The `app` service has a
+health check that Caddy waits for before routing traffic.
+
+### Docker image
+
+Production images are published to GitHub Container Registry:
+
+```
+ghcr.io/pageloom/weft-id
 ```
 
-## Provisioning additional tenants
+Available tags:
 
-Use the same CLI command to create additional tenants:
+* `1.0.0` — exact version (recommended for production)
+* `1.0` — latest patch for a minor version
+* `1` — latest minor for a major version
+* `latest` — newest stable release
+
+### Configuration reference
+
+All configuration is in `.env`. The install script generates this file interactively, or you
+can copy `.env.production.example` and edit it manually.
+
+#### Required variables
+
+| Variable | Description |
+|----------|-------------|
+| `WEFT_VERSION` | Image tag to run (e.g., `1.0.0`). Pin to a specific version for stability. |
+| `BASE_DOMAIN` | Root domain for tenant subdomains (e.g., `id.example.com`) |
+| `SECRET_KEY` | Master encryption key. Session signing, two-step verification secrets, SAML key encryption, and email verification tokens are all derived from this value via HKDF. Generate with `openssl rand -base64 32`. |
+| `POSTGRES_PASSWORD` | Password for the PostgreSQL superuser. Generate with `openssl rand -base64 32`. |
+
+#### Optional variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ENABLE_OPENAPI_DOCS` | Show Swagger UI at `/api/docs` | `false` |
+| `STORAGE_BACKEND` | File storage: `local` or `spaces` (DigitalOcean Spaces) | `local` |
+
+#### Security defaults
+
+These are set by the production compose file and `.env.production.example`. Do not change them:
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `IS_DEV` | `False` | Enforces production security validation |
+| `BYPASS_OTP` | `false` | Ensures verification codes are always checked |
+
+### Database
+
+#### Schema management
+
+The `migrate` service runs automatically on every `docker compose up`. It applies the baseline
+schema on a fresh database and any pending migrations on an existing one. Migrations are
+forward-only and logged in the `schema_migration_log` table.
+
+The migrate service connects as the PostgreSQL superuser (`postgres`). The app connects as
+`appuser`, a restricted role created by the baseline schema that enforces row-level security.
+
+#### Checking migration status
 
 ```bash
-docker compose -f docker-compose.production.yml exec app \
-  python -m app.cli.provision_tenant \
-    --subdomain newcorp \
-    --tenant-name "New Corp" \
-    --email admin@newcorp.com \
-    --first-name Alice \
-    --last-name Johnson
+docker compose -f docker-compose.production.yml exec db \
+  psql -U postgres -d appdb \
+  -c "SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id"
 ```
 
-If the subdomain already exists, the command reuses the existing tenant and adds a new super
-admin to it. If the email already exists in that tenant, the command exits with an error.
-
-## TLS and reverse proxy
+### TLS and reverse proxy
 
 Caddy handles TLS automatically using Let's Encrypt HTTP-01 challenges. It uses on-demand TLS,
 which means it obtains a separate certificate for each tenant subdomain on first access. This
-is not a wildcard certificate. The wildcard DNS record (see [DNS setup](#dns-setup)) handles
+is not a wildcard certificate. The wildcard DNS record (see [Set up DNS](#1-set-up-dns)) handles
 routing only. No DNS provider API integration is needed.
 
 Requirements for automatic HTTPS:

@@ -2477,8 +2477,12 @@ automatically via Let's Encrypt (see <a href="#tls-and-reverse-proxy">TLS and re
 You do not need a wildcard certificate.</p>
 </div>
 <h2 id="2-install">2. Install<a class="headerlink" href="#2-install" title="Permanent link">&para;</a></h2>
-<p>The install script downloads the production files, generates secrets, and walks you through
-initial configuration:</p>
+<p>Choose a directory for your WeftId installation. All configuration files live here, and you
+will run <code>docker compose</code> commands from this directory.</p>
+<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>/opt/weftid<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/opt/weftid
+</code></pre></div>
+<p>Then run the install script, which downloads the production files, generates secrets, and walks
+you through initial configuration:</p>
 <div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-sSL<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </code></pre></div>
 <p>This creates three files in the current directory:</p>

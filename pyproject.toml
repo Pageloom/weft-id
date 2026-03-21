@@ -22,7 +22,7 @@ cryptography = "^46.0.5"
 babel = "^2.17.0"
 email-validator = "^2.0.0"
 pydantic = {extras = ["email"], version = "^2.12.5"}
-resend = "^2.23.0"
+resend = "^2.25.0"
 sendgrid = "^6.11.0"
 pymemcache = "^4.0.0"
 python3-saml = "^1.16.0"

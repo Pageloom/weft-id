@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-03-21
+
+### Changed
+
+- Replaced Poetry with pip in the production Dockerfile, eliminating ~3 minutes of arm64 cross-compile time under QEMU emulation. A CI workflow now keeps a pinned requirements file in sync with `poetry.lock`.
+- Bumped Docker GitHub Actions to latest majors (setup-buildx v4, login v4, metadata v6, build-push v7)
+- Bumped uvicorn from 0.41.0 to 0.42.0
+- Bumped resend from 2.23.0 to 2.26.0
+- Bumped zensical from 0.0.24 to 0.0.28
+- Bumped ruff from 0.15.5 to 0.15.7
+
 ## [1.0.0] - 2026-03-20
 
 Initial release of Weft ID, a multi-tenant identity federation platform.

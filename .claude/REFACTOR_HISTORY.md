@@ -49,12 +49,19 @@ Track when each area was last analyzed to identify gaps:
 | `app/jobs/` | 2026-02-01 | 2026-02-01 | Clean - well-structured |
 | `app/utils/` | 2026-02-12 | 2026-02-07 | Clean - largest file 649 lines (email.py) |
 | `app/worker.py` | 2026-02-12 | 2026-02-07 | RESOLVED - refactored to PeriodicJob class, 200 lines |
-| `app/services/branding.py` | 2026-02-27 | 2026-02-27 | 696 lines, 5 concerns (validation, CRUD, mandala, group logos, serving) — borderline, monitor |
-| `app/routers/api/v1/groups.py` | 2026-02-27 | 2026-02-27 | 704 lines, 7 concerns including new group logo endpoints — monitor |
+| `app/services/settings.py` | 2026-03-21 | 2026-03-21 | 1094 lines (CRITICAL), god module with 2 concerns, issue logged |
+| `app/services/branding.py` | 2026-03-21 | 2026-02-27 | 769 lines (+73), logo upload/delete duplication logged |
+| `app/services/groups/idp.py` | 2026-03-21 | 2026-03-21 | 710 lines, 2 concerns, split candidate logged |
+| `app/routers/settings.py` | 2026-03-21 | 2026-02-27 | 814 lines (+230), branding routes mixed in, issue logged |
+| `app/routers/saml_idp/admin.py` | 2026-03-21 | 2026-03-21 | 1089 lines, 33 routes, tab pattern repetition (low priority) |
+| `app/routers/api/v1/groups.py` | 2026-03-21 | 2026-02-27 | 713 lines, slight growth, acceptable |
+| `app/routers/account.py` | 2026-03-21 | 2026-03-21 | 700 lines, at threshold but well-structured |
 | `app/database/branding.py` | 2026-02-27 | 2026-02-27 | 242 lines, clean |
-| `app/routers/settings.py` | 2026-02-27 | 2026-02-27 | 584 lines, growing with branding routes — monitor |
+| `app/database/groups/effective.py` | 2026-03-21 | 2026-03-21 | 105 lines, clean (new) |
+| `app/database/security.py` | 2026-03-21 | 2026-03-21 | 320 lines, clean |
+| `app/cli/verify_email.py` | 2026-03-21 | 2026-03-21 | 285 lines, clean (new) |
 | `tests/` | 2026-02-06 | 2026-02-06 | Parametrization applied (commit 979c5f4), large files mirror app structure (accepted) |
-| `tests/services/test_branding.py` | 2026-02-27 | 2026-02-27 | 814 lines, mirrors production complexity (accepted); _make_png() duplication logged |
+| `tests/services/test_branding.py` | 2026-02-27 | 2026-02-27 | 814 lines, mirrors production complexity (accepted); _make_png() duplication resolved |
 
 ## Recurring Patterns
 
@@ -63,14 +70,57 @@ Track issues that keep appearing to identify systemic problems:
 | Pattern | Occurrences | Areas Affected | Root Cause Hypothesis |
 |---------|-------------|----------------|----------------------|
 | Authorization helpers duplicated | ~~12~~ → RESOLVED | services | FIXED: Centralized in `app/services/auth.py` |
-| Growing god modules | ~~1 (saml.py at 2658 lines)~~ → 1 (crud.py at 1168 lines) | services | service_providers.py split into package but crud.py became new god module |
-| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → ~~15~~ → 17 app files | services, routers, utils | 1 critical: crud.py at 1168 lines; branding.py (696), groups API (704), settings (584) borderline |
+| Growing god modules | ~~1 (saml.py at 2658 lines)~~ → ~~1 (crud.py at 1168 lines)~~ → 1 (settings.py at 1094 lines) | services | crud.py resolved (641 lines), settings.py grew to 1094 |
+| Large files (>500 lines) | ~~8 files~~ → ~~14 files~~ → ~~15~~ → ~~17~~ → 18 app files | services, routers, utils | 1 critical: settings.py at 1094; admin.py (1089), settings router (814), branding (769), idp (710) |
 
 ---
 
 ## Session History
 
 <!-- New entries go here, below this line -->
+
+### 2026-03-21 - New Code Since 2026-02-27 Standard Scan
+
+**Scan type:** Standard
+**Areas analyzed:** All code changed since 2026-02-27: `app/services/settings.py`, `app/services/branding.py`, `app/services/groups/idp.py`, `app/services/service_providers/sso.py`, `app/routers/settings.py`, `app/routers/saml_idp/admin.py`, `app/routers/account.py`, `app/database/groups/effective.py`, `app/database/security.py`, `app/database/_core.py`, `app/cli/verify_email.py`
+**Categories focused:** All (file structure, duplication, complexity, architecture, dead code)
+
+**Prior open items (all resolved):**
+- crud.py god module (1168 lines): Resolved by package split. Now 641 lines.
+- update_branding_settings() double DB read: Resolved. Single call.
+- _make_png() test duplication: Resolved. Extracted to `tests/helpers/image_fixtures.py`.
+- Dropdown pagination (REFACT-001): Superseded by UX redesign backlog item.
+
+**New findings:**
+
+1. **`app/services/settings.py` at 1094 lines (High)** - God module with 2 concerns (domains + security). `update_security_settings()` is 264 lines with 9x repeated merge pattern. Status: Open
+2. **`app/services/groups/idp.py` at 710 lines (Medium)** - Two concerns (creation/discovery vs membership). Split candidate. Status: Open
+3. **`app/services/branding.py` at 769 lines (Medium)** - Logo upload/delete duplicated between group and SP (~60 lines). Status: Open
+4. **`app/routers/settings.py` at 814 lines (Medium)** - Branding routes mixed in (209 lines), form validation repeated 4x. Status: Open
+5. **`app/routers/saml_idp/admin.py` at 1089 lines (Low)** - Tab route pattern repeated 6x. Well-structured, monitor. Status: Open
+
+**Architecture check (all pass):**
+- Router-to-database imports: 0 violations
+- Event logging: All new writes log events
+- Activity tracking: Compliant in new code
+- New code quality (verify_email CLI, groups/effective.py, security fixes): All clean
+
+**What was clean in new code:**
+- `app/cli/verify_email.py` (285 lines): Well-structured CLI, no issues
+- `app/database/groups/effective.py` (105 lines): Proper closure table queries
+- `app/database/security.py` (320 lines): Focused, appropriate size
+- `app/database/_core.py` `escape_like()`: Secure LIKE wildcard escaping
+- `app/routers/account.py` (700 lines): At threshold but well-architected
+
+**Recommendations for next scan:**
+- After settings.py split, verify test mock targets updated
+- If branding.py grows past 850 lines, split into package (validation + mandala submodules)
+- Monitor admin.py for further growth past 1100 lines
+
+**Issues logged:** 5 new issues (1 high, 3 medium, 1 low)
+**Issues resolved since last scan:** 4 (crud.py split, branding double-read, _make_png duplication, pagination superseded)
+
+---
 
 ### 2026-02-27 - New Code (Branding Module) Deep Scan
 

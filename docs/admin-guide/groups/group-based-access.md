@@ -25,3 +25,9 @@ From a group's detail page, you can see which service providers are assigned to 
 ## Access and the hierarchy
 
 Access assignments apply to the group itself. If a service provider is assigned to a parent group, users who are direct members of that parent group can access it.
+
+## Groups in assertions
+
+When an SP has [group claims](../service-providers/attribute-mapping.md#group-claims) enabled, the assertion includes the user's group memberships. How many groups are included depends on the [group assertion scope](../service-providers/attribute-mapping.md#group-assertion-scope) setting.
+
+With the default scope ("access-granting groups only"), only the groups that grant the user access to the specific SP are shared. This minimizes the information disclosed to each application. The scope can be widened to top-level groups or all groups at the tenant level or per SP.

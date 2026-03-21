@@ -896,6 +896,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#groups-in-assertions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Groups in assertions
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2225,6 +2236,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#groups-in-assertions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Groups in assertions
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2258,6 +2280,9 @@
 <p>From a group's detail page, you can see which service providers are assigned to that group.</p>
 <h2 id="access-and-the-hierarchy">Access and the hierarchy<a class="headerlink" href="#access-and-the-hierarchy" title="Permanent link">&para;</a></h2>
 <p>Access assignments apply to the group itself. If a service provider is assigned to a parent group, users who are direct members of that parent group can access it.</p>
+<h2 id="groups-in-assertions">Groups in assertions<a class="headerlink" href="#groups-in-assertions" title="Permanent link">&para;</a></h2>
+<p>When an SP has <a href="../../service-providers/attribute-mapping/#group-claims">group claims</a> enabled, the assertion includes the user's group memberships. How many groups are included depends on the <a href="../../service-providers/attribute-mapping/#group-assertion-scope">group assertion scope</a> setting.</p>
+<p>With the default scope ("access-granting groups only"), only the groups that grant the user access to the specific SP are shared. This minimizes the information disclosed to each application. The scope can be widened to top-level groups or all groups at the tenant level or per SP.</p>
 
 
 

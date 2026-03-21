@@ -15,7 +15,25 @@ Every assertion includes these attributes:
 
 ## Group claims
 
-To include the user's group memberships in the assertion, enable **Include group claims** on the SP's settings. When enabled, a `groups` attribute is added containing the names of all groups the user belongs to.
+To include the user's group memberships in the assertion, enable **Share group membership information** on the SP's **Attributes** tab. When enabled, a `groups` attribute is added to the assertion.
+
+### Group assertion scope
+
+Which groups are included depends on the **group assertion scope** setting. The tenant-wide default is set in **Settings > Security > [Permissions](../security/permissions.md)**. Each SP can override it on its **Attributes** tab.
+
+| Scope | What's shared |
+|-------|--------------|
+| **Access-granting groups only** (default) | Only the groups that grant the user access to this SP (via [group assignments](../groups/group-based-access.md)). For SPs set to "available to all", top-level groups are shared instead since there are no access-granting groups. |
+| **Top-level groups only** | The user's highest-level group memberships. Nested groups are omitted. A top-level group is one where none of the user's other effective groups is an ancestor of it. |
+| **All groups** | Every group the user belongs to, including nested and inherited groups. |
+
+**Scope resolution order:**
+
+1. If **Share group membership information** is disabled on the SP, no groups are shared (regardless of scope).
+2. If the SP has a scope override, that scope is used.
+3. Otherwise, the tenant default applies.
+
+The [consent screen](sso-flow.md#consent-screen) shows users exactly which groups will be shared before they approve the sign-in.
 
 ## Custom mappings
 

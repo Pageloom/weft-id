@@ -23,7 +23,7 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 :   A cryptographic agreement between an IdP and an SP, established by exchanging metadata and certificates. Each side knows the other's entity ID and public key, enabling signature verification and secure communication. In WeftId, each connection gets its own trust relationship with independent certificates.
 
 **Consent screen**
-:   A confirmation page shown to the user during SSO before WeftId sends an assertion to the application. Displays the application name and the user's identity. The user can proceed, cancel, or switch accounts.
+:   A confirmation page shown to the user during SSO before WeftId sends an assertion to the application. Displays the application name, the user's identity, and (when group claims are enabled) the groups that will be shared. The user can proceed, cancel, or switch accounts.
 
 ## SAML 2.0
 
@@ -127,6 +127,9 @@ Terms and abbreviations used throughout this documentation, organized by topic.
 
 **DAG (Directed Acyclic Graph)**
 :   A graph structure where edges have direction and no cycles exist. WeftId uses a DAG for group hierarchy rather than a simple tree, allowing groups to have multiple parents. For example, an "Engineering" group could be a child of both "Product" and "Technology".
+
+**Group assertion scope**
+:   A setting that controls which group memberships are included in SAML assertions sent to service providers. Three options: "access-granting groups only" (default, shares only groups that grant access to the specific SP), "top-level groups only" (shares the user's highest-level memberships without nested groups), and "all groups" (shares every effective membership). The tenant-wide default is set in security permissions. Each SP can override it. See [Group claims](admin-guide/service-providers/attribute-mapping.md#group-claims).
 
 **Group-based access**
 :   Restricting which users can access an application by assigning specific groups to the SP. Only users who belong to an assigned group (directly or through the hierarchy) can access the application. The alternative is "available to all", which grants access to every active user. See [Group-Based Access](admin-guide/groups/group-based-access.md).

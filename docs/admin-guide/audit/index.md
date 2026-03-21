@@ -32,7 +32,7 @@ Events cover all areas of the platform:
 | Identity providers | Created, updated, trust established, deleted |
 | Service providers | Created, updated, deleted, SSO assertions issued |
 | Certificates | Created, rotated |
-| Settings | Session, certificate, permission, and branding changes |
+| Settings | Session, certificate, permission, branding, and group assertion scope changes |
 | Two-step verification | Method changed, backup codes regenerated, admin resets |
 
 ## Activity tracking

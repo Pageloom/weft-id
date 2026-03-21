@@ -92,7 +92,7 @@ class TenantSecuritySettings(BaseModel):
         3,
         description="Minimum zxcvbn strength score (3 = strong, 4 = very strong)",
     )
-    group_assertion_scope: str = Field(
+    group_assertion_scope: Literal["all", "trunk", "access_relevant"] = Field(
         "access_relevant",
         description=(
             "Which groups to include in SAML assertions: "

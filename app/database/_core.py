@@ -32,6 +32,17 @@ class _Unscoped:
 Params = dict[str, Any] | None
 
 UNSCOPED = _Unscoped()
+
+
+def escape_like(value: str) -> str:
+    """Escape LIKE/ILIKE wildcard characters in a search term.
+
+    Prevents user-supplied ``%`` and ``_`` from acting as SQL wildcards.
+    Uses backslash as the escape character (PostgreSQL default).
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 TenantArg = uuid.UUID | str | _Unscoped
 
 _PG_SCALARS = (

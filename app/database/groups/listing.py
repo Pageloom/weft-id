@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from database._core import TenantArg, fetchall, fetchone
+from database._core import TenantArg, escape_like, fetchall, fetchone
 
 
 def count_groups(
@@ -16,7 +16,7 @@ def count_groups(
 
     if search:
         where_clauses.append("(g.name ilike :search or g.description ilike :search)")
-        params["search"] = f"%{search}%"
+        params["search"] = f"%{escape_like(search)}%"
 
     if group_type:
         where_clauses.append("g.group_type = :group_type")
@@ -49,7 +49,7 @@ def list_groups(
 
     if search:
         where_clauses.append("(g.name ilike :search or g.description ilike :search)")
-        params["search"] = f"%{search}%"
+        params["search"] = f"%{escape_like(search)}%"
 
     if group_type:
         where_clauses.append("g.group_type = :group_type")

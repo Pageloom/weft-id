@@ -90,6 +90,26 @@ def test_count_users_with_search(test_user):
     assert count >= 1
 
 
+def test_list_users_search_escapes_like_wildcards(test_user):
+    """Test that % and _ in search terms are treated as literals, not SQL wildcards."""
+    import database
+
+    # Search with underscore - should not match single-char wildcard
+    users = database.users.list_users(test_user["tenant_id"], search="user_1", page=1, page_size=10)
+    # "user_1" should only match literal "user_1", not "usera1", "userb1", etc.
+    for u in users:
+        full = f"{u['first_name']} {u['last_name']} {u.get('email', '')}"
+        assert "user_1" in full.lower() or "_" in full
+
+    # Search with percent - should not match multi-char wildcard
+    users = database.users.list_users(test_user["tenant_id"], search="100%", page=1, page_size=10)
+    assert len(users) == 0  # No user named "100%"
+
+    # Count should match
+    count = database.users.count_users(test_user["tenant_id"], search="100%")
+    assert count == 0
+
+
 def test_update_user_timezone(test_user):
     """Test updating user's timezone."""
     import database

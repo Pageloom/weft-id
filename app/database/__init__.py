@@ -23,6 +23,7 @@ from . import (
 from ._core import (
     UNSCOPED,
     close_pool,
+    escape_like,
     execute,
     fetchall,
     fetchone,
@@ -35,6 +36,7 @@ __all__ = [
     "bg_tasks",
     "branding",
     "close_pool",
+    "escape_like",
     "event_log",
     "execute",
     "export_files",

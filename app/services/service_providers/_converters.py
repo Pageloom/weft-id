@@ -20,6 +20,7 @@ def _row_to_config(row: dict) -> SPConfig:
         encryption_certificate_pem=row.get("encryption_certificate_pem"),
         nameid_format=row["nameid_format"],
         include_group_claims=row.get("include_group_claims", False),
+        group_assertion_scope=row.get("group_assertion_scope"),
         sp_requested_attributes=row.get("sp_requested_attributes"),
         attribute_mapping=row.get("attribute_mapping"),
         metadata_url=row.get("metadata_url"),

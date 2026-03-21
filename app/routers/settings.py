@@ -290,6 +290,7 @@ def _get_security_template_context(
             certificate_rotation_window_days=settings.certificate_rotation_window_days,
             minimum_password_length=settings.minimum_password_length,
             minimum_zxcvbn_score=settings.minimum_zxcvbn_score,
+            group_assertion_scope=settings.group_assertion_scope,
             success=success,
             error=error,
         ),
@@ -564,14 +565,23 @@ def update_admin_security_permissions(
     user: Annotated[dict, Depends(get_current_user)],
     allow_users_edit_profile: Annotated[str, Form()] = "",
     allow_users_add_emails: Annotated[str, Form()] = "",
+    group_assertion_scope: Annotated[str, Form()] = "access_relevant",
 ):
     """Update permission security settings for the tenant."""
     requesting_user = build_requesting_user(user, tenant_id, request)
+
+    # Validate scope value; Pydantic will reject invalid values, but
+    # we sanitize here to avoid a validation error page for bad form data
+    valid_scopes = {"all", "trunk", "access_relevant"}
+    scope_value = (
+        group_assertion_scope if group_assertion_scope in valid_scopes else "access_relevant"
+    )
 
     try:
         settings_update = TenantSecuritySettingsUpdate(
             allow_users_edit_profile=allow_users_edit_profile == "true",
             allow_users_add_emails=allow_users_add_emails == "true",
+            group_assertion_scope=scope_value,  # type: ignore[arg-type]
         )
     except PydanticValidationError as e:
         exc = ValidationError(

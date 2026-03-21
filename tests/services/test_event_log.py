@@ -290,11 +290,19 @@ def test_tenant_settings_update_logs_event(make_requesting_user):
         patch("services.settings.log_event") as mock_log,
     ):
         # Mock getting current settings to calculate changes
-        mock_db.tenant_settings.get_settings.return_value = {
+        mock_db.security.get_security_settings.return_value = {
             "session_timeout_seconds": 3600,
-            "require_mfa": False,
+            "persistent_sessions": True,
+            "allow_users_edit_profile": True,
+            "allow_users_add_emails": True,
+            "inactivity_threshold_days": None,
+            "max_certificate_lifetime_years": 10,
+            "certificate_rotation_window_days": 90,
+            "minimum_password_length": 14,
+            "minimum_zxcvbn_score": 3,
+            "group_assertion_scope": "access_relevant",
         }
-        mock_db.tenant_settings.update_settings.return_value = None
+        mock_db.security.update_security_settings.return_value = 1
 
         settings.update_security_settings(requesting_user, settings_update)
 

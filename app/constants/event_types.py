@@ -99,6 +99,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "tenant_certificate_rotation_window_updated": "Certificate rotation window setting changed",
     "password_policy_updated": "Password strength policy settings changed",
     "tenant_settings_updated": "Tenant settings updated",
+    "group_assertion_scope_updated": "Group assertion scope setting changed",
     "domain_group_link_created": "Group linked to privileged domain for auto-assignment",
     "domain_group_link_deleted": "Group unlinked from privileged domain",
     "domain_group_auto_assigned": "User auto-assigned to groups based on email domain",

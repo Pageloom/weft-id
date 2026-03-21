@@ -28,6 +28,23 @@
             </div>
         </div>
 
+        <div id="group-scope-override" class="ml-7 mb-4 {% if not sp.include_group_claims %}hidden{% endif %}">
+            <label for="edit-group-assertion-scope" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Group scope for this application
+            </label>
+            <select id="edit-group-assertion-scope" name="group_assertion_scope"
+                    class="w-full max-w-xs px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {% set scope_labels = {"access_relevant": "access-granting groups only", "trunk": "top-level groups only", "all": "all groups"} %}
+                <option value="" {% if not sp.group_assertion_scope %}selected{% endif %}>Use tenant default ({{ scope_labels.get(tenant_default_scope, tenant_default_scope) }})</option>
+                <option value="access_relevant" {% if sp.group_assertion_scope == 'access_relevant' %}selected{% endif %}>Access-granting groups only</option>
+                <option value="trunk" {% if sp.group_assertion_scope == 'trunk' %}selected{% endif %}>Top-level groups only</option>
+                <option value="all" {% if sp.group_assertion_scope == 'all' %}selected{% endif %}>All groups</option>
+            </select>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Overrides the tenant-level group assertion scope for this application only.
+            </p>
+        </div>
+
         <div class="mb-4">
             <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assertion Encryption</p>
             {% if sp.encryption_certificate_pem %}
@@ -142,6 +159,14 @@
             document.querySelectorAll('.attr-map-input').forEach((input) => {
                 input.value = input.dataset.default;
             });
+        });
+    }
+
+    const groupClaimsCheckbox = document.getElementById('edit-include-group-claims');
+    const scopeOverride = document.getElementById('group-scope-override');
+    if (groupClaimsCheckbox && scopeOverride) {
+        groupClaimsCheckbox.addEventListener('change', () => {
+            scopeOverride.classList.toggle('hidden', !groupClaimsCheckbox.checked);
         });
     }
 </script>

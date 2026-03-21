@@ -16,6 +16,53 @@ from utils.saml_idp import make_idp_entity_id
 logger = logging.getLogger(__name__)
 
 
+def get_groups_for_assertion(
+    tenant_id: str,
+    user_id: str,
+    sp_id: str,
+    sp_row: dict,
+) -> list[str]:
+    """Compute the group names to include in a SAML assertion.
+
+    Resolves the effective scope (SP override, then tenant default) and returns
+    the filtered group list. Returns an empty list if include_group_claims is
+    false or no groups match.
+    """
+    if not sp_row.get("include_group_claims", False):
+        return []
+
+    # Resolve effective scope: SP override > tenant default > "access_relevant"
+    scope = sp_row.get("group_assertion_scope") or database.security.get_group_assertion_scope(
+        tenant_id
+    )
+
+    if scope == "all":
+        return database.groups.get_effective_group_names(tenant_id, user_id)
+    elif scope == "trunk":
+        return database.groups.get_trunk_group_names(tenant_id, user_id)
+    else:
+        # access_relevant: fall back to trunk for available_to_all SPs
+        if sp_row.get("available_to_all", False):
+            return database.groups.get_trunk_group_names(tenant_id, user_id)
+        return database.groups.get_access_relevant_group_names(tenant_id, user_id, sp_id)
+
+
+def get_groups_for_consent(
+    tenant_id: str,
+    user_id: str,
+    sp_id: str,
+) -> list[str]:
+    """Compute the group names that will be disclosed on the consent screen.
+
+    Fetches the SP row and delegates to get_groups_for_assertion(). Used by the
+    consent page to show the same group list that will appear in the assertion.
+    """
+    sp_row = database.service_providers.get_service_provider(tenant_id, sp_id)
+    if sp_row is None:
+        return []
+    return get_groups_for_assertion(tenant_id, user_id, str(sp_row["id"]), sp_row)
+
+
 def get_service_provider_by_id(tenant_id: str, sp_id: str) -> dict | None:
     """Look up an SP by ID. No auth check required.
 
@@ -142,11 +189,10 @@ def build_sso_response(
         "displayName": f"{first_name} {last_name}".strip(),
     }
 
-    # 5b. Include group claims if enabled for this SP
-    if sp_row.get("include_group_claims", False):
-        group_names = database.groups.get_effective_group_names(tenant_id, user_id)
-        if group_names:
-            user_attributes["groups"] = group_names
+    # 5b. Include group claims based on assertion scope
+    group_names = get_groups_for_assertion(tenant_id, user_id, sp_id, sp_row)
+    if group_names:
+        user_attributes["groups"] = group_names
 
     # 6. Resolve NameID value and format
     from services.service_providers.nameid import resolve_name_id

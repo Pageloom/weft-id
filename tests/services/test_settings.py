@@ -1543,3 +1543,101 @@ def test_auto_assign_multiple_groups(test_tenant, test_admin_user):
     assert count == 2
     for gid in group_ids:
         assert database.groups.is_group_member(tenant_id, gid, user_id)
+
+
+# =============================================================================
+# Group Assertion Scope Tests
+# =============================================================================
+
+
+def test_get_security_settings_includes_group_assertion_scope_default(
+    test_tenant, test_super_admin_user
+):
+    """Test that get_security_settings returns default group_assertion_scope."""
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    result = settings_service.get_security_settings(requesting_user)
+
+    assert result.group_assertion_scope == "access_relevant"
+
+
+def test_update_security_settings_with_group_assertion_scope(test_tenant, test_super_admin_user):
+    """Test updating group_assertion_scope setting."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="trunk")
+
+    result = settings_service.update_security_settings(requesting_user, settings_update)
+
+    assert result.group_assertion_scope == "trunk"
+
+    # Verify it persists
+    result = settings_service.get_security_settings(requesting_user)
+    assert result.group_assertion_scope == "trunk"
+
+
+def test_update_group_assertion_scope_logs_dedicated_event(test_tenant, test_super_admin_user):
+    """Test that changing group_assertion_scope logs a dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set initial value
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="all")
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Change to a different value
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="trunk")
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Verify the dedicated event was logged
+    events = database.event_log.list_events(test_tenant["id"], limit=5)
+    scope_events = [e for e in events if e["event_type"] == "group_assertion_scope_updated"]
+    assert len(scope_events) >= 1
+    latest = scope_events[0]
+    assert latest["metadata"]["old_scope"] == "all"
+    assert latest["metadata"]["new_scope"] == "trunk"
+
+
+def test_update_group_assertion_scope_same_value_no_dedicated_event(
+    test_tenant, test_super_admin_user
+):
+    """Test that setting same scope does not log dedicated event."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    # Set to "all"
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="all")
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Set to "all" again (same value)
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="all")
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Only the first change (from default access_relevant -> all) should log
+    events = database.event_log.list_events(test_tenant["id"], limit=10)
+    scope_events = [e for e in events if e["event_type"] == "group_assertion_scope_updated"]
+    assert len(scope_events) == 1
+
+
+def test_update_group_assertion_scope_included_in_changes_metadata(
+    test_tenant, test_super_admin_user
+):
+    """Test that group_assertion_scope change is in tenant_settings_updated metadata."""
+    from schemas.settings import TenantSecuritySettingsUpdate
+
+    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
+
+    settings_update = TenantSecuritySettingsUpdate(group_assertion_scope="trunk")
+    settings_service.update_security_settings(requesting_user, settings_update)
+
+    # Check the main tenant_settings_updated event has the change in metadata
+    events = database.event_log.list_events(test_tenant["id"], limit=5)
+    settings_events = [e for e in events if e["event_type"] == "tenant_settings_updated"]
+    assert len(settings_events) >= 1
+    latest = settings_events[0]
+    assert "group_assertion_scope" in latest["metadata"]["changes"]
+    scope_change = latest["metadata"]["changes"]["group_assertion_scope"]
+    assert scope_change["new"] == "trunk"

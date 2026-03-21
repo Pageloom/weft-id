@@ -591,6 +591,7 @@ def get_security_settings(
             certificate_rotation_window_days=90,
             minimum_password_length=14,
             minimum_zxcvbn_score=3,
+            group_assertion_scope="access_relevant",
         )
 
     return TenantSecuritySettings(
@@ -603,6 +604,7 @@ def get_security_settings(
         certificate_rotation_window_days=settings.get("certificate_rotation_window_days", 90),
         minimum_password_length=settings.get("minimum_password_length", 14),
         minimum_zxcvbn_score=settings.get("minimum_zxcvbn_score", 3),
+        group_assertion_scope=settings.get("group_assertion_scope", "access_relevant"),
     )
 
 
@@ -760,6 +762,22 @@ def get_password_policy(tenant_id: str) -> dict:
     }
 
 
+def get_group_assertion_scope(tenant_id: str) -> str:
+    """
+    Get the group assertion scope for a tenant.
+
+    Utility function without authorization, intended for use by the SSO
+    flow and SP attribute templates.
+
+    Args:
+        tenant_id: The tenant ID
+
+    Returns:
+        Scope string ('all', 'trunk', or 'access_relevant')
+    """
+    return database.security.get_group_assertion_scope(tenant_id)
+
+
 def _enforce_password_policy_compliance(
     tenant_id: str,
     actor_user_id: str,
@@ -894,6 +912,11 @@ def update_security_settings(
         if settings_update.minimum_zxcvbn_score is not None
         else current.get("minimum_zxcvbn_score", 3)
     )
+    assertion_scope = (
+        settings_update.group_assertion_scope
+        if settings_update.group_assertion_scope is not None
+        else current.get("group_assertion_scope", "access_relevant")
+    )
 
     # Build changes metadata for logging
     changes: dict = {}
@@ -942,6 +965,11 @@ def update_security_settings(
             "old": current.get("minimum_zxcvbn_score", 3),
             "new": min_zxcvbn,
         }
+    if settings_update.group_assertion_scope is not None:
+        changes["group_assertion_scope"] = {
+            "old": current.get("group_assertion_scope", "access_relevant"),
+            "new": assertion_scope,
+        }
 
     # Update in database
     database.security.update_security_settings(
@@ -955,6 +983,7 @@ def update_security_settings(
         certificate_rotation_window_days=rotation_window,
         minimum_password_length=min_pw_length,
         minimum_zxcvbn_score=min_zxcvbn,
+        group_assertion_scope=assertion_scope,
         updated_by=requesting_user["id"],
         tenant_id_value=tenant_id,
     )
@@ -1035,6 +1064,22 @@ def update_security_settings(
                 new_min_score=min_zxcvbn,
             )
 
+    # Log dedicated event when group assertion scope changes
+    if settings_update.group_assertion_scope is not None:
+        old_scope = current.get("group_assertion_scope", "access_relevant")
+        if old_scope != assertion_scope:
+            log_event(
+                tenant_id=tenant_id,
+                actor_user_id=requesting_user["id"],
+                artifact_type="tenant_settings",
+                artifact_id=tenant_id,
+                event_type="group_assertion_scope_updated",
+                metadata={
+                    "old_scope": old_scope,
+                    "new_scope": assertion_scope,
+                },
+            )
+
     return TenantSecuritySettings(
         session_timeout_seconds=timeout,
         persistent_sessions=persistent,
@@ -1045,4 +1090,5 @@ def update_security_settings(
         certificate_rotation_window_days=rotation_window,
         minimum_password_length=min_pw_length,
         minimum_zxcvbn_score=min_zxcvbn,
+        group_assertion_scope=assertion_scope,
     )

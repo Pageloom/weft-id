@@ -49,7 +49,7 @@ false, no groups are communicated regardless of scope.
 
 Group assertion scope setting:
 - [ ] New tenant-level setting in admin security settings: "Group assertion scope" with three
-      options: "All groups" (default), "Trunk groups only", "Access-relevant groups only"
+      options: "All groups", "Trunk groups only", "Access-relevant groups only" (default)
 - [ ] Per-SP override: each SP can override the tenant default with its own scope setting
       (null means inherit tenant default)
 - [ ] "Trunk groups only" filters the group list to the user's topmost memberships (groups

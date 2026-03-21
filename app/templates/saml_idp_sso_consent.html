@@ -42,6 +42,33 @@
                         {{ icon("user", class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-2 shrink-0") }}
                         <span class="font-medium mr-1">Name:</span> {{ user_first_name }} {{ user_last_name }}
                     </li>
+                    {% if consent_groups %}
+                    <li class="flex items-start text-sm text-gray-700 dark:text-gray-300">
+                        {{ icon("user-group-plus", class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-2 mt-0.5 shrink-0") }}
+                        <div>
+                            <span class="font-medium">Groups:</span>
+                            <ul class="mt-1 space-y-0.5">
+                                {% for group_name in consent_groups[:10] %}
+                                <li class="text-xs text-gray-600 dark:text-gray-400">{{ group_name }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% if consent_groups|length > 10 %}
+                            <div id="consent-groups-overflow" class="hidden mt-1">
+                                <ul class="space-y-0.5">
+                                    {% for group_name in consent_groups[10:] %}
+                                    <li class="text-xs text-gray-600 dark:text-gray-400">{{ group_name }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <button type="button" id="consent-groups-toggle"
+                                    data-total="{{ consent_groups|length }}"
+                                    class="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                Show all ({{ consent_groups|length }})
+                            </button>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endif %}
                 </ul>
             </div>
 
@@ -85,6 +112,18 @@
     document.querySelectorAll('img[data-acronym]').forEach((img) => {
         img.src = generateGroupAcronym(img.dataset.acronym, img.dataset.name).image;
     });
+
+    const toggle = document.getElementById('consent-groups-toggle');
+    const overflow = document.getElementById('consent-groups-overflow');
+    if (toggle && overflow) {
+        const total = toggle.dataset.total;
+        toggle.addEventListener('click', () => {
+            overflow.classList.toggle('hidden');
+            toggle.textContent = overflow.classList.contains('hidden')
+                ? `Show all (${total})`
+                : 'Show fewer';
+        });
+    }
 })();
 </script>
 {% endblock %}

@@ -19,7 +19,8 @@ def get_security_settings(tenant_id: TenantArg) -> dict | None:
                allow_users_edit_profile, allow_users_add_emails,
                inactivity_threshold_days, max_certificate_lifetime_years,
                certificate_rotation_window_days,
-               minimum_password_length, minimum_zxcvbn_score
+               minimum_password_length, minimum_zxcvbn_score,
+               group_assertion_scope
         from tenant_security_settings
         where tenant_id = :tenant_id
         """,
@@ -111,6 +112,7 @@ def update_security_settings(
     certificate_rotation_window_days: int,
     minimum_password_length: int,
     minimum_zxcvbn_score: int,
+    group_assertion_scope: str,
     updated_by: str,
     tenant_id_value: str,
 ) -> int:
@@ -128,6 +130,7 @@ def update_security_settings(
         certificate_rotation_window_days: Days before expiry to trigger auto-rotation
         minimum_password_length: Minimum password length (8-20)
         minimum_zxcvbn_score: Minimum zxcvbn strength score (3 or 4)
+        group_assertion_scope: Group scope for SAML assertions
         updated_by: User ID of the person making the update
         tenant_id_value: The actual tenant ID value to store in the record
 
@@ -142,14 +145,14 @@ def update_security_settings(
             allow_users_edit_profile, allow_users_add_emails,
             inactivity_threshold_days, max_certificate_lifetime_years,
             certificate_rotation_window_days, minimum_password_length,
-            minimum_zxcvbn_score, updated_by
+            minimum_zxcvbn_score, group_assertion_scope, updated_by
         )
         values (
             :tenant_id, :timeout_seconds, :persistent_sessions,
             :allow_users_edit_profile, :allow_users_add_emails,
             :inactivity_threshold_days, :max_certificate_lifetime_years,
             :certificate_rotation_window_days, :minimum_password_length,
-            :minimum_zxcvbn_score, :updated_by
+            :minimum_zxcvbn_score, :group_assertion_scope, :updated_by
         )
         on conflict (tenant_id)
         do update set
@@ -162,6 +165,7 @@ def update_security_settings(
             certificate_rotation_window_days = :certificate_rotation_window_days,
             minimum_password_length = :minimum_password_length,
             minimum_zxcvbn_score = :minimum_zxcvbn_score,
+            group_assertion_scope = :group_assertion_scope,
             updated_at = now(),
             updated_by = :updated_by
         """,
@@ -176,6 +180,7 @@ def update_security_settings(
             "certificate_rotation_window_days": certificate_rotation_window_days,
             "minimum_password_length": minimum_password_length,
             "minimum_zxcvbn_score": minimum_zxcvbn_score,
+            "group_assertion_scope": group_assertion_scope,
             "updated_by": updated_by,
         },
     )
@@ -276,6 +281,27 @@ def get_all_tenants_with_inactivity_threshold() -> list[dict]:
         where inactivity_threshold_days is not null
         """,
     )
+
+
+def get_group_assertion_scope(tenant_id: TenantArg) -> str:
+    """
+    Get the group assertion scope setting for a tenant.
+
+    Lightweight getter for the SSO flow (no authorization required).
+
+    Returns:
+        Scope string ('all', 'trunk', or 'access_relevant'), default 'access_relevant'
+    """
+    result = fetchone(
+        tenant_id,
+        """
+        select group_assertion_scope
+        from tenant_security_settings
+        where tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+    return result["group_assertion_scope"] if result else "access_relevant"
 
 
 def get_all_tenant_ids() -> list[dict]:

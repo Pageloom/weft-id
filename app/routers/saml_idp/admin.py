@@ -279,6 +279,11 @@ def sp_tab_attributes(
     if sp_config.sp_requested_attributes:
         expected_mapping = auto_detect_attribute_mapping(sp_config.sp_requested_attributes)
 
+    # Get tenant default scope for display in the "Use tenant default" option
+    from services import settings as settings_service
+
+    tenant_default_scope = settings_service.get_group_assertion_scope(tenant_id)
+
     context = get_template_context(
         request,
         tenant_id,
@@ -286,6 +291,7 @@ def sp_tab_attributes(
         group_count=group_count,
         saml_attributes=SAML_ATTRIBUTE_URIS,
         expected_mapping=expected_mapping,
+        tenant_default_scope=tenant_default_scope,
         active_tab="attributes",
         success=request.query_params.get("success"),
         error=request.query_params.get("error"),
@@ -524,12 +530,13 @@ def sp_edit_attributes(
     user: Annotated[dict, Depends(get_current_user)],
     sp_id: str,
     include_group_claims: str | None = Form(None),
+    group_assertion_scope: str = Form(""),
     attr_map_email: str = Form(""),
     attr_map_firstName: str = Form(""),  # noqa: N803
     attr_map_lastName: str = Form(""),  # noqa: N803
     attr_map_groups: str = Form(""),
 ):
-    """Update an SP's attribute mapping and include_group_claims setting."""
+    """Update an SP's attribute mapping, include_group_claims, and scope override."""
     if not has_page_access("/admin/settings/service-providers/detail", user.get("role")):
         return RedirectResponse(url="/dashboard", status_code=303)
 
@@ -539,6 +546,14 @@ def sp_edit_attributes(
 
     update_fields: dict = {}
     update_fields["include_group_claims"] = include_group_claims == "true"
+
+    # Per-SP scope override: empty string means inherit tenant default (NULL in DB)
+    valid_scopes = ("all", "trunk", "access_relevant")
+    if group_assertion_scope in valid_scopes:
+        update_fields["group_assertion_scope"] = group_assertion_scope
+    else:
+        # Empty/unrecognized = clear the override (inherit tenant default)
+        update_fields["group_assertion_scope"] = None
 
     attr_mapping: dict[str, str] = {}
     if attr_map_email.strip():

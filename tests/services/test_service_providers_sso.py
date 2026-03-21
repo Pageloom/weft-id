@@ -96,6 +96,7 @@ class TestBuildSsoResponse:
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-01T00:00:00Z",
         }
+        mock_db.security.get_group_assertion_scope.return_value = "access_relevant"
         if use_per_sp_cert:
             mock_db.sp_signing_certificates.get_signing_certificate.return_value = {
                 "certificate_pem": "-----BEGIN CERTIFICATE-----\nper-sp\n-----END CERTIFICATE-----",
@@ -306,7 +307,10 @@ class TestBuildSsoResponse:
         mock_db.service_providers.get_service_provider_by_entity_id.return_value[
             "include_group_claims"
         ] = True
-        mock_db.groups.get_effective_group_names.return_value = ["Engineering", "All Staff"]
+        mock_db.groups.get_access_relevant_group_names.return_value = [
+            "Engineering",
+            "All Staff",
+        ]
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -367,7 +371,7 @@ class TestBuildSsoResponse:
         mock_db.service_providers.get_service_provider_by_entity_id.return_value[
             "include_group_claims"
         ] = True
-        mock_db.groups.get_effective_group_names.return_value = []
+        mock_db.groups.get_access_relevant_group_names.return_value = []
 
         with (
             patch("utils.saml.decrypt_private_key", return_value="decrypted-key"),
@@ -744,3 +748,220 @@ class TestBuildSsoResponseEncryption:
 
         assert mock_build.call_args[1]["encryption_certificate_pem"] is None
         assert mock_log_event.call_args[1]["metadata"]["assertion_encrypted"] is False
+
+
+# ============================================================================
+# get_groups_for_assertion: scope resolution
+# ============================================================================
+
+
+class TestGetGroupsForAssertion:
+    """Tests for get_groups_for_assertion scope resolution logic."""
+
+    @patch("services.service_providers.sso.database")
+    def test_returns_empty_when_group_claims_disabled(self, mock_db):
+        """include_group_claims=false takes precedence; returns empty list."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        sp_row = {"include_group_claims": False}
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == []
+        mock_db.groups.get_effective_group_names.assert_not_called()
+        mock_db.groups.get_trunk_group_names.assert_not_called()
+        mock_db.groups.get_access_relevant_group_names.assert_not_called()
+
+    @patch("services.service_providers.sso.database")
+    def test_returns_empty_when_group_claims_missing(self, mock_db):
+        """SP row without include_group_claims key returns empty list."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        sp_row = {}
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == []
+
+    @patch("services.service_providers.sso.database")
+    def test_scope_all_calls_effective_group_names(self, mock_db):
+        """scope=all delegates to get_effective_group_names."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.groups.get_effective_group_names.return_value = ["Eng", "All"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": "all",
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Eng", "All"]
+        mock_db.groups.get_effective_group_names.assert_called_once_with("t1", "u1")
+
+    @patch("services.service_providers.sso.database")
+    def test_scope_trunk_calls_trunk_group_names(self, mock_db):
+        """scope=trunk delegates to get_trunk_group_names."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.groups.get_trunk_group_names.return_value = ["Org"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": "trunk",
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Org"]
+        mock_db.groups.get_trunk_group_names.assert_called_once_with("t1", "u1")
+
+    @patch("services.service_providers.sso.database")
+    def test_scope_access_relevant_calls_access_relevant(self, mock_db):
+        """scope=access_relevant delegates to get_access_relevant_group_names."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.groups.get_access_relevant_group_names.return_value = ["Team"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": "access_relevant",
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Team"]
+        mock_db.groups.get_access_relevant_group_names.assert_called_once_with("t1", "u1", "sp1")
+
+    @patch("services.service_providers.sso.database")
+    def test_access_relevant_falls_back_to_trunk_for_available_to_all(self, mock_db):
+        """access_relevant with available_to_all=true falls back to trunk groups."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.groups.get_trunk_group_names.return_value = ["Root"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": "access_relevant",
+            "available_to_all": True,
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Root"]
+        mock_db.groups.get_trunk_group_names.assert_called_once_with("t1", "u1")
+        mock_db.groups.get_access_relevant_group_names.assert_not_called()
+
+    @patch("services.service_providers.sso.database")
+    def test_sp_override_takes_precedence_over_tenant_default(self, mock_db):
+        """SP-level group_assertion_scope overrides tenant default."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.groups.get_effective_group_names.return_value = ["All Groups"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": "all",  # SP override
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["All Groups"]
+        # Tenant default should NOT be consulted because SP has an override
+        mock_db.security.get_group_assertion_scope.assert_not_called()
+
+    @patch("services.service_providers.sso.database")
+    def test_tenant_default_used_when_sp_has_no_override(self, mock_db):
+        """When SP group_assertion_scope is None, falls back to tenant default."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.security.get_group_assertion_scope.return_value = "trunk"
+        mock_db.groups.get_trunk_group_names.return_value = ["Trunk Group"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": None,  # No SP override
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Trunk Group"]
+        mock_db.security.get_group_assertion_scope.assert_called_once_with("t1")
+        mock_db.groups.get_trunk_group_names.assert_called_once_with("t1", "u1")
+
+    @patch("services.service_providers.sso.database")
+    def test_tenant_default_used_when_sp_key_missing(self, mock_db):
+        """When SP row has no group_assertion_scope key, falls back to tenant."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.security.get_group_assertion_scope.return_value = "all"
+        mock_db.groups.get_effective_group_names.return_value = ["Effective"]
+        sp_row = {
+            "include_group_claims": True,
+            # No group_assertion_scope key at all
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["Effective"]
+        mock_db.security.get_group_assertion_scope.assert_called_once_with("t1")
+
+    @patch("services.service_providers.sso.database")
+    def test_default_scope_is_access_relevant(self, mock_db):
+        """When neither SP nor tenant has a scope set, default is access_relevant."""
+        from services.service_providers.sso import get_groups_for_assertion
+
+        mock_db.security.get_group_assertion_scope.return_value = "access_relevant"
+        mock_db.groups.get_access_relevant_group_names.return_value = ["AR Group"]
+        sp_row = {
+            "include_group_claims": True,
+            "group_assertion_scope": None,
+        }
+
+        result = get_groups_for_assertion("t1", "u1", "sp1", sp_row)
+
+        assert result == ["AR Group"]
+        mock_db.groups.get_access_relevant_group_names.assert_called_once_with("t1", "u1", "sp1")
+
+
+# ============================================================================
+# get_groups_for_consent
+# ============================================================================
+
+
+class TestGetGroupsForConsent:
+    """Tests for get_groups_for_consent (consent screen group disclosure)."""
+
+    @patch("services.service_providers.sso.database")
+    def test_returns_groups_for_existing_sp(self, mock_db):
+        """Returns group list for a valid SP."""
+        from services.service_providers.sso import get_groups_for_consent
+
+        mock_db.service_providers.get_service_provider.return_value = {
+            "id": "sp-1",
+            "include_group_claims": True,
+            "group_assertion_scope": "all",
+        }
+        mock_db.groups.get_effective_group_names.return_value = ["Eng", "Sales"]
+
+        result = get_groups_for_consent("t1", "u1", "sp-1")
+
+        assert result == ["Eng", "Sales"]
+
+    @patch("services.service_providers.sso.database")
+    def test_returns_empty_when_sp_not_found(self, mock_db):
+        """Returns empty list when SP does not exist."""
+        from services.service_providers.sso import get_groups_for_consent
+
+        mock_db.service_providers.get_service_provider.return_value = None
+
+        result = get_groups_for_consent("t1", "u1", "sp-missing")
+
+        assert result == []
+
+    @patch("services.service_providers.sso.database")
+    def test_returns_empty_when_group_claims_disabled(self, mock_db):
+        """Returns empty list when SP has group claims disabled."""
+        from services.service_providers.sso import get_groups_for_consent
+
+        mock_db.service_providers.get_service_provider.return_value = {
+            "id": "sp-1",
+            "include_group_claims": False,
+        }
+
+        result = get_groups_for_consent("t1", "u1", "sp-1")
+
+        assert result == []

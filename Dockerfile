@@ -61,8 +61,16 @@ ENV PYTHONPATH=/app
 COPY app/ /app/
 RUN rm -rf /app/dev/ /app/Dockerfile /app/dev-docker-entrypoint.sh
 
-# Bake version into a file for runtime access (importlib.metadata fallback)
-RUN echo "${VERSION}" > /app/VERSION
+# Bake version into a file for runtime access (importlib.metadata fallback).
+# Extract from pyproject.toml so the build is self-sufficient; the VERSION
+# build arg overrides this when set to something other than "dev".
+COPY pyproject.toml /tmp/pyproject.toml
+RUN if [ "${VERSION}" != "dev" ]; then \
+      echo "${VERSION}" > /app/VERSION; \
+    else \
+      python3 -c "import tomllib; print(tomllib.load(open('/tmp/pyproject.toml','rb'))['tool']['poetry']['version'])" > /app/VERSION; \
+    fi \
+ && rm /tmp/pyproject.toml
 
 # Copy static assets
 COPY --from=builder /build/static/css/output.css /app/static/css/output.css

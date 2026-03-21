@@ -6,6 +6,63 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## CLI: Verify Email Deliverability
+
+**User Story:**
+As a self-hosting operator provisioning a new Weft ID instance
+I want to verify that email delivery is working before I create my first tenant
+So that I know invitations, MFA codes, and notifications will reach users
+
+**Context:**
+
+Tenant provisioning (`python -m app.cli.provision_tenant`) sends an invitation email to
+the founding super admin. If email is misconfigured, the invitation is silently lost and
+the admin has no way to complete onboarding. This script lets the operator confirm delivery
+works and flags common DNS issues that affect deliverability (missing SPF, DKIM, or DMARC
+records), all before creating any tenant.
+
+The script auto-detects which email backend is configured (`smtp`, `sendgrid`, or `resend`)
+from the environment and sends a test email through it. It also performs DNS lookups on the
+`FROM_EMAIL` domain to check for SPF, DKIM, and DMARC records and reports findings.
+
+**Acceptance Criteria:**
+
+CLI interface:
+- [ ] New module at `app/cli/verify_email.py`, invoked via `docker compose exec app python -m app.cli.verify_email --to <address>`
+- [ ] `--to` is the only required argument (the recipient to send the test email to)
+- [ ] Exits 0 on success (email sent + no critical DNS issues), non-zero on failure
+
+Email delivery test:
+- [ ] Auto-detects the configured backend from `EMAIL_BACKEND` setting
+- [ ] Sends a simple test email ("Weft ID email verification" or similar) to the `--to` address
+- [ ] Reports success or failure with the actual error message from the backend
+- [ ] For SMTP, reports connection details (host, port, TLS) to help debug failures
+
+DNS record checks (on the domain extracted from `FROM_EMAIL`):
+- [ ] **SPF**: Looks up TXT records for `v=spf1`. Reports whether a record exists, and shows its contents
+- [ ] **DMARC**: Looks up TXT record at `_dmarc.<domain>`. Reports whether a record exists, shows policy if present
+- [ ] **DKIM**: Checks common selectors based on the detected backend (e.g., `s1`/`s2` for SendGrid, `resend` for Resend) plus a small set of common selectors for generic SMTP. Reports which selectors have records
+- [ ] Each DNS check is clearly labeled as PASS/WARN/MISSING with a brief explanation of what the record does and why it matters
+- [ ] DNS checks are informational (warnings, not blockers). Missing records do not prevent exit code 0 if the email was sent successfully
+
+Dependencies:
+- [ ] Add `dnspython` to project dependencies (for TXT/CNAME record lookups)
+
+Output:
+- [ ] Clear, structured terminal output (not JSON) suitable for an operator reading it during setup
+- [ ] Summary line at the end (e.g., "Email sent successfully. 1 warning: no DMARC record found.")
+
+Tests:
+- [ ] Unit tests for DNS checking logic (mock DNS responses)
+- [ ] Unit tests for backend detection and send attempt (mock backends)
+- [ ] Tests for argument validation and error paths
+
+Documentation:
+- [ ] Self-hosting docs updated to recommend running this command before `provision_tenant`
+
+**Effort:** S
+**Value:** High
+
 ---
 
 ## Create `/accessibility` Skill

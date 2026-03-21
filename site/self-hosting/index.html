@@ -2603,7 +2603,7 @@ and those changes cannot be reversed automatically.</p>
 docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 </code></pre></div>
-<p>The first command captures the <code>appowner</code>, <code>appuser</code>, and <code>migrator</code> roles that WeftId
+<p>The first command captures the <code>appowner</code> and <code>appuser</code> roles that WeftId
 creates. <code>pg_dump</code> does not include roles, so without this file you cannot restore onto a
 fresh Postgres instance.</p>
 </li>
@@ -2678,8 +2678,7 @@ docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> 
 <p>Back up regularly. At a minimum, back up before every upgrade.</p>
 <h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
 <p>A complete database backup requires two commands: one for roles and one for data. WeftId
-creates three Postgres roles (<code>appowner</code>, <code>appuser</code>, <code>migrator</code>) that <code>pg_dump</code> does not
-capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.</p>
+creates Postgres roles (<code>appowner</code> and <code>appuser</code>) that <code>pg_dump</code> does not capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Roles (appowner, appuser, migrator)</span>
 docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql

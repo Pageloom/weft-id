@@ -181,7 +181,7 @@ and those changes cannot be reversed automatically.
       pg_dump -U postgres appdb > backup-$(date +%Y%m%d).sql
     ```
 
-    The first command captures the `appowner`, `appuser`, and `migrator` roles that WeftId
+    The first command captures the `appowner` and `appuser` roles that WeftId
     creates. `pg_dump` does not include roles, so without this file you cannot restore onto a
     fresh Postgres instance.
 
@@ -267,8 +267,7 @@ Back up regularly. At a minimum, back up before every upgrade.
 ### Database
 
 A complete database backup requires two commands: one for roles and one for data. WeftId
-creates three Postgres roles (`appowner`, `appuser`, `migrator`) that `pg_dump` does not
-capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.
+creates Postgres roles (`appowner` and `appuser`) that `pg_dump` does not capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.
 
 ```bash
 # Roles (appowner, appuser, migrator)

@@ -31,6 +31,7 @@ ua-parser = "^1.0.1"
 defusedxml = "^0.7.1"
 httpx = "^0.28.1"
 werkzeug = ">=3.1.6"
+dnspython = "^2.7.0"
 zxcvbn = "^4.5.0"
 
 [tool.poetry.group.dev.dependencies]

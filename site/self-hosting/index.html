@@ -2143,10 +2143,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-provision-your-first-tenant" class="md-nav__link">
+  <a href="#5-verify-email-delivery" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. Provision your first tenant
+        5. Verify email delivery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-provision-your-first-tenant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Provision your first tenant
       
     </span>
   </a>
@@ -2562,7 +2573,21 @@ obtains a TLS certificate for each subdomain automatically as tenants are first 
 <p>All services should show as healthy. If the migrate service failed, check its logs:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>logs<span class="w"> </span>migrate
 </code></pre></div>
-<h2 id="5-provision-your-first-tenant">5. Provision your first tenant<a class="headerlink" href="#5-provision-your-first-tenant" title="Permanent link">&para;</a></h2>
+<h2 id="5-verify-email-delivery">5. Verify email delivery<a class="headerlink" href="#5-verify-email-delivery" title="Permanent link">&para;</a></h2>
+<p>Before provisioning a tenant, verify that email delivery is working. The founding super admin
+receives an invitation email, so broken email configuration means they cannot complete setup.</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.verify_email<span class="w"> </span>--to<span class="w"> </span>you@example.com
+</code></pre></div>
+<p>Replace <code>you@example.com</code> with an address you can check. The command:</p>
+<ul>
+<li>Sends a test email through the configured backend (SMTP, SendGrid, or Resend)</li>
+<li>Checks DNS records (SPF, DKIM, DMARC) for the <code>FROM_EMAIL</code> domain and reports any issues</li>
+</ul>
+<p>If the email arrives and DNS checks look good, proceed to tenant provisioning. DNS warnings
+are informational and do not block the command. Fix any issues flagged before going to
+production to improve deliverability.</p>
+<h2 id="6-provision-your-first-tenant">6. Provision your first tenant<a class="headerlink" href="#6-provision-your-first-tenant" title="Permanent link">&para;</a></h2>
 <p>Once the services are running, create a tenant and its founding super admin:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.provision_tenant<span class="w"> </span><span class="se">\</span>

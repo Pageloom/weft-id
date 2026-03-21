@@ -129,7 +129,26 @@ All services should show as healthy. If the migrate service failed, check its lo
 docker compose -f docker-compose.production.yml logs migrate
 ```
 
-## 5. Provision your first tenant
+## 5. Verify email delivery
+
+Before provisioning a tenant, verify that email delivery is working. The founding super admin
+receives an invitation email, so broken email configuration means they cannot complete setup.
+
+```bash
+docker compose -f docker-compose.production.yml exec app \
+  python -m app.cli.verify_email --to you@example.com
+```
+
+Replace `you@example.com` with an address you can check. The command:
+
+* Sends a test email through the configured backend (SMTP, SendGrid, or Resend)
+* Checks DNS records (SPF, DKIM, DMARC) for the `FROM_EMAIL` domain and reports any issues
+
+If the email arrives and DNS checks look good, proceed to tenant provisioning. DNS warnings
+are informational and do not block the command. Fix any issues flagged before going to
+production to improve deliverability.
+
+## 6. Provision your first tenant
 
 Once the services are running, create a tenant and its founding super admin:
 

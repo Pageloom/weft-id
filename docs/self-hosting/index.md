@@ -159,7 +159,42 @@ admin.
 
 ## Upgrading
 
-### Standard upgrade procedure
+### Before you upgrade
+
+Always back up before upgrading. An upgrade runs migrations that change the database schema,
+and those changes cannot be reversed automatically.
+
+1. **Note your current version.** You need this to restore the exact same environment if
+   something goes wrong.
+
+    ```bash
+    grep WEFT_VERSION .env
+    ```
+
+2. **Back up the database** (data and roles):
+
+    ```bash
+    docker compose -f docker-compose.production.yml exec db \
+      pg_dumpall -U postgres --roles-only > roles-$(date +%Y%m%d).sql
+
+    docker compose -f docker-compose.production.yml exec db \
+      pg_dump -U postgres appdb > backup-$(date +%Y%m%d).sql
+    ```
+
+    The first command captures the `appowner`, `appuser`, and `migrator` roles that WeftId
+    creates. `pg_dump` does not include roles, so without this file you cannot restore onto a
+    fresh Postgres instance.
+
+3. **Back up file storage** if using local storage (the default):
+
+    ```bash
+    docker run --rm \
+      -v $(docker volume ls -q | grep storage):/data \
+      -v $(pwd):/backup \
+      alpine tar czf /backup/storage-$(date +%Y%m%d).tar.gz -C /data .
+    ```
+
+### Upgrade procedure
 
 1. Check the [changelog](https://github.com/pageloom/weft-id/releases) for the target version
 2. Edit `WEFT_VERSION` in `.env` to the new version
@@ -174,28 +209,83 @@ The `migrate` service runs automatically and applies any pending schema migratio
 app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
 Check migration logs and retry.
 
-### Rollback considerations
+### Rolling back
 
-Migrations are forward-only. Rolling back the image version works only if the new database
-schema is backward-compatible with the old application code. This is generally true within a
-minor version (1.1 to 1.0), but not guaranteed across major versions (2.0 to 1.x).
+Migrations are forward-only. There is no automatic rollback. If an upgrade fails or causes
+problems, you have two options depending on the situation.
 
-Before upgrading across a major version, back up your database.
+**If the migration succeeded but the app misbehaves:** You may be able to revert `WEFT_VERSION`
+in `.env` to the previous version and restart. This works only if the new schema is
+backward-compatible with the old application code. Within a minor version (1.1 back to 1.0)
+this is generally safe. Across major versions (2.0 back to 1.x) it is not.
+
+**If you need a full rollback:** Restore from the backup you took before upgrading. This
+requires a fresh database because the migrated schema cannot be downgraded in place.
+
+1. Stop the services:
+
+    ```bash
+    docker compose -f docker-compose.production.yml down
+    ```
+
+2. Remove the database volume to start clean:
+
+    ```bash
+    docker volume rm $(docker volume ls -q | grep dbdata)
+    ```
+
+3. Set `WEFT_VERSION` in `.env` back to the version you were running before the upgrade.
+
+4. Start the database only (so the baseline schema is applied):
+
+    ```bash
+    docker compose -f docker-compose.production.yml up -d db
+    ```
+
+5. Wait for the database to be healthy, then restore roles and data:
+
+    ```bash
+    docker compose -f docker-compose.production.yml exec -T db \
+      psql -U postgres < roles-20250315.sql
+
+    docker compose -f docker-compose.production.yml exec -T db \
+      psql -U postgres appdb < backup-20250315.sql
+    ```
+
+6. Start the remaining services:
+
+    ```bash
+    docker compose -f docker-compose.production.yml up -d
+    ```
+
+7. If using local file storage, restore the storage volume from your backup.
 
 ## Backups
 
+Back up regularly. At a minimum, back up before every upgrade.
+
 ### Database
 
-Use `pg_dump` to create a full database backup:
+A complete database backup requires two commands: one for roles and one for data. WeftId
+creates three Postgres roles (`appowner`, `appuser`, `migrator`) that `pg_dump` does not
+capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.
 
 ```bash
+# Roles (appowner, appuser, migrator)
+docker compose -f docker-compose.production.yml exec db \
+  pg_dumpall -U postgres --roles-only > roles-$(date +%Y%m%d).sql
+
+# Data
 docker compose -f docker-compose.production.yml exec db \
   pg_dump -U postgres appdb > backup-$(date +%Y%m%d).sql
 ```
 
-To restore:
+To restore onto a fresh database, apply roles first, then data:
 
 ```bash
+docker compose -f docker-compose.production.yml exec -T db \
+  psql -U postgres < roles-20250315.sql
+
 docker compose -f docker-compose.production.yml exec -T db \
   psql -U postgres appdb < backup-20250315.sql
 ```
@@ -206,14 +296,11 @@ If using local storage (the default), the `storage` Docker volume contains uploa
 (logos, exports). Back it up alongside the database:
 
 ```bash
-# Replace <project> with your compose project name (usually the directory name)
 docker run --rm \
-  -v <project>_storage:/data \
+  -v $(docker volume ls -q | grep storage):/data \
   -v $(pwd):/backup \
   alpine tar czf /backup/storage-$(date +%Y%m%d).tar.gz -C /data .
 ```
-
-To find the volume name, run `docker volume ls | grep storage`.
 
 ### Configuration
 

@@ -2166,10 +2166,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#standard-upgrade-procedure" class="md-nav__link">
+  <a href="#before-you-upgrade" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Standard upgrade procedure
+        Before you upgrade
       
     </span>
   </a>
@@ -2177,10 +2177,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#rollback-considerations" class="md-nav__link">
+  <a href="#upgrade-procedure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Rollback considerations
+        Upgrade procedure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rolling-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rolling back
       
     </span>
   </a>
@@ -2574,7 +2585,38 @@ If the subdomain already exists, the command reuses the existing tenant and adds
 admin.</p>
 <hr />
 <h2 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h2>
-<h3 id="standard-upgrade-procedure">Standard upgrade procedure<a class="headerlink" href="#standard-upgrade-procedure" title="Permanent link">&para;</a></h3>
+<h3 id="before-you-upgrade">Before you upgrade<a class="headerlink" href="#before-you-upgrade" title="Permanent link">&para;</a></h3>
+<p>Always back up before upgrading. An upgrade runs migrations that change the database schema,
+and those changes cannot be reversed automatically.</p>
+<ol>
+<li>
+<p><strong>Note your current version.</strong> You need this to restore the exact same environment if
+   something goes wrong.</p>
+<div class="highlight"><pre><span></span><code>grep<span class="w"> </span>WEFT_VERSION<span class="w"> </span>.env
+</code></pre></div>
+</li>
+<li>
+<p><strong>Back up the database</strong> (data and roles):</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
+
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
+</code></pre></div>
+<p>The first command captures the <code>appowner</code>, <code>appuser</code>, and <code>migrator</code> roles that WeftId
+creates. <code>pg_dump</code> does not include roles, so without this file you cannot restore onto a
+fresh Postgres instance.</p>
+</li>
+<li>
+<p><strong>Back up file storage</strong> if using local storage (the default):</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>storage<span class="k">)</span>:/data<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>:/backup<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>alpine<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>/backup/storage-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.tar.gz<span class="w"> </span>-C<span class="w"> </span>/data<span class="w"> </span>.
+</code></pre></div>
+</li>
+</ol>
+<h3 id="upgrade-procedure">Upgrade procedure<a class="headerlink" href="#upgrade-procedure" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Check the <a href="https://github.com/pageloom/weft-id/releases">changelog</a> for the target version</li>
 <li>Edit <code>WEFT_VERSION</code> in <code>.env</code> to the new version</li>
@@ -2586,31 +2628,81 @@ docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> 
 <p>The <code>migrate</code> service runs automatically and applies any pending schema migrations before the
 app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
 Check migration logs and retry.</p>
-<h3 id="rollback-considerations">Rollback considerations<a class="headerlink" href="#rollback-considerations" title="Permanent link">&para;</a></h3>
-<p>Migrations are forward-only. Rolling back the image version works only if the new database
-schema is backward-compatible with the old application code. This is generally true within a
-minor version (1.1 to 1.0), but not guaranteed across major versions (2.0 to 1.x).</p>
-<p>Before upgrading across a major version, back up your database.</p>
+<h3 id="rolling-back">Rolling back<a class="headerlink" href="#rolling-back" title="Permanent link">&para;</a></h3>
+<p>Migrations are forward-only. There is no automatic rollback. If an upgrade fails or causes
+problems, you have two options depending on the situation.</p>
+<p><strong>If the migration succeeded but the app misbehaves:</strong> You may be able to revert <code>WEFT_VERSION</code>
+in <code>.env</code> to the previous version and restart. This works only if the new schema is
+backward-compatible with the old application code. Within a minor version (1.1 back to 1.0)
+this is generally safe. Across major versions (2.0 back to 1.x) it is not.</p>
+<p><strong>If you need a full rollback:</strong> Restore from the backup you took before upgrading. This
+requires a fresh database because the migrated schema cannot be downgraded in place.</p>
+<ol>
+<li>
+<p>Stop the services:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>down
+</code></pre></div>
+</li>
+<li>
+<p>Remove the database volume to start clean:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>volume<span class="w"> </span>rm<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>dbdata<span class="k">)</span>
+</code></pre></div>
+</li>
+<li>
+<p>Set <code>WEFT_VERSION</code> in <code>.env</code> back to the version you were running before the upgrade.</p>
+</li>
+<li>
+<p>Start the database only (so the baseline schema is applied):</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>db
+</code></pre></div>
+</li>
+<li>
+<p>Wait for the database to be healthy, then restore roles and data:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
+
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
+</code></pre></div>
+</li>
+<li>
+<p>Start the remaining services:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div>
+</li>
+<li>
+<p>If using local file storage, restore the storage volume from your backup.</p>
+</li>
+</ol>
 <h2 id="backups">Backups<a class="headerlink" href="#backups" title="Permanent link">&para;</a></h2>
+<p>Back up regularly. At a minimum, back up before every upgrade.</p>
 <h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
-<p>Use <code>pg_dump</code> to create a full database backup:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<p>A complete database backup requires two commands: one for roles and one for data. WeftId
+creates three Postgres roles (<code>appowner</code>, <code>appuser</code>, <code>migrator</code>) that <code>pg_dump</code> does not
+capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Roles (appowner, appuser, migrator)</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
+
+<span class="c1"># Data</span>
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 </code></pre></div>
-<p>To restore:</p>
+<p>To restore onto a fresh database, apply roles first, then data:</p>
 <div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
+
+docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
 </code></pre></div>
 <h3 id="file-storage">File storage<a class="headerlink" href="#file-storage" title="Permanent link">&para;</a></h3>
 <p>If using local storage (the default), the <code>storage</code> Docker volume contains uploaded files
 (logos, exports). Back it up alongside the database:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Replace &lt;project&gt; with your compose project name (usually the directory name)</span>
-docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>-v<span class="w"> </span>&lt;project&gt;_storage:/data<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span>docker<span class="w"> </span>volume<span class="w"> </span>ls<span class="w"> </span>-q<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>storage<span class="k">)</span>:/data<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>:/backup<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>alpine<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>/backup/storage-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.tar.gz<span class="w"> </span>-C<span class="w"> </span>/data<span class="w"> </span>.
 </code></pre></div>
-<p>To find the volume name, run <code>docker volume ls | grep storage</code>.</p>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
 <p>Keep a copy of your <code>.env</code> file. It contains your secrets and all configuration. Losing
 <code>SECRET_KEY</code> invalidates all active sessions, two-step verification secrets, and SAML signing

@@ -29,8 +29,15 @@ propagate while you configure the rest.
 
 ## 2. Install
 
-The install script downloads the production files, generates secrets, and walks you through
-initial configuration:
+Choose a directory for your WeftId installation. All configuration files live here, and you
+will run `docker compose` commands from this directory.
+
+```bash
+mkdir -p /opt/weftid && cd /opt/weftid
+```
+
+Then run the install script, which downloads the production files, generates secrets, and walks
+you through initial configuration:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/pageloom/weft-id/main/install.sh | bash

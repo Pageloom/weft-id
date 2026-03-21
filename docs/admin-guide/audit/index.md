@@ -26,7 +26,7 @@ Events cover all areas of the platform:
 
 | Category | Examples |
 |----------|---------|
-| Authentication | Sign-in, sign-out, password changes |
+| Authentication | Sign-in, sign-out, password changes, password resets, breach detection |
 | Users | Created, updated, inactivated, reactivated, anonymized |
 | Groups | Created, deleted, members added/removed, relationships changed |
 | Identity providers | Created, updated, trust established, deleted |

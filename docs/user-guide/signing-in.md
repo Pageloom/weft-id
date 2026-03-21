@@ -16,8 +16,10 @@ After verifying your email once, WeftId sets a trust cookie that lasts 7 days. O
 
 After email verification, WeftId routes you based on your account type:
 
-- **Password users** see the password prompt, then proceed to two-step verification (step 3).
+- **Password users** see the password prompt, then proceed to two-step verification (step 3). If you have forgotten your password, click **Forgot password?** to receive a reset link by email. See [Password](password.md) for details.
 - **IdP users** are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.). After authenticating with the IdP, you are returned to WeftId. If your administrator requires WeftId two-step verification for that IdP, you complete that step before reaching your dashboard.
+
+If your administrator has required a password reset, you will be prompted to choose a new password after entering your current one. You must complete this step before reaching the dashboard.
 
 ## Step 3: Two-step verification
 

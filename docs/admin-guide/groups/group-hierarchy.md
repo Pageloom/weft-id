@@ -22,4 +22,8 @@ From a group's detail page, the **Relationships** tab shows the group's parents 
 
 ## Graph visualization
 
-The group list and detail pages include an interactive graph view. The graph shows the full hierarchy with parent-child connections. You can drag nodes to rearrange the layout, and your arrangement is saved automatically.
+The group list and detail pages include an interactive graph view. The graph shows the full hierarchy with parent-child connections.
+
+**Rearranging nodes.** Drag any node to reposition it. Hold **Shift** while dragging to move the node and all its descendants together, preserving relative positions. Your arrangement is saved automatically.
+
+**Tooltips.** Hover over a node to see group details. Tooltips reposition automatically to avoid overlapping connected nodes and edges.

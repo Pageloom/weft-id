@@ -421,6 +421,61 @@ Compared 40 commits since last session (8aa8fde..HEAD) against documentation pag
 
 None.
 
+### Areas Not Yet Reviewed (as of 2026-03-16)
+
+- API error response messages (app/routers/api/) -- copy review pending
+- Service layer error messages (app/services/exceptions.py usage) -- copy review pending
+
+---
+
+## 2026-03-21 - Documentation Update (Password Features + Graph)
+
+**Starting commit:** 40b6789
+**Mode:** Documentation
+
+### Gap Analysis
+
+Compared 37 commits since last session against documentation pages. Identified 2 major undocumented feature areas and 1 minor update.
+
+### New Pages Created (2)
+
+1. **`docs/admin-guide/security/passwords.md`** -- Password policy settings (min length, min score), super admin enforcement, HIBP breach detection (at-set-time and weekly monitoring), forced password reset, password change, audit events.
+2. **`docs/user-guide/password.md`** -- Changing password, forgot password flow, forced reset, password requirements.
+
+### Pages Updated (8)
+
+1. **`docs/admin-guide/security/index.md`** -- Added Passwords link at top of list.
+2. **`docs/user-guide/index.md`** -- Added Password link between Profile and Two-Step Verification.
+3. **`docs/user-guide/signing-in.md`** -- Added forgot password link to step 2, noted forced password reset flow.
+4. **`docs/admin-guide/users/user-lifecycle.md`** -- Added "password reset required" sub-state under Active.
+5. **`docs/admin-guide/audit/index.md`** -- Added password resets and breach detection to Authentication event examples.
+6. **`docs/getting-started/first-login.md`** -- Updated password section with strength meter mention, super admin minimum length, password manager recommendation.
+7. **`docs/admin-guide/groups/group-hierarchy.md`** -- Added Shift+drag subtree move and improved tooltip positioning to graph visualization section.
+8. **`mkdocs.yml`** -- Added Passwords under Security, Password under User Guide.
+
+### Features Documented
+
+| Feature | Where Documented |
+|---------|-----------------|
+| Password policy settings | admin-guide/security/passwords.md (new) |
+| HIBP breach detection | admin-guide/security/passwords.md (new) |
+| Forced password reset | admin-guide/security/passwords.md, user-lifecycle.md, signing-in.md |
+| Self-service forgot password | user-guide/password.md (new), signing-in.md |
+| Password change | user-guide/password.md (new), admin-guide/security/passwords.md |
+| Password audit events | admin-guide/security/passwords.md, audit/index.md |
+| Shift+drag subtree in graph | admin-guide/groups/group-hierarchy.md |
+| Tooltip repositioning in graph | admin-guide/groups/group-hierarchy.md |
+
+### Not Documented (Intentional)
+
+- **About Weft ID page** -- An admin settings page that displays the version and links to docs. It's a navigation convenience, not a feature that needs its own documentation page.
+- **Production Dockerfile changes** (Poetry to pip) -- Internal build optimization. No impact on self-hosting users who pull pre-built images.
+- **Dependency bumps** -- No user-facing changes.
+
+### Screenshots Requested
+
+None.
+
 ### Areas Not Yet Reviewed
 
 - API error response messages (app/routers/api/) -- copy review pending

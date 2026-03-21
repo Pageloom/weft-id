@@ -6,6 +6,8 @@ Users in WeftId move through three possible states.
 
 The default state. Active users can sign in and access their applications.
 
+An active user may also be in a **password reset required** state. This happens when an admin forces a password reset or when a [breach detection](../security/passwords.md#breach-detection) check finds a compromised password. The user can still sign in, but must choose a new password before reaching the dashboard.
+
 ## Inactivated
 
 Inactivated users cannot sign in. All their data is preserved, and they can be reactivated later. When a user is inactivated:

@@ -8,10 +8,9 @@ Click the link in the invitation email. This confirms your email address and tak
 
 ## Set your password
 
-Choose a password for your account. After setting your password, you are signed in and taken to the dashboard.
+Choose a password for your account. A strength meter shows how strong your password is as you type. Super admins require a minimum of 14 characters. After setting your password, you are signed in and taken to the dashboard.
 
-**Careful!** Do not reuse a password from another account. As the initial super-admin, you would be dodging your
-responsibilities if you did not set up a strong password. 
+Use a password manager to generate a strong, unique password. Do not reuse a password from another account.
 
 ## Explore the dashboard
 

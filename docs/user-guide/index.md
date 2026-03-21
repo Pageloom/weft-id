@@ -6,6 +6,7 @@ Most pages in WeftId show an information icon in the top-right corner of the nav
 
 - [Dashboard](dashboard.md) — Your applications and quick access
 - [Profile](profile.md) — Edit your name, email addresses, and preferences
+- [Password](password.md) — Change your password, reset a forgotten password
 - [Two-Step Verification](two-step-verification.md) — Set up an authenticator app and backup codes
 - [Signing In](signing-in.md) — Sign-in flows, sign-out, and identity provider sign-in
 - [Background Jobs](background-jobs.md) — Check export status and download files

@@ -85,6 +85,9 @@
         <loc>https://docs.weftid.com/admin-guide/security/</loc>
       </url>
       <url>
+        <loc>https://docs.weftid.com/admin-guide/security/passwords/</loc>
+      </url>
+      <url>
         <loc>https://docs.weftid.com/admin-guide/security/sessions/</loc>
       </url>
       <url>
@@ -110,6 +113,9 @@
       </url>
       <url>
         <loc>https://docs.weftid.com/user-guide/profile/</loc>
+      </url>
+      <url>
+        <loc>https://docs.weftid.com/user-guide/password/</loc>
       </url>
       <url>
         <loc>https://docs.weftid.com/user-guide/two-step-verification/</loc>

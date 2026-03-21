@@ -10,36 +10,36 @@
       
       
       
-        <link rel="canonical" href="https://docs.weftid.com/api/">
+        <link rel="canonical" href="https://docs.weftid.com/admin-guide/security/passwords/">
       
       
-        <link rel="prev" href="../user-guide/background-jobs/">
+        <link rel="prev" href="../">
       
       
-        <link rel="next" href="../self-hosting/">
+        <link rel="next" href="../sessions/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.24">
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.27">
     
     
       
-        <title>API - WeftId Documentation</title>
+        <title>Passwords - WeftId Documentation</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="../assets/stylesheets/modern/main.28978c9b.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/modern/main.50057488.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/modern/palette.dfe2e883.min.css">
       
       
 
@@ -52,7 +52,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -73,11 +73,11 @@
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
     <div data-md-component="skip">
       
         
-        <a href="#api" class="md-skip">
+        <a href="#passwords" class="md-skip">
           Skip to content
         </a>
       
@@ -93,13 +93,13 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    <label class="md-header__button md-icon" for="__drawer">
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
       
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
     </label>
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              API
+              Passwords
             
           </span>
         </div>
@@ -153,7 +153,7 @@
     
       
       
-        <label class="md-header__button md-icon" for="__search">
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
           
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
         </label>
@@ -192,7 +192,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -210,7 +210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./.." class="md-nav__link">
+      <a href="../../.." class="md-nav__link">
         
   
   
@@ -261,7 +261,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../getting-started/" class="md-nav__link ">
+            <a href="../../../getting-started/" class="md-nav__link ">
               
   
   
@@ -305,7 +305,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/first-login/" class="md-nav__link">
+      <a href="../../../getting-started/first-login/" class="md-nav__link">
         
   
   
@@ -333,7 +333,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/connecting-an-idp/" class="md-nav__link">
+      <a href="../../../getting-started/connecting-an-idp/" class="md-nav__link">
         
   
   
@@ -361,7 +361,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/adding-an-application/" class="md-nav__link">
+      <a href="../../../getting-started/adding-an-application/" class="md-nav__link">
         
   
   
@@ -393,6 +393,8 @@
       
   
   
+    
+  
   
   
     
@@ -422,15 +424,15 @@
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/" class="md-nav__link ">
+            <a href="../../" class="md-nav__link ">
               
   
   
@@ -454,7 +456,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -498,7 +500,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/users/" class="md-nav__link ">
+            <a href="../../users/" class="md-nav__link ">
               
   
   
@@ -542,7 +544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/users/creating-users/" class="md-nav__link">
+      <a href="../../users/creating-users/" class="md-nav__link">
         
   
   
@@ -570,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/users/user-lifecycle/" class="md-nav__link">
+      <a href="../../users/user-lifecycle/" class="md-nav__link">
         
   
   
@@ -598,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/users/roles-and-permissions/" class="md-nav__link">
+      <a href="../../users/roles-and-permissions/" class="md-nav__link">
         
   
   
@@ -660,7 +662,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/groups/" class="md-nav__link ">
+            <a href="../../groups/" class="md-nav__link ">
               
   
   
@@ -704,7 +706,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/groups/creating-groups/" class="md-nav__link">
+      <a href="../../groups/creating-groups/" class="md-nav__link">
         
   
   
@@ -732,7 +734,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/groups/group-hierarchy/" class="md-nav__link">
+      <a href="../../groups/group-hierarchy/" class="md-nav__link">
         
   
   
@@ -760,7 +762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/groups/membership-management/" class="md-nav__link">
+      <a href="../../groups/membership-management/" class="md-nav__link">
         
   
   
@@ -788,7 +790,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/groups/group-based-access/" class="md-nav__link">
+      <a href="../../groups/group-based-access/" class="md-nav__link">
         
   
   
@@ -846,7 +848,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/identity-providers/" class="md-nav__link ">
+            <a href="../../identity-providers/" class="md-nav__link ">
               
   
   
@@ -890,7 +892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/identity-providers/saml-setup/" class="md-nav__link">
+      <a href="../../identity-providers/saml-setup/" class="md-nav__link">
         
   
   
@@ -918,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/identity-providers/privileged-domains/" class="md-nav__link">
+      <a href="../../identity-providers/privileged-domains/" class="md-nav__link">
         
   
   
@@ -982,7 +984,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/service-providers/" class="md-nav__link ">
+            <a href="../../service-providers/" class="md-nav__link ">
               
   
   
@@ -1026,7 +1028,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/service-providers/registering-an-sp/" class="md-nav__link">
+      <a href="../../service-providers/registering-an-sp/" class="md-nav__link">
         
   
   
@@ -1054,7 +1056,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/service-providers/sp-certificates/" class="md-nav__link">
+      <a href="../../service-providers/sp-certificates/" class="md-nav__link">
         
   
   
@@ -1082,7 +1084,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/service-providers/attribute-mapping/" class="md-nav__link">
+      <a href="../../service-providers/attribute-mapping/" class="md-nav__link">
         
   
   
@@ -1110,7 +1112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/service-providers/sso-flow/" class="md-nav__link">
+      <a href="../../service-providers/sso-flow/" class="md-nav__link">
         
   
   
@@ -1138,7 +1140,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/service-providers/slo/" class="md-nav__link">
+      <a href="../../service-providers/slo/" class="md-nav__link">
         
   
   
@@ -1196,7 +1198,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/integrations/" class="md-nav__link ">
+            <a href="../../integrations/" class="md-nav__link ">
               
   
   
@@ -1240,7 +1242,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/integrations/apps/" class="md-nav__link">
+      <a href="../../integrations/apps/" class="md-nav__link">
         
   
   
@@ -1268,7 +1270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/integrations/b2b/" class="md-nav__link">
+      <a href="../../integrations/b2b/" class="md-nav__link">
         
   
   
@@ -1301,6 +1303,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1324,15 +1328,15 @@
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/security/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1356,7 +1360,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1373,10 +1377,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../admin-guide/security/passwords/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Passwords
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1392,6 +1423,93 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-password-length" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum password length
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#minimum-strength-score" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimum strength score
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#breach-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Breach detection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forced-password-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forced password reset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#password-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Password change
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1404,7 +1522,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/security/sessions/" class="md-nav__link">
+      <a href="../sessions/" class="md-nav__link">
         
   
   
@@ -1432,7 +1550,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/security/certificates/" class="md-nav__link">
+      <a href="../certificates/" class="md-nav__link">
         
   
   
@@ -1460,7 +1578,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/security/permissions/" class="md-nav__link">
+      <a href="../permissions/" class="md-nav__link">
         
   
   
@@ -1488,7 +1606,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../admin-guide/security/two-step-verification/" class="md-nav__link">
+      <a href="../two-step-verification/" class="md-nav__link">
         
   
   
@@ -1542,7 +1660,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/branding/" class="md-nav__link ">
+            <a href="../../branding/" class="md-nav__link ">
               
   
   
@@ -1607,7 +1725,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../admin-guide/audit/" class="md-nav__link ">
+            <a href="../../audit/" class="md-nav__link ">
               
   
   
@@ -1691,7 +1809,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../user-guide/" class="md-nav__link ">
+            <a href="../../../user-guide/" class="md-nav__link ">
               
   
   
@@ -1735,7 +1853,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/dashboard/" class="md-nav__link">
+      <a href="../../../user-guide/dashboard/" class="md-nav__link">
         
   
   
@@ -1763,7 +1881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/profile/" class="md-nav__link">
+      <a href="../../../user-guide/profile/" class="md-nav__link">
         
   
   
@@ -1791,7 +1909,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/password/" class="md-nav__link">
+      <a href="../../../user-guide/password/" class="md-nav__link">
         
   
   
@@ -1819,7 +1937,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/two-step-verification/" class="md-nav__link">
+      <a href="../../../user-guide/two-step-verification/" class="md-nav__link">
         
   
   
@@ -1847,7 +1965,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/signing-in/" class="md-nav__link">
+      <a href="../../../user-guide/signing-in/" class="md-nav__link">
         
   
   
@@ -1875,7 +1993,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../user-guide/background-jobs/" class="md-nav__link">
+      <a href="../../../user-guide/background-jobs/" class="md-nav__link">
         
   
   
@@ -1907,8 +2025,6 @@
       
   
   
-    
-  
   
   
     
@@ -1922,15 +2038,15 @@
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="././" class="md-nav__link md-nav__link--active">
+            <a href="../../../api/" class="md-nav__link ">
               
   
   
@@ -1949,7 +2065,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1994,7 +2110,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../self-hosting/" class="md-nav__link ">
+            <a href="../../../self-hosting/" class="md-nav__link ">
               
   
   
@@ -2040,7 +2156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../glossary/" class="md-nav__link">
+      <a href="../../../glossary/" class="md-nav__link">
         
   
   
@@ -2088,10 +2204,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#interactive-documentation" class="md-nav__link">
+  <a href="#minimum-password-length" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Interactive documentation
+        Minimum password length
       
     </span>
   </a>
@@ -2099,10 +2215,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
+  <a href="#minimum-strength-score" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authentication
+        Minimum strength score
       
     </span>
   </a>
@@ -2110,10 +2226,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#conventions" class="md-nav__link">
+  <a href="#breach-detection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Conventions
+        Breach detection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forced-password-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forced password reset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#password-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Password change
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit events
       
     </span>
   </a>
@@ -2135,26 +2284,54 @@
                 
                   
 
-<h1 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h1>
-<p>WeftId provides a RESTful API under <code>/api/v1/</code> for programmatic access to all platform features. The API uses OAuth2 bearer tokens for authentication.</p>
-<h2 id="interactive-documentation">Interactive documentation<a class="headerlink" href="#interactive-documentation" title="Permanent link">&para;</a></h2>
-<p>When OpenAPI documentation is enabled, interactive API reference is available at:</p>
+<h1 id="passwords">Passwords<a class="headerlink" href="#passwords" title="Permanent link">&para;</a></h1>
+<p>Configure password strength requirements, manage forced resets, and monitor for breached credentials.</p>
+<p>Navigate to <strong>Settings &gt; Security &gt; Passwords</strong> (super admin only).</p>
+<h2 id="minimum-password-length">Minimum password length<a class="headerlink" href="#minimum-password-length" title="Permanent link">&para;</a></h2>
+<p>The shortest password users can set. Options: 8, 10, 12, 14 (recommended), 16, 18, or 20 characters.</p>
+<p>Super admins always require at least 14 characters, regardless of this setting.</p>
+<h2 id="minimum-strength-score">Minimum strength score<a class="headerlink" href="#minimum-strength-score" title="Permanent link">&para;</a></h2>
+<p>Passwords are scored by pattern analysis that detects dictionary words, keyboard patterns, repetition, and dates. Two levels are available:</p>
 <ul>
-<li><strong>Swagger UI</strong> — <code>/api/docs</code></li>
-<li><strong>ReDoc</strong> — <code>/api/redoc</code></li>
-<li><strong>OpenAPI schema</strong> — <code>/openapi.json</code></li>
+<li><strong>Strong (score 3)</strong> -- Default. Rejects passwords with obvious patterns.</li>
+<li><strong>Very strong (score 4)</strong> -- Requires more complex passwords.</li>
 </ul>
-<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
-<p>API requests authenticate with an OAuth2 bearer token in the <code>Authorization</code> header:</p>
-<div class="highlight"><pre><span></span><code>Authorization: Bearer &lt;access_token&gt;
-</code></pre></div>
-<p>Tokens are issued through the OAuth2 authorization code flow or client credentials flow. See <a href="../admin-guide/integrations/">Integrations</a> in the admin guide for how to create OAuth2 clients.</p>
-<h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h2>
+<p>Users see a real-time strength meter as they type, showing the score, estimated crack time, and suggestions for improvement.</p>
+<h2 id="breach-detection">Breach detection<a class="headerlink" href="#breach-detection" title="Permanent link">&para;</a></h2>
+<p>Passwords are checked against the <a href="https://haveibeenpwned.com/">Have I Been Pwned</a> database at the time they are set. Only the first 5 characters of the password hash are transmitted (k-anonymity), so the actual password is never exposed. Passwords found in known breaches are rejected.</p>
+<p>WeftId also runs a weekly background check against the same database. If a user's password appears in a newly disclosed breach:</p>
+<ol>
+<li>The user is flagged for a forced password reset.</li>
+<li>Their OAuth2 tokens are revoked.</li>
+<li>All admins receive an email notification.</li>
+</ol>
+<p>The user must choose a new password on their next sign-in.</p>
+<h2 id="forced-password-reset">Forced password reset<a class="headerlink" href="#forced-password-reset" title="Permanent link">&para;</a></h2>
+<p>Admins can require any password-authenticated user to change their password on next sign-in. From a user's detail page, open the <strong>Danger</strong> tab and click <strong>Force Password Reset</strong>.</p>
+<p>When the user next signs in:</p>
+<ol>
+<li>They authenticate with their current password as usual.</li>
+<li>Instead of reaching the dashboard, they see a "Password Reset Required" page.</li>
+<li>They must choose a new password that meets the current strength requirements.</li>
+<li>After resetting, they proceed to two-step verification and then the dashboard.</li>
+</ol>
+<p>Forced resets revoke the user's OAuth2 tokens immediately. The user's browser session is also terminated on their next page request, forcing them to sign in again and complete the reset.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Forced reset is also triggered automatically when the weekly breach detection finds a compromised password. See <a href="#breach-detection">Breach detection</a> above.</p>
+</div>
+<h2 id="password-change">Password change<a class="headerlink" href="#password-change" title="Permanent link">&para;</a></h2>
+<p>Users can change their own password at any time from <strong>Account &gt; Password</strong>. They must enter their current password and choose a new one. The new password cannot be the same as the current password.</p>
+<p>See the <a href="../../../user-guide/password/">User Guide &gt; Password</a> for the user-facing documentation.</p>
+<h2 id="audit-events">Audit events<a class="headerlink" href="#audit-events" title="Permanent link">&para;</a></h2>
+<p>All password operations are logged in the <a href="../../audit/">event log</a>:</p>
 <ul>
-<li>All endpoints return JSON</li>
-<li>List endpoints support pagination via <code>page</code> and <code>page_size</code> query parameters</li>
-<li>Errors return a JSON object with a <code>detail</code> field</li>
-<li>IDs are UUIDs represented as strings</li>
+<li><code>password_changed</code> -- User changed their own password</li>
+<li><code>password_reset_forced</code> -- Admin forced a password reset</li>
+<li><code>password_reset_completed</code> -- User completed a forced reset</li>
+<li><code>password_reset_requested</code> -- User requested a self-service reset link</li>
+<li><code>password_self_reset_completed</code> -- User completed a self-service reset</li>
+<li><code>password_breach_detected</code> -- Weekly check found a compromised password</li>
 </ul>
 
 
@@ -2208,10 +2385,10 @@
       
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["navigation.indexes","search.suggest","content.code.copy"],"search":"../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["navigation.indexes","search.suggest","content.code.copy"],"search":"../../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.5fd3284f.min.js"></script>
       
     
   </body>

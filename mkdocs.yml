@@ -73,6 +73,7 @@ nav:
       - B2B Service Accounts: admin-guide/integrations/b2b.md
     - Security:
       - admin-guide/security/index.md
+      - Passwords: admin-guide/security/passwords.md
       - Sessions: admin-guide/security/sessions.md
       - Certificates: admin-guide/security/certificates.md
       - Permissions: admin-guide/security/permissions.md
@@ -85,6 +86,7 @@ nav:
     - user-guide/index.md
     - Dashboard: user-guide/dashboard.md
     - Profile: user-guide/profile.md
+    - Password: user-guide/password.md
     - Two-Step Verification: user-guide/two-step-verification.md
     - Signing In: user-guide/signing-in.md
     - Background Jobs: user-guide/background-jobs.md

@@ -2,7 +2,7 @@
 # Dev Dockerfile: app/Dockerfile (used by docker-compose.yml)
 
 # --- Stage 1: Builder ---
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -34,7 +34,7 @@ RUN mkdir -p /build/static/css \
  && tailwindcss -i /build/static/css/input.css -o /build/static/css/output.css --minify
 
 # --- Stage 2: Runtime ---
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ARG VERSION=dev
 ARG BUILD_DATE

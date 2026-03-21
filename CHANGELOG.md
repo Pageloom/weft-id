@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-21
+
+### Added
+
+- Group assertion scope setting to control which groups are shared in SAML assertions (access-relevant, trunk, or all) with per-SP override and consent screen disclosure
+- Email deliverability verification CLI (`python -m app.cli.verify_email`) for checking SPF, DKIM, and DMARC before tenant provisioning
+- Self-hosting upgrade and backup documentation with full rollback procedure
+
+### Changed
+
+- Restructured self-hosting guide as a numbered first-setup flow with install directory guidance
+- Self-hosting docs now emphasize that SECRET_KEY and POSTGRES_PASSWORD are irrecoverable
+- Standardized password error messages across all password templates
+- Rebuilt documentation site with Zensical 0.0.28
+
+### Fixed
+
+- Fixed production Docker image showing "dev" as the version when the build arg was not explicitly passed
+- Fixed incorrect role list in self-hosting backup documentation (removed unused migrator role)
+
+### Security
+
+- Fixed LIKE wildcard injection in search queries where %, _, and \ in search terms were interpreted as SQL wildcards instead of matching literally
+- Added rate limiting to password change endpoints (5 per user per hour, 10 per IP per hour)
+- Fixed content injection via unvalidated query parameters in password-related templates
+
 ## [1.0.4] - 2026-03-21
 
 ### Added

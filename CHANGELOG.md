@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-03-21
+
+### Added
+
+- About Weft ID page in admin settings showing the running version, documentation links, and project info
+- API endpoint at `/api/v1/settings/version` for retrieving version information
+- Documentation for password policy settings, HIBP breach detection, forced password reset, and self-service password flows
+
+### Changed
+
+- Updated group hierarchy documentation with shift+drag subtree move and tooltip positioning details
+
+### Fixed
+
+- Fixed Postgres 18 data loss on container restart caused by a PGDATA path change in Postgres 18
+- Fixed version detection in the dev Docker environment when the app directory is bind-mounted
+
 ## [1.0.3] - 2026-03-21
 
 ### Fixed

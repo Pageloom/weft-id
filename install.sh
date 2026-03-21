@@ -16,7 +16,7 @@ set -e
 REPO="pageloom/weft-id"
 RAW_URL="https://raw.githubusercontent.com/${REPO}"
 API_URL="https://api.github.com/repos/${REPO}"
-FILES="docker-compose.production.yml Caddyfile"
+FILES="Caddyfile"
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -62,6 +62,12 @@ version_from_ref() {
 download_files() {
     ref="$1"
     echo "Downloading from ${REPO}@${ref} ..."
+
+    # Rename production compose file so 'docker compose' finds it by default
+    curl -fsSL "${RAW_URL}/${ref}/docker-compose.production.yml" -o "docker-compose.yml" \
+        || die "Failed to download docker-compose.production.yml"
+    echo "  docker-compose.yml"
+
     for f in $FILES; do
         curl -fsSL "${RAW_URL}/${ref}/${f}" -o "$f" || die "Failed to download ${f}"
         echo "  $f"
@@ -185,7 +191,7 @@ main() {
     echo "  1. Review .env and adjust settings if needed"
     echo "  2. Start Weft ID:"
     echo ""
-    echo "     docker compose -f docker-compose.production.yml up -d"
+    echo "     docker compose up -d"
     echo ""
 }
 

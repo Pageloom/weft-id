@@ -2509,7 +2509,7 @@ you through initial configuration:</p>
 </code></pre></div>
 <p>This creates three files in the current directory:</p>
 <ul>
-<li><code>docker-compose.production.yml</code> — service definitions</li>
+<li><code>docker-compose.yml</code> — service definitions (downloaded from <code>docker-compose.production.yml</code> in the repo)</li>
 <li><code>Caddyfile</code> — reverse proxy with automatic HTTPS</li>
 <li><code>.env</code> — your configuration (secrets, domain, SMTP)</li>
 </ul>
@@ -2519,8 +2519,9 @@ email backend (see <a href="#email">Email configuration</a>).</p>
 <details class="note">
 <summary>Manual install</summary>
 <p>If you prefer not to pipe a script, download the three files yourself:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># Download production files</span>
-curl<span class="w"> </span>-fsSLO<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml
+<div class="highlight"><pre><span></span><code><span class="c1"># Download production compose file and rename so docker compose finds it by default</span>
+curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/docker-compose.production.yml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span>docker-compose.yml
 curl<span class="w"> </span>-fsSLO<span class="w"> </span>https://raw.githubusercontent.com/pageloom/weft-id/main/Caddyfile
 
 <span class="c1"># Copy and edit .env</span>
@@ -2563,20 +2564,20 @@ block outbound SMTP ports.</p>
 </div>
 </div>
 <h2 id="4-start-the-services">4. Start the services<a class="headerlink" href="#4-start-the-services" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
 </code></pre></div>
 <p>On first start, the <code>migrate</code> service applies the database schema, then the app starts. Caddy
 obtains a TLS certificate for each subdomain automatically as tenants are first accessed.</p>
 <p>Check that everything is running:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>ps
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>ps
 </code></pre></div>
 <p>All services should show as healthy. If the migrate service failed, check its logs:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>logs<span class="w"> </span>migrate
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>migrate
 </code></pre></div>
 <h2 id="5-verify-email-delivery">5. Verify email delivery<a class="headerlink" href="#5-verify-email-delivery" title="Permanent link">&para;</a></h2>
 <p>Before provisioning a tenant, verify that email delivery is working. The founding super admin
 receives an invitation email, so broken email configuration means they cannot complete setup.</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.verify_email<span class="w"> </span>--to<span class="w"> </span>you@example.com
 </code></pre></div>
 <p>Replace <code>you@example.com</code> with an address you can check. The command:</p>
@@ -2589,7 +2590,7 @@ are informational and do not block the command. Fix any issues flagged before go
 production to improve deliverability.</p>
 <h2 id="6-provision-your-first-tenant">6. Provision your first tenant<a class="headerlink" href="#6-provision-your-first-tenant" title="Permanent link">&para;</a></h2>
 <p>Once the services are running, create a tenant and its founding super admin:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>python<span class="w"> </span>-m<span class="w"> </span>app.cli.provision_tenant<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--subdomain<span class="w"> </span>acme<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--tenant-name<span class="w"> </span><span class="s2">&quot;Acme Corp&quot;</span><span class="w"> </span><span class="se">\</span>
@@ -2622,10 +2623,10 @@ and those changes cannot be reversed automatically.</p>
 </li>
 <li>
 <p><strong>Back up the database</strong> (data and roles):</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 </code></pre></div>
 <p>The first command captures the <code>appowner</code> and <code>appuser</code> roles that WeftId
@@ -2647,8 +2648,8 @@ fresh Postgres instance.</p>
 <li>Edit <code>WEFT_VERSION</code> in <code>.env</code> to the new version</li>
 <li>Pull the new image and restart:</li>
 </ol>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>pull
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>pull
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
 </code></pre></div>
 <p>The <code>migrate</code> service runs automatically and applies any pending schema migrations before the
 app starts. If a migration fails, the migrate service exits non-zero and the app will not start.
@@ -2665,7 +2666,7 @@ requires a fresh database because the migrated schema cannot be downgraded in pl
 <ol>
 <li>
 <p>Stop the services:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>down
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>down
 </code></pre></div>
 </li>
 <li>
@@ -2678,21 +2679,21 @@ requires a fresh database because the migrated schema cannot be downgraded in pl
 </li>
 <li>
 <p>Start the database only (so the baseline schema is applied):</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>db
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>db
 </code></pre></div>
 </li>
 <li>
 <p>Wait for the database to be healthy, then restore roles and data:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
 
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
 </code></pre></div>
 </li>
 <li>
 <p>Start the remaining services:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>up<span class="w"> </span>-d
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
 </code></pre></div>
 </li>
 <li>
@@ -2705,18 +2706,18 @@ docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> 
 <p>A complete database backup requires two commands: one for roles and one for data. WeftId
 creates Postgres roles (<code>appowner</code> and <code>appuser</code>) that <code>pg_dump</code> does not capture. Without the roles backup, you cannot restore onto a fresh Postgres instance.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># Roles (appowner, appuser, migrator)</span>
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dumpall<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>--roles-only<span class="w"> </span>&gt;<span class="w"> </span>roles-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 
 <span class="c1"># Data</span>
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>pg_dump<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&gt;<span class="w"> </span>backup-<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>.sql
 </code></pre></div>
 <p>To restore onto a fresh database, apply roles first, then data:</p>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>&lt;<span class="w"> </span>roles-20250315.sql
 
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>-T<span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>appdb<span class="w"> </span>&lt;<span class="w"> </span>backup-20250315.sql
 </code></pre></div>
 <h3 id="file-storage">File storage<a class="headerlink" href="#file-storage" title="Permanent link">&para;</a></h3>
@@ -2748,13 +2749,13 @@ Use it for load balancer probes or uptime monitoring:</p>
 <h3 id="logs">Logs<a class="headerlink" href="#logs" title="Permanent link">&para;</a></h3>
 <p>View logs for all services or a specific one:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># All services</span>
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>logs<span class="w"> </span>-f
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f
 
 <span class="c1"># App only</span>
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>app
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>app
 
 <span class="c1"># Migration output</span>
-docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span>logs<span class="w"> </span>migrate
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>migrate
 </code></pre></div>
 <hr />
 <h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
@@ -2897,7 +2898,7 @@ forward-only and logged in the <code>schema_migration_log</code> table.</p>
 <p>The migrate service connects as the PostgreSQL superuser (<code>postgres</code>). The app connects as
 <code>appuser</code>, a restricted role created by the baseline schema that enforces row-level security.</p>
 <h4 id="checking-migration-status">Checking migration status<a class="headerlink" href="#checking-migration-status" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.production.yml<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>db<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>psql<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>-d<span class="w"> </span>appdb<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-c<span class="w"> </span><span class="s2">&quot;SELECT version, status, started_at, completed_at FROM schema_migration_log ORDER BY id&quot;</span>
 </code></pre></div>

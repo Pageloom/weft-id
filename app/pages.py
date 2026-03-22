@@ -120,6 +120,7 @@ PAGES = [
                 title="Password",
                 permission=PagePermission.AUTHENTICATED,
                 show_in_nav=True,
+                docs_path="/docs/user-guide/password/",
             ),
             Page(
                 path="/account/emails",
@@ -209,6 +210,7 @@ PAGES = [
                                 title="Passwords",
                                 permission=PagePermission.SUPER_ADMIN,
                                 show_in_nav=True,
+                                docs_path="/docs/admin-guide/security/passwords/",
                             ),
                             Page(
                                 path="/admin/settings/security/permissions",
@@ -528,12 +530,14 @@ PAGES = [
                         title="Apps",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/integrations/apps/",
                     ),
                     Page(
                         path="/admin/integrations/b2b",
                         title="B2B",
                         permission=PagePermission.ADMIN,
                         show_in_nav=True,
+                        docs_path="/docs/admin-guide/integrations/b2b/",
                     ),
                 ],
             ),

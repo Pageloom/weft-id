@@ -4,6 +4,29 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Contextual Documentation Links
+
+**Status:** Complete
+
+**User Story:**
+As an admin (or user) viewing any page in WeftId
+I want a subtle documentation icon in the top-right area of the page
+So that I can quickly jump to the relevant documentation without hunting through the docs site
+
+**Acceptance Criteria:**
+
+- [x] `Page` dataclass gains an optional `docs_path: str | None` field (default `None`)
+- [x] `docs_path` is populated for all pages with a relevant documentation page
+- [x] `docs_path` is passed through `get_navigation_context()` to templates
+- [x] Base template renders an `information-circle` icon linked to `docs_path` in the top-right area of the page header, when `docs_path` is set
+- [x] Icon opens the docs page in a new tab (`target="_blank"`)
+- [x] Icon has a `title` tooltip ("Documentation for this page")
+- [x] Icon is visually subtle (muted color, small size) so it does not compete with page content
+- [x] Pages without a `docs_path` show no icon (no empty placeholder)
+- [x] Child pages inherit their parent's `docs_path` if they don't define their own
+
+---
+
 ## Self-Hosting Management Script (`weftid`)
 
 **Status:** Complete

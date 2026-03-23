@@ -8,6 +8,10 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: pageloom/weft-id
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest

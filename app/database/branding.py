@@ -16,18 +16,19 @@ def get_branding(tenant_id: TenantArg) -> dict | None:
         tenant_id,
         """
         SELECT
-            logo_mode,
-            use_logo_as_favicon,
-            site_title,
-            show_title_in_nav,
-            (logo_light IS NOT NULL) AS has_logo_light,
-            (logo_dark IS NOT NULL) AS has_logo_dark,
-            logo_light_mime,
-            logo_dark_mime,
-            group_avatar_style,
-            updated_at
-        FROM tenant_branding
-        WHERE tenant_id = :tenant_id
+            tb.logo_mode,
+            tb.use_logo_as_favicon,
+            tb.show_title_in_nav,
+            (tb.logo_light IS NOT NULL) AS has_logo_light,
+            (tb.logo_dark IS NOT NULL) AS has_logo_dark,
+            tb.logo_light_mime,
+            tb.logo_dark_mime,
+            tb.group_avatar_style,
+            tb.updated_at,
+            t.name AS tenant_name
+        FROM tenant_branding tb
+        JOIN tenants t ON t.id = tb.tenant_id
+        WHERE tb.tenant_id = :tenant_id
         """,
         {"tenant_id": str(tenant_id)},
     )
@@ -136,7 +137,6 @@ def update_branding_settings(
     tenant_id_value: str,
     logo_mode: str,
     use_logo_as_favicon: bool,
-    site_title: str | None = None,
     show_title_in_nav: bool = True,
     group_avatar_style: str = "acronym",
 ) -> int:
@@ -148,7 +148,6 @@ def update_branding_settings(
         tenant_id_value: Tenant ID value to store
         logo_mode: 'mandala' or 'custom'
         use_logo_as_favicon: Whether to use logo as favicon
-        site_title: Custom site title (None = use default)
         show_title_in_nav: Whether to show title in nav bar
         group_avatar_style: 'acronym'
 
@@ -160,16 +159,15 @@ def update_branding_settings(
         """
         INSERT INTO tenant_branding (
             tenant_id, logo_mode, use_logo_as_favicon,
-            site_title, show_title_in_nav, group_avatar_style, updated_at
+            show_title_in_nav, group_avatar_style, updated_at
         )
         VALUES (
             :tenant_id, :logo_mode, :use_logo_as_favicon,
-            :site_title, :show_title_in_nav, :group_avatar_style, now()
+            :show_title_in_nav, :group_avatar_style, now()
         )
         ON CONFLICT (tenant_id) DO UPDATE
             SET logo_mode = :logo_mode,
                 use_logo_as_favicon = :use_logo_as_favicon,
-                site_title = :site_title,
                 show_title_in_nav = :show_title_in_nav,
                 group_avatar_style = :group_avatar_style,
                 updated_at = now()
@@ -178,7 +176,6 @@ def update_branding_settings(
             "tenant_id": tenant_id_value,
             "logo_mode": logo_mode,
             "use_logo_as_favicon": use_logo_as_favicon,
-            "site_title": site_title,
             "show_title_in_nav": show_title_in_nav,
             "group_avatar_style": group_avatar_style,
         },

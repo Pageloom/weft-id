@@ -97,13 +97,13 @@ class TestUserUpdate:
 
 
 class TestBrandingSettingsUpdate:
-    def test_site_title_max_length(self):
+    def test_tenant_name_max_length(self):
         with pytest.raises(ValidationError):
-            BrandingSettingsUpdate(logo_mode="mandala", site_title="x" * 31)
+            BrandingSettingsUpdate(logo_mode="mandala", tenant_name="x" * 81)
 
-    def test_valid_site_title(self):
-        m = BrandingSettingsUpdate(logo_mode="mandala", site_title="My Site")
-        assert m.site_title == "My Site"
+    def test_valid_tenant_name(self):
+        m = BrandingSettingsUpdate(logo_mode="mandala", tenant_name="My Site")
+        assert m.tenant_name == "My Site"
 
 
 # ============================================================================

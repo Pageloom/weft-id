@@ -41,7 +41,7 @@ def test_get_branding_as_admin(client, override_api_auth):
     data = resp.json()
     assert data["logo_mode"] == "mandala"
     assert data["has_logo_light"] is False
-    assert data["site_title"] is None
+    assert data["tenant_name"] is None
     assert data["show_title_in_nav"] is True
 
 
@@ -74,7 +74,7 @@ def test_upload_logo_as_admin(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
-                "site_title": None,
+                "tenant_name": None,
                 "show_title_in_nav": True,
                 "has_logo_light": True,
                 "has_logo_dark": False,
@@ -126,7 +126,7 @@ def test_delete_logo_as_admin(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
-                "site_title": None,
+                "tenant_name": None,
                 "show_title_in_nav": True,
                 "has_logo_light": False,
                 "has_logo_dark": False,
@@ -171,7 +171,7 @@ def test_update_branding_settings(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
-                "site_title": None,
+                "tenant_name": None,
                 "show_title_in_nav": True,
                 "has_logo_light": True,
                 "has_logo_dark": False,
@@ -196,8 +196,8 @@ def test_update_branding_settings(client, override_api_auth):
     )  # Mock returns mandala since get_branding is mocked
 
 
-def test_update_branding_settings_with_site_title(client, override_api_auth):
-    """Admin can update branding settings with site title."""
+def test_update_branding_settings_with_tenant_name(client, override_api_auth):
+    """Admin can update branding settings with tenant name."""
     user = _admin_user()
     override_api_auth(user, level="admin")
 
@@ -207,7 +207,7 @@ def test_update_branding_settings_with_site_title(client, override_api_auth):
             return_value={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
-                "site_title": "My App",
+                "tenant_name": "My App",
                 "show_title_in_nav": False,
                 "has_logo_light": False,
                 "has_logo_dark": False,
@@ -218,6 +218,7 @@ def test_update_branding_settings_with_site_title(client, override_api_auth):
             },
         ),
         patch("services.branding.database.branding.update_branding_settings", return_value=1),
+        patch("services.branding.database.tenants.update_tenant_name", return_value=1),
         patch("services.branding.log_event"),
         patch("services.branding.track_activity"),
     ):
@@ -226,14 +227,14 @@ def test_update_branding_settings_with_site_title(client, override_api_auth):
             json={
                 "logo_mode": "mandala",
                 "use_logo_as_favicon": False,
-                "site_title": "My App",
+                "tenant_name": "My App",
                 "show_title_in_nav": False,
             },
         )
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["site_title"] == "My App"
+    assert data["tenant_name"] == "My App"
     assert data["show_title_in_nav"] is False
 
 
@@ -297,7 +298,7 @@ def test_save_mandala_as_admin(client, override_api_auth):
             return_value={
                 "logo_mode": "custom",
                 "use_logo_as_favicon": False,
-                "site_title": None,
+                "tenant_name": None,
                 "show_title_in_nav": True,
                 "has_logo_light": True,
                 "has_logo_dark": True,

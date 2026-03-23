@@ -108,11 +108,11 @@ edit `site_title`), which updates `tenants.name`.
 **Acceptance Criteria:**
 
 Database:
-- [ ] Migration removes `site_title` from `tenant_branding` (or marks it unused)
 - [ ] Migration copies any non-default `site_title` values into `tenants.name` for tenants
       where `site_title` differs from the default "WeftId" (preserves admin customizations)
-- [ ] `tenants.name` gains a `CHECK` constraint on length (max 30 chars, matching current
-      `site_title` limit) if it doesn't already have one
+- [ ] `tenants.name` gains a `CHECK` constraint on length (max 80 chars) if it doesn't
+      already have one
+- [ ] `site_title` column is left in place (dropped later via separate backlog item)
 
 Service layer:
 - [ ] `get_branding_for_template()` returns `tenants.name` where it previously returned `site_title`
@@ -288,6 +288,34 @@ Only user-facing prose needs updating. Code identifiers (variable names, enum va
 ---
 
 ## ~~Stateless Time-Windowed Token Generation~~ (Complete)
+
+---
+
+## Drop Unused `site_title` Column from `tenant_branding`
+
+**User Story:**
+As a developer
+I want to remove the unused `site_title` column from `tenant_branding`
+So that the schema is clean after consolidating tenant name and site title
+
+**Context:**
+
+The "Consolidate Tenant Name and Site Title" item stops all code from reading or writing
+`site_title`, using `tenants.name` everywhere instead. The column remains in the database
+but is unused. This item drops it once the consolidation has been live long enough to
+confirm nothing references it.
+
+This is a cleanup item with no user-facing impact. It depends on the consolidation item
+being fully deployed and confirmed working.
+
+**Acceptance Criteria:**
+
+- [ ] Verify no code paths read from or write to `tenant_branding.site_title`
+- [ ] Migration drops the `site_title` column from `tenant_branding`
+- [ ] Tests updated to remove any references to `site_title`
+
+**Effort:** S
+**Value:** Low (Cleanup, depends on tenant name consolidation being complete)
 
 ---
 

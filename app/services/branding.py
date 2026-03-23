@@ -23,11 +23,11 @@ from utils.mandala import generate_mandala_svg
 # Maximum logo file size: 256 KB
 MAX_LOGO_SIZE = 256 * 1024
 
-# Maximum site title length
-MAX_SITE_TITLE_LENGTH = 30
+# Maximum tenant name length
+MAX_TENANT_NAME_LENGTH = 80
 
-# Default site title when none is configured
-DEFAULT_SITE_TITLE = "WeftId"
+# Default tenant name when none is configured
+DEFAULT_TENANT_NAME = "WeftId"
 
 # PNG magic bytes
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -288,7 +288,10 @@ def get_branding_settings(requesting_user: RequestingUser) -> BrandingSettings:
 
     row = database.branding.get_branding(requesting_user["tenant_id"])
     if row is None:
-        return BrandingSettings()
+        # No branding row yet, but tenant name may be set
+        tenant = database.tenants.get_tenant_by_id(requesting_user["tenant_id"])
+        tenant_name = tenant["name"] if tenant else None
+        return BrandingSettings(tenant_name=tenant_name)
 
     # If custom mode is set but the light logo was deleted, fall back to mandala
     # to avoid an unsubmittable form state.
@@ -299,7 +302,7 @@ def get_branding_settings(requesting_user: RequestingUser) -> BrandingSettings:
     return BrandingSettings(
         logo_mode=logo_mode,
         use_logo_as_favicon=row["use_logo_as_favicon"],
-        site_title=row["site_title"],
+        tenant_name=row["tenant_name"],
         show_title_in_nav=row["show_title_in_nav"],
         has_logo_light=row["has_logo_light"],
         has_logo_dark=row["has_logo_dark"],
@@ -417,27 +420,30 @@ def update_branding_settings(
                 field="logo_mode",
             )
 
-    # Normalize site_title: strip whitespace, treat empty/whitespace-only as None
-    site_title = settings.site_title
-    if site_title is not None:
-        site_title = site_title.strip()
-        if not site_title:
-            site_title = None
+    # Normalize tenant_name: strip whitespace, treat empty/whitespace-only as None
+    tenant_name = settings.tenant_name
+    if tenant_name is not None:
+        tenant_name = tenant_name.strip()
+        if not tenant_name:
+            tenant_name = None
 
-    # Validate title length
-    if site_title is not None and len(site_title) > MAX_SITE_TITLE_LENGTH:
+    # Validate name length
+    if tenant_name is not None and len(tenant_name) > MAX_TENANT_NAME_LENGTH:
         raise ValidationError(
-            message=f"Site title must be {MAX_SITE_TITLE_LENGTH} characters or fewer",
-            code="site_title_too_long",
-            field="site_title",
+            message=f"Tenant name must be {MAX_TENANT_NAME_LENGTH} characters or fewer",
+            code="tenant_name_too_long",
+            field="tenant_name",
         )
+
+    # Update tenant name in the tenants table
+    if tenant_name is not None:
+        database.tenants.update_tenant_name(requesting_user["tenant_id"], tenant_name)
 
     database.branding.update_branding_settings(
         tenant_id=requesting_user["tenant_id"],
         tenant_id_value=requesting_user["tenant_id"],
         logo_mode=settings.logo_mode.value,
         use_logo_as_favicon=settings.use_logo_as_favicon,
-        site_title=site_title,
         show_title_in_nav=settings.show_title_in_nav,
         group_avatar_style=settings.group_avatar_style.value,
     )
@@ -451,7 +457,7 @@ def update_branding_settings(
         metadata={
             "logo_mode": settings.logo_mode.value,
             "use_logo_as_favicon": settings.use_logo_as_favicon,
-            "site_title": site_title,
+            "tenant_name": tenant_name,
             "show_title_in_nav": settings.show_title_in_nav,
         },
     )
@@ -520,7 +526,6 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
     # Read current settings to preserve existing values
     row = database.branding.get_branding(tenant_id)
     use_favicon = row["use_logo_as_favicon"] if row else False
-    site_title = row["site_title"] if row else None
     show_title = row["show_title_in_nav"] if row else True
     group_avatar_style = row["group_avatar_style"] if row else "acronym"
 
@@ -530,7 +535,6 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
         tenant_id_value=tenant_id,
         logo_mode="custom",
         use_logo_as_favicon=use_favicon,
-        site_title=site_title,
         show_title_in_nav=show_title,
         group_avatar_style=group_avatar_style,
     )
@@ -744,17 +748,20 @@ def get_branding_for_template(tenant_id: str) -> dict:
     No authentication required. Called on every page load for logged-in users.
 
     Returns:
-        Dict with logo_mode, use_logo_as_favicon, has_logo_light, has_logo_dark.
-        Returns defaults (mandala mode) if no branding row exists.
+        Dict with logo_mode, use_logo_as_favicon, has_logo_light, has_logo_dark,
+        site_title (from tenants.name). Returns defaults if no branding row exists.
     """
     row = database.branding.get_branding(tenant_id)
     if row is None:
+        # No branding row, but still check tenant name
+        tenant = database.tenants.get_tenant_by_id(tenant_id)
+        tenant_name = tenant["name"] if tenant else DEFAULT_TENANT_NAME
         return {
             "logo_mode": "mandala",
             "use_logo_as_favicon": False,
             "has_logo_light": False,
             "has_logo_dark": False,
-            "site_title": DEFAULT_SITE_TITLE,
+            "site_title": tenant_name or DEFAULT_TENANT_NAME,
             "show_title_in_nav": True,
             "group_avatar_style": "acronym",
             "logo_version": 0,
@@ -765,7 +772,7 @@ def get_branding_for_template(tenant_id: str) -> dict:
         "use_logo_as_favicon": row["use_logo_as_favicon"],
         "has_logo_light": row["has_logo_light"],
         "has_logo_dark": row["has_logo_dark"],
-        "site_title": row["site_title"] or DEFAULT_SITE_TITLE,
+        "site_title": row["tenant_name"] or DEFAULT_TENANT_NAME,
         "show_title_in_nav": row["show_title_in_nav"],
         "group_avatar_style": row["group_avatar_style"],
         "logo_version": int(row["updated_at"].timestamp()) if row.get("updated_at") else 0,

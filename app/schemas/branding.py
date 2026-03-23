@@ -31,7 +31,7 @@ class BrandingSettings(BaseModel):
 
     logo_mode: LogoMode = Field(LogoMode.MANDALA, description="Current logo display mode")
     use_logo_as_favicon: bool = Field(False, description="Use custom logo as favicon")
-    site_title: str | None = Field(None, description="Custom site title (NULL = WeftId)")
+    tenant_name: str | None = Field(None, description="Tenant display name (NULL = WeftId)")
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
     has_logo_light: bool = Field(False, description="Whether a light logo is uploaded")
     has_logo_dark: bool = Field(False, description="Whether a dark logo is uploaded")
@@ -48,8 +48,8 @@ class BrandingSettingsUpdate(BaseModel):
 
     logo_mode: LogoMode = Field(..., description="Logo display mode")
     use_logo_as_favicon: bool = Field(False, description="Use custom logo as favicon")
-    site_title: str | None = Field(
-        None, max_length=30, description="Custom site title (max 30 chars)"
+    tenant_name: str | None = Field(
+        None, max_length=80, description="Tenant display name (max 80 chars)"
     )
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
     group_avatar_style: GroupAvatarStyle = Field(

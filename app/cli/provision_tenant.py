@@ -54,8 +54,8 @@ def _validate_args(args: argparse.Namespace) -> list[str]:
 
     if not args.tenant_name or len(args.tenant_name.strip()) == 0:
         errors.append("Tenant name cannot be empty")
-    elif len(args.tenant_name) > 30:
-        errors.append("Tenant name too long (max 30 characters)")
+    elif len(args.tenant_name) > 80:
+        errors.append("Tenant name too long (max 80 characters)")
 
     return errors
 

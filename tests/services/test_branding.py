@@ -431,35 +431,36 @@ class TestUpdateSettings:
         with pytest.raises(ForbiddenError):
             branding_service.update_branding_settings(ru, update)
 
-    def test_set_site_title(self, test_tenant, test_admin_user):
-        """Admin can set a custom site title."""
+    def test_set_tenant_name(self, test_tenant, test_admin_user):
+        """Admin can set a custom tenant name."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
-        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="My Company")
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, tenant_name="My Company")
         result = branding_service.update_branding_settings(ru, update)
 
-        assert result.site_title == "My Company"
+        assert result.tenant_name == "My Company"
 
-    def test_site_title_too_long_rejected(self):
-        """Site title exceeding 30 characters is rejected at schema level."""
+    def test_tenant_name_too_long_rejected(self):
+        """Tenant name exceeding 80 characters is rejected at schema level."""
         from pydantic import ValidationError as PydanticValidationError
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
         with pytest.raises(PydanticValidationError):
-            BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="A" * 31)
+            BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, tenant_name="A" * 81)
 
-    def test_site_title_whitespace_only_treated_as_null(self, test_tenant, test_admin_user):
-        """Whitespace-only title is normalized to NULL."""
+    def test_tenant_name_whitespace_only_preserves_existing(self, test_tenant, test_admin_user):
+        """Whitespace-only tenant name is normalized to NULL, preserving existing name."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
-        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="   ")
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, tenant_name="   ")
         result = branding_service.update_branding_settings(ru, update)
 
-        assert result.site_title is None
+        # Whitespace normalizes to None (no update), so existing tenant name is preserved
+        assert result.tenant_name == test_tenant["name"]
 
     def test_show_title_in_nav_toggle(self, test_tenant, test_admin_user):
         """Admin can hide the title from the nav bar."""
@@ -472,16 +473,16 @@ class TestUpdateSettings:
 
         assert result.show_title_in_nav is False
 
-    def test_site_title_stripped(self, test_tenant, test_admin_user):
-        """Site title is stripped of leading/trailing whitespace."""
+    def test_tenant_name_stripped(self, test_tenant, test_admin_user):
+        """Tenant name is stripped of leading/trailing whitespace."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
-        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title="  Acme Corp  ")
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, tenant_name="  Acme Corp  ")
         result = branding_service.update_branding_settings(ru, update)
 
-        assert result.site_title == "Acme Corp"
+        assert result.tenant_name == "Acme Corp"
 
 
 # =============================================================================
@@ -543,7 +544,7 @@ class TestMandalaSave:
         update = BrandingSettingsUpdate(
             logo_mode=LogoMode.MANDALA,
             use_logo_as_favicon=True,
-            site_title="My App",
+            tenant_name="My App",
             show_title_in_nav=False,
         )
         branding_service.update_branding_settings(ru, update)
@@ -552,7 +553,7 @@ class TestMandalaSave:
         result = branding_service.save_mandala_as_logo(ru, "test-seed-789")
 
         assert result.logo_mode == "custom"
-        assert result.site_title == "My App"
+        assert result.tenant_name == "My App"
         assert result.show_title_in_nav is False
 
     def test_save_logs_event_with_mandala_source(self, test_tenant, test_admin_user):
@@ -596,11 +597,11 @@ class TestServingHelpers:
         assert result is None
 
     def test_get_branding_for_template_default(self, test_tenant):
-        """Returns mandala defaults when no branding row."""
+        """Returns mandala defaults when no branding row, with tenant name."""
         result = branding_service.get_branding_for_template(str(test_tenant["id"]))
         assert result["logo_mode"] == "mandala"
         assert result["has_logo_light"] is False
-        assert result["site_title"] == "WeftId"
+        assert result["site_title"] == test_tenant["name"]
         assert result["show_title_in_nav"] is True
 
     def test_get_branding_for_template_with_data(self, test_tenant, test_admin_user):
@@ -614,15 +615,15 @@ class TestServingHelpers:
         assert result["has_logo_light"] is True
         assert result["logo_mode"] == "mandala"  # Mode not changed, just uploaded
 
-    def test_get_branding_for_template_custom_title(self, test_tenant, test_admin_user):
-        """Returns custom site title when set."""
+    def test_get_branding_for_template_custom_name(self, test_tenant, test_admin_user):
+        """Returns tenant name as site_title when set."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
         update = BrandingSettingsUpdate(
             logo_mode=LogoMode.MANDALA,
-            site_title="My App",
+            tenant_name="My App",
             show_title_in_nav=False,
         )
         branding_service.update_branding_settings(ru, update)
@@ -631,18 +632,17 @@ class TestServingHelpers:
         assert result["site_title"] == "My App"
         assert result["show_title_in_nav"] is False
 
-    def test_get_branding_for_template_null_title_defaults(self, test_tenant, test_admin_user):
-        """NULL site_title in DB defaults to WeftId in template context."""
+    def test_get_branding_for_template_default_name(self, test_tenant, test_admin_user):
+        """Null tenant_name in update preserves existing tenant name."""
         ru = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
 
         from schemas.branding import BrandingSettingsUpdate, LogoMode
 
-        # Set then clear the title
-        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, site_title=None)
+        update = BrandingSettingsUpdate(logo_mode=LogoMode.MANDALA, tenant_name=None)
         branding_service.update_branding_settings(ru, update)
 
         result = branding_service.get_branding_for_template(str(test_tenant["id"]))
-        assert result["site_title"] == "WeftId"
+        assert result["site_title"] == test_tenant["name"]
 
 
 # =============================================================================

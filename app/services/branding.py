@@ -27,7 +27,7 @@ MAX_LOGO_SIZE = 256 * 1024
 MAX_TENANT_NAME_LENGTH = 80
 
 # Default tenant name when none is configured
-DEFAULT_TENANT_NAME = "WeftId"
+DEFAULT_TENANT_NAME = "WeftID"
 
 # PNG magic bytes
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"

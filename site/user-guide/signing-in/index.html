@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Signing In - WeftId Documentation</title>
+        <title>Signing In - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2295,17 +2295,17 @@
                   
 
 <h1 id="signing-in">Signing In<a class="headerlink" href="#signing-in" title="Permanent link">&para;</a></h1>
-<p>WeftId uses an email-first sign-in flow with two-step verification.</p>
+<p>WeftID uses an email-first sign-in flow with two-step verification.</p>
 <h2 id="step-1-email-verification">Step 1: Email verification<a class="headerlink" href="#step-1-email-verification" title="Permanent link">&para;</a></h2>
-<p>Every sign-in begins by proving you own the email address you entered. WeftId sends a one-time code to that address.</p>
-<p>This step lets WeftId identify you securely before revealing anything about your account. Without it, anyone could type your email and learn whether you have an account, which identity provider you use, or that you don't exist in the system at all. With email verification, WeftId can safely guide you to the right sign-in method, or tell you "You don't have an account with this organization."</p>
+<p>Every sign-in begins by proving you own the email address you entered. WeftID sends a one-time code to that address.</p>
+<p>This step lets WeftID identify you securely before revealing anything about your account. Without it, anyone could type your email and learn whether you have an account, which identity provider you use, or that you don't exist in the system at all. With email verification, WeftID can safely guide you to the right sign-in method, or tell you "You don't have an account with this organization."</p>
 <h3 id="trust-cookies">Trust cookies<a class="headerlink" href="#trust-cookies" title="Permanent link">&para;</a></h3>
-<p>After verifying your email once, WeftId sets a trust cookie that lasts 7 days. On subsequent sign-ins from the same browser, you skip straight to the password or identity provider step.</p>
+<p>After verifying your email once, WeftID sets a trust cookie that lasts 7 days. On subsequent sign-ins from the same browser, you skip straight to the password or identity provider step.</p>
 <h2 id="step-2-password-or-identity-provider">Step 2: Password or identity provider<a class="headerlink" href="#step-2-password-or-identity-provider" title="Permanent link">&para;</a></h2>
-<p>After email verification, WeftId routes you based on your account type:</p>
+<p>After email verification, WeftID routes you based on your account type:</p>
 <ul>
 <li><strong>Password users</strong> see the password prompt, then proceed to two-step verification (step 3). If you have forgotten your password, click <strong>Forgot password?</strong> to receive a reset link by email. See <a href="../password/">Password</a> for details.</li>
-<li><strong>IdP users</strong> are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.). After authenticating with the IdP, you are returned to WeftId. If your administrator requires WeftId two-step verification for that IdP, you complete that step before reaching your dashboard.</li>
+<li><strong>IdP users</strong> are redirected to their organization's sign-in page (Okta, Entra ID, Google Workspace, etc.). After authenticating with the IdP, you are returned to WeftID. If your administrator requires WeftID two-step verification for that IdP, you complete that step before reaching your dashboard.</li>
 </ul>
 <p>If your administrator has required a password reset, you will be prompted to choose a new password after entering your current one. You must complete this step before reaching the dashboard.</p>
 <h2 id="step-3-two-step-verification">Step 3: Two-step verification<a class="headerlink" href="#step-3-two-step-verification" title="Permanent link">&para;</a></h2>
@@ -2313,14 +2313,14 @@
 <h2 id="why-two-codes-on-first-sign-in">Why two codes on first sign-in?<a class="headerlink" href="#why-two-codes-on-first-sign-in" title="Permanent link">&para;</a></h2>
 <p>On your first sign-in (or when your trust cookie has expired), you enter a code twice. These serve different purposes:</p>
 <ul>
-<li><strong>Email verification code</strong> (step 1) proves you own the email address. This is an identity check so WeftId can route you correctly.</li>
+<li><strong>Email verification code</strong> (step 1) proves you own the email address. This is an identity check so WeftID can route you correctly.</li>
 <li><strong>Two-step verification code</strong> (step 3) proves your identity after your password is accepted. This is a security measure.</li>
 </ul>
 <p>Once your trust cookie is set, future sign-ins skip step 1 and you only enter one code.</p>
 <h2 id="signing-out">Signing out<a class="headerlink" href="#signing-out" title="Permanent link">&para;</a></h2>
-<p>Click <strong>Sign Out</strong> in the navigation bar. WeftId terminates your session and notifies each application you accessed during the session so they can end their sessions too. This is called Single Logout (SLO).</p>
-<p>If you signed in through an identity provider (Okta, Entra ID, etc.) that supports SLO, WeftId also redirects you to the identity provider's sign-out page so your IdP session is terminated.</p>
-<p>Logout propagation to applications is best-effort. If an application is unreachable, your WeftId session is still terminated and you are returned to the sign-in page. The application's local session expires on its own.</p>
+<p>Click <strong>Sign Out</strong> in the navigation bar. WeftID terminates your session and notifies each application you accessed during the session so they can end their sessions too. This is called Single Logout (SLO).</p>
+<p>If you signed in through an identity provider (Okta, Entra ID, etc.) that supports SLO, WeftID also redirects you to the identity provider's sign-out page so your IdP session is terminated.</p>
+<p>Logout propagation to applications is best-effort. If an application is unreachable, your WeftID session is still terminated and you are returned to the sign-in page. The application's local session expires on its own.</p>
 
 
 

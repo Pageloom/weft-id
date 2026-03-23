@@ -1,5 +1,5 @@
 -- ============================================================================
--- Baseline Schema for Weft-ID
+-- Baseline Schema for WeftID
 --
 -- This file contains the complete database schema. It is applied automatically
 -- by migrate.py on a fresh (empty) database. It replaces the original 46

@@ -1,6 +1,6 @@
 """SP trust establishment operations.
 
-Handles establishing trust between WeftId and downstream service providers,
+Handles establishing trust between WeftID and downstream service providers,
 via metadata URL, metadata XML, or manual entry.
 """
 

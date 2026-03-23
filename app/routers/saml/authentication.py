@@ -164,7 +164,7 @@ def public_trust_page(
             "metadata_xml": metadata_xml,
             "csp_nonce": get_csp_nonce(request),
             "branding": branding,
-            "site_title": branding.get("site_title", "WeftId"),
+            "site_title": branding.get("site_title", "WeftID"),
         },
     )
 

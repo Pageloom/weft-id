@@ -597,10 +597,10 @@ def send_provisioning_invitation(
 ) -> bool:
     """Send invitation to the founding super admin during tenant provisioning."""
     # ruff: noqa: E501
-    subject = "Set up your organization on Weft ID"
+    subject = "Set up your organization on WeftID"
 
     text_body = f"""
-You have been designated as the founding administrator for {tenant_name} on Weft ID.
+You have been designated as the founding administrator for {tenant_name} on WeftID.
 
 As the super admin, you will configure the identity layer for your organization, including authentication providers, user management, and access policies.
 
@@ -627,7 +627,7 @@ After verifying, you will set your password and begin configuring your organizat
 </head>
 <body>
     <div class="container">
-        <h1>Set up {tenant_name} on Weft ID</h1>
+        <h1>Set up {tenant_name} on WeftID</h1>
         <div class="info-box">
             <p>You have been designated as the founding administrator for <strong>{tenant_name}</strong>.</p>
         </div>

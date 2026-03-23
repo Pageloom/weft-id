@@ -59,7 +59,7 @@ For manual testing, SAMLtest.id and sptest.iamshowcase.com remain available opti
 
 ## SAML IdP / Service Provider Testing
 
-Weft ID also acts as a SAML Identity Provider, issuing assertions to registered Service Providers.
+WeftID also acts as a SAML Identity Provider, issuing assertions to registered Service Providers.
 
 ### What's Covered (Automated Tests)
 
@@ -104,5 +104,5 @@ To manually test the SP setup flow:
 6. For full SSO testing, options include:
    - **SAMLtest.id** (free online service, can act as SP)
    - **sptest.iamshowcase.com** (free online test SP)
-   - **Another Weft ID tenant** (Tenant B as SP consuming Tenant A as IdP, requires separate subdomains and manual certificate exchange)
+   - **Another WeftID tenant** (Tenant B as SP consuming Tenant A as IdP, requires separate subdomains and manual certificate exchange)
 7. Check event logs for `service_provider_created`, `sp_signing_certificate_created`, and (after SSO) `sso_assertion_issued`

@@ -1,6 +1,6 @@
 """E2E tests for encrypted SAML assertions.
 
-When WeftId acts as IdP and the SP advertises an encryption certificate,
+When WeftID acts as IdP and the SP advertises an encryption certificate,
 assertions are encrypted so only the SP can read them. The SP side
 (python3-saml) decrypts transparently using its private key.
 

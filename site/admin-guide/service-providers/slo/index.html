@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Single Logout - WeftId Documentation</title>
+        <title>Single Logout - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -1256,7 +1256,7 @@
   <a href="#slo-in-weftids-metadata" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SLO in WeftId's metadata
+        SLO in WeftID's metadata
       
     </span>
   </a>
@@ -1267,7 +1267,7 @@
   <a href="#user-signs-out-of-weftid" class="md-nav__link">
     <span class="md-ellipsis">
       
-        User signs out of WeftId
+        User signs out of WeftID
       
     </span>
   </a>
@@ -2296,7 +2296,7 @@
   <a href="#slo-in-weftids-metadata" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SLO in WeftId's metadata
+        SLO in WeftID's metadata
       
     </span>
   </a>
@@ -2307,7 +2307,7 @@
   <a href="#user-signs-out-of-weftid" class="md-nav__link">
     <span class="md-ellipsis">
       
-        User signs out of WeftId
+        User signs out of WeftID
       
     </span>
   </a>
@@ -2363,25 +2363,25 @@
                   
 
 <h1 id="single-logout">Single Logout<a class="headerlink" href="#single-logout" title="Permanent link">&para;</a></h1>
-<p>Single Logout (SLO) ends a user's session across WeftId and their connected applications. When a user signs out, WeftId notifies each application they accessed during the session so those applications can terminate their local sessions too.</p>
+<p>Single Logout (SLO) ends a user's session across WeftID and their connected applications. When a user signs out, WeftID notifies each application they accessed during the session so those applications can terminate their local sessions too.</p>
 <p>SLO is optional. Applications that don't support it simply keep their local session until it expires naturally.</p>
 <h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
-<p>WeftId supports SLO in two directions:</p>
+<p>WeftID supports SLO in two directions:</p>
 <ul>
-<li><strong>User signs out of WeftId</strong> -- WeftId sends a LogoutRequest to each application the user accessed during the session. This is best-effort: if an application is unreachable or slow, the sign-out still completes.</li>
-<li><strong>Application signs out the user</strong> -- The application sends a LogoutRequest to WeftId. WeftId terminates the user's session and returns a LogoutResponse.</li>
+<li><strong>User signs out of WeftID</strong> -- WeftID sends a LogoutRequest to each application the user accessed during the session. This is best-effort: if an application is unreachable or slow, the sign-out still completes.</li>
+<li><strong>Application signs out the user</strong> -- The application sends a LogoutRequest to WeftID. WeftID terminates the user's session and returns a LogoutResponse.</li>
 </ul>
-<p>Both directions use signed SAML messages. WeftId advertises both HTTP-Redirect and HTTP-POST bindings for its SLO endpoint.</p>
+<p>Both directions use signed SAML messages. WeftID advertises both HTTP-Redirect and HTTP-POST bindings for its SLO endpoint.</p>
 <h2 id="configuring-slo">Configuring SLO<a class="headerlink" href="#configuring-slo" title="Permanent link">&para;</a></h2>
 <h3 id="on-a-service-provider">On a service provider<a class="headerlink" href="#on-a-service-provider" title="Permanent link">&para;</a></h3>
-<p>When <a href="../registering-an-sp/">registering a service provider</a>, set the <strong>SLO URL</strong> field to the application's Single Logout endpoint. This is the URL where WeftId sends LogoutRequests when the user signs out.</p>
-<p>If the application's SAML metadata includes a <code>SingleLogoutService</code> element, WeftId imports the SLO URL automatically. Otherwise, enter it manually.</p>
+<p>When <a href="../registering-an-sp/">registering a service provider</a>, set the <strong>SLO URL</strong> field to the application's Single Logout endpoint. This is the URL where WeftID sends LogoutRequests when the user signs out.</p>
+<p>If the application's SAML metadata includes a <code>SingleLogoutService</code> element, WeftID imports the SLO URL automatically. Otherwise, enter it manually.</p>
 <p>Applications without an SLO URL are silently skipped during logout propagation.</p>
 <h3 id="on-an-identity-provider">On an identity provider<a class="headerlink" href="#on-an-identity-provider" title="Permanent link">&para;</a></h3>
-<p>When <a href="../../identity-providers/saml-setup/">connecting an identity provider</a>, you can set the <strong>SLO URL</strong> to the IdP's Single Logout endpoint. When a user who authenticated via that IdP signs out of WeftId, WeftId redirects them to the IdP's SLO endpoint so the IdP can terminate its session too.</p>
-<p>If the IdP's metadata includes a <code>SingleLogoutService</code> element, WeftId imports the SLO URL automatically.</p>
-<h2 id="slo-in-weftids-metadata">SLO in WeftId's metadata<a class="headerlink" href="#slo-in-weftids-metadata" title="Permanent link">&para;</a></h2>
-<p>WeftId's IdP metadata (available on the SP's <strong>Metadata</strong> tab) advertises the SLO endpoint:</p>
+<p>When <a href="../../identity-providers/saml-setup/">connecting an identity provider</a>, you can set the <strong>SLO URL</strong> to the IdP's Single Logout endpoint. When a user who authenticated via that IdP signs out of WeftID, WeftID redirects them to the IdP's SLO endpoint so the IdP can terminate its session too.</p>
+<p>If the IdP's metadata includes a <code>SingleLogoutService</code> element, WeftID imports the SLO URL automatically.</p>
+<h2 id="slo-in-weftids-metadata">SLO in WeftID's metadata<a class="headerlink" href="#slo-in-weftids-metadata" title="Permanent link">&para;</a></h2>
+<p>WeftID's IdP metadata (available on the SP's <strong>Metadata</strong> tab) advertises the SLO endpoint:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">&lt;md:SingleLogoutService</span>
 <span class="w">    </span><span class="na">Binding=</span><span class="s">&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect&quot;</span>
 <span class="w">    </span><span class="na">Location=</span><span class="s">&quot;https://your-domain.com/saml/idp/slo&quot;</span><span class="w"> </span><span class="nt">/&gt;</span>
@@ -2390,28 +2390,28 @@
 <span class="w">    </span><span class="na">Location=</span><span class="s">&quot;https://your-domain.com/saml/idp/slo&quot;</span><span class="w"> </span><span class="nt">/&gt;</span>
 </code></pre></div>
 <p>Share this metadata with the application so it knows where to send LogoutRequests.</p>
-<h2 id="user-signs-out-of-weftid">User signs out of WeftId<a class="headerlink" href="#user-signs-out-of-weftid" title="Permanent link">&para;</a></h2>
+<h2 id="user-signs-out-of-weftid">User signs out of WeftID<a class="headerlink" href="#user-signs-out-of-weftid" title="Permanent link">&para;</a></h2>
 <p>When a user clicks <strong>Sign Out</strong>:</p>
 <ol>
-<li>WeftId clears the user's session immediately.</li>
-<li>For each application the user accessed during the session that has an SLO URL configured, WeftId builds a signed LogoutRequest containing the user's NameID and session index from the original assertion.</li>
+<li>WeftID clears the user's session immediately.</li>
+<li>For each application the user accessed during the session that has an SLO URL configured, WeftID builds a signed LogoutRequest containing the user's NameID and session index from the original assertion.</li>
 <li>Each LogoutRequest is sent via HTTP POST to the application's SLO URL with a 5-second timeout.</li>
-<li>If the user authenticated via a SAML identity provider that has an SLO URL, WeftId redirects the user to the IdP's SLO endpoint.</li>
+<li>If the user authenticated via a SAML identity provider that has an SLO URL, WeftID redirects the user to the IdP's SLO endpoint.</li>
 <li>The user is returned to the sign-in page.</li>
 </ol>
 <p>Logout propagation is best-effort. If an application is unreachable or returns an error, the sign-out still completes. The event log records how many applications were notified successfully.</p>
 <h2 id="application-sends-a-logoutrequest">Application sends a LogoutRequest<a class="headerlink" href="#application-sends-a-logoutrequest" title="Permanent link">&para;</a></h2>
 <p>When an application initiates logout:</p>
 <ol>
-<li>The application sends a signed SAML LogoutRequest to WeftId's SLO endpoint (<code>/saml/idp/slo</code>) via HTTP-Redirect or HTTP-POST.</li>
-<li>WeftId validates the request: the issuer must match a registered, enabled service provider with an SLO URL configured.</li>
-<li>WeftId clears the user's session.</li>
-<li>WeftId builds a signed LogoutResponse and returns it to the application's SLO URL via HTTP-POST (auto-submitted form).</li>
+<li>The application sends a signed SAML LogoutRequest to WeftID's SLO endpoint (<code>/saml/idp/slo</code>) via HTTP-Redirect or HTTP-POST.</li>
+<li>WeftID validates the request: the issuer must match a registered, enabled service provider with an SLO URL configured.</li>
+<li>WeftID clears the user's session.</li>
+<li>WeftID builds a signed LogoutResponse and returns it to the application's SLO URL via HTTP-POST (auto-submitted form).</li>
 <li>The application receives the LogoutResponse and completes its local logout.</li>
 </ol>
-<p>If the LogoutRequest is invalid or comes from an unregistered application, WeftId redirects to the sign-in page without processing the request.</p>
+<p>If the LogoutRequest is invalid or comes from an unregistered application, WeftID redirects to the sign-in page without processing the request.</p>
 <h2 id="signing">Signing<a class="headerlink" href="#signing" title="Permanent link">&para;</a></h2>
-<p>All SLO messages (LogoutRequest and LogoutResponse) are signed using RSA-SHA256. WeftId uses the same signing certificate as for SSO assertions: the per-SP signing certificate if one exists, otherwise the tenant-level SAML certificate.</p>
+<p>All SLO messages (LogoutRequest and LogoutResponse) are signed using RSA-SHA256. WeftID uses the same signing certificate as for SSO assertions: the per-SP signing certificate if one exists, otherwise the tenant-level SAML certificate.</p>
 <h2 id="audit-events">Audit events<a class="headerlink" href="#audit-events" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2423,11 +2423,11 @@
 <tbody>
 <tr>
 <td><code>slo_sp_initiated</code></td>
-<td>An application sent a LogoutRequest to WeftId</td>
+<td>An application sent a LogoutRequest to WeftID</td>
 </tr>
 <tr>
 <td><code>slo_idp_propagated</code></td>
-<td>WeftId sent LogoutRequests to applications during user sign-out</td>
+<td>WeftID sent LogoutRequests to applications during user sign-out</td>
 </tr>
 </tbody>
 </table>

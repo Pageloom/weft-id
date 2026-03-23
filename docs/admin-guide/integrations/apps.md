@@ -12,11 +12,11 @@ Navigate to **Admin > Integrations > Apps** and click **Create App**.
 | Description | No | Internal description (max 500 characters) |
 | Redirect URIs | Yes | One URI per line. Exact match required, no wildcards. These are the URLs the user is redirected to after authorization. |
 
-After creation, WeftId displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.
+After creation, WeftID displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.
 
 ## Authorization code flow
 
-1. Your application redirects the user to WeftId's authorization endpoint:
+1. Your application redirects the user to WeftID's authorization endpoint:
 
     ```
     GET /oauth2/authorize?client_id=...&redirect_uri=...&state=...
@@ -24,7 +24,7 @@ After creation, WeftId displays the **client ID** and **client secret** in a dia
 
 2. The user sees a consent screen showing your application's name and their identity. They click **Allow** or **Deny**.
 
-3. If allowed, WeftId redirects to your `redirect_uri` with an authorization code:
+3. If allowed, WeftID redirects to your `redirect_uri` with an authorization code:
 
     ```
     https://your-app.com/callback?code=...&state=...
@@ -37,7 +37,7 @@ After creation, WeftId displays the **client ID** and **client secret** in a dia
     grant_type=authorization_code&code=...&redirect_uri=...&client_id=...&client_secret=...
     ```
 
-5. WeftId returns an access token and refresh token:
+5. WeftID returns an access token and refresh token:
 
     ```json
     {
@@ -50,7 +50,7 @@ After creation, WeftId displays the **client ID** and **client secret** in a dia
 
 ### PKCE support
 
-WeftId supports Proof Key for Code Exchange (PKCE) for public clients that cannot securely store a client secret. Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
+WeftID supports Proof Key for Code Exchange (PKCE) for public clients that cannot securely store a client secret. Include `code_challenge` and `code_challenge_method` in the authorization request, and `code_verifier` in the token exchange. Supported methods: `S256` (recommended) and `plain`.
 
 ### Token lifetimes
 

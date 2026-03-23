@@ -34,8 +34,8 @@ from utils.saml_idp import make_idp_entity_id
 
 DEV_PASSWORD = os.environ.get("DEV_PASSWORD", "devpass123")
 
-# Attribute mapping: maps WeftId user fields to the SAML attribute names the IdP sends.
-# WeftId IdP uses friendly names (email, firstName, lastName) by default,
+# Attribute mapping: maps WeftID user fields to the SAML attribute names the IdP sends.
+# WeftID IdP uses friendly names (email, firstName, lastName) by default,
 # so the SP side needs to know to look for those names in the SAML response.
 ATTRIBUTE_MAPPING = {
     "email": "email",

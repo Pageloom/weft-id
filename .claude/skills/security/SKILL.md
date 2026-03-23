@@ -82,7 +82,7 @@ For each vulnerability:
 
 ## SAML Security Patterns
 
-Weft ID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing assertions to SPs). Check for:
+WeftID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing assertions to SPs). Check for:
 
 **XML Signature Wrapping (XSW):**
 - Verify signature validation covers the entire assertion, not just a fragment
@@ -98,7 +98,7 @@ Weft ID acts as both a SAML SP (consuming external IdPs) and a SAML IdP (issuing
 - Verify `Audience` element matches the expected SP entity ID
 - Check that assertions intended for one SP cannot be replayed to another
 
-**IdP-side (Weft ID issuing assertions):**
+**IdP-side (WeftID issuing assertions):**
 - Verify signing keys are properly protected (not logged, not in plaintext config)
 - Check per-SP certificate isolation (SP A's cert should not sign SP B's assertions)
 - Verify consent flow cannot be bypassed (direct POST to assertion endpoint)

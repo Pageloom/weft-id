@@ -12,7 +12,7 @@ The user receives an invitation email with a verification link. After verifying 
 
 ## Just-in-time provisioning
 
-When an identity provider has JIT provisioning enabled, users are created automatically on their first SAML sign-in. WeftId maps the SAML assertion attributes (email, first name, last name) to create the user account.
+When an identity provider has JIT provisioning enabled, users are created automatically on their first SAML sign-in. WeftID maps the SAML assertion attributes (email, first name, last name) to create the user account.
 
 JIT-provisioned users are assigned the **user** role by default.
 

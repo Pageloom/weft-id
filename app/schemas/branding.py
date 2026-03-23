@@ -31,7 +31,7 @@ class BrandingSettings(BaseModel):
 
     logo_mode: LogoMode = Field(LogoMode.MANDALA, description="Current logo display mode")
     use_logo_as_favicon: bool = Field(False, description="Use custom logo as favicon")
-    tenant_name: str | None = Field(None, description="Tenant display name (NULL = WeftId)")
+    tenant_name: str | None = Field(None, description="Tenant display name (NULL = WeftID)")
     show_title_in_nav: bool = Field(True, description="Show title in navigation bar")
     has_logo_light: bool = Field(False, description="Whether a light logo is uploaded")
     has_logo_dark: bool = Field(False, description="Whether a dark logo is uploaded")

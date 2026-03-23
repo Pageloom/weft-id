@@ -9,15 +9,15 @@ Register a downstream application as a SAML service provider so users can access
 3. Enter a display name (e.g., "Confluence", "Slack")
 4. Click **Create**
 
-## Share WeftId's metadata
+## Share WeftID's metadata
 
-After creation, WeftId shows an IdP metadata URL specific to this service provider. Copy this URL and configure it in your application's SAML settings.
+After creation, WeftID shows an IdP metadata URL specific to this service provider. Copy this URL and configure it in your application's SAML settings.
 
-The metadata includes WeftId's entity ID, SSO endpoint, signing certificate, and supported attributes.
+The metadata includes WeftID's entity ID, SSO endpoint, signing certificate, and supported attributes.
 
 ## Import the application's metadata
 
-Once your application is configured, import its SAML metadata into WeftId to complete the connection. Three options are available on the SP's detail page:
+Once your application is configured, import its SAML metadata into WeftID to complete the connection. Three options are available on the SP's detail page:
 
 - **Metadata URL** -- Paste the application's metadata URL for automatic import
 - **Metadata XML** -- Paste the raw SAML metadata XML

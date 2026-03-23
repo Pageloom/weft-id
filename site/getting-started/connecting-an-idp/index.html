@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Connecting an Identity Provider - WeftId Documentation</title>
+        <title>Connecting an Identity Provider - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -410,7 +410,7 @@
   <a href="#share-weftids-metadata-with-your-idp" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Share WeftId's metadata with your IdP
+        Share WeftID's metadata with your IdP
       
     </span>
   </a>
@@ -2194,7 +2194,7 @@
   <a href="#share-weftids-metadata-with-your-idp" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Share WeftId's metadata with your IdP
+        Share WeftID's metadata with your IdP
       
     </span>
   </a>
@@ -2248,8 +2248,8 @@
 <li>Select the provider type: Okta, Azure AD, Google Workspace, or Generic SAML</li>
 <li>Click <strong>Create</strong></li>
 </ol>
-<h2 id="share-weftids-metadata-with-your-idp">Share WeftId's metadata with your IdP<a class="headerlink" href="#share-weftids-metadata-with-your-idp" title="Permanent link">&para;</a></h2>
-<p>After creation, WeftId generates a metadata URL for your new connection. This URL contains the information your IdP needs to trust WeftId as a service provider.</p>
+<h2 id="share-weftids-metadata-with-your-idp">Share WeftID's metadata with your IdP<a class="headerlink" href="#share-weftids-metadata-with-your-idp" title="Permanent link">&para;</a></h2>
+<p>After creation, WeftID generates a metadata URL for your new connection. This URL contains the information your IdP needs to trust WeftID as a service provider.</p>
 <p>Copy the metadata URL and configure it in your identity provider's admin console. Each provider has a different setup process:</p>
 <ul>
 <li><strong>Okta</strong> -- Create a new SAML application and paste the metadata URL</li>
@@ -2257,9 +2257,9 @@
 <li><strong>Google Workspace</strong> -- Configure a custom SAML app with the metadata URL</li>
 </ul>
 <h2 id="establish-trust">Establish trust<a class="headerlink" href="#establish-trust" title="Permanent link">&para;</a></h2>
-<p>Once your IdP is configured, return to WeftId and complete the trust relationship. You can do this in three ways:</p>
+<p>Once your IdP is configured, return to WeftID and complete the trust relationship. You can do this in three ways:</p>
 <ul>
-<li><strong>Metadata URL</strong> -- Paste your IdP's metadata URL. WeftId fetches the certificate, SSO URL, and entity ID automatically.</li>
+<li><strong>Metadata URL</strong> -- Paste your IdP's metadata URL. WeftID fetches the certificate, SSO URL, and entity ID automatically.</li>
 <li><strong>Metadata XML</strong> -- Paste the full SAML metadata XML from your IdP.</li>
 <li><strong>Manual entry</strong> -- Enter the entity ID and SSO URL, and upload the IdP's signing certificate.</li>
 </ul>

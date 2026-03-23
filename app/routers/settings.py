@@ -68,7 +68,7 @@ def privileged_domains(
         idps = []
         if user.get("role") == "super_admin":
             idps = saml_service.list_identity_providers(requesting_user).items
-        # Get WeftId groups for link dropdown
+        # Get WeftID groups for link dropdown
         weftid_groups = groups_service.list_groups(
             requesting_user, group_type="weftid", page_size=500
         ).items
@@ -237,7 +237,7 @@ def admin_about(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
 ):
-    """Display the About Weft ID page with version and documentation links."""
+    """Display the About WeftID page with version and documentation links."""
     requesting_user = build_requesting_user(user, tenant_id, request)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 

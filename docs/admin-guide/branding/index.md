@@ -6,7 +6,7 @@ Customize your tenant's appearance from **Settings > Branding**.
 
 ### Site title
 
-Set a custom title displayed in the browser tab and navigation bar. Leave empty to use the default "WeftId". Maximum 30 characters. You can also choose whether to show the title in the navigation bar.
+Set a custom title displayed in the browser tab and navigation bar. Leave empty to use the default "WeftID". Maximum 30 characters. You can also choose whether to show the title in the navigation bar.
 
 ### Display mode
 

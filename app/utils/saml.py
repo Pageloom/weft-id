@@ -399,7 +399,7 @@ def generate_sp_metadata_xml(
         index="0"
         isDefault="true" />{slo_section}
     <md:AttributeConsumingService index="0" isDefault="true">
-      <md:ServiceName xml:lang="en">Weft ID</md:ServiceName>{attr_elements}
+      <md:ServiceName xml:lang="en">WeftID</md:ServiceName>{attr_elements}
     </md:AttributeConsumingService>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>"""

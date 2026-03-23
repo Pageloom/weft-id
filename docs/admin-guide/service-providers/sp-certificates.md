@@ -1,10 +1,10 @@
 # Signing Certificates
 
-Each service provider gets its own X.509 signing certificate. WeftId uses this certificate to sign the SAML assertions it sends to the application.
+Each service provider gets its own X.509 signing certificate. WeftID uses this certificate to sign the SAML assertions it sends to the application.
 
 ## How it works
 
-When you register a service provider, WeftId automatically generates a signing certificate. The certificate's public key is included in the IdP metadata URL, so the application can verify assertion signatures.
+When you register a service provider, WeftID automatically generates a signing certificate. The certificate's public key is included in the IdP metadata URL, so the application can verify assertion signatures.
 
 The certificate validity period is controlled by the tenant-wide [certificate settings](../security/certificates.md).
 
@@ -24,4 +24,4 @@ During the grace period, both the old and new certificates are valid. This gives
 
 ## Metadata refresh after rotation
 
-After rotating a certificate, the application needs to pick up the new certificate. If the application imports WeftId's metadata by URL, it will get the new certificate automatically on its next metadata refresh.
+After rotating a certificate, the application needs to pick up the new certificate. If the application imports WeftID's metadata by URL, it will get the new certificate automatically on its next metadata refresh.

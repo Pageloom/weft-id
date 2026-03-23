@@ -4,7 +4,7 @@ Groups control which users can access which service providers.
 
 ## How it works
 
-Each service provider can be restricted to specific groups. During SSO, WeftId checks whether the user belongs to any of the groups assigned to the service provider. If the user is not in any assigned group, access is denied.
+Each service provider can be restricted to specific groups. During SSO, WeftID checks whether the user belongs to any of the groups assigned to the service provider. If the user is not in any assigned group, access is denied.
 
 If a service provider is set to **Available to all**, group assignments are bypassed and all active users can access it.
 

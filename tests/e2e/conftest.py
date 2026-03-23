@@ -1,6 +1,6 @@
 """E2E test fixtures for SAML SSO flows.
 
-Uses Playwright to drive a real browser against WeftId tenants
+Uses Playwright to drive a real browser against WeftID tenants
 running in Docker. Two testbed configurations are available:
 
   - Two-tenant (sso_testbed.py): IdP + SP for basic SSO flows

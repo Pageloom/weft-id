@@ -1,6 +1,6 @@
 # Sessions
 
-Configure how long user sessions last and how WeftId handles inactive accounts.
+Configure how long user sessions last and how WeftID handles inactive accounts.
 
 Navigate to **Settings > Security > Sessions**.
 

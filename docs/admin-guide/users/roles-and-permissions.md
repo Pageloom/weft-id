@@ -1,6 +1,6 @@
 # Roles and Permissions
 
-WeftId has three roles, each with a different level of access.
+WeftID has three roles, each with a different level of access.
 
 ## Super admin
 

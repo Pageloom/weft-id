@@ -1,6 +1,6 @@
 # Versioning Policy
 
-WeftId follows [Semantic Versioning](https://semver.org/) (SemVer). The canonical version
+WeftID follows [Semantic Versioning](https://semver.org/) (SemVer). The canonical version
 lives in `pyproject.toml` and is readable at runtime via `app.version.__version__`.
 
 ## Version Levels

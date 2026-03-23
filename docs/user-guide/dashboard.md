@@ -8,7 +8,7 @@ The top of the dashboard displays your name, email address, role, user ID, tenan
 
 ## My Apps
 
-Lists the applications you can access through single sign-on. Each application shows its name and logo (or an auto-generated icon if no logo has been uploaded). Click an application to launch it. WeftId shows a consent screen confirming your identity, then sends a signed SAML assertion to the application. You are signed in automatically without entering separate credentials.
+Lists the applications you can access through single sign-on. Each application shows its name and logo (or an auto-generated icon if no logo has been uploaded). Click an application to launch it. WeftID shows a consent screen confirming your identity, then sends a signed SAML assertion to the application. You are signed in automatically without entering separate credentials.
 
 This is called IdP-initiated SSO. For details on how the sign-on flow works, see [SSO Flow](../admin-guide/service-providers/sso-flow.md).
 
@@ -16,4 +16,4 @@ If no applications are assigned to your groups, this section is empty. Contact y
 
 ## My Groups
 
-Lists the groups you belong to, including the group type (WeftId or IdP) and any parent groups in the hierarchy.
+Lists the groups you belong to, including the group type (WeftID or IdP) and any parent groups in the hierarchy.

@@ -1,6 +1,6 @@
 """E2E tests for SAML Single Logout (SLO) flows.
 
-Tests both SP-initiated and IdP-initiated SLO between two WeftId tenants:
+Tests both SP-initiated and IdP-initiated SLO between two WeftID tenants:
     - e2e-idp: acts as the SAML Identity Provider
     - e2e-sp:  acts as the SAML Service Provider
 

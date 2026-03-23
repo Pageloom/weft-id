@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>SSO Flow - WeftId Documentation</title>
+        <title>SSO Flow - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2241,25 +2241,25 @@
                   
 
 <h1 id="sso-flow">SSO Flow<a class="headerlink" href="#sso-flow" title="Permanent link">&para;</a></h1>
-<p>WeftId supports two single sign-on flows: SP-initiated (started by the application) and IdP-initiated (started from WeftId).</p>
+<p>WeftID supports two single sign-on flows: SP-initiated (started by the application) and IdP-initiated (started from WeftID).</p>
 <h2 id="sp-initiated-sso">SP-initiated SSO<a class="headerlink" href="#sp-initiated-sso" title="Permanent link">&para;</a></h2>
-<p>This is the most common flow. The user starts at the application and is redirected to WeftId to authenticate.</p>
+<p>This is the most common flow. The user starts at the application and is redirected to WeftID to authenticate.</p>
 <ol>
-<li><strong>User visits the application.</strong> The application generates a SAML AuthnRequest and redirects the user to WeftId's SSO endpoint.</li>
-<li><strong>WeftId authenticates the user.</strong> If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).</li>
+<li><strong>User visits the application.</strong> The application generates a SAML AuthnRequest and redirects the user to WeftID's SSO endpoint.</li>
+<li><strong>WeftID authenticates the user.</strong> If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).</li>
 <li><strong>Two-step verification.</strong> If the IdP requires platform two-step verification, the user must complete that step.</li>
-<li><strong>Consent.</strong> WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.</li>
-<li><strong>Access check.</strong> WeftId verifies the user has access to the SP (via group assignment or "available to all").</li>
-<li><strong>Assertion issued.</strong> WeftId builds a signed SAML response containing the user's attributes. If the application provides an <a href="../attribute-mapping/#assertion-encryption">encryption certificate</a>, the assertion is encrypted before delivery. The response is posted to the application's ACS URL.</li>
+<li><strong>Consent.</strong> WeftID shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.</li>
+<li><strong>Access check.</strong> WeftID verifies the user has access to the SP (via group assignment or "available to all").</li>
+<li><strong>Assertion issued.</strong> WeftID builds a signed SAML response containing the user's attributes. If the application provides an <a href="../attribute-mapping/#assertion-encryption">encryption certificate</a>, the assertion is encrypted before delivery. The response is posted to the application's ACS URL.</li>
 <li><strong>User is signed in</strong> to the application.</li>
 </ol>
 <h2 id="idp-initiated-sso">IdP-initiated SSO<a class="headerlink" href="#idp-initiated-sso" title="Permanent link">&para;</a></h2>
-<p>The user starts from WeftId and launches an application from their dashboard.</p>
+<p>The user starts from WeftID and launches an application from their dashboard.</p>
 <ol>
-<li><strong>User clicks an application</strong> on the WeftId dashboard.</li>
-<li><strong>Access check.</strong> WeftId verifies the user has access.</li>
+<li><strong>User clicks an application</strong> on the WeftID dashboard.</li>
+<li><strong>Access check.</strong> WeftID verifies the user has access.</li>
 <li><strong>Consent.</strong> The consent screen is shown.</li>
-<li><strong>Assertion issued.</strong> WeftId builds and posts the SAML response to the application.</li>
+<li><strong>Assertion issued.</strong> WeftID builds and posts the SAML response to the application.</li>
 <li><strong>User is signed in</strong> to the application.</li>
 </ol>
 <h2 id="consent-screen">Consent screen<a class="headerlink" href="#consent-screen" title="Permanent link">&para;</a></h2>
@@ -2276,7 +2276,7 @@
 <h2 id="whats-in-the-assertion">What's in the assertion<a class="headerlink" href="#whats-in-the-assertion" title="Permanent link">&para;</a></h2>
 <p>The SAML assertion contains:</p>
 <ul>
-<li><strong>Issuer</strong> -- WeftId's entity ID (unique per SP connection)</li>
+<li><strong>Issuer</strong> -- WeftID's entity ID (unique per SP connection)</li>
 <li><strong>NameID</strong> -- User identifier in the configured format (email, persistent, or transient)</li>
 <li><strong>Attributes</strong> -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective <a href="../attribute-mapping/#group-assertion-scope">group assertion scope</a>)</li>
 <li><strong>Session index</strong> -- Unique session identifier for <a href="../slo/">Single Logout</a> correlation</li>

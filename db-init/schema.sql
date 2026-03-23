@@ -133,7 +133,7 @@ CREATE TABLE public.tenants (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT tenants_pkey PRIMARY KEY (id),
     CONSTRAINT tenants_subdomain_key UNIQUE (subdomain),
-    CONSTRAINT chk_tenants_name_length CHECK ((length(name) <= 255)),
+    CONSTRAINT chk_tenants_name_length CHECK ((length(name) <= 80)),
     CONSTRAINT tenants_subdomain_check CHECK ((length(subdomain) <= 63))
 );
 

@@ -1215,7 +1215,7 @@ def _mock_branding_settings():
     return BrandingSettings(
         logo_mode=LogoMode.MANDALA,
         use_logo_as_favicon=False,
-        site_title=None,
+        tenant_name=None,
         show_title_in_nav=True,
         has_logo_light=False,
         has_logo_dark=False,
@@ -1419,7 +1419,7 @@ def test_update_branding_settings_success(test_admin_user, override_auth, mocker
         data={
             "logo_mode": "custom",
             "use_logo_as_favicon": "true",
-            "site_title": "My Site",
+            "tenant_name": "My Site",
             "show_title_in_nav": "true",
         },
         follow_redirects=False,
@@ -1445,7 +1445,7 @@ def test_update_branding_settings_invalid_logo_mode(test_admin_user, override_au
         "/admin/settings/branding/global/settings",
         data={
             "logo_mode": "invalid_mode",
-            "site_title": "",
+            "tenant_name": "",
         },
         follow_redirects=False,
     )
@@ -1500,7 +1500,7 @@ def test_update_branding_settings_update_service_error(test_admin_user, override
         "/admin/settings/branding/global/settings",
         data={
             "logo_mode": "mandala",
-            "site_title": "",
+            "tenant_name": "",
         },
         follow_redirects=False,
     )

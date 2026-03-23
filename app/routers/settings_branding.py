@@ -150,7 +150,7 @@ def update_branding_settings(
     user: Annotated[dict, Depends(get_current_user)],
     logo_mode: Annotated[str, Form()],
     use_logo_as_favicon: Annotated[str, Form()] = "",
-    site_title: Annotated[str, Form()] = "",
+    tenant_name: Annotated[str, Form()] = "",
     show_title_in_nav: Annotated[str, Form()] = "",
 ):
     """Update global branding display settings (logo mode, favicon, title)."""
@@ -166,7 +166,7 @@ def update_branding_settings(
         settings_data = BrandingSettingsUpdate(
             logo_mode=LogoMode(logo_mode),
             use_logo_as_favicon=use_logo_as_favicon == "true",
-            site_title=site_title or None,
+            tenant_name=tenant_name or None,
             show_title_in_nav=show_title_in_nav == "true",
             group_avatar_style=current.group_avatar_style,
         )

@@ -95,7 +95,7 @@ def update_branding(
     Request body:
     - logo_mode: Logo display mode (required)
     - use_logo_as_favicon: Use custom logo as favicon (default false)
-    - site_title: Custom site title, max 30 chars (optional, null to clear)
+    - tenant_name: Tenant display name, max 30 chars (optional, null to keep current)
     - show_title_in_nav: Show title in navigation bar (default true)
     - group_avatar_style: Avatar style for group icons (acronym)
     """

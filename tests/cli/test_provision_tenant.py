@@ -84,7 +84,7 @@ class TestValidation:
     def test_long_tenant_name_rejected(self):
         from cli.provision_tenant import _validate_args
 
-        errors = _validate_args(_make_args(tenant_name="X" * 31))
+        errors = _validate_args(_make_args(tenant_name="X" * 81))
         assert any("tenant name" in e.lower() for e in errors)
 
     def test_whitespace_only_first_name_rejected(self):

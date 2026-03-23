@@ -1,6 +1,6 @@
 annotated-doc==0.0.4 ; python_version >= "3.12" and python_version < "4.0"
 annotated-types==0.7.0 ; python_version >= "3.12" and python_version < "4.0"
-anyio==4.11.0 ; python_version >= "3.12" and python_version < "4.0"
+anyio==4.12.1 ; python_version >= "3.12" and python_version < "4.0"
 argh==0.31.3 ; python_version >= "3.12" and python_version < "4.0"
 argon2-cffi-bindings==25.1.0 ; python_version >= "3.12" and python_version < "4.0"
 argon2-cffi==25.1.0 ; python_version >= "3.12" and python_version < "4.0"

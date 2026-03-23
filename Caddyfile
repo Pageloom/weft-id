@@ -1,4 +1,4 @@
-# Caddyfile for Weft ID production deployment
+# Caddyfile for WeftID production deployment
 #
 # Requires BASE_DOMAIN environment variable (e.g., id.example.com).
 # Caddy obtains individual TLS certificates per subdomain via HTTP-01

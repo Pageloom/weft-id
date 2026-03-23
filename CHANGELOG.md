@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- About Weft ID page in admin settings showing the running version, documentation links, and project info
+- About WeftID page in admin settings showing the running version, documentation links, and project info
 - API endpoint at `/api/v1/settings/version` for retrieving version information
 - Documentation for password policy settings, HIBP breach detection, forced password reset, and self-service password flows
 
@@ -75,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.0.0] - 2026-03-20
 
-Initial release of Weft ID, a multi-tenant identity federation platform.
+Initial release of WeftID, a multi-tenant identity federation platform.
 
 ### Added
 

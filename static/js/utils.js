@@ -1,5 +1,5 @@
 /**
- * Weft-ID JavaScript Utilities
+ * WeftID JavaScript Utilities
  *
  * This file contains reusable JavaScript patterns for the application.
  * Keep this minimal. Server-side rendering is preferred.

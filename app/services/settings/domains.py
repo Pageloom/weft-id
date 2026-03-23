@@ -349,7 +349,7 @@ def add_domain_group_link(
         )
     if group["group_type"] != "weftid":
         raise ValidationError(
-            message="Only WeftId groups can be linked to domains. "
+            message="Only WeftID groups can be linked to domains. "
             "IdP groups are managed by the identity provider.",
             code="invalid_group_type",
             field="group_id",

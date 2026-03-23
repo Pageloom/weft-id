@@ -33,7 +33,7 @@ def get_version(
     admin: Annotated[dict, Depends(require_admin_api)],
 ):
     """
-    Get the current Weft ID version.
+    Get the current WeftID version.
 
     Requires admin role.
 
@@ -176,7 +176,7 @@ def add_domain_group_link(
         domain_id: Privileged domain UUID
 
     Request Body:
-        group_id: UUID of the WeftId group to link
+        group_id: UUID of the WeftID group to link
 
     Returns:
         The created domain-group link

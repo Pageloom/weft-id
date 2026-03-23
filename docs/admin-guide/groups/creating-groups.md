@@ -13,7 +13,7 @@ The new group starts with no members and no parent-child relationships. After cr
 
 Groups have one of two types:
 
-- **WeftId** -- Manually managed. Admins add and remove members directly.
-- **IdP** -- Synced from an external identity provider. Membership is read-only in WeftId and updates automatically during SAML sign-in.
+- **WeftID** -- Manually managed. Admins add and remove members directly.
+- **IdP** -- Synced from an external identity provider. Membership is read-only in WeftID and updates automatically during SAML sign-in.
 
 IdP groups are created automatically when an identity provider sends group assertions during SSO. You cannot create IdP groups manually.

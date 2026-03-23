@@ -137,14 +137,14 @@ def send_test_email(to_email: str) -> tuple[bool, str]:
     backend = get_backend()
     backend_name = settings.EMAIL_BACKEND.lower()
 
-    subject = "Weft ID — email verification test"
+    subject = "WeftID — email verification test"
     html_body = (
-        "<p>This is a test email from Weft ID to verify that your email "
+        "<p>This is a test email from WeftID to verify that your email "
         "configuration is working correctly.</p>"
         "<p>If you received this message, email delivery is operational.</p>"
     )
     text_body = (
-        "This is a test email from Weft ID to verify that your email "
+        "This is a test email from WeftID to verify that your email "
         "configuration is working correctly.\n\n"
         "If you received this message, email delivery is operational."
     )
@@ -266,7 +266,7 @@ def main(args: argparse.Namespace) -> int:
 
 def cli() -> int:
     """Parse arguments and run verification."""
-    parser = argparse.ArgumentParser(description="Verify email deliverability for Weft ID")
+    parser = argparse.ArgumentParser(description="Verify email deliverability for WeftID")
     parser.add_argument(
         "--to",
         required=True,

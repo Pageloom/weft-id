@@ -15,7 +15,7 @@
         }
     })();
     </script>
-    <title>{% block title %}{{ site_title | default('WeftId') }}{% endblock %}</title>
+    <title>{% block title %}{{ site_title | default('WeftID') }}{% endblock %}</title>
     {% if branding is defined and branding.logo_mode == 'custom' and branding.use_logo_as_favicon and branding.has_logo_light %}
     {% if branding.has_logo_dark %}
     <link rel="icon" href="/branding/logo/light?v={{ branding.logo_version }}" media="(prefers-color-scheme: light)">
@@ -88,7 +88,7 @@
                         <div class="hidden dark:block">{{ mandala_dark | safe }}</div>
                         {% endif %}
                         {% if not branding is defined or branding.show_title_in_nav %}
-                        <span class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ site_title | default('WeftId') }}</span>
+                        <span class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ site_title | default('WeftID') }}</span>
                         {% endif %}
                     </div>
                     {% for page in nav.top_level_items %}

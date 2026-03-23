@@ -1,6 +1,6 @@
 # Two-Step Verification
 
-Every sign-in requires a verification code after your password. WeftId supports authenticator apps (TOTP) and email-based codes. Email is the default method.
+Every sign-in requires a verification code after your password. WeftID supports authenticator apps (TOTP) and email-based codes. Email is the default method.
 
 ## Setting up an authenticator app
 

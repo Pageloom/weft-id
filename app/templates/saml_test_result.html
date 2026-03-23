@@ -136,7 +136,7 @@
                 <p class="font-medium">Common causes:</p>
                 <ul class="list-disc list-inside space-y-1 text-xs text-gray-500 dark:text-gray-400">
                     {% if test_result.error_type == 'signature_error' %}
-                    <li>IdP certificate in WeftId doesn't match the one used by your IdP</li>
+                    <li>IdP certificate in WeftID doesn't match the one used by your IdP</li>
                     <li>Try refreshing metadata or re-entering the certificate</li>
                     {% elif test_result.error_type == 'expired' %}
                     <li>The SAML response has expired - try again</li>

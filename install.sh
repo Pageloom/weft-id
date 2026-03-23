@@ -1,5 +1,5 @@
 #!/bin/sh
-# Weft ID install script
+# WeftID install script
 #
 # Downloads production files, generates secrets, and writes .env.
 #
@@ -158,7 +158,7 @@ ENVEOF
 
 main() {
     echo ""
-    echo "Weft ID Install"
+    echo "WeftID Install"
     echo "==============="
 
     check_prereqs
@@ -189,7 +189,7 @@ main() {
     echo ""
     echo "Next steps:"
     echo "  1. Review .env and adjust settings if needed"
-    echo "  2. Start Weft ID:"
+    echo "  2. Start WeftID:"
     echo ""
     echo "     ./weftid up"
     echo ""

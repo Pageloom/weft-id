@@ -105,7 +105,7 @@ class TenantSecuritySettings(BaseModel):
 class VersionInfo(BaseModel):
     """Response schema for version information."""
 
-    version: str = Field(..., description="Current Weft ID version")
+    version: str = Field(..., description="Current WeftID version")
 
 
 class TenantSecuritySettingsUpdate(BaseModel):

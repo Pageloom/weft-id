@@ -83,63 +83,14 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Consolidate Tenant Name and Site Title
-
-**User Story:**
-As a platform operator
-I want one name for my tenant, not two
-So that the display name in the nav bar, emails, and everywhere else is always the organization name
-
-**Context:**
-
-Today the tenant has two name fields: `tenants.name` (the organization name, e.g., "Meridian
-Health") and `tenant_branding.site_title` (a display name shown in the nav bar, max 30 chars,
-defaults to "WeftId"). There is no good reason for these to differ. The split is an artifact
-of branding settings being built separately from tenant creation.
-
-Consolidation means removing `site_title` from `tenant_branding` and using `tenants.name`
-everywhere. The nav bar shows the tenant name. Emails use the tenant name. The "WeftId"
-default goes away. The `show_title_in_nav` toggle remains (controls whether to show the name
-next to the logo, regardless of what the name is).
-
-Admins can rename their tenant from the branding settings page (same place they currently
-edit `site_title`), which updates `tenants.name`.
-
-**Acceptance Criteria:**
-
-Database:
-- [ ] Migration copies any non-default `site_title` values into `tenants.name` for tenants
-      where `site_title` differs from the default "WeftId" (preserves admin customizations)
-- [ ] `tenants.name` gains a `CHECK` constraint on length (max 80 chars) if it doesn't
-      already have one
-- [ ] `site_title` column is left in place (dropped later via separate backlog item)
-
-Service layer:
-- [ ] `get_branding_for_template()` returns `tenants.name` where it previously returned `site_title`
-- [ ] `update_branding_settings()` updates `tenants.name` when the name field is changed
-- [ ] `get_tenant_name()` utility continues to work (already reads from `tenants.name`)
-
-Templates:
-- [ ] Nav bar renders `tenants.name` where it previously rendered `site_title`
-- [ ] Branding settings page edits `tenants.name` instead of `site_title`
-- [ ] Any other template references to `site_title` are updated
-
-API:
-- [ ] Branding API endpoints reflect the change (no `site_title` field, name comes from tenant)
-
-Tests:
-- [ ] Existing branding tests updated to use tenant name
-- [ ] Migration tested for correct data preservation
-
-**Effort:** S
-**Value:** Medium (Eliminates confusion, prerequisite for branded emails)
+## ~~Consolidate Tenant Name and Site Title~~ (Complete)
 
 ---
 
 ## Branded Email Headers
 
 **User Story:**
-As a user receiving an email from WeftId
+As a user receiving an email from WeftID
 I want the email to show my organization's logo and name
 So that the email looks like it comes from my organization, not a generic system
 
@@ -188,86 +139,9 @@ Compatibility:
 
 ---
 
-## Onboarding Wizard for New Super Admins
-
-> **Status: Needs grooming.** The shape is roughed out below but the details need more thought before implementation.
-
-**User Story:**
-As the first super admin of a new WeftID instance
-I want a guided setup wizard that helps me get my identity layer running
-So that I can reach a working configuration quickly without guessing what to do first
-
-**Context:**
-
-A brand new WeftID instance gives no guidance on where to start. The wizard meets the first super admin after onboarding and walks them through initial setup. It is dismissable forever (per-user flag) and only appears for super admins.
-
-WeftID serves three primary deployment scenarios, and the wizard should adapt to whichever the admin is pursuing:
-
-- **Identity Federation Hub:** Multiple upstream IdPs unified behind one identity layer
-- **Standalone Identity Provider:** WeftID manages users directly (email/password, MFA)
-- **SSO Gateway:** One IdP, but WeftID adds group-based access control and audit for downstream apps
-
-**Rough Flow:**
-
-1. **Welcome.** Friendly intro, explain what the wizard will help with.
-2. **"How will your people sign in?"** Branching question: existing IdP, directly with WeftID, or both. Determines whether the next step is IdP setup or domain/user setup.
-3. **Identity source setup.** If IdP: walk through connecting the first provider (Okta, Entra, Google, generic SAML). If direct: collect company email domain, create a privileged domain.
-4. **"Let's organize your people."** Create the first group (suggest a name based on domain, e.g. "Acme Staff"). Link the domain to the group if applicable.
-5. **"Connect an application."** Optional. Walk through registering the first SP, or skip for later.
-6. **"Who should have access?"** Assign the group from step 4 to the SP from step 5. This is the "aha" moment.
-7. **Quick security check.** MFA policy toggle, session timeout recommendation.
-8. **Summary and next steps.** Show what was accomplished, link to key areas (audit logs, more apps, invite users).
-
-**Open Design Questions:**
-
-- Should step 3 (IdP setup) be a full inline walkthrough or just navigate to the existing config page with contextual guidance?
-- For the "Both" path in step 2, run both flows sequentially or pick one as primary?
-- Persistence model: wizard state as JSON on the tenant (checklist on dashboard) vs. a modal/sequential experience?
-- Should "invite a co-admin" be a wizard step?
-- Auto-assign-users-to-groups is now complete, so domain-to-group linking in step 4 is available.
-
-**Acceptance Criteria:**
-
-- [ ] Wizard appears for the first super admin on a new tenant (not for subsequent admins unless they haven't dismissed it)
-- [ ] Dismissable forever via a per-user flag
-- [ ] Adapts flow based on the admin's stated intent (federation, standalone, SSO gateway)
-- [ ] Each step is skippable ("I'll do this later")
-- [ ] Completing or dismissing the wizard never blocks access to the main UI
-- [ ] Progress is persisted so the wizard can be resumed across sessions
-- [ ] Summary step links to relevant admin pages for continued setup
-
-**Effort:** XL
-**Value:** High
-
 ---
 
-## Standardize Product Name to "Weft ID"
-
-**User Story:**
-As a user or administrator
-I want the product name to be consistently written as "Weft ID" everywhere I see it
-So that the branding matches the official name and feels polished
-
-**Context:**
-
-The official product name on pageloom.com is "Weft ID" (two words, capital ID). The codebase currently drifts between several variants:
-
-- "WeftId" (camelCase) in docs and most templates
-- "WeftID" (capital ID, no space) in group type badges
-- "Weft ID" (correct form) used inconsistently
-
-Only user-facing prose needs updating. Code identifiers (variable names, enum values, localStorage keys, group type strings) should remain as-is since they are internal.
-
-**Acceptance Criteria:**
-- [ ] All documentation files in `docs/` use "Weft ID" in prose
-- [ ] All template copy (page titles, labels, help text, badges) uses "Weft ID"
-- [ ] `base.html` default title and branding placeholder use "Weft ID"
-- [ ] Group type badges display "Weft ID" instead of "WeftID"
-- [ ] Code identifiers (`weftid`, `WeftId`) are unchanged
-- [ ] Documentation site is rebuilt (`make docs`)
-
-**Effort:** S
-**Value:** Medium
+## ~~Standardize Product Name to "WeftID"~~ (Complete)
 
 ---
 

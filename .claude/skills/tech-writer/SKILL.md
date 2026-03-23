@@ -172,7 +172,7 @@ by the app at `/docs`. After editing Markdown files in `docs/`, run `make docs` 
 
 ```
 docs/
-  index.md                          # Overview: what WeftId is, who it's for
+  index.md                          # Overview: what WeftID is, who it's for
   getting-started/
     index.md                        # Quick start guide
     first-login.md                  # First super admin experience

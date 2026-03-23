@@ -1,6 +1,6 @@
 # Background Jobs
 
-Some operations in WeftId run in the background, such as exporting the event log. You can check the status of these jobs and download their output from the Background Jobs page.
+Some operations in WeftID run in the background, such as exporting the event log. You can check the status of these jobs and download their output from the Background Jobs page.
 
 Navigate to your account menu and select **Background Jobs**.
 

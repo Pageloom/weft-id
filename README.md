@@ -1,15 +1,15 @@
-# Weft ID
+# WeftID
 
 [![Code Quality](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/code-quality.yml)
 [![Tests](https://github.com/pageloom/weft-id/actions/workflows/tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/tests.yml)
 [![E2E Tests](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/pageloom/weft-id/actions/workflows/e2e-tests.yml)
 
-Weft ID is an open-source identity federation layer that aggregates multiple identity providers into a single,
+WeftID is an open-source identity federation layer that aggregates multiple identity providers into a single,
 consistent interface. It acts as middleware between your applications and identity systems like Okta, Microsoft Entra
 ID, Google Workspace, and other SAML-compliant providers, so applications stay simple when identity providers are
 added or removed.
 
-Weft ID also works as a standalone identity provider with built-in username/password authentication, multi-factor
+WeftID also works as a standalone identity provider with built-in username/password authentication, multi-factor
 authentication (TOTP, email codes, backup codes), and user lifecycle management.
 
 For more details, see [pageloom.com/products/weft-id](https://pageloom.com/products/weft-id).

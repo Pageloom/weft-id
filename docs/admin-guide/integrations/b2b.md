@@ -12,9 +12,9 @@ Navigate to **Admin > Integrations > B2B** and click **Create B2B Client**.
 | Description | No | Internal description (max 500 characters) |
 | Service Role | Yes | The role assigned to the service user: **Member**, **Admin**, or **Super Admin**. This determines the client's API permissions. |
 
-After creation, WeftId displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.
+After creation, WeftID displays the **client ID** and **client secret** in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.
 
-WeftId automatically creates a service user linked to the client. This user has the role you specified and acts as the identity for all API requests made with the client's tokens.
+WeftID automatically creates a service user linked to the client. This user has the role you specified and acts as the identity for all API requests made with the client's tokens.
 
 ## Client credentials flow
 
@@ -25,7 +25,7 @@ POST /oauth2/token
 grant_type=client_credentials&client_id=...&client_secret=...
 ```
 
-WeftId returns an access token:
+WeftID returns an access token:
 
 ```json
 {

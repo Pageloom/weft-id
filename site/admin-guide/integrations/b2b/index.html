@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>B2B Service Accounts - WeftId Documentation</title>
+        <title>B2B Service Accounts - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2292,14 +2292,14 @@
 </tr>
 </tbody>
 </table>
-<p>After creation, WeftId displays the <strong>client ID</strong> and <strong>client secret</strong> in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.</p>
-<p>WeftId automatically creates a service user linked to the client. This user has the role you specified and acts as the identity for all API requests made with the client's tokens.</p>
+<p>After creation, WeftID displays the <strong>client ID</strong> and <strong>client secret</strong> in a dialog. Copy and store these credentials securely. The secret is not retrievable after you dismiss the dialog.</p>
+<p>WeftID automatically creates a service user linked to the client. This user has the role you specified and acts as the identity for all API requests made with the client's tokens.</p>
 <h2 id="client-credentials-flow">Client credentials flow<a class="headerlink" href="#client-credentials-flow" title="Permanent link">&para;</a></h2>
 <p>B2B clients authenticate directly with their credentials. No user consent is needed.</p>
 <div class="highlight"><pre><span></span><code>POST /oauth2/token
 grant_type=client_credentials&amp;client_id=...&amp;client_secret=...
 </code></pre></div>
-<p>WeftId returns an access token:</p>
+<p>WeftID returns an access token:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;access_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;token_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Bearer&quot;</span><span class="p">,</span>

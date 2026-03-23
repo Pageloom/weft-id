@@ -464,7 +464,7 @@ def test_send_provisioning_invitation():
         to_email, subject, html_body, text_body = call_args[0]
 
         assert to_email == "admin@acme.com"
-        assert subject == "Set up your organization on Weft ID"
+        assert subject == "Set up your organization on WeftID"
         assert "Acme Corp" in html_body
         assert "Acme Corp" in text_body
         assert verification_url in html_body

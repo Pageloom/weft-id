@@ -1,6 +1,6 @@
 """E2E tests for SAML SSO flows between IdP and SP tenants.
 
-These tests exercise real cross-tenant SSO using two WeftId tenants:
+These tests exercise real cross-tenant SSO using two WeftID tenants:
     - e2e-idp: acts as the SAML Identity Provider
     - e2e-sp:  acts as the SAML Service Provider
 

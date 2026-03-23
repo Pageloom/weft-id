@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>Glossary - WeftId Documentation</title>
+        <title>Glossary - WeftID Documentation</title>
       
     
     
@@ -91,7 +91,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="./.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -105,7 +105,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -190,13 +190,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="./.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2305,47 +2305,47 @@
 <h2 id="federation-single-sign-on">Federation &amp; Single Sign-On<a class="headerlink" href="#federation-single-sign-on" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>Federation</strong></dt>
-<dd>A trust arrangement where separate organizations accept each other's authentication decisions. WeftId acts as a federation broker, sitting between upstream identity providers and downstream applications. Users authenticate once and gain access to multiple services without separate credentials.</dd>
+<dd>A trust arrangement where separate organizations accept each other's authentication decisions. WeftID acts as a federation broker, sitting between upstream identity providers and downstream applications. Users authenticate once and gain access to multiple services without separate credentials.</dd>
 <dt><strong>Single Sign-On (SSO)</strong></dt>
-<dd>The ability for a user to authenticate once and access multiple applications without signing in again. WeftId supports SSO via SAML 2.0. There are two initiation patterns: SP-initiated (the user starts at the application) and IdP-initiated (the user starts at WeftId). See <a href="../admin-guide/service-providers/sso-flow/">SSO Flow</a>.</dd>
+<dd>The ability for a user to authenticate once and access multiple applications without signing in again. WeftID supports SSO via SAML 2.0. There are two initiation patterns: SP-initiated (the user starts at the application) and IdP-initiated (the user starts at WeftID). See <a href="../admin-guide/service-providers/sso-flow/">SSO Flow</a>.</dd>
 <dt><strong>Single Logout (SLO)</strong></dt>
-<dd>A SAML protocol for propagating sign-out across federated services. When a user signs out of WeftId, logout requests are sent to each application they accessed during the session. SLO is best-effort because downstream applications may not respond. See <a href="../admin-guide/service-providers/slo/">Single Logout</a>.</dd>
+<dd>A SAML protocol for propagating sign-out across federated services. When a user signs out of WeftID, logout requests are sent to each application they accessed during the session. SLO is best-effort because downstream applications may not respond. See <a href="../admin-guide/service-providers/slo/">Single Logout</a>.</dd>
 <dt><strong>Identity Provider (IdP)</strong></dt>
-<dd>A system that authenticates users and issues identity assertions. In WeftId, "upstream IdP" refers to external providers like Okta, Entra ID, or Google Workspace that your users sign in through. WeftId itself also acts as an IdP to downstream applications.</dd>
+<dd>A system that authenticates users and issues identity assertions. In WeftID, "upstream IdP" refers to external providers like Okta, Entra ID, or Google Workspace that your users sign in through. WeftID itself also acts as an IdP to downstream applications.</dd>
 <dt><strong>Service Provider (SP)</strong></dt>
-<dd>An application that relies on an identity provider for authentication. In WeftId, SPs are the downstream applications you register for single sign-on. WeftId issues SAML assertions to SPs so users can access them without separate credentials.</dd>
+<dd>An application that relies on an identity provider for authentication. In WeftID, SPs are the downstream applications you register for single sign-on. WeftID issues SAML assertions to SPs so users can access them without separate credentials.</dd>
 <dt><strong>Trust relationship</strong></dt>
-<dd>A cryptographic agreement between an IdP and an SP, established by exchanging metadata and certificates. Each side knows the other's entity ID and public key, enabling signature verification and secure communication. In WeftId, each connection gets its own trust relationship with independent certificates.</dd>
+<dd>A cryptographic agreement between an IdP and an SP, established by exchanging metadata and certificates. Each side knows the other's entity ID and public key, enabling signature verification and secure communication. In WeftID, each connection gets its own trust relationship with independent certificates.</dd>
 <dt><strong>Consent screen</strong></dt>
-<dd>A confirmation page shown to the user during SSO before WeftId sends an assertion to the application. Displays the application name, the user's identity, and (when group claims are enabled) the groups that will be shared. The user can proceed, cancel, or switch accounts.</dd>
+<dd>A confirmation page shown to the user during SSO before WeftID sends an assertion to the application. Displays the application name, the user's identity, and (when group claims are enabled) the groups that will be shared. The user can proceed, cancel, or switch accounts.</dd>
 </dl>
 <h2 id="saml-20">SAML 2.0<a class="headerlink" href="#saml-20" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>SAML (Security Assertion Markup Language)</strong></dt>
-<dd>An XML-based open standard for exchanging authentication and authorization data between parties. SAML 2.0 is the version used by WeftId. The specification defines message formats (assertions, requests, responses), protocol bindings (how messages are transported), and metadata (how services describe themselves). Published by OASIS. See the <a href="http://docs.oasis-open.org/security/saml/v2.0/">SAML 2.0 specification</a>.</dd>
+<dd>An XML-based open standard for exchanging authentication and authorization data between parties. SAML 2.0 is the version used by WeftID. The specification defines message formats (assertions, requests, responses), protocol bindings (how messages are transported), and metadata (how services describe themselves). Published by OASIS. See the <a href="http://docs.oasis-open.org/security/saml/v2.0/">SAML 2.0 specification</a>.</dd>
 <dt><strong>Assertion</strong></dt>
-<dd>A signed XML document issued by an IdP containing claims about a user (identity, attributes, group memberships). WeftId builds an assertion for each SSO event, signs it with the SP's dedicated signing certificate, and posts it to the application's ACS URL. If the SP provides an encryption certificate, the signed assertion is encrypted before delivery.</dd>
+<dd>A signed XML document issued by an IdP containing claims about a user (identity, attributes, group memberships). WeftID builds an assertion for each SSO event, signs it with the SP's dedicated signing certificate, and posts it to the application's ACS URL. If the SP provides an encryption certificate, the signed assertion is encrypted before delivery.</dd>
 <dt><strong>Entity ID</strong></dt>
-<dd>A globally unique identifier for a SAML participant. In WeftId, each connection gets its own entity ID (formatted as a URN), so multiple registrations of the same IdP or SP never collide. Entity IDs are stable and survive infrastructure changes like domain renames.</dd>
+<dd>A globally unique identifier for a SAML participant. In WeftID, each connection gets its own entity ID (formatted as a URN), so multiple registrations of the same IdP or SP never collide. Entity IDs are stable and survive infrastructure changes like domain renames.</dd>
 <dt><strong>SAML metadata</strong></dt>
-<dd>An XML document describing a SAML service's endpoints, certificates, supported attributes, and NameID formats. IdPs and SPs exchange metadata to establish trust. WeftId generates a unique metadata URL for each connection and can import metadata from upstream IdPs and downstream SPs by URL, XML upload, or manual entry.</dd>
+<dd>An XML document describing a SAML service's endpoints, certificates, supported attributes, and NameID formats. IdPs and SPs exchange metadata to establish trust. WeftID generates a unique metadata URL for each connection and can import metadata from upstream IdPs and downstream SPs by URL, XML upload, or manual entry.</dd>
 <dt><strong>ACS URL (Assertion Consumer Service URL)</strong></dt>
-<dd>The endpoint where a service provider receives SAML responses. After authenticating a user, WeftId posts the signed assertion to this URL. Defined in the SP's metadata.</dd>
+<dd>The endpoint where a service provider receives SAML responses. After authenticating a user, WeftID posts the signed assertion to this URL. Defined in the SP's metadata.</dd>
 <dt><strong>NameID</strong></dt>
-<dd>The identifier for the user within a SAML assertion. WeftId supports four formats: email address (most common), persistent (stable opaque ID per user per SP), transient (random per session), and unspecified (defaults to email). See <a href="../admin-guide/service-providers/attribute-mapping/">Attribute Mapping</a>.</dd>
+<dd>The identifier for the user within a SAML assertion. WeftID supports four formats: email address (most common), persistent (stable opaque ID per user per SP), transient (random per session), and unspecified (defaults to email). See <a href="../admin-guide/service-providers/attribute-mapping/">Attribute Mapping</a>.</dd>
 <dt><strong>AuthnRequest</strong></dt>
 <dd>A SAML message sent by an SP to an IdP requesting user authentication. This is the starting point of SP-initiated SSO. The request identifies which SP is asking and where to send the response.</dd>
 <dt><strong>LogoutRequest / LogoutResponse</strong></dt>
 <dd>SAML messages used during Single Logout. A LogoutRequest asks the recipient to terminate the user's session. A LogoutResponse confirms (or reports failure of) that termination.</dd>
 <dt><strong>Binding</strong></dt>
-<dd>The transport mechanism for SAML messages. WeftId supports HTTP-Redirect (message encoded in a URL query parameter) and HTTP-POST (message in a form submission). SLO messages use HTTP-Redirect by default.</dd>
+<dd>The transport mechanism for SAML messages. WeftID supports HTTP-Redirect (message encoded in a URL query parameter) and HTTP-POST (message in a form submission). SLO messages use HTTP-Redirect by default.</dd>
 <dt><strong>KeyDescriptor</strong></dt>
-<dd>An element in SAML metadata declaring a public key and its intended use (signing or encryption). WeftId reads encryption KeyDescriptors from SP metadata to automatically enable assertion encryption.</dd>
+<dd>An element in SAML metadata declaring a public key and its intended use (signing or encryption). WeftID reads encryption KeyDescriptors from SP metadata to automatically enable assertion encryption.</dd>
 </dl>
 <h2 id="oauth2-api-access">OAuth2 &amp; API Access<a class="headerlink" href="#oauth2-api-access" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>OAuth2</strong></dt>
-<dd>An authorization framework for granting limited access to APIs without sharing credentials. WeftId uses OAuth2 for API integrations, supporting two flows: authorization code (for interactive applications) and client credentials (for service-to-service communication). See <a href="../admin-guide/integrations/">Integrations</a>.</dd>
+<dd>An authorization framework for granting limited access to APIs without sharing credentials. WeftID uses OAuth2 for API integrations, supporting two flows: authorization code (for interactive applications) and client credentials (for service-to-service communication). See <a href="../admin-guide/integrations/">Integrations</a>.</dd>
 <dt><strong>Authorization code flow</strong></dt>
 <dd>An OAuth2 flow for interactive applications. The user authorizes the application in a browser, receives a short-lived authorization code, and the application exchanges that code for access and refresh tokens. Supports PKCE for added security. See <a href="../admin-guide/integrations/apps/">Apps</a>.</dd>
 <dt><strong>Client credentials flow</strong></dt>
@@ -2353,33 +2353,33 @@
 <dt><strong>PKCE (Proof Key for Code Exchange)</strong></dt>
 <dd>An OAuth2 extension (pronounced "pixy") that protects the authorization code flow against interception attacks. The client generates a random verifier, sends a hash of it with the authorization request, and proves possession of the original verifier when exchanging the code. Recommended for all interactive applications. Defined in <a href="https://datatracker.ietf.org/doc/html/rfc7636">RFC 7636</a>.</dd>
 <dt><strong>Access token</strong></dt>
-<dd>A short-lived credential (bearer token) that authorizes API requests. Issued by WeftId after a successful OAuth2 flow. Include it in the <code>Authorization</code> header as <code>Bearer &lt;token&gt;</code>.</dd>
+<dd>A short-lived credential (bearer token) that authorizes API requests. Issued by WeftID after a successful OAuth2 flow. Include it in the <code>Authorization</code> header as <code>Bearer &lt;token&gt;</code>.</dd>
 <dt><strong>Refresh token</strong></dt>
 <dd>A long-lived credential used to obtain new access tokens without re-authorization. Only issued in the authorization code flow. Stored securely by the client application.</dd>
 </dl>
 <h2 id="certificates-cryptography">Certificates &amp; Cryptography<a class="headerlink" href="#certificates-cryptography" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>X.509 certificate</strong></dt>
-<dd>A standard format for public key certificates, used in SAML for signing and encryption. Each certificate binds a public key to an identity and has a validity period. WeftId auto-generates per-SP signing certificates.</dd>
+<dd>A standard format for public key certificates, used in SAML for signing and encryption. Each certificate binds a public key to an identity and has a validity period. WeftID auto-generates per-SP signing certificates.</dd>
 <dt><strong>Signing certificate</strong></dt>
-<dd>The certificate WeftId uses to digitally sign SAML assertions and logout messages. Each SP connection gets its own signing certificate, so rotating one never affects another. The application uses the certificate's public key (from WeftId's metadata) to verify signatures. See <a href="../admin-guide/service-providers/sp-certificates/">Signing Certificates</a>.</dd>
+<dd>The certificate WeftID uses to digitally sign SAML assertions and logout messages. Each SP connection gets its own signing certificate, so rotating one never affects another. The application uses the certificate's public key (from WeftID's metadata) to verify signatures. See <a href="../admin-guide/service-providers/sp-certificates/">Signing Certificates</a>.</dd>
 <dt><strong>Encryption certificate</strong></dt>
-<dd>A certificate provided by an SP in its metadata, used by WeftId to encrypt assertions before delivery. Only the SP's private key can decrypt the assertion. Encryption is automatic when the certificate is present. See <a href="../admin-guide/service-providers/attribute-mapping/#assertion-encryption">Assertion Encryption</a>.</dd>
+<dd>A certificate provided by an SP in its metadata, used by WeftID to encrypt assertions before delivery. Only the SP's private key can decrypt the assertion. Encryption is automatic when the certificate is present. See <a href="../admin-guide/service-providers/attribute-mapping/#assertion-encryption">Assertion Encryption</a>.</dd>
 <dt><strong>AES-256-CBC</strong></dt>
-<dd>Advanced Encryption Standard with a 256-bit key in Cipher Block Chaining mode. A symmetric encryption algorithm used by WeftId to encrypt the assertion payload. The AES key itself is encrypted with RSA-OAEP so only the SP can recover it.</dd>
+<dd>Advanced Encryption Standard with a 256-bit key in Cipher Block Chaining mode. A symmetric encryption algorithm used by WeftID to encrypt the assertion payload. The AES key itself is encrypted with RSA-OAEP so only the SP can recover it.</dd>
 <dt><strong>RSA-OAEP</strong></dt>
 <dd>RSA encryption with Optimal Asymmetric Encryption Padding. An asymmetric encryption scheme used to wrap the AES content-encryption key during assertion encryption. The SP's encryption certificate provides the RSA public key.</dd>
 <dt><strong>PEM (Privacy Enhanced Mail)</strong></dt>
-<dd>A text encoding format for certificates and keys, using Base64 between <code>-----BEGIN CERTIFICATE-----</code> and <code>-----END CERTIFICATE-----</code> markers. WeftId displays signing certificates in PEM format on the Certificates tab.</dd>
+<dd>A text encoding format for certificates and keys, using Base64 between <code>-----BEGIN CERTIFICATE-----</code> and <code>-----END CERTIFICATE-----</code> markers. WeftID displays signing certificates in PEM format on the Certificates tab.</dd>
 <dt><strong>Certificate rotation</strong></dt>
-<dd>Replacing a certificate that is approaching expiry with a new one. WeftId supports rotation with a configurable grace period during which both old and new certificates are valid, giving the application time to update its trust configuration. See <a href="../admin-guide/service-providers/sp-certificates/#rotation">Signing Certificates</a>.</dd>
+<dd>Replacing a certificate that is approaching expiry with a new one. WeftID supports rotation with a configurable grace period during which both old and new certificates are valid, giving the application time to update its trust configuration. See <a href="../admin-guide/service-providers/sp-certificates/#rotation">Signing Certificates</a>.</dd>
 <dt><strong>TOTP (Time-Based One-Time Password)</strong></dt>
 <dd>An algorithm that generates short-lived numeric codes from a shared secret and the current time. Used by authenticator apps (Google Authenticator, 1Password, Authy) for two-step verification. Defined in <a href="https://datatracker.ietf.org/doc/html/rfc6238">RFC 6238</a>.</dd>
 </dl>
 <h2 id="user-tenant-management">User &amp; Tenant Management<a class="headerlink" href="#user-tenant-management" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>Tenant</strong></dt>
-<dd>An isolated organization instance in WeftId. Each tenant has its own users, groups, identity providers, service providers, and settings. Tenants are identified by subdomain (e.g., <code>acme.id.example.com</code>) and isolated at the database level.</dd>
+<dd>An isolated organization instance in WeftID. Each tenant has its own users, groups, identity providers, service providers, and settings. Tenants are identified by subdomain (e.g., <code>acme.id.example.com</code>) and isolated at the database level.</dd>
 <dt><strong>Just-in-time provisioning (JIT)</strong></dt>
 <dd>Automatically creating a user account the first time someone signs in through an external identity provider. The user's name, email, and group memberships are populated from the SAML assertion. Eliminates the need to pre-create accounts. See <a href="../admin-guide/users/creating-users/">Creating Users</a>.</dd>
 <dt><strong>Inactivation</strong></dt>
@@ -2387,20 +2387,20 @@
 <dt><strong>Anonymization</strong></dt>
 <dd>Permanently removing a user's personally identifiable information (name, email) while preserving their audit trail. Satisfies GDPR right-to-erasure requirements. Irreversible. See <a href="../admin-guide/users/user-lifecycle/">User Lifecycle</a>.</dd>
 <dt><strong>Privileged domain</strong></dt>
-<dd>An email domain registered in WeftId with an IdP binding and optional group auto-assignment. Users with matching email addresses are routed to the bound IdP during sign-in and can be automatically added to specified groups. See <a href="../admin-guide/identity-providers/privileged-domains/">Privileged Domains</a>.</dd>
+<dd>An email domain registered in WeftID with an IdP binding and optional group auto-assignment. Users with matching email addresses are routed to the bound IdP during sign-in and can be automatically added to specified groups. See <a href="../admin-guide/identity-providers/privileged-domains/">Privileged Domains</a>.</dd>
 </dl>
 <h2 id="groups-access-control">Groups &amp; Access Control<a class="headerlink" href="#groups-access-control" title="Permanent link">&para;</a></h2>
 <dl>
 <dt><strong>Group hierarchy</strong></dt>
 <dd>Parent-child relationships between groups, forming a directed acyclic graph (DAG). A group can have multiple parents and multiple children. The only constraint is that no group can be both an ancestor and a descendant of another (no cycles). See <a href="../admin-guide/groups/group-hierarchy/">Group Hierarchy</a>.</dd>
 <dt><strong>DAG (Directed Acyclic Graph)</strong></dt>
-<dd>A graph structure where edges have direction and no cycles exist. WeftId uses a DAG for group hierarchy rather than a simple tree, allowing groups to have multiple parents. For example, an "Engineering" group could be a child of both "Product" and "Technology".</dd>
+<dd>A graph structure where edges have direction and no cycles exist. WeftID uses a DAG for group hierarchy rather than a simple tree, allowing groups to have multiple parents. For example, an "Engineering" group could be a child of both "Product" and "Technology".</dd>
 <dt><strong>Group assertion scope</strong></dt>
 <dd>A setting that controls which group memberships are included in SAML assertions sent to service providers. Three options: "access-granting groups only" (default, shares only groups that grant access to the specific SP), "top-level groups only" (shares the user's highest-level memberships without nested groups), and "all groups" (shares every effective membership). The tenant-wide default is set in security permissions. Each SP can override it. See <a href="../admin-guide/service-providers/attribute-mapping/#group-claims">Group claims</a>.</dd>
 <dt><strong>Group-based access</strong></dt>
 <dd>Restricting which users can access an application by assigning specific groups to the SP. Only users who belong to an assigned group (directly or through the hierarchy) can access the application. The alternative is "available to all", which grants access to every active user. See <a href="../admin-guide/groups/group-based-access/">Group-Based Access</a>.</dd>
 <dt><strong>IdP group</strong></dt>
-<dd>A group whose membership is synced from an external identity provider during SAML sign-in. Membership is read-only in WeftId. Created automatically when an IdP sends group assertions.</dd>
+<dd>A group whose membership is synced from an external identity provider during SAML sign-in. Membership is read-only in WeftID. Created automatically when an IdP sends group assertions.</dd>
 </dl>
 <h2 id="audit-security">Audit &amp; Security<a class="headerlink" href="#audit-security" title="Permanent link">&para;</a></h2>
 <dl>
@@ -2409,7 +2409,7 @@
 <dt><strong>Activity tracking</strong></dt>
 <dd>Recording when users last performed read operations (viewing pages, listing resources). Used by the automatic inactivation policy to identify inactive accounts. Distinct from event logging, which records writes.</dd>
 <dt><strong>Two-step verification</strong></dt>
-<dd>A secondary verification step after password entry. WeftId supports two methods: TOTP via an authenticator app (stronger) and email verification codes (default). Admins can require platform two-step verification for users signing in through an external IdP. See <a href="../admin-guide/security/two-step-verification/">Two-Step Verification</a>.</dd>
+<dd>A secondary verification step after password entry. WeftID supports two methods: TOTP via an authenticator app (stronger) and email verification codes (default). Admins can require platform two-step verification for users signing in through an external IdP. See <a href="../admin-guide/security/two-step-verification/">Two-Step Verification</a>.</dd>
 <dt><strong>Backup codes</strong></dt>
 <dd>Single-use recovery codes generated when setting up TOTP-based two-step verification. Each code can be used once if the authenticator app is unavailable. Store them securely offline.</dd>
 </dl>

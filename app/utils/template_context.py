@@ -46,7 +46,7 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "use_logo_as_favicon": False,
         "has_logo_light": False,
         "has_logo_dark": False,
-        "site_title": "WeftId",
+        "site_title": "WeftID",
         "show_title_in_nav": True,
     }
     if user and user.get("tenant_id"):
@@ -75,7 +75,7 @@ def get_template_context(request: Request, tenant_id: str, **kwargs):
         "mandala_dark": mandala_dark,  # Dark-mode mandala SVG (with backdrop)
         "mandala_favicon": mandala_favicon,  # Favicon data URI
         "branding": branding,  # Tenant branding settings
-        "site_title": branding.get("site_title", "WeftId"),  # For title blocks
+        "site_title": branding.get("site_title", "WeftID"),  # For title blocks
         **kwargs,
     }
 

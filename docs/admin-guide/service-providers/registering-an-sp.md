@@ -9,11 +9,11 @@ Register a downstream application as a SAML service provider to enable single si
 3. Enter a display name
 4. Click **Create**
 
-## Step 2: Share WeftId's metadata
+## Step 2: Share WeftID's metadata
 
-After creation, WeftId generates a metadata URL specific to this SP. The metadata contains:
+After creation, WeftID generates a metadata URL specific to this SP. The metadata contains:
 
-- WeftId's entity ID (unique per SP connection)
+- WeftID's entity ID (unique per SP connection)
 - SSO endpoint URL
 - Signing certificate
 - Supported attributes and NameID formats
@@ -28,11 +28,11 @@ Once your application is configured, return to the SP's detail page and import i
 
 | Method | When to use |
 |--------|-------------|
-| **Metadata URL** | The application publishes a metadata URL. WeftId fetches and parses it automatically. |
+| **Metadata URL** | The application publishes a metadata URL. WeftID fetches and parses it automatically. |
 | **Metadata XML** | You have the application's SAML metadata as XML. |
 | **Manual entry** | Enter the entity ID and ACS URL directly. |
 
-WeftId auto-detects the application's requested attributes and NameID format from its metadata.
+WeftID auto-detects the application's requested attributes and NameID format from its metadata.
 
 ## Step 4: Configure access
 

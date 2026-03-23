@@ -1,5 +1,5 @@
-site_name: WeftId Documentation
-site_description: Documentation for the WeftId identity federation platform
+site_name: WeftID Documentation
+site_description: Documentation for the WeftID identity federation platform
 site_url: https://docs.weftid.com
 
 theme:

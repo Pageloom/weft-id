@@ -4,7 +4,7 @@ Review a complete event log of all actions taken in your tenant. Navigate to **A
 
 ## Event log
 
-Every write operation in WeftId is recorded in the event log. Events capture who performed the action, what was affected, when it happened, and relevant context.
+Every write operation in WeftID is recorded in the event log. Events capture who performed the action, what was affected, when it happened, and relevant context.
 
 ### Filtering
 

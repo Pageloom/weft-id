@@ -71,7 +71,7 @@ Target tone: security settings pages (short, direct, front-loaded, no filler).
 
 **Settings & accounts:**
 - **settings_privileged_domains.html**: Rewrote intro (4 sentences → 2), tightened success messages and binding warning
-- **settings_profile.html**: "Choose how WeftId looks..." → "Choose your theme or use your system setting." + regional settings description tightened
+- **settings_profile.html**: "Choose how WeftID looks..." → "Choose your theme or use your system setting." + regional settings description tightened
 - **account_inactivated.html**: Tightened reactivation flow copy
 - **account_background_jobs.html**: "Export files are automatically deleted 24 hours after creation" → "Export files auto-delete after 24 hours"
 - **admin_reactivation_requests.html**: Tightened intro and denial note
@@ -110,7 +110,7 @@ Target tone: security settings pages (short, direct, front-loaded, no filler).
 ### Observations (Not Actioned)
 
 - **"Deactivate" for OAuth2/B2B clients** - Reasonable for non-user entities. No change needed.
-- **Product name "WeftId"** - Canonical form, used consistently.
+- **Product name "WeftID"** - Canonical form, used consistently.
 - **"IdP" abbreviation** - Acceptable in admin UI for federation audience.
 
 ### Areas Reviewed
@@ -209,7 +209,7 @@ Wrote content for all 25 stub pages and expanded 2 section pages (branding, audi
 - `roles-and-permissions.md` -- Super admin, admin, user capabilities and assignment rules
 
 **Admin Guide - Groups (4 pages):**
-- `creating-groups.md` -- Creation flow, WeftId vs IdP group types
+- `creating-groups.md` -- Creation flow, WeftID vs IdP group types
 - `group-hierarchy.md` -- DAG model, parent-child management, graph visualization
 - `membership-management.md` -- Add/remove members, IdP groups, inherited membership
 - `group-based-access.md` -- SP group assignments, access enforcement, hierarchy
@@ -298,7 +298,7 @@ Renamed all user-facing references from "MFA" / "Multi-Factor Authentication" / 
 **Rewrote signing-in page** (`docs/user-guide/signing-in.md`):
 - Restructured as 3 steps: email verification, password/IdP, two-step verification
 - Added "Why two codes on first sign-in?" section explaining the difference between email possession verification and two-step verification
-- Explained that email verification exists so WeftId can safely identify users before revealing account details
+- Explained that email verification exists so WeftID can safely identify users before revealing account details
 
 **Updated cross-references in 9 docs files:**
 - `mkdocs.yml` (2 nav entries)
@@ -468,7 +468,7 @@ Compared 37 commits since last session against documentation pages. Identified 2
 
 ### Not Documented (Intentional)
 
-- **About Weft ID page** -- An admin settings page that displays the version and links to docs. It's a navigation convenience, not a feature that needs its own documentation page.
+- **About WeftID page** -- An admin settings page that displays the version and links to docs. It's a navigation convenience, not a feature that needs its own documentation page.
 - **Production Dockerfile changes** (Poetry to pip) -- Internal build optimization. No impact on self-hosting users who pull pre-built images.
 - **Dependency bumps** -- No user-facing changes.
 

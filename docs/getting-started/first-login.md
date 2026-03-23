@@ -1,6 +1,6 @@
 # First Login
 
-When your WeftId instance is first set up, you receive an invitation email with a verification link.
+When your WeftID instance is first set up, you receive an invitation email with a verification link.
 
 ## Verify your email
 

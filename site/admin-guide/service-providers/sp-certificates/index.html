@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the WeftId identity federation platform">
+        <meta name="description" content="Documentation for the WeftID identity federation platform">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Signing Certificates - WeftId Documentation</title>
+        <title>Signing Certificates - WeftID Documentation</title>
       
     
     
@@ -93,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="WeftId Documentation" class="md-header__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-header__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -107,7 +107,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            WeftId Documentation
+            WeftID Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -192,13 +192,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="WeftId Documentation" class="md-nav__button md-logo" aria-label="WeftId Documentation" data-md-component="logo">
+    <a href="../../.." title="WeftID Documentation" class="md-nav__button md-logo" aria-label="WeftID Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    WeftId Documentation
+    WeftID Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -2241,9 +2241,9 @@
                   
 
 <h1 id="signing-certificates">Signing Certificates<a class="headerlink" href="#signing-certificates" title="Permanent link">&para;</a></h1>
-<p>Each service provider gets its own X.509 signing certificate. WeftId uses this certificate to sign the SAML assertions it sends to the application.</p>
+<p>Each service provider gets its own X.509 signing certificate. WeftID uses this certificate to sign the SAML assertions it sends to the application.</p>
 <h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
-<p>When you register a service provider, WeftId automatically generates a signing certificate. The certificate's public key is included in the IdP metadata URL, so the application can verify assertion signatures.</p>
+<p>When you register a service provider, WeftID automatically generates a signing certificate. The certificate's public key is included in the IdP metadata URL, so the application can verify assertion signatures.</p>
 <p>The certificate validity period is controlled by the tenant-wide <a href="../../security/certificates/">certificate settings</a>.</p>
 <h2 id="viewing-the-certificate">Viewing the certificate<a class="headerlink" href="#viewing-the-certificate" title="Permanent link">&para;</a></h2>
 <p>The SP's <strong>Certificates</strong> tab shows the current signing certificate, including its expiration date and PEM-encoded public certificate.</p>
@@ -2256,7 +2256,7 @@
 </ol>
 <p>During the grace period, both the old and new certificates are valid. This gives the application time to update its trust configuration with the new certificate. After the grace period ends, only the new certificate is valid.</p>
 <h2 id="metadata-refresh-after-rotation">Metadata refresh after rotation<a class="headerlink" href="#metadata-refresh-after-rotation" title="Permanent link">&para;</a></h2>
-<p>After rotating a certificate, the application needs to pick up the new certificate. If the application imports WeftId's metadata by URL, it will get the new certificate automatically on its next metadata refresh.</p>
+<p>After rotating a certificate, the application needs to pick up the new certificate. If the application imports WeftID's metadata by URL, it will get the new certificate automatically on its next metadata refresh.</p>
 
 
 

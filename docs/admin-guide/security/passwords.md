@@ -23,7 +23,7 @@ Users see a real-time strength meter as they type, showing the score, estimated 
 
 Passwords are checked against the [Have I Been Pwned](https://haveibeenpwned.com/) database at the time they are set. Only the first 5 characters of the password hash are transmitted (k-anonymity), so the actual password is never exposed. Passwords found in known breaches are rejected.
 
-WeftId also runs a weekly background check against the same database. If a user's password appears in a newly disclosed breach:
+WeftID also runs a weekly background check against the same database. If a user's password appears in a newly disclosed breach:
 
 1. The user is flagged for a forced password reset.
 2. Their OAuth2 tokens are revoked.

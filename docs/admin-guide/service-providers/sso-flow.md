@@ -1,27 +1,27 @@
 # SSO Flow
 
-WeftId supports two single sign-on flows: SP-initiated (started by the application) and IdP-initiated (started from WeftId).
+WeftID supports two single sign-on flows: SP-initiated (started by the application) and IdP-initiated (started from WeftID).
 
 ## SP-initiated SSO
 
-This is the most common flow. The user starts at the application and is redirected to WeftId to authenticate.
+This is the most common flow. The user starts at the application and is redirected to WeftID to authenticate.
 
-1. **User visits the application.** The application generates a SAML AuthnRequest and redirects the user to WeftId's SSO endpoint.
-2. **WeftId authenticates the user.** If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).
+1. **User visits the application.** The application generates a SAML AuthnRequest and redirects the user to WeftID's SSO endpoint.
+2. **WeftID authenticates the user.** If the user is not already signed in, they are prompted to sign in (password, SAML IdP, or both).
 3. **Two-step verification.** If the IdP requires platform two-step verification, the user must complete that step.
-4. **Consent.** WeftId shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.
-5. **Access check.** WeftId verifies the user has access to the SP (via group assignment or "available to all").
-6. **Assertion issued.** WeftId builds a signed SAML response containing the user's attributes. If the application provides an [encryption certificate](attribute-mapping.md#assertion-encryption), the assertion is encrypted before delivery. The response is posted to the application's ACS URL.
+4. **Consent.** WeftID shows a consent screen displaying the application name and the user's identity. The user confirms or cancels.
+5. **Access check.** WeftID verifies the user has access to the SP (via group assignment or "available to all").
+6. **Assertion issued.** WeftID builds a signed SAML response containing the user's attributes. If the application provides an [encryption certificate](attribute-mapping.md#assertion-encryption), the assertion is encrypted before delivery. The response is posted to the application's ACS URL.
 7. **User is signed in** to the application.
 
 ## IdP-initiated SSO
 
-The user starts from WeftId and launches an application from their dashboard.
+The user starts from WeftID and launches an application from their dashboard.
 
-1. **User clicks an application** on the WeftId dashboard.
-2. **Access check.** WeftId verifies the user has access.
+1. **User clicks an application** on the WeftID dashboard.
+2. **Access check.** WeftID verifies the user has access.
 3. **Consent.** The consent screen is shown.
-4. **Assertion issued.** WeftId builds and posts the SAML response to the application.
+4. **Assertion issued.** WeftID builds and posts the SAML response to the application.
 5. **User is signed in** to the application.
 
 ## Consent screen
@@ -41,7 +41,7 @@ The groups displayed on the consent screen are the same groups that will appear 
 
 The SAML assertion contains:
 
-- **Issuer** -- WeftId's entity ID (unique per SP connection)
+- **Issuer** -- WeftID's entity ID (unique per SP connection)
 - **NameID** -- User identifier in the configured format (email, persistent, or transient)
 - **Attributes** -- Email, first name, last name, display name, and optionally group memberships (filtered by the effective [group assertion scope](attribute-mapping.md#group-assertion-scope))
 - **Session index** -- Unique session identifier for [Single Logout](slo.md) correlation

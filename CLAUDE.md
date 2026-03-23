@@ -2,7 +2,7 @@
 
 ## What This Project Is
 
-Weft-ID is a multi-tenant identity federation platform that acts as middleware between applications and identity providers (Okta, Entra ID, Google Workspace, SAML/OIDC). Core capabilities:
+WeftID is a multi-tenant identity federation platform that acts as middleware between applications and identity providers (Okta, Entra ID, Google Workspace, SAML/OIDC). Core capabilities:
 
 - SAML 2.0 and OAuth2 identity provider integration
 - SAML 2.0 Identity Provider for downstream service providers (SSO assertions, per-SP signing certificates)
@@ -259,7 +259,7 @@ with session(tenant_id=tenant_id) as cur:
 ### Group Types
 
 - `weftid`: Manually managed groups (admin can add/remove members)
-- `idp`: Identity Provider groups (synced from external IdP, read-only in WeftId)
+- `idp`: Identity Provider groups (synced from external IdP, read-only in WeftID)
 
 ## Frontend: Icons, JavaScript Utilities, and Graph Views
 

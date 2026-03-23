@@ -1,6 +1,6 @@
 # Group Hierarchy
 
-WeftId groups support a directed acyclic graph (DAG) model. Unlike a simple tree, groups can have multiple parents.
+WeftID groups support a directed acyclic graph (DAG) model. Unlike a simple tree, groups can have multiple parents.
 
 ## Parent-child relationships
 

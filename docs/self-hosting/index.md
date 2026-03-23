@@ -1,6 +1,6 @@
 # Self-Hosting
 
-Deploy WeftId on your own infrastructure with Docker Compose and Caddy.
+Deploy WeftID on your own infrastructure with Docker Compose and Caddy.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ propagate while you configure the rest.
 
 ## 2. Install
 
-Choose a directory for your WeftId installation. All configuration files live here, and you
+Choose a directory for your WeftID installation. All configuration files live here, and you
 will run `docker compose` commands from this directory.
 
 ```bash

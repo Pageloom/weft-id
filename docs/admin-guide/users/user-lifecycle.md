@@ -1,6 +1,6 @@
 # User Lifecycle
 
-Users in WeftId move through three possible states.
+Users in WeftID move through three possible states.
 
 ## Active
 

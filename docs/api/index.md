@@ -1,6 +1,6 @@
 # API
 
-WeftId provides a RESTful API under `/api/v1/` for programmatic access to all platform features. The API uses OAuth2 bearer tokens for authentication.
+WeftID provides a RESTful API under `/api/v1/` for programmatic access to all platform features. The API uses OAuth2 bearer tokens for authentication.
 
 ## Interactive documentation
 

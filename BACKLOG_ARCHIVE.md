@@ -4,12 +4,70 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Standardize Product Name to "WeftID"
+
+**Status:** Complete
+
+**User Story:**
+As a user or administrator
+I want the product name to be consistently written as "WeftID" everywhere I see it
+So that the branding matches the official name and feels polished
+
+**Acceptance Criteria:**
+- [x] All documentation files in `docs/` use "WeftID" in prose
+- [x] All template copy (page titles, labels, help text, badges) uses "WeftID"
+- [x] `base.html` default title and branding placeholder use "WeftID"
+- [x] Python user-facing strings (email subjects, error messages, defaults) use "WeftID"
+- [x] Shell scripts, config files, and README use "WeftID"
+- [x] Code identifiers (`weftid`, variable names, enum values) unchanged
+- [x] Applied migration SQL comments left unchanged
+- [x] Documentation site rebuilt (`make docs`)
+
+---
+
+## Consolidate Tenant Name and Site Title
+
+**Status:** Complete
+
+**User Story:**
+As a platform operator
+I want one name for my tenant, not two
+So that the display name in the nav bar, emails, and everywhere else is always the organization name
+
+**Acceptance Criteria:**
+
+Database:
+- [x] Migration copies any non-default `site_title` values into `tenants.name` for tenants
+      where `site_title` differs from the default "WeftID" (preserves admin customizations)
+- [x] `tenants.name` gains a `CHECK` constraint on length (max 80 chars) if it doesn't
+      already have one
+- [x] `site_title` column is left in place (dropped later via separate backlog item)
+
+Service layer:
+- [x] `get_branding_for_template()` returns `tenants.name` where it previously returned `site_title`
+- [x] `update_branding_settings()` updates `tenants.name` when the name field is changed
+- [x] `get_tenant_name()` utility continues to work (already reads from `tenants.name`)
+
+Templates:
+- [x] Nav bar renders `tenants.name` where it previously rendered `site_title`
+- [x] Branding settings page edits `tenants.name` instead of `site_title`
+- [x] Any other template references to `site_title` are updated
+
+API:
+- [x] Branding API endpoints reflect the change (no `site_title` field, name comes from tenant)
+
+Tests:
+- [x] Existing branding tests updated to use tenant name
+- [x] Migration tested for correct data preservation
+
+---
+
 ## Contextual Documentation Links
 
 **Status:** Complete
 
 **User Story:**
-As an admin (or user) viewing any page in WeftId
+As an admin (or user) viewing any page in WeftID
 I want a subtle documentation icon in the top-right area of the page
 So that I can quickly jump to the relevant documentation without hunting through the docs site
 
@@ -34,7 +92,7 @@ So that I can quickly jump to the relevant documentation without hunting through
 **User Story:**
 As a self-hosting operator
 I want a single management script with simple subcommands
-So that I can manage my Weft ID instance without remembering long docker compose invocations
+So that I can manage my WeftID instance without remembering long docker compose invocations
 
 **Acceptance Criteria:**
 
@@ -77,7 +135,7 @@ So that I can run `docker compose up -d` without remembering the `-f` flag every
 **Status:** Complete
 
 **User Story:**
-As a self-hosting operator provisioning a new Weft ID instance
+As a self-hosting operator provisioning a new WeftID instance
 I want to verify that email delivery is working before I create my first tenant
 So that I know invitations, MFA codes, and notifications will reach users
 
@@ -138,7 +196,7 @@ Consent screen group disclosure:
 
 ---
 
-## About Weft ID Page
+## About WeftID Page
 
 **Status:** Complete
 
@@ -385,7 +443,7 @@ setup (`docker-compose.production.yml`, `Caddyfile`, `install.sh`) is the sole p
 
 **User Story:**
 As a self-hoster
-I want clear documentation on how to upgrade, back up, and operate my WeftId instance
+I want clear documentation on how to upgrade, back up, and operate my WeftID instance
 So that I can maintain my deployment confidently over time
 
 **Acceptance Criteria:**
@@ -433,7 +491,7 @@ So that I can provision new tenants on a running instance without direct databas
 - [x] If a user with that email already exists in the tenant, aborts with a clear error
 - [x] Event logged: `user_created` with metadata indicating CLI provisioning (`source: "cli"`)
 - [x] New email template distinct from the standard user invitation
-- [x] Subject conveys ownership: "Set up your organization on Weft ID"
+- [x] Subject conveys ownership: "Set up your organization on WeftID"
 - [x] Body communicates founding admin role and identity layer configuration
 - [x] If email delivery fails, prints warning but does not roll back user creation
 - [x] Works in production (no `IS_DEV` gate)
@@ -455,7 +513,7 @@ error cases, and CLI parsing.
 **User Story:**
 As a self-hoster
 I want a single command that downloads everything I need and walks me through initial configuration
-So that I can go from zero to running WeftId in minutes
+So that I can go from zero to running WeftID in minutes
 
 **Acceptance Criteria:**
 
@@ -484,8 +542,8 @@ interactive input so the script works when piped via `curl | bash`.
 
 **User Story:**
 As a self-hoster
-I want a standalone Docker Compose file that runs WeftId with good security defaults and automatic HTTPS
-So that I can deploy WeftId on my own server without needing the source code or manual certificate management
+I want a standalone Docker Compose file that runs WeftID with good security defaults and automatic HTTPS
+So that I can deploy WeftID on my own server without needing the source code or manual certificate management
 
 **Acceptance Criteria:**
 
@@ -605,7 +663,7 @@ So that self-hosters can assess upgrade risk and the team has clear rules for wh
 
 **User Story:**
 As a super admin
-I want WeftId to support receiving encrypted SAML assertions from identity providers
+I want WeftID to support receiving encrypted SAML assertions from identity providers
 So that assertion contents are protected end-to-end, not just by transport-level encryption
 
 **Acceptance Criteria:**
@@ -629,8 +687,8 @@ Assertion decryption:
 
 **User Story:**
 As a super admin
-I want WeftId to encrypt SAML assertions for downstream service providers that advertise an encryption certificate
-So that assertion contents are protected end-to-end when WeftId acts as the identity provider
+I want WeftID to encrypt SAML assertions for downstream service providers that advertise an encryption certificate
+So that assertion contents are protected end-to-end when WeftID acts as the identity provider
 
 **Acceptance Criteria:**
 
@@ -883,11 +941,11 @@ Tests:
 
 **Status:** Complete
 
-**Summary:** Privileged domains can now be linked to WeftId groups. When a user is created, invited, verified, or JIT-provisioned with an email matching a linked domain, they are automatically added to the linked groups. Existing users are bulk-processed retroactively when a new link is created. Domain-group links are managed from the privileged domain settings page and via API endpoints. All operations are event-logged.
+**Summary:** Privileged domains can now be linked to WeftID groups. When a user is created, invited, verified, or JIT-provisioned with an email matching a linked domain, they are automatically added to the linked groups. Existing users are bulk-processed retroactively when a new link is created. Domain-group links are managed from the privileged domain settings page and via API endpoints. All operations are event-logged.
 
 **Acceptance Criteria:**
 
-- [x] Link one or more WeftId groups to a privileged domain
+- [x] Link one or more WeftID groups to a privileged domain
 - [x] When a user is created or verified with an email matching the domain, auto-add to linked groups
 - [x] Existing users can be bulk-processed when a domain-group link is added
 - [x] Domain-group links shown on privileged domain detail page
@@ -1084,7 +1142,7 @@ So that typos and stale paths in templates are caught during CI rather than at r
 
 **Status:** Complete
 
-**Summary:** Assertion groups discovered from SAML authentication are now automatically wired as DAG children of their IdP umbrella group. `get_or_create_idp_group()` calls a new `_ensure_umbrella_relationship()` helper that idempotently creates the parent-child edge (both for new and pre-existing groups). `sync_user_idp_groups()` inherits this behavior automatically. IdP-managed relationships are protected from manual removal: `remove_child()` raises `ForbiddenError`, and `remove_all_relationships()` skips them. The umbrella group's Relationships tab now shows assertion children as read-only entries with an "IdP-managed" label, while still allowing manually-added WeftId children. The dev seed script creates 9 assertion groups across 3 IdPs to demonstrate the feature.
+**Summary:** Assertion groups discovered from SAML authentication are now automatically wired as DAG children of their IdP umbrella group. `get_or_create_idp_group()` calls a new `_ensure_umbrella_relationship()` helper that idempotently creates the parent-child edge (both for new and pre-existing groups). `sync_user_idp_groups()` inherits this behavior automatically. IdP-managed relationships are protected from manual removal: `remove_child()` raises `ForbiddenError`, and `remove_all_relationships()` skips them. The umbrella group's Relationships tab now shows assertion children as read-only entries with an "IdP-managed" label, while still allowing manually-added WeftID children. The dev seed script creates 9 assertion groups across 3 IdPs to demonstrate the feature.
 
 **Acceptance Criteria:**
 - [x] `get_or_create_idp_group()` ensures a DAG relationship exists between umbrella and assertion group (transactional via `add_group_relationship()`)
@@ -1095,7 +1153,7 @@ So that typos and stale paths in templates are caught during CI rather than at r
 - [x] `remove_all_relationships()` skips IdP-managed relationships
 - [x] API endpoints return HTTP 403 for protected removals
 - [x] Remove button hidden for IdP-managed entries; shown as read-only with "IdP-managed" label
-- [x] Umbrella Relationships tab shows assertion children (read-only) and supports adding WeftId children
+- [x] Umbrella Relationships tab shows assertion children (read-only) and supports adding WeftID children
 - [x] Assertion sub-group Relationships tab shows umbrella as read-only parent
 - [x] Unit tests for wiring, idempotency, removal protection, and relaxed parent restriction
 - [x] Router and API integration tests for 403 on protected removals
@@ -1253,7 +1311,7 @@ as originally specified. This co-locates it with other dev utilities and gives i
 to the app's service layer.
 
 **Known gap:** The criterion "SP and IdP tenants each have 2-3 admin users with domain-appropriate
-email addresses" (creating separate WeftId tenant accounts per SP/IdP vendor) was not implemented.
+email addresses" (creating separate WeftID tenant accounts per SP/IdP vendor) was not implemented.
 Cross-tenant SSO testing is handled by the separate `sso_testbed.py` script.
 
 **Acceptance Criteria:**
@@ -1810,10 +1868,10 @@ So that I can quickly see the status of all configured IdPs without visual clutt
 - [x] SLO URL: `{base_url}/saml/idp/slo`
 - [x] Handle incoming LogoutRequest at `/saml/idp/slo` (GET and POST)
 - [x] Validate LogoutRequest (issuer is a registered SP)
-- [x] Terminate user's WeftId session
+- [x] Terminate user's WeftID session
 - [x] Return LogoutResponse to SP's SLO URL
 - [x] Event log entry for SLO events
-- [x] When user signs out from WeftId, send LogoutRequest to all SPs with active sessions
+- [x] When user signs out from WeftID, send LogoutRequest to all SPs with active sessions
 - [x] Track which SPs have active SSO sessions per user (session cookie)
 - [x] Best-effort delivery (don't block logout if an SP is unreachable)
 - [x] Store SLO URL per SP (from metadata import or manual entry)
@@ -4019,14 +4077,14 @@ So that I understand my organizational context and access rights
 **Status:** Complete
 
 **User Story:**
-As a developer of WeftId
+As a developer of WeftID
 I want a Playwright-based E2E test suite for SAML SSO flows
 So that regressions in critical auth paths are caught before deployment
 
 **Resolution:**
 
 Implemented a Playwright-based E2E test suite exercising real cross-tenant SAML SSO flows
-using two WeftId tenants (one as IdP, one as SP). Five tests cover the full SAML lifecycle:
+using two WeftID tenants (one as IdP, one as SP). Five tests cover the full SAML lifecycle:
 admin SP/IdP metadata XML import, SP-initiated SSO with JIT provisioning, IdP-initiated SSO,
 and pre-existing user matching.
 
@@ -4063,7 +4121,7 @@ from the main test suite.
 
 **User Story:**
 As an admin
-I want to replace "WeftId" with my own title in the navigation header and browser tab
+I want to replace "WeftID" with my own title in the navigation header and browser tab
 So that the platform feels like my own product when my users interact with it
 
 As an admin
@@ -4072,19 +4130,19 @@ So that I can show only my logo without a text label, while keeping a meaningful
 
 **Context:**
 
-"WeftId" currently appears in two places: the nav bar header (next to the logo) and the HTML `<title>` tag (as a suffix on every page, e.g. "Users - WeftId"). Both are hardcoded. The branding settings page already manages logo customization. This feature extends it with title customization.
+"WeftID" currently appears in two places: the nav bar header (next to the logo) and the HTML `<title>` tag (as a suffix on every page, e.g. "Users - WeftID"). Both are hardcoded. The branding settings page already manages logo customization. This feature extends it with title customization.
 
-The nav bar visibility toggle is independent of the custom title. An admin might want to hide the title even when using the default "WeftId" name (logo-only nav bar), or show a custom title in both places.
+The nav bar visibility toggle is independent of the custom title. An admin might want to hide the title even when using the default "WeftID" name (logo-only nav bar), or show a custom title in both places.
 
 **Acceptance Criteria:**
 
 - [x] New "Site Title" section on the existing branding settings page (`/admin/settings/branding`)
-- [x] Text field: "Site title" with 30-character max length (default: "WeftId")
-- [x] Custom title replaces "WeftId" in the nav bar header
-- [x] Custom title replaces "WeftId" in the HTML `<title>` suffix on all pages (e.g. "Users - My Platform")
+- [x] Text field: "Site title" with 30-character max length (default: "WeftID")
+- [x] Custom title replaces "WeftID" in the nav bar header
+- [x] Custom title replaces "WeftID" in the HTML `<title>` suffix on all pages (e.g. "Users - My Platform")
 - [x] Toggle: "Show title in navigation bar" (default: on)
 - [x] When toggled off, the title text is hidden from the nav bar but still used in `<title>`
-- [x] Empty or whitespace-only title field falls back to "WeftId" (never leave `<title>` blank)
+- [x] Empty or whitespace-only title field falls back to "WeftID" (never leave `<title>` blank)
 - [x] API support: `GET/PUT /api/v1/branding` includes `site_title` and `show_title_in_nav` fields
 - [x] Event log entry when settings are changed (existing `branding_settings_updated` event, add new fields to metadata)
 - [x] Database: add `site_title` (text, nullable) and `show_title_in_nav` (boolean, default true) columns to `tenant_branding`
@@ -4189,7 +4247,7 @@ An audit of the database schema found **81 unbounded TEXT columns** across 22 ta
 
 **User Story:**
 As a super admin
-I want each identity provider to have its own unique EntityID, metadata URL, and signing certificate when WeftId acts as an SP
+I want each identity provider to have its own unique EntityID, metadata URL, and signing certificate when WeftID acts as an SP
 So that I can establish trust with each IdP independently, rotate certificates per-IdP without affecting others, and avoid the chicken-and-egg problem during initial setup
 
 **What was implemented:**
@@ -4301,20 +4359,20 @@ Quality:
 
 ---
 
-## Groups: Unique Names for WeftId Groups + IdP Group Labeling
+## Groups: Unique Names for WeftID Groups + IdP Group Labeling
 
 **Status:** Complete
 
 **User Story:**
 As an admin
-I want WeftId-managed groups to have unique names and IdP groups to be clearly labeled everywhere
+I want WeftID-managed groups to have unique names and IdP groups to be clearly labeled everywhere
 So that I can unambiguously identify groups and avoid confusion between locally-managed and externally-synced groups
 
 **Acceptance Criteria:**
 
 - [x] Database: partial unique constraint on `(tenant_id, name)` WHERE `idp_id IS NULL` (migration `0007_weftid_group_unique_name.sql`)
 - [x] Migration added for the constraint
-- [x] Service layer: creating or renaming a WeftId group to a name already in use returns `ValidationError` ("A group with this name already exists", code `group_name_exists`, field `name`)
+- [x] Service layer: creating or renaming a WeftID group to a name already in use returns `ValidationError` ("A group with this name already exists", code `group_name_exists`, field `name`)
 - [x] IdP groups are explicitly exempt: no uniqueness check applies when syncing IdP groups
 - [x] UI: IdP groups display a visible "IdP" badge in all views (group list table, graph view, group detail, membership lists, relationship views, user profile, application access views); badge has tooltip "Managed by identity provider"
 - [x] Badge text corrected to "IdP" / "WeftID" proper-case in group list table

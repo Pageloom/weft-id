@@ -87,57 +87,7 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Branded Email Headers
-
-**User Story:**
-As a user receiving an email from WeftID
-I want the email to show my organization's logo and name
-So that the email looks like it comes from my organization, not a generic system
-
-**Context:**
-
-All outbound emails (invitations, MFA codes, verification links, notifications) currently use
-a plain HTML layout with no tenant branding. Each of the 12 email functions in `app/utils/email.py`
-rebuilds its HTML from scratch with hardcoded styles.
-
-This item adds a shared email header with the tenant's logo and name to all outbound emails.
-The logo is the tenant's custom upload (light variant) or the generated mandala if no custom
-logo exists. The name is the tenant name (after the consolidation item above removes the
-`site_title` split).
-
-For the logo in emails: the mandala is generated as SVG and can be rendered to a PNG for
-email embedding (inline as a CID attachment or base64 data URI). Custom logos may be PNG or
-SVG. Email clients have inconsistent SVG support, so SVG logos (both mandala and custom)
-should be rasterized to PNG for the email context.
-
-**Acceptance Criteria:**
-
-Shared email structure:
-- [ ] Extract a shared email header/footer builder used by all email functions
-- [ ] Header includes tenant logo (left-aligned or centered) and tenant name
-- [ ] Footer remains as-is (existing disclaimer text)
-- [ ] All 12 email functions use the shared structure
-
-Logo handling:
-- [ ] Custom PNG logos embedded directly (CID attachment or base64 data URI)
-- [ ] Custom SVG logos rasterized to PNG before embedding
-- [ ] Mandala SVG generated and rasterized to PNG when no custom logo exists
-- [ ] Logo sized appropriately for email context (e.g., 48px height, auto width)
-
-Tenant context:
-- [ ] Email functions receive `tenant_id` (or equivalent context) to fetch branding
-- [ ] Tenant name displayed next to or below the logo
-- [ ] Branding data cached per-send or passed in (no N+1 queries for batch operations)
-
-Compatibility:
-- [ ] Tested in major email clients (Gmail, Outlook, Apple Mail) for logo rendering
-- [ ] Graceful fallback if images are blocked (alt text shows tenant name)
-- [ ] Dark mode consideration: use light logo variant (most email backgrounds are white)
-
-**Effort:** M
-**Value:** Medium (Professional appearance, tenant identity in all communications)
-
----
+## ~~Branded Email Headers~~ (Complete)
 
 ---
 

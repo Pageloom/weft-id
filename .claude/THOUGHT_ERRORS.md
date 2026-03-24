@@ -263,3 +263,23 @@ All icons live as valid SVG files in `app/templates/icons/`. The `icon()` Jinja2
 **Right:** Create a new migration file in `db-init/migrations/` (e.g., `0008_description.sql`)
 
 The `schema.sql` file represents the initial database state before any migrations. It is only applied on a fresh database. All schema changes must go exclusively in migration files. Never modify `schema.sql` for new changes.
+
+---
+
+## Email HTML Must Use Inline Styles
+
+**Wrong:** Using `<style>` blocks with CSS classes in email HTML (e.g., `.button { color: white; }`)
+**Right:** All styling via inline `style` attributes on every element
+
+Gmail, Outlook, and other major email clients strip `<style>` blocks entirely. Any styling defined via CSS classes silently disappears. This causes elements like CTA buttons to lose their `color: white`, rendering dark link text on a blue background (illegible).
+
+The shared layout in `app/utils/email.py` uses style constants (`_S_BUTTON`, `_S_INFO_BOX`, etc.) to keep inline styles DRY. New emails must follow this pattern.
+
+---
+
+## Nginx 502 After Docker Container Rebuild
+
+**Wrong:** Assuming `make up` leaves nginx working after rebuilding the app container
+**Right:** Restart the reverse proxy after a rebuild: `docker compose restart reverse-proxy`
+
+When `make up` recreates the app container, nginx may lose its upstream connection and return 502 for all requests. The app container itself is healthy (responds to `curl` internally), but nginx's cached DNS/connection to the old container is stale. A quick `docker compose restart reverse-proxy` fixes it. This is a dev-only issue (production uses a separate deploy flow).

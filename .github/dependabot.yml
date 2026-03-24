@@ -1,11 +1,15 @@
 version: 2
 updates:
   # Python dependencies (Poetry via pip ecosystem)
+  # Only direct deps — transitive deps in prod_requirements.lock.txt
+  # are managed by poetry and synced by the sync-prod-requirements workflow.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    allow:
+      - dependency-type: "direct"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"

@@ -116,7 +116,11 @@ def enable_current_user_email_mfa(
 
         # Send OTP email if downgrade is in progress
         if notification_info:
-            _pkg.send_mfa_code_email(notification_info["email"], notification_info["code"])
+            _pkg.send_mfa_code_email(
+                notification_info["email"],
+                notification_info["code"],
+                tenant_id=requesting_user["tenant_id"],
+            )
 
         return response
     except ServiceError as e:

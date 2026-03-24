@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     build-essential ca-certificates curl \
-    pkg-config libxmlsec1-dev libxmlsec1-openssl \
+    pkg-config libxmlsec1-dev libxmlsec1-openssl libcairo2-dev \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -47,7 +47,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libxmlsec1-openssl \
+ && apt-get install -y --no-install-recommends libxmlsec1-openssl libcairo2 \
  && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder

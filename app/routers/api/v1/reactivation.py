@@ -83,7 +83,9 @@ def approve_request(
     if result.email:
         # Construct login URL - use the request's base URL
         login_url = str(request.url_for("login_page"))
-        send_account_reactivated_notification(result.email, login_url)
+        send_account_reactivated_notification(
+            result.email, login_url, tenant_id=requesting_user["tenant_id"]
+        )
 
     return result
 
@@ -110,6 +112,6 @@ def deny_request(
 
     # Send notification email to the denied user
     if result.email:
-        send_reactivation_denied_notification(result.email)
+        send_reactivation_denied_notification(result.email, tenant_id=requesting_user["tenant_id"])
 
     return result

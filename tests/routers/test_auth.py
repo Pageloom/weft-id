@@ -1,6 +1,6 @@
 """Tests for routers/auth/ endpoints."""
 
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 from fastapi.testclient import TestClient
 from main import app
@@ -128,7 +128,7 @@ def test_login_post_valid_credentials_with_email_mfa(test_user, mocker):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/mfa/verify"
-    mock_send_email.assert_called_once_with(test_user["email"], "123456")
+    mock_send_email.assert_called_once_with(test_user["email"], "123456", tenant_id=ANY)
 
 
 def test_login_post_valid_credentials_without_email_row(test_user, mocker):
@@ -534,7 +534,7 @@ def test_set_password_success(test_tenant, mocker):
     assert response.status_code == 303
     assert "/mfa/verify" in response.headers["location"]
     mock_update.assert_called_once()
-    mock_send_email.assert_called_once_with("test@example.com", "123456")
+    mock_send_email.assert_called_once_with("test@example.com", "123456", tenant_id=ANY)
 
 
 def test_set_password_passwords_dont_match(test_tenant, mocker):
@@ -652,7 +652,7 @@ def test_send_verification_code_sends_email_and_creates_cookie(test_tenant, mock
     assert response.headers["location"] == "/login/verify"
     # Check cookie was set
     assert "email_verify_pending" in response.cookies
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 def test_send_verification_code_invalid_email(test_tenant):
@@ -855,7 +855,7 @@ def test_resend_code_sends_new_code(test_tenant, mocker):
     assert response.status_code == 303
     assert "success=code_sent" in response.headers["location"]
     # New code should be sent
-    mock_send.assert_called_once_with(email, "222222")
+    mock_send.assert_called_once_with(email, "222222", tenant_id=ANY)
     # Cookie should be updated
     assert "email_verify_pending" in response.cookies
 
@@ -913,7 +913,7 @@ def test_email_normalization_in_send_code(test_tenant, mocker):
     )
 
     # Email should be sent to normalized address
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 # --- Security Event Logging Tests ---
@@ -1885,7 +1885,7 @@ def test_forced_reset_post_sends_email_mfa(test_tenant, mocker):
     )
 
     assert response.status_code == 303
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 def test_forced_reset_post_no_session_redirects(test_tenant, mocker):

@@ -1,5 +1,6 @@
 """Tenant branding service: logo upload, validation, settings management."""
 
+import logging
 import re
 import struct
 import uuid
@@ -20,8 +21,13 @@ from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 from utils.mandala import generate_mandala_svg
 
+logger = logging.getLogger(__name__)
+
 # Maximum logo file size: 256 KB
 MAX_LOGO_SIZE = 256 * 1024
+
+# Height of rasterized PNG for email embedding (pixels)
+EMAIL_LOGO_HEIGHT = 48
 
 # Maximum tenant name length
 MAX_TENANT_NAME_LENGTH = 80
@@ -274,6 +280,58 @@ def _validate_logo(data: bytes, filename: str | None = None) -> str:
 
 
 # =============================================================================
+# Email Logo Rasterization
+# =============================================================================
+
+
+def _rasterize_to_png(logo_data: bytes, mime_type: str) -> bytes | None:
+    """Convert logo data to PNG for email embedding.
+
+    PNG logos are returned as-is. SVG logos are rasterized via cairosvg.
+    Returns None if conversion fails.
+    """
+    if mime_type == "image/png":
+        return logo_data
+
+    if mime_type == "image/svg+xml":
+        try:
+            import cairosvg  # type: ignore[import-untyped]
+
+            return cairosvg.svg2png(  # type: ignore[no-any-return]
+                bytestring=logo_data, output_height=EMAIL_LOGO_HEIGHT
+            )
+        except Exception:
+            logger.warning("Failed to rasterize SVG to PNG for email logo", exc_info=True)
+            return None
+
+    return None
+
+
+def _update_email_logo_png(tenant_id: str, logo_data: bytes, mime_type: str) -> None:
+    """Rasterize logo and store as email PNG. Silently skips on failure."""
+    png_data = _rasterize_to_png(logo_data, mime_type)
+    if png_data is not None:
+        database.branding.upsert_email_logo_png(
+            tenant_id=tenant_id,
+            tenant_id_value=tenant_id,
+            png_data=png_data,
+        )
+
+
+def _clear_email_logo_png(tenant_id: str) -> None:
+    """Clear the email logo PNG (e.g., when deleting the light logo)."""
+    database.execute(
+        tenant_id,
+        """
+        UPDATE tenant_branding
+        SET logo_email_png = NULL, updated_at = now()
+        WHERE tenant_id = :tenant_id
+        """,
+        {"tenant_id": tenant_id},
+    )
+
+
+# =============================================================================
 # CRUD Operations
 # =============================================================================
 
@@ -344,6 +402,10 @@ def upload_logo(
         mime_type=mime_type,
     )
 
+    # Pre-rasterize email logo when the light slot changes
+    if slot == LogoSlot.LIGHT:
+        _update_email_logo_png(requesting_user["tenant_id"], data, mime_type)
+
     log_event(
         tenant_id=requesting_user["tenant_id"],
         actor_user_id=requesting_user["id"],
@@ -383,6 +445,10 @@ def delete_logo(
             message=f"No {slot.value} logo to delete",
             code="logo_not_found",
         )
+
+    # Clear email logo when the light slot is deleted
+    if slot == LogoSlot.LIGHT:
+        _clear_email_logo_png(requesting_user["tenant_id"])
 
     log_event(
         tenant_id=requesting_user["tenant_id"],
@@ -522,6 +588,9 @@ def save_mandala_as_logo(requesting_user: RequestingUser, seed: str) -> Branding
         logo_data=dark_bytes,
         mime_type=mime,
     )
+
+    # Pre-rasterize email logo from the light mandala
+    _update_email_logo_png(tenant_id, light_bytes, mime)
 
     # Read current settings to preserve existing values
     row = database.branding.get_branding(tenant_id)

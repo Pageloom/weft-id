@@ -90,7 +90,9 @@ def add_current_user_email(
             f"/api/v1/users/me/emails/{email_info.id}/verify"
             f"?nonce={verification_info['verify_nonce']}"
         )
-        _pkg.send_email_verification(email_info.email, verification_url)
+        _pkg.send_email_verification(
+            email_info.email, verification_url, tenant_id=requesting_user["tenant_id"]
+        )
 
         return email_info
     except ServiceError as e:
@@ -174,7 +176,9 @@ def resend_current_user_email_verification(
             f"/api/v1/users/me/emails/{verification_info['email_id']}/verify"
             f"?nonce={verification_info['verify_nonce']}"
         )
-        _pkg.send_email_verification(verification_info["email"], verification_url)
+        _pkg.send_email_verification(
+            verification_info["email"], verification_url, tenant_id=requesting_user["tenant_id"]
+        )
 
         return {"message": "Verification email sent"}
     except ServiceError as e:
@@ -280,7 +284,10 @@ def add_user_email(
         if primary_email:
             admin_name = f"{admin['first_name']} {admin['last_name']}"
             _pkg.send_secondary_email_added_notification(
-                primary_email, email_info.email, admin_name
+                primary_email,
+                email_info.email,
+                admin_name,
+                tenant_id=requesting_user["tenant_id"],
             )
 
         return email_info
@@ -326,7 +333,10 @@ def delete_user_email(
             if primary_email and primary_email != email_address:
                 admin_name = f"{admin['first_name']} {admin['last_name']}"
                 _pkg.send_secondary_email_removed_notification(
-                    primary_email, email_address, admin_name
+                    primary_email,
+                    email_address,
+                    admin_name,
+                    tenant_id=requesting_user["tenant_id"],
                 )
 
         return None
@@ -369,7 +379,12 @@ def set_user_primary_email(
         # Send notification to old primary email if it changed
         if old_primary and old_primary != result.email:
             admin_name = f"{admin['first_name']} {admin['last_name']}"
-            _pkg.send_primary_email_changed_notification(old_primary, result.email, admin_name)
+            _pkg.send_primary_email_changed_notification(
+                old_primary,
+                result.email,
+                admin_name,
+                tenant_id=requesting_user["tenant_id"],
+            )
 
         return result
     except ServiceError as e:

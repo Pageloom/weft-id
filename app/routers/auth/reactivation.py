@@ -157,6 +157,7 @@ def request_reactivation(
             user_name=user_name,
             user_email=primary_email,
             requests_url=requests_url,
+            tenant_id=tenant_id,
         )
 
     # Show success message

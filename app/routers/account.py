@@ -311,7 +311,7 @@ def add_email(
             f"{request.base_url}account/emails/verify/"
             f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
         )
-        send_email_verification(email.lower(), str(verification_url))
+        send_email_verification(email.lower(), str(verification_url), tenant_id=tenant_id)
     except (ValidationError, NotFoundError, ConflictError):
         # Email exists or other error - redirect back silently
         pass
@@ -372,7 +372,9 @@ def resend_verification_route(
             f"{request.base_url}account/emails/verify/"
             f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
         )
-        send_email_verification(verification_info["email"], str(verification_url))
+        send_email_verification(
+            verification_info["email"], str(verification_url), tenant_id=tenant_id
+        )
     except NotFoundError:
         # Email not found - redirect back silently
         pass
@@ -451,7 +453,9 @@ def mfa_setup_email(
     if response.pending_verification and notification_info:
         # Downgrading from TOTP - store session and send code
         request.session["pending_mfa_downgrade"] = "email"
-        send_mfa_code_email(notification_info["email"], notification_info["code"])
+        send_mfa_code_email(
+            notification_info["email"], notification_info["code"], tenant_id=tenant_id
+        )
         return RedirectResponse(url="/account/mfa/downgrade-verify", status_code=303)
 
     # Email MFA enabled directly

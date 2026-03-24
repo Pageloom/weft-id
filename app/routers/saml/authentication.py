@@ -305,7 +305,7 @@ def saml_acs_per_idp(
             code = create_email_otp(tenant_id, str(user["id"]))
             primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
             if primary_email:
-                send_mfa_code_email(primary_email, code)
+                send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
         return RedirectResponse(url="/mfa/verify", status_code=303)
 
@@ -504,7 +504,7 @@ def saml_acs(
             code = create_email_otp(tenant_id, str(user["id"]))
             primary_email = emails_service.get_primary_email(tenant_id, str(user["id"]))
             if primary_email:
-                send_mfa_code_email(primary_email, code)
+                send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
         return RedirectResponse(url="/mfa/verify", status_code=303)
 

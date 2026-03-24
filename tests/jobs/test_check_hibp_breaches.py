@@ -299,8 +299,8 @@ class TestNotifyAdmins:
             _notify_admins("tenant-1", 3)
 
             assert mock_send.call_count == 2
-            mock_send.assert_any_call("admin1@test.com", 3)
-            mock_send.assert_any_call("admin2@test.com", 3)
+            mock_send.assert_any_call("admin1@test.com", 3, tenant_id="tenant-1")
+            mock_send.assert_any_call("admin2@test.com", 3, tenant_id="tenant-1")
 
     def test_email_failure_does_not_raise(self):
         """If sending one admin email fails, the others still send."""

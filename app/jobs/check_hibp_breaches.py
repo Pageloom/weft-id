@@ -197,6 +197,6 @@ def _notify_admins(tenant_id: str, breach_count: int) -> None:
     admin_emails = database.users.get_admin_emails(tenant_id)
     for email in admin_emails:
         try:
-            send_hibp_breach_admin_notification(email, breach_count)
+            send_hibp_breach_admin_notification(email, breach_count, tenant_id=tenant_id)
         except Exception:
             logger.exception("Failed to send breach notification to %s", email)

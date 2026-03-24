@@ -273,7 +273,9 @@ def approve_reactivation_request(
     # Send notification email to the reactivated user
     if result.email:
         login_url = str(request.url_for("login_page"))
-        send_account_reactivated_notification(result.email, login_url)
+        send_account_reactivated_notification(
+            result.email, login_url, tenant_id=requesting_user["tenant_id"]
+        )
 
     return RedirectResponse(
         url="/admin/todo/reactivation?success=approved",
@@ -308,7 +310,7 @@ def deny_reactivation_request(
 
     # Send notification email to the denied user
     if result.email:
-        send_reactivation_denied_notification(result.email)
+        send_reactivation_denied_notification(result.email, tenant_id=requesting_user["tenant_id"])
 
     return RedirectResponse(
         url="/admin/todo/reactivation?success=denied",

@@ -310,6 +310,7 @@ def test_save_mandala_as_admin(client, override_api_auth):
             },
         ),
         patch("services.branding.database.branding.update_branding_settings", return_value=1),
+        patch("services.branding._update_email_logo_png"),
         patch("services.branding.log_event"),
         patch("services.branding.track_activity"),
     ):

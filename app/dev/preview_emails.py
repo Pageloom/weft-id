@@ -27,8 +27,8 @@ BASE = "https://acme.example.com"
 def _send_all(kw: dict) -> list[tuple[str, bool]]:
     """Send every email type and return (name, success) pairs."""
     verify = f"{BASE}/verify-email/abc/def"
-    pw_set = f"{BASE}/set-password?id=abc"
-    pw_reset = f"{BASE}/reset-password/token123"
+    cred_set = f"{BASE}/set-password?id=abc"  # noqa: S105 (not a real credential)
+    cred_reset = f"{BASE}/reset-password/token123"  # noqa: S105
     login = f"{BASE}/login"
     reqs = f"{BASE}/admin/reactivation-requests"
 
@@ -51,7 +51,7 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
         (
             "Welcome (privileged domain)",
             em.send_new_user_privileged_domain_notification(
-                TO, "Jane Admin", "Acme Corp", pw_set, **kw
+                TO, "Jane Admin", "Acme Corp", cred_set, **kw
             ),
         ),
         (
@@ -71,7 +71,7 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
             "MFA reset",
             em.send_mfa_reset_notification(TO, "Jane Admin", "2026-03-24 14:30 UTC", **kw),
         ),
-        ("Forgot-credential reset", em.send_password_reset_email(TO, pw_reset, **kw)),
+        ("Forgot-credential reset", em.send_password_reset_email(TO, cred_reset, **kw)),
         ("HIBP breach (admin)", em.send_hibp_breach_admin_notification(TO, 3, **kw)),
     ]
 

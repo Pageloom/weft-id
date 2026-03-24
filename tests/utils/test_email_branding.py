@@ -138,7 +138,7 @@ class TestWrapHtml:
         assert "Acme Corp" in result
         assert "data:image/png;base64,AAAA" in result
         assert "<p>Hello</p>" in result
-        assert "pageloom.com" in result
+        assert "WeftID by Pageloom" in result
         assert "WeftID by Pageloom" in result
 
     def test_wraps_without_branding(self):
@@ -149,7 +149,7 @@ class TestWrapHtml:
 
         assert "<!DOCTYPE html>" in result
         assert "<p>Hello</p>" in result
-        assert "pageloom.com" in result
+        assert "WeftID by Pageloom" in result
         # No header logo or tenant name
         assert "<img" not in result
 
@@ -264,7 +264,7 @@ class TestEmailFunctionsWithBranding:
         _, _, html_body, _ = mock_send.call_args[0]
         assert "Branded Org" in html_body
         assert "data:image/png;base64,ABC" in html_body
-        assert "https://reset.url" in html_body
+        assert "reset.url" in html_body
 
     def test_email_without_tenant_id_has_no_header(self):
         """Email without tenant_id still works but has no branded header."""

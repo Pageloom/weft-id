@@ -71,7 +71,7 @@ def _send_all(kw: dict) -> list[tuple[str, bool]]:
             "MFA reset",
             em.send_mfa_reset_notification(TO, "Jane Admin", "2026-03-24 14:30 UTC", **kw),
         ),
-        ("Password reset", em.send_password_reset_email(TO, pw_reset, **kw)),
+        ("Forgot-credential reset", em.send_password_reset_email(TO, pw_reset, **kw)),
         ("HIBP breach (admin)", em.send_hibp_breach_admin_notification(TO, 3, **kw)),
     ]
 

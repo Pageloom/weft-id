@@ -81,9 +81,9 @@ configuration, upgrades, and backups.
 ### Docker Services
 
 ```bash
-make up              # Start all services
-make down            # Stop services
-make reset           # Reset (delete volumes)
+make up              # Build and start all services
+make down            # Stop and remove containers (keep volumes)
+make db-init         # Wipe DB volumes and reinitialize from scratch
 make logs            # View all logs
 make logs-app        # View app logs
 make sh-app          # Shell into app container
@@ -131,6 +131,6 @@ This creates a `meridian-health` tenant with:
 | `admin.hr@meridian-health.dev` | admin |
 | *(and 6 other dept admins)* | admin |
 
-**Password for all accounts:** `DevSeed123!`
+**Password for all accounts:** `devpass123`
 
 The script is idempotent: re-running it safely skips any resources that already exist.

@@ -103,7 +103,10 @@ def test_enable_email_mfa_sends_otp_email(make_user_dict, override_api_auth):
         data = response.json()
         assert data["pending_verification"] is True
 
-        mock_send.assert_called_once_with("user@example.com", "123456")
+        mock_send.assert_called_once()
+        args, kwargs = mock_send.call_args
+        assert args == ("user@example.com", "123456")
+        assert "tenant_id" in kwargs
 
 
 # =============================================================================

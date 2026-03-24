@@ -72,7 +72,9 @@ def add_user_email_route(
     primary_email = emails_service.get_primary_email(tenant_id, user_id)
     if primary_email:
         admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-        send_secondary_email_added_notification(primary_email, email_lower, admin_name)
+        send_secondary_email_added_notification(
+            primary_email, email_lower, admin_name, tenant_id=requesting_user["tenant_id"]
+        )
 
     return RedirectResponse(url=f"/users/{user_id}/profile?success=email_added", status_code=303)
 
@@ -119,7 +121,9 @@ def remove_user_email_route(
         primary_email = emails_service.get_primary_email(tenant_id, user_id)
         if primary_email:
             admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-            send_secondary_email_removed_notification(primary_email, email_address, admin_name)
+            send_secondary_email_removed_notification(
+                primary_email, email_address, admin_name, tenant_id=requesting_user["tenant_id"]
+            )
 
     return RedirectResponse(url=f"/users/{user_id}/profile?success=email_removed", status_code=303)
 
@@ -169,6 +173,8 @@ def promote_user_email_route(
     # Send notification to old primary email
     if old_primary_email and new_primary_email and old_primary_email != new_primary_email:
         admin_name = f"{user.get('first_name')} {user.get('last_name')}"
-        send_primary_email_changed_notification(old_primary_email, new_primary_email, admin_name)
+        send_primary_email_changed_notification(
+            old_primary_email, new_primary_email, admin_name, tenant_id=requesting_user["tenant_id"]
+        )
 
     return RedirectResponse(url=f"/users/{user_id}/profile?success=email_promoted", status_code=303)

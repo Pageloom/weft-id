@@ -235,6 +235,6 @@ def mfa_send_email_code(
     primary_email = emails_service.get_primary_email(tenant_id, pending_user_id)
 
     if primary_email:
-        send_mfa_code_email(primary_email, code)
+        send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
     return RedirectResponse(url="/mfa/verify?email_sent=1", status_code=303)

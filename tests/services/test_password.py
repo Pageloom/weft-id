@@ -426,7 +426,9 @@ class TestRequestPasswordReset:
             request_password_reset(tenant_id, "user@example.com", "https://example.com")
 
             mock_send.assert_called_once_with(
-                "user@example.com", "https://example.com/reset-password/test-token"
+                "user@example.com",
+                "https://example.com/reset-password/test-token",
+                tenant_id=tenant_id,
             )
             mock_log.assert_called_once()
             assert mock_log.call_args.kwargs["event_type"] == "password_reset_requested"

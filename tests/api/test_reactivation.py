@@ -316,7 +316,10 @@ def test_deny_request_sends_email(
         )
 
     assert response.status_code == 200
-    mock_send.assert_called_once_with(test_user["email"])
+    mock_send.assert_called_once()
+    args, kwargs = mock_send.call_args
+    assert args == (test_user["email"],)
+    assert "tenant_id" in kwargs
 
 
 def test_deny_request_as_member_forbidden(

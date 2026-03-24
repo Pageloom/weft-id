@@ -182,6 +182,52 @@ def update_branding_settings(
     )
 
 
+def get_email_branding(tenant_id: TenantArg) -> dict | None:
+    """Get tenant name and pre-rasterized email logo PNG.
+
+    Returns:
+        Dict with tenant_name, logo_email_png (bytes or None).
+        None if no branding row exists.
+    """
+    return fetchone(
+        tenant_id,
+        """
+        SELECT
+            t.name AS tenant_name,
+            tb.logo_email_png
+        FROM tenant_branding tb
+        JOIN tenants t ON t.id = tb.tenant_id
+        WHERE tb.tenant_id = :tenant_id
+        """,
+        {"tenant_id": str(tenant_id)},
+    )
+
+
+def upsert_email_logo_png(
+    tenant_id: TenantArg,
+    tenant_id_value: str,
+    png_data: bytes,
+) -> int:
+    """Store a pre-rasterized PNG for email embedding.
+
+    Creates the branding row if needed.
+
+    Returns:
+        Number of rows affected.
+    """
+    return execute(
+        tenant_id,
+        """
+        INSERT INTO tenant_branding (tenant_id, logo_email_png, updated_at)
+        VALUES (:tenant_id, :png_data, now())
+        ON CONFLICT (tenant_id) DO UPDATE
+            SET logo_email_png = :png_data,
+                updated_at = now()
+        """,
+        {"tenant_id": tenant_id_value, "png_data": png_data},
+    )
+
+
 def get_group_logo(tenant_id: TenantArg, group_id: str) -> dict | None:
     """Get group logo binary data and metadata.
 

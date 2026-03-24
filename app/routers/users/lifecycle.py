@@ -133,6 +133,8 @@ def reset_mfa_route(
     if primary_email:
         admin_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
         reset_time = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-        send_mfa_reset_notification(primary_email, admin_name, reset_time)
+        send_mfa_reset_notification(
+            primary_email, admin_name, reset_time, tenant_id=requesting_user["tenant_id"]
+        )
 
     return RedirectResponse(url=f"/users/{user_id}/danger?success=mfa_reset", status_code=303)

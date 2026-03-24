@@ -1,5 +1,7 @@
 """Tests for routers/account.py endpoints."""
 
+from unittest.mock import ANY
+
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
@@ -638,7 +640,7 @@ def test_mfa_setup_email_downgrade_flow(test_user, override_auth, mocker):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/account/mfa/downgrade-verify"
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 def test_mfa_setup_totp_verify_invalid_code(test_user, override_auth, mocker):

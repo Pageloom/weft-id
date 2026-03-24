@@ -1120,7 +1120,9 @@ def test_saml_acs_mfa_required_redirects_to_verify(acs_test_setup, test_tenant_h
     )
     send_calls = []
     monkeypatch.setattr(
-        saml_router, "send_mfa_code_email", lambda email, code: send_calls.append((email, code))
+        saml_router,
+        "send_mfa_code_email",
+        lambda email, code, **kw: send_calls.append((email, code)),
     )
 
     response = acs_test_setup["client"].post(
@@ -1185,7 +1187,9 @@ def test_saml_acs_mfa_totp_does_not_send_email(acs_test_setup, test_tenant_host,
     )
     send_calls = []
     monkeypatch.setattr(
-        saml_router, "send_mfa_code_email", lambda email, code: send_calls.append((email, code))
+        saml_router,
+        "send_mfa_code_email",
+        lambda email, code, **kw: send_calls.append((email, code)),
     )
 
     response = acs_test_setup["client"].post(

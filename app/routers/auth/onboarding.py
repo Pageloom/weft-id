@@ -210,7 +210,7 @@ def set_password(
         # Get user's email
         primary_email = emails_service.get_primary_email(tenant_id, user["id"])
         if primary_email:
-            send_mfa_code_email(primary_email, code)
+            send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
     # Redirect to MFA verification (same as after login)
     return RedirectResponse(url="/mfa/verify", status_code=303)

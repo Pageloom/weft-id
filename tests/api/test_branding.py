@@ -69,6 +69,7 @@ def test_upload_logo_as_admin(client, override_api_auth):
 
     with (
         patch("services.branding.database.branding.upsert_logo", return_value=1),
+        patch("services.branding._update_email_logo_png"),
         patch(
             "services.branding.database.branding.get_branding",
             return_value={

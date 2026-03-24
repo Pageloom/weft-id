@@ -131,7 +131,7 @@ def send_verification_code(
 
     # Generate and send verification code
     code = generate_verification_code()
-    send_email_possession_code(email, code)
+    send_email_possession_code(email, code, tenant_id=tenant_id)
 
     # Create verification cookie
     cookie_value = create_verification_cookie(email, code, tenant_id)
@@ -275,7 +275,7 @@ def resend_verification_code(
 
     # Generate new code and send
     code = generate_verification_code()
-    send_email_possession_code(email, code)
+    send_email_possession_code(email, code, tenant_id=tenant_id)
 
     # Create new verification cookie
     cookie_value = create_verification_cookie(email, code, tenant_id)
@@ -503,7 +503,7 @@ def login(
         # Get user's email
         primary_email = emails_service.get_primary_email(tenant_id, user["id"])
         if primary_email:
-            send_mfa_code_email(primary_email, code)
+            send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
     # Redirect to MFA verification
     return RedirectResponse(url="/mfa/verify", status_code=303)
@@ -587,6 +587,6 @@ def forced_password_reset(
         code = create_email_otp(tenant_id, user["id"])
         primary_email = emails_service.get_primary_email(tenant_id, user["id"])
         if primary_email:
-            send_mfa_code_email(primary_email, code)
+            send_mfa_code_email(primary_email, code, tenant_id=tenant_id)
 
     return RedirectResponse(url="/mfa/verify", status_code=303)

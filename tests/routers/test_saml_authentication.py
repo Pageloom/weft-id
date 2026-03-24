@@ -6,7 +6,7 @@ for both per-IdP and legacy (issuer-based) flows.
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -378,7 +378,7 @@ def test_per_idp_acs_mfa_email_required(
 
     assert response.status_code == 303
     assert response.headers["location"] == "/mfa/verify"
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 @patch("routers.saml.authentication.saml_service.authenticate_via_saml")

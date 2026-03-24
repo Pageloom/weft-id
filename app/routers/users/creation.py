@@ -121,6 +121,7 @@ def create_new_user(
 
     # Create email record and send appropriate notification
     admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+    tid = requesting_user["tenant_id"]
 
     if is_privileged:
         # Auto-verify email for privileged domains
@@ -134,7 +135,9 @@ def create_new_user(
         # Send welcome email with password set link
         email_id = email_result["id"]
         password_set_url = f"{request.base_url}set-password?email_id={email_id}"
-        send_new_user_privileged_domain_notification(email, admin_name, org_name, password_set_url)
+        send_new_user_privileged_domain_notification(
+            email, admin_name, org_name, password_set_url, tenant_id=tid
+        )
 
         # Auto-assign to domain-linked groups
         settings_service.auto_assign_user_to_domain_groups(tenant_id, user_id, email, user["id"])
@@ -148,6 +151,6 @@ def create_new_user(
             verify_nonce = email_result["verify_nonce"]
             email_id = email_result["id"]
             verification_url = f"{request.base_url}verify-email/{email_id}/{verify_nonce}"
-            send_new_user_invitation(email, admin_name, org_name, verification_url)
+            send_new_user_invitation(email, admin_name, org_name, verification_url, tenant_id=tid)
 
     return RedirectResponse(url=f"/users/{user_id}/profile?success=user_created", status_code=303)

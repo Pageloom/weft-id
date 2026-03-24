@@ -302,7 +302,7 @@ def request_password_reset(
     token = generate_url_token(user_id, PURPOSE_PASSWORD_RESET, ttl_seconds=1800, state=state)
 
     reset_url = f"{base_url.rstrip('/')}/reset-password/{token}"
-    send_password_reset_email(email, reset_url)
+    send_password_reset_email(email, reset_url, tenant_id=tenant_id)
 
     log_event(
         tenant_id=tenant_id,

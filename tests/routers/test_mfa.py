@@ -4,6 +4,8 @@ Note: E2E tests for actual MFA verification are in test_mfa_e2e.py.
 These tests verify redirect behavior when there's no pending MFA session.
 """
 
+from unittest.mock import ANY
+
 from fastapi.testclient import TestClient
 from main import app
 
@@ -216,7 +218,7 @@ def test_mfa_send_email_code_success(test_tenant, mocker):
     assert response.headers["location"] == "/mfa/verify?email_sent=1"
     mock_create.assert_called_once_with(test_tenant["id"], user_id)
     mock_get_email.assert_called_once()
-    mock_send.assert_called_once_with("user@example.com", "123456")
+    mock_send.assert_called_once_with("user@example.com", "123456", tenant_id=ANY)
 
 
 def test_mfa_verify_invalid_code(test_tenant, mocker):

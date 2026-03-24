@@ -16,10 +16,12 @@ import sys
 # Add app directory to path so we can import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import database.branding  # noqa: E402
 import database.tenants  # noqa: E402
 import settings  # noqa: E402
 import utils.validate  # noqa: E402
 from dev.tenants import provision_tenant  # noqa: E402
+from services.branding import _rasterize_to_png  # noqa: E402
 from services.event_log import SYSTEM_ACTOR_ID, log_event  # noqa: E402
 from services.users.utilities import (  # noqa: E402
     add_unverified_email_with_nonce,
@@ -27,6 +29,7 @@ from services.users.utilities import (  # noqa: E402
     email_exists,
 )
 from utils.email import send_provisioning_invitation  # noqa: E402
+from utils.mandala import generate_mandala_svg  # noqa: E402
 from utils.request_context import system_context  # noqa: E402
 
 
@@ -82,6 +85,16 @@ def main(args: argparse.Namespace) -> int:
         print(f"Tenant: {args.tenant_name} ({args.subdomain})")
         print(f"Tenant ID: {tenant_id}")
 
+        # Pre-rasterize default mandala for email branding
+        light_svg, _dark_svg, _favicon_svg = generate_mandala_svg(tenant_id)
+        png_data = _rasterize_to_png(light_svg.encode("utf-8"), "image/svg+xml")
+        if png_data:
+            database.branding.upsert_email_logo_png(
+                tenant_id=tenant_id,
+                tenant_id_value=tenant_id,
+                png_data=png_data,
+            )
+
         # Check for duplicate email
         if email_exists(tenant_id, args.email):
             print(f"Error: Email {args.email} already exists in this tenant", file=sys.stderr)
@@ -123,7 +136,9 @@ def main(args: argparse.Namespace) -> int:
         )
 
         # Send invitation email
-        email_sent = send_provisioning_invitation(args.email, args.tenant_name, verification_url)
+        email_sent = send_provisioning_invitation(
+            args.email, args.tenant_name, verification_url, tenant_id=tenant_id
+        )
         if not email_sent:
             print("Warning: Failed to send invitation email", file=sys.stderr)
             print(f"Verification URL: {verification_url}")

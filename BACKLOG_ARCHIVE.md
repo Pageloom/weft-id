@@ -4,6 +4,25 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Branded Email Headers
+
+**Status:** Complete
+
+**What was done:**
+All 15 outbound email functions now display a branded header (tenant logo + name) and a "WeftID by Pageloom" footer. Logos are pre-rasterized to PNG at save time (new `logo_email_png` column on `tenant_branding`) so email sends never run SVG-to-PNG conversion. All HTML switched from CSS classes to inline `style` attributes, fixing CTA buttons that were illegible in Gmail/Outlook. Added `cairosvg` dependency for SVG rasterization, a shared email layout builder (`_wrap_html`/`_wrap_text`), and a dev preview script (`app/dev/preview_emails.py`) for visual testing all email types in MailDev.
+
+**Acceptance criteria met:**
+- Shared header/footer builder used by all 15 email functions
+- Header shows tenant logo (48px, left-aligned) and tenant name
+- Footer: "WeftID by Pageloom" with link
+- PNG logos embedded as base64 data URIs
+- SVG logos (custom and mandala) rasterized to PNG via cairosvg
+- All email functions accept `tenant_id` for branding context
+- Graceful fallback: alt text shows tenant name when images blocked
+- Light logo variant used (email backgrounds are white)
+
+---
+
 ## Standardize Product Name to "WeftID"
 
 **Status:** Complete

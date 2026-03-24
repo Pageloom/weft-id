@@ -57,6 +57,9 @@ Request → Router → Service → Database → PostgreSQL
 | `app/services/event_log.py` | `log_event()` function for audit logging |
 | `app/services/activity.py` | `track_activity()` for read operation tracking |
 | `app/utils/crypto.py` | HKDF key derivation from `SECRET_KEY` (session, MFA, SAML, email) |
+| `app/utils/email.py` | All outbound emails. Shared layout with inline styles, branded header/footer |
+| `app/utils/email_branding.py` | Fetches tenant logo PNG + name for email headers |
+| `app/dev/preview_emails.py` | Sends all 15 email types to MailDev for visual testing |
 | `BACKLOG.md` | Product backlog (pending items) |
 | `BACKLOG_ARCHIVE.md` | Completed backlog items with acceptance criteria |
 | `ISSUES.md` | Active quality/security issues (goal: keep empty) |
@@ -292,6 +295,16 @@ All JavaScript in this project targets **ES2020** (`const`/`let`, arrow function
 Group list and detail pages use Cytoscape.js (`static/js/cytoscape.min.js`) for interactive graph views. Key rule: **always initialize Cytoscape on a visible container.** If the graph is inside a hidden tab, defer initialization to `requestAnimationFrame` after the tab becomes visible. Initializing on a hidden container results in a zero-size layout with no error.
 
 Graph layouts are persisted to the database via `PUT /api/v1/groups/graph/layout`.
+
+## Outbound Emails
+
+All outbound emails are in `app/utils/email.py` (15 functions). Key architecture:
+
+- **Shared layout**: `_wrap_html()` / `_wrap_text()` add a branded header (tenant logo + name) and a Pageloom footer to every email. Individual functions build only their unique content.
+- **Inline styles only**: Email HTML uses inline `style` attributes on every element (no `<style>` blocks or CSS classes). Email clients strip `<style>` blocks, so this is required for reliable rendering. Style constants (`_S_BUTTON`, `_S_INFO_BOX`, etc.) keep the strings DRY.
+- **Branding**: `app/utils/email_branding.py` fetches the tenant's pre-rasterized logo PNG and name. The logo is stored in `tenant_branding.logo_email_png` and populated at logo save time (upload, mandala save, provisioning). SVG-to-PNG conversion uses `cairosvg` and only runs on save, never on email send.
+- **tenant_id parameter**: Every email function accepts `*, tenant_id: str | None = None`. When provided, the email includes the branded header. All call sites pass it.
+- **Preview script**: `docker compose exec app python ./dev/preview_emails.py --tenant meridian-health` sends all 15 email types to MailDev for visual testing.
 
 ## Versioning & Release
 

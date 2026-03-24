@@ -17,7 +17,7 @@ ones we're deliberately skipping.
 ## Quick Reference
 
 - **Reads:** GitHub PRs, pyproject.toml, poetry.lock, changelogs
-- **Writes:** Git branch, pyproject.toml, poetry.lock, GitHub PR, closed PRs
+- **Writes:** Git branch, pyproject.toml, poetry.lock, prod_requirements.lock.txt, GitHub PR
 - **Can commit:** Yes
 
 ## Before You Start
@@ -34,7 +34,7 @@ Read `.claude/THOUGHT_ERRORS.md` to avoid past mistakes.
    ```bash
    gh pr list --author "app/dependabot" --state open --json number,title,headRefName,labels
    ```
-2. For each PR, classify as **Include**, **Skip**, or **Close** using the criteria below.
+2. For each PR, classify as **Include** or **Skip** using the criteria below.
 3. Present a summary table and ask the user to confirm before touching anything.
 
 ### Phase 2: Build the consolidation branch
@@ -105,18 +105,11 @@ gh pr edit --add-label "run-e2e"
 The `run-e2e` label triggers the E2E test suite in CI. Do not merge; wait for the user to
 review CI results and merge with rebase-and-merge.
 
-### Phase 5: Close rejects
+### Phase 5: Leave dependabot PRs for auto-close
 
-For each **Close** PR, leave a brief comment and close it:
-
-```bash
-gh pr comment <number> --body "Closing: <one-line reason>. Happy to revisit if a CVE or breaking change surfaces."
-gh pr close <number>
-```
-
-Leave **Skip** PRs open. Do NOT close PRs that dependabot will auto-close (those are PRs
-for packages we've already merged a newer version of — dependabot detects the conflict and
-closes them itself).
+**Do NOT manually close any dependabot PRs.** Dependabot auto-closes its own PRs when it
+detects the target version (or a newer one) is already on main. This applies to all PRs:
+included, skipped, and superseded. Let dependabot handle the lifecycle.
 
 ---
 
@@ -149,19 +142,15 @@ Always include security patches. Evaluate feature releases carefully before incl
 - `cryptography`, `argon2-cffi`, `python3-saml`, `itsdangerous`, `pyotp`
 - `fastapi`, `pydantic`, `jinja2`, `psycopg`
 
-### When to Close (vs Skip)
-
-**Close** when all of the following are true:
-- No CVE, no security advisory
-- The changelog is docs/CI/style-only — no functional change
-- We have recently merged a newer version anyway
+### When to Skip
 
 **Skip** (leave open) when:
 - It's a major version bump worth revisiting later
 - The changelog has meaningful changes that need deeper review
 - You're unsure
 
-When in doubt, skip rather than close.
+When in doubt, skip rather than include. Dependabot will auto-close skipped PRs if a
+newer version is merged via a future batch.
 
 ---
 
@@ -177,12 +166,11 @@ Batch dependency update YYYY-MM-DD.
 | cryptography | 43.0.0 | 43.0.3 | CVE-2024-XXXX |
 | ruff | 0.8.0 | 0.9.1 | Minor dev-tool bump, no runtime impact |
 
-## Excluded
+## Skipped
 
-| Package | From | To | Action | Reason |
-|---|---|---|---|---|
-| fastapi | 0.115.0 | 0.116.0 | Skipped | Minor bump, changelog has routing behavior changes — needs review |
-| black | 24.0.0 | 24.1.0 | Closed | Docs-only release, no functional change |
+| Package | From | To | Reason |
+|---|---|---|---|
+| fastapi | 0.115.0 | 0.116.0 | Minor bump, changelog has routing behavior changes — needs review |
 ```
 
 ---
@@ -201,12 +189,32 @@ Resolved poetry.lock conflict by regenerating after cherry-pick.
 
 ---
 
+## Transitive Dependencies
+
+Some dependabot PRs only modify `prod_requirements.lock.txt` (a generated file). These are
+transitive dependencies not directly pinned in `pyproject.toml`. The canonical source for
+transitive dep versions is `poetry.lock`. `prod_requirements.lock.txt` is derived from it
+via `poetry export` (automated by the `sync-prod-requirements` workflow).
+
+**Do not cherry-pick these PRs.** Instead, after applying direct dep bumps, update transitive
+deps through poetry:
+
+```bash
+poetry update <pkg1> <pkg2> ...
+poetry export --only main --without-hashes -f requirements.txt -o prod_requirements.lock.txt
+```
+
+Commit the updated `pyproject.toml`, `poetry.lock`, and `prod_requirements.lock.txt` together.
+
+---
+
 ## What This Skill Does NOT Do
 
 - Does not merge the PR (that is a human action after CI passes)
-- Does not modify application code beyond `pyproject.toml` and `poetry.lock` (unless a
-  breaking change forces an adjustment, which should be called out explicitly)
-- Does not close PRs that dependabot will auto-close (already-merged ones)
+- Does not modify application code beyond `pyproject.toml`, `poetry.lock`, and
+  `prod_requirements.lock.txt` (unless a breaking change forces an adjustment, which
+  should be called out explicitly)
+- Does not manually close any dependabot PRs (dependabot auto-closes them)
 - Does not read ISSUES.md or BACKLOG.md
 - There are two Docker ecosystem entries in `.github/dependabot.yml` (dev at `/app`, production at `/`). Base image bumps may arrive as pairs.
 

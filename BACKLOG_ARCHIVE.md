@@ -4,6 +4,28 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Drop Unused `site_title` Column from `tenant_branding`
+
+**Status:** Complete
+
+**Resolution:** Migration 0021 drops the `site_title` column from `tenant_branding`. All code already uses `tenants.name` instead (consolidated in migration 0019). The `site_title` key in template context is populated from `tenants.name`, not from this column. No code or test changes needed.
+
+**Effort:** S
+**Value:** Low
+
+---
+
+## Remove Legacy One-Time Token Storage
+
+**Status:** Complete
+
+**Resolution:** Migration 0022 drops the `mfa_email_codes` table. Email OTP verification was migrated to stateless HMAC time-windowed codes (`utils/tokens.py`). Removed dead database functions (`create_email_otp`, `verify_email_otp`, `delete_email_codes`) from `app/database/mfa.py` and removed the `delete_email_codes` call from `delete_all_user_mfa_data`. No tests referenced the table or the removed functions.
+
+**Effort:** S
+**Value:** Low
+
+---
+
 ## Branded Email Headers
 
 **Status:** Complete

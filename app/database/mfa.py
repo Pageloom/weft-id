@@ -1,7 +1,5 @@
 """MFA (Multi-Factor Authentication) database operations."""
 
-from datetime import datetime
-
 from ._core import TenantArg, execute, fetchall, fetchone
 
 
@@ -155,82 +153,6 @@ def delete_totp_secrets(tenant_id: TenantArg, user_id: str) -> int:
     )
 
 
-# Email OTP operations
-def create_email_otp(
-    tenant_id: TenantArg,
-    user_id: str,
-    code_hash: str,
-    expires_at: datetime,
-    tenant_id_value: str,
-) -> int:
-    """
-    Create an email OTP code.
-
-    Args:
-        tenant_id: Tenant ID for scoping
-        user_id: User ID
-        code_hash: SHA-256 hash of the OTP code
-        expires_at: When the code expires
-        tenant_id_value: The actual tenant ID value to store in the record
-
-    Returns:
-        Number of rows affected
-    """
-    return execute(
-        tenant_id,
-        """
-        insert into mfa_email_codes (tenant_id, user_id, code_hash, expires_at)
-        values (:tenant_id, :user_id, :code_hash, :expires_at)
-        """,
-        {
-            "tenant_id": tenant_id_value,
-            "user_id": user_id,
-            "code_hash": code_hash,
-            "expires_at": expires_at,
-        },
-    )
-
-
-def verify_email_otp(tenant_id: TenantArg, user_id: str, code_hash: str) -> bool:
-    """
-    Verify an email OTP code and mark it as used.
-
-    Args:
-        tenant_id: Tenant ID
-        user_id: User ID
-        code_hash: SHA-256 hash of the code to verify
-
-    Returns:
-        True if code was valid and marked as used, False otherwise
-    """
-    # Find valid, unused, non-expired code
-    email_code = fetchone(
-        tenant_id,
-        """
-        select id from mfa_email_codes
-        where user_id = :user_id
-          and code_hash = :code_hash
-          and used_at is null
-          and expires_at > now()
-        order by created_at desc
-        limit 1
-        """,
-        {"user_id": user_id, "code_hash": code_hash},
-    )
-
-    if not email_code:
-        return False
-
-    # Mark as used
-    execute(
-        tenant_id,
-        "update mfa_email_codes set used_at = now() where id = :id",
-        {"id": email_code["id"]},
-    )
-
-    return True
-
-
 # Backup codes operations
 
 
@@ -328,20 +250,6 @@ def delete_backup_codes(tenant_id: TenantArg, user_id: str) -> int:
     )
 
 
-def delete_email_codes(tenant_id: TenantArg, user_id: str) -> int:
-    """
-    Delete all email OTP codes for a user.
-
-    Returns:
-        Number of rows affected
-    """
-    return execute(
-        tenant_id,
-        "delete from mfa_email_codes where user_id = :user_id",
-        {"user_id": user_id},
-    )
-
-
 def delete_all_user_mfa_data(tenant_id: TenantArg, user_id: str) -> None:
     """
     Delete all MFA-related data for a user (for anonymization).
@@ -349,7 +257,6 @@ def delete_all_user_mfa_data(tenant_id: TenantArg, user_id: str) -> None:
     Removes:
     - TOTP secrets
     - Backup codes
-    - Email OTP codes
 
     Args:
         tenant_id: Tenant ID for scoping
@@ -357,4 +264,3 @@ def delete_all_user_mfa_data(tenant_id: TenantArg, user_id: str) -> None:
     """
     delete_totp_secrets(tenant_id, user_id)
     delete_backup_codes(tenant_id, user_id)
-    delete_email_codes(tenant_id, user_id)

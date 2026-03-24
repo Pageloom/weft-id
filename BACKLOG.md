@@ -115,61 +115,11 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Drop Unused `site_title` Column from `tenant_branding`
-
-**User Story:**
-As a developer
-I want to remove the unused `site_title` column from `tenant_branding`
-So that the schema is clean after consolidating tenant name and site title
-
-**Context:**
-
-The "Consolidate Tenant Name and Site Title" item stops all code from reading or writing
-`site_title`, using `tenants.name` everywhere instead. The column remains in the database
-but is unused. This item drops it once the consolidation has been live long enough to
-confirm nothing references it.
-
-This is a cleanup item with no user-facing impact. It depends on the consolidation item
-being fully deployed and confirmed working.
-
-**Acceptance Criteria:**
-
-- [ ] Verify no code paths read from or write to `tenant_branding.site_title`
-- [ ] Migration drops the `site_title` column from `tenant_branding`
-- [ ] Tests updated to remove any references to `site_title`
-
-**Effort:** S
-**Value:** Low (Cleanup, depends on tenant name consolidation being complete)
+## ~~Drop Unused `site_title` Column from `tenant_branding`~~ (Complete)
 
 ---
 
-## Remove Legacy One-Time Token Storage
-
-**User Story:**
-As a developer
-I want to remove the database tables and columns that previously stored one-time tokens
-So that the schema is clean and there is no dead storage after migrating to stateless tokens
-
-**Context:**
-
-Once the "Stateless Time-Windowed Token Generation" item is complete and all token flows have
-been migrated, the database tables/columns that stored email verification codes, MFA email
-codes, and any other one-time tokens are no longer read or written. This item removes them.
-
-This is a cleanup item with no user-facing impact. It depends on the stateless token item
-being fully deployed and confirmed working.
-
-**Acceptance Criteria:**
-
-- [ ] Identify all tables/columns used for one-time token storage
-- [ ] Verify no code paths read from or write to them (grep for table/column names)
-- [ ] Migration drops the identified tables/columns
-- [ ] Migration follows the multi-step safety pattern if needed (mark unused first, drop in a later migration)
-- [ ] Associated cleanup jobs (if any) are removed from `app/jobs/`
-- [ ] Tests updated to remove any references to the old token storage
-
-**Effort:** S
-**Value:** Low (Cleanup, depends on stateless token generation being complete)
+## ~~Remove Legacy One-Time Token Storage~~ (Complete)
 
 ---
 

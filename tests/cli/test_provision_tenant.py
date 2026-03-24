@@ -123,6 +123,8 @@ class TestHappyPath:
             "log_event": patch("cli.provision_tenant.log_event"),
             "send_email": patch("cli.provision_tenant.send_provisioning_invitation"),
             "settings": patch("cli.provision_tenant.settings"),
+            "rasterize": patch("cli.provision_tenant._rasterize_to_png", return_value=None),
+            "upsert_png": patch("cli.provision_tenant.database.branding.upsert_email_logo_png"),
         }
 
         self.mocks = {}
@@ -236,6 +238,7 @@ class TestIdempotentTenant:
             patch("cli.provision_tenant.log_event"),
             patch("cli.provision_tenant.send_provisioning_invitation", return_value=True),
             patch("cli.provision_tenant.settings") as mock_settings,
+            patch("cli.provision_tenant._rasterize_to_png", return_value=None),
         ):
             mock_settings.BASE_DOMAIN = "example.com"
             exit_code = main(_make_args())
@@ -263,6 +266,7 @@ class TestErrorCases:
             ),
             patch("cli.provision_tenant.email_exists", return_value=True),
             patch("cli.provision_tenant.create_user_raw") as mock_create,
+            patch("cli.provision_tenant._rasterize_to_png", return_value=None),
         ):
             exit_code = main(_make_args())
 
@@ -297,6 +301,7 @@ class TestErrorCases:
             ),
             patch("cli.provision_tenant.email_exists", return_value=False),
             patch("cli.provision_tenant.create_user_raw", return_value=None),
+            patch("cli.provision_tenant._rasterize_to_png", return_value=None),
         ):
             exit_code = main(_make_args())
             assert exit_code == 1
@@ -321,6 +326,7 @@ class TestErrorCases:
                 "cli.provision_tenant.add_unverified_email_with_nonce",
                 return_value=None,
             ),
+            patch("cli.provision_tenant._rasterize_to_png", return_value=None),
         ):
             exit_code = main(_make_args())
             assert exit_code == 1
@@ -348,6 +354,7 @@ class TestErrorCases:
             patch("cli.provision_tenant.log_event"),
             patch("cli.provision_tenant.send_provisioning_invitation", return_value=False),
             patch("cli.provision_tenant.settings") as mock_settings,
+            patch("cli.provision_tenant._rasterize_to_png", return_value=None),
         ):
             mock_settings.BASE_DOMAIN = "example.com"
             exit_code = main(_make_args())

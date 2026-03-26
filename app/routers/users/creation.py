@@ -132,9 +132,10 @@ def create_new_user(
         if not email_result:
             return RedirectResponse(url="/users/new?error=email_creation_failed", status_code=303)
 
-        # Send welcome email with password set link
+        # Send welcome email with password set link (includes nonce for one-time use)
         email_id = email_result["id"]
-        password_set_url = f"{request.base_url}set-password?email_id={email_id}"
+        sp_nonce = email_result["set_password_nonce"]
+        password_set_url = f"{request.base_url}set-password?email_id={email_id}&nonce={sp_nonce}"
         send_new_user_privileged_domain_notification(
             email, admin_name, org_name, password_set_url, tenant_id=tid
         )

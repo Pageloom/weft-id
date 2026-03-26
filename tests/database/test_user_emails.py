@@ -205,6 +205,49 @@ def test_get_email_for_verification(test_user):
     assert email_info["email"] == new_email
     assert email_info["verified_at"] is None
     assert "verify_nonce" in email_info
+    assert "set_password_nonce" in email_info
+    assert email_info["set_password_nonce"] == 1
+
+
+def test_increment_set_password_nonce(test_user):
+    """Test incrementing the set_password_nonce to invalidate a set-password link."""
+    import database
+
+    # Add an email to get its ID
+    new_email = f"spnonce-{test_user['id']}@example.com"
+    result = database.user_emails.add_email(
+        test_user["tenant_id"], test_user["id"], new_email, test_user["tenant_id"]
+    )
+    email_id = result["id"]
+
+    # Confirm starting nonce is 1
+    email_info = database.user_emails.get_email_for_verification(test_user["tenant_id"], email_id)
+    assert email_info["set_password_nonce"] == 1
+
+    # Increment the nonce
+    rows = database.user_emails.increment_set_password_nonce(test_user["tenant_id"], email_id)
+    assert rows == 1
+
+    # Confirm it was incremented
+    email_info = database.user_emails.get_email_for_verification(test_user["tenant_id"], email_id)
+    assert email_info["set_password_nonce"] == 2
+
+
+def test_add_verified_email_returns_set_password_nonce(test_user):
+    """Test that add_verified_email returns set_password_nonce in its result."""
+    import database
+
+    new_email = f"verified-sp-{test_user['id']}@example.com"
+    result = database.user_emails.add_verified_email(
+        tenant_id=test_user["tenant_id"],
+        user_id=str(test_user["id"]),
+        email=new_email,
+        tenant_id_value=str(test_user["tenant_id"]),
+    )
+
+    assert result is not None
+    assert "set_password_nonce" in result
+    assert result["set_password_nonce"] == 1
 
 
 def test_get_email_with_nonce(test_user):

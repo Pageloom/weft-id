@@ -584,6 +584,19 @@ def get_user_with_primary_email(tenant_id: str, user_id: str) -> dict | None:
     return database.user_emails.get_user_with_primary_email(tenant_id, user_id)
 
 
+def increment_set_password_nonce(tenant_id: str, email_id: str) -> None:
+    """
+    Invalidate a set-password link by incrementing its nonce.
+
+    Call this after a successful password set to prevent reuse of the link.
+
+    Args:
+        tenant_id: Tenant ID
+        email_id: Email UUID
+    """
+    database.user_emails.increment_set_password_nonce(tenant_id, email_id)
+
+
 def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
     """
     Verify an email address using its nonce (public endpoint flow).

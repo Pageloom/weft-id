@@ -828,7 +828,7 @@ def test_create_new_user_with_privileged_domain(test_admin_user, mocker, overrid
     # Mock create_user to return a UserDetail-like object
     mock_user = type("obj", (object,), {"id": "new-user-123"})()
     mock_create.return_value = mock_user
-    mock_add_email.return_value = {"id": "email-123"}
+    mock_add_email.return_value = {"id": "email-123", "set_password_nonce": 1}
     mock_tenant.return_value = "Test Organization"
 
     client = TestClient(app)
@@ -1849,11 +1849,12 @@ def test_password_set_link_format_privileged_domain(
     call_args = mock_send.call_args[0]
     password_set_url = call_args[3]  # 4th argument is password_set_url
 
-    # Verify URL format: should contain /set-password?email_id={uuid}
+    # Verify URL format: should contain /set-password?email_id={uuid}&nonce={int}
     assert "/set-password?email_id=" in password_set_url
+    assert "&nonce=" in password_set_url
 
-    # Extract email_id from URL
-    email_id = password_set_url.split("email_id=")[1]
+    # Extract email_id from URL (format: ?email_id=UUID&nonce=N)
+    email_id = password_set_url.split("email_id=")[1].split("&")[0]
 
     # Verify email_id is a valid UUID
     try:
@@ -1871,9 +1872,9 @@ def test_set_password_with_invalid_email_id_returns_error(test_tenant):
     # Use a valid UUID format that doesn't exist in database
     non_existent_email_id = str(uuid4())
 
-    # Try to access /set-password with non-existent email_id
+    # Try to access /set-password with non-existent email_id (include nonce to pass param check)
     response = client.get(
-        f"/set-password?email_id={non_existent_email_id}",
+        f"/set-password?email_id={non_existent_email_id}&nonce=1",
         headers={"host": f"{test_tenant['subdomain']}.weftid.localhost"},
         follow_redirects=False,
     )

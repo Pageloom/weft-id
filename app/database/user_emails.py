@@ -117,12 +117,13 @@ def get_email_for_verification(tenant_id: TenantArg, email_id: str) -> dict | No
     Get email info for verification process.
 
     Returns:
-        Dict with id, user_id, email, verified_at, verify_nonce, or None if not found
+        Dict with id, user_id, email, verified_at, verify_nonce, set_password_nonce,
+        or None if not found
     """
     return fetchone(
         tenant_id,
         """
-        select id, user_id, email, verified_at, verify_nonce
+        select id, user_id, email, verified_at, verify_nonce, set_password_nonce
         from user_emails
         where id = :email_id
         """,
@@ -159,6 +160,25 @@ def verify_email(tenant_id: TenantArg, email_id: str) -> int:
         """
         update user_emails
         set verified_at = now(), verify_nonce = verify_nonce + 1
+        where id = :email_id
+        """,
+        {"email_id": email_id},
+    )
+
+
+def increment_set_password_nonce(tenant_id: TenantArg, email_id: str) -> int:
+    """
+    Increment the set_password_nonce for an email, invalidating the current
+    set-password link.
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update user_emails
+        set set_password_nonce = set_password_nonce + 1
         where id = :email_id
         """,
         {"email_id": email_id},
@@ -235,7 +255,7 @@ def add_verified_email(
         """
         insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
         values (:tenant_id, :user_id, :email, :is_primary, now())
-        returning id, email
+        returning id, email, set_password_nonce
         """,
         {
             "tenant_id": tenant_id_value,

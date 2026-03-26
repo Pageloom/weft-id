@@ -53,7 +53,10 @@ def verify_email_public(
         user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
         if user and not user.get("password_hash"):
             # User verified but no password set - redirect to set password
-            return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
+            sp_nonce = email["set_password_nonce"]
+            return RedirectResponse(
+                url=f"/set-password?email_id={email_id}&nonce={sp_nonce}", status_code=303
+            )
         # User has password - redirect to login
         return RedirectResponse(url="/login?success=already_verified", status_code=303)
 
@@ -69,7 +72,10 @@ def verify_email_public(
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if user and not user.get("password_hash"):
         # New user without password - redirect to set password page
-        return RedirectResponse(url=f"/set-password?email_id={email_id}", status_code=303)
+        sp_nonce = email["set_password_nonce"]
+        return RedirectResponse(
+            url=f"/set-password?email_id={email_id}&nonce={sp_nonce}", status_code=303
+        )
 
     # Existing user adding new email - redirect to login/account
     return RedirectResponse(url="/login?success=email_verified", status_code=303)
@@ -82,12 +88,17 @@ def set_password_page(
 ):
     """Display set password page for new users who have verified their email."""
     email_id = request.query_params.get("email_id")
+    nonce_str = request.query_params.get("nonce")
 
-    if not email_id:
+    if not email_id or nonce_str is None:
         return RedirectResponse(url="/login", status_code=303)
 
+    try:
+        nonce = int(nonce_str)
+    except ValueError:
+        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
+
     # Look up the email to get the user's email address
-    # We need to get the email to find the user_id first
     email = emails_service.get_email_for_verification(tenant_id, email_id)
 
     if not email:
@@ -96,6 +107,10 @@ def set_password_page(
     # Check if email is verified
     if not email.get("verified_at"):
         return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
+
+    # Validate the set-password nonce to ensure this is a one-time-use link
+    if email["set_password_nonce"] != nonce:
+        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
 
     # Check if user already has a password
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
@@ -119,6 +134,7 @@ def set_password_page(
             "request": request,
             "email": email["email"],
             "email_id": email_id,
+            "nonce": nonce,
             "minimum_password_length": min_length,
             "minimum_zxcvbn_score": policy["minimum_zxcvbn_score"],
             "success": success,
@@ -134,6 +150,7 @@ def set_password(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     email_id: Annotated[str, Form()],
+    nonce: Annotated[int, Form()],
     password: Annotated[str, Form()],
     password_confirm: Annotated[str, Form()],
 ):
@@ -148,6 +165,10 @@ def set_password(
     if not email.get("verified_at"):
         return RedirectResponse(url="/login?error=email_not_verified", status_code=303)
 
+    # Validate the set-password nonce before any other processing
+    if email["set_password_nonce"] != nonce:
+        return RedirectResponse(url="/login?error=invalid_link", status_code=303)
+
     # Check if user already has a password
     user = users_service.get_user_by_id_raw(tenant_id, email["user_id"])
     if not user or user.get("password_hash"):
@@ -156,7 +177,8 @@ def set_password(
     # Validate passwords match
     if password != password_confirm:
         return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&error=passwords_dont_match", status_code=303
+            url=f"/set-password?email_id={email_id}&nonce={nonce}&error=passwords_dont_match",
+            status_code=303,
         )
 
     # Validate password strength
@@ -173,7 +195,8 @@ def set_password(
     if not strength.is_valid:
         error_code = strength.issues[0].code
         return RedirectResponse(
-            url=f"/set-password?email_id={email_id}&error={error_code}", status_code=303
+            url=f"/set-password?email_id={email_id}&nonce={nonce}&error={error_code}",
+            status_code=303,
         )
 
     # Set the password with HIBP monitoring and policy data
@@ -189,6 +212,9 @@ def set_password(
         policy_length_at_set=min_length,
         policy_score_at_set=min_score,
     )
+
+    # Invalidate the set-password link so it cannot be reused
+    emails_service.increment_set_password_nonce(tenant_id, email_id)
 
     # Log the password set event
     log_event(

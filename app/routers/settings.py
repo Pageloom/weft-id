@@ -282,7 +282,6 @@ def _get_security_template_context(
             current_timeout=settings.session_timeout_seconds,
             persistent_sessions=settings.persistent_sessions,
             allow_users_edit_profile=settings.allow_users_edit_profile,
-            allow_users_add_emails=settings.allow_users_add_emails,
             inactivity_threshold_days=settings.inactivity_threshold_days,
             max_certificate_lifetime_years=settings.max_certificate_lifetime_years,
             certificate_rotation_window_days=settings.certificate_rotation_window_days,
@@ -562,7 +561,6 @@ def update_admin_security_permissions(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
     allow_users_edit_profile: Annotated[str, Form()] = "",
-    allow_users_add_emails: Annotated[str, Form()] = "",
     group_assertion_scope: Annotated[str, Form()] = "access_relevant",
 ):
     """Update permission security settings for the tenant."""
@@ -578,7 +576,6 @@ def update_admin_security_permissions(
     try:
         settings_update = TenantSecuritySettingsUpdate(
             allow_users_edit_profile=allow_users_edit_profile == "true",
-            allow_users_add_emails=allow_users_add_emails == "true",
             group_assertion_scope=scope_value,  # type: ignore[arg-type]
         )
     except PydanticValidationError as e:

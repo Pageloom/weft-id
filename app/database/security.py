@@ -9,14 +9,14 @@ def get_security_settings(tenant_id: TenantArg) -> dict | None:
 
     Returns:
         Dict with session_timeout_seconds, persistent_sessions,
-        allow_users_edit_profile, allow_users_add_emails,
-        inactivity_threshold_days fields, or None if not found
+        allow_users_edit_profile, inactivity_threshold_days fields,
+        or None if not found
     """
     return fetchone(
         tenant_id,
         """
         select session_timeout_seconds, persistent_sessions,
-               allow_users_edit_profile, allow_users_add_emails,
+               allow_users_edit_profile,
                inactivity_threshold_days, max_certificate_lifetime_years,
                certificate_rotation_window_days,
                minimum_password_length, minimum_zxcvbn_score,
@@ -83,30 +83,11 @@ def can_user_edit_profile(tenant_id: TenantArg) -> dict | None:
     )
 
 
-def can_user_add_emails(tenant_id: TenantArg) -> dict | None:
-    """
-    Check if users are allowed to add email addresses.
-
-    Returns:
-        Dict with allow_users_add_emails field, or None if not found
-    """
-    return fetchone(
-        tenant_id,
-        """
-        select allow_users_add_emails
-        from tenant_security_settings
-        where tenant_id = :tenant_id
-        """,
-        {"tenant_id": tenant_id},
-    )
-
-
 def update_security_settings(
     tenant_id: TenantArg,
     timeout_seconds: int | None,
     persistent_sessions: bool,
     allow_users_edit_profile: bool,
-    allow_users_add_emails: bool,
     inactivity_threshold_days: int | None,
     max_certificate_lifetime_years: int,
     certificate_rotation_window_days: int,
@@ -124,7 +105,6 @@ def update_security_settings(
         timeout_seconds: Session timeout in seconds (None for no timeout)
         persistent_sessions: Whether to allow persistent sessions
         allow_users_edit_profile: Whether users can edit their own profile
-        allow_users_add_emails: Whether users can add email addresses
         inactivity_threshold_days: Days before inactive users are auto-inactivated (None = disabled)
         max_certificate_lifetime_years: Lifetime in years for new signing certificates
         certificate_rotation_window_days: Days before expiry to trigger auto-rotation
@@ -142,14 +122,14 @@ def update_security_settings(
         """
         insert into tenant_security_settings (
             tenant_id, session_timeout_seconds, persistent_sessions,
-            allow_users_edit_profile, allow_users_add_emails,
+            allow_users_edit_profile,
             inactivity_threshold_days, max_certificate_lifetime_years,
             certificate_rotation_window_days, minimum_password_length,
             minimum_zxcvbn_score, group_assertion_scope, updated_by
         )
         values (
             :tenant_id, :timeout_seconds, :persistent_sessions,
-            :allow_users_edit_profile, :allow_users_add_emails,
+            :allow_users_edit_profile,
             :inactivity_threshold_days, :max_certificate_lifetime_years,
             :certificate_rotation_window_days, :minimum_password_length,
             :minimum_zxcvbn_score, :group_assertion_scope, :updated_by
@@ -159,7 +139,6 @@ def update_security_settings(
             session_timeout_seconds = :timeout_seconds,
             persistent_sessions = :persistent_sessions,
             allow_users_edit_profile = :allow_users_edit_profile,
-            allow_users_add_emails = :allow_users_add_emails,
             inactivity_threshold_days = :inactivity_threshold_days,
             max_certificate_lifetime_years = :max_certificate_lifetime_years,
             certificate_rotation_window_days = :certificate_rotation_window_days,
@@ -174,7 +153,6 @@ def update_security_settings(
             "timeout_seconds": timeout_seconds,
             "persistent_sessions": persistent_sessions,
             "allow_users_edit_profile": allow_users_edit_profile,
-            "allow_users_add_emails": allow_users_add_emails,
             "inactivity_threshold_days": inactivity_threshold_days,
             "max_certificate_lifetime_years": max_certificate_lifetime_years,
             "certificate_rotation_window_days": certificate_rotation_window_days,

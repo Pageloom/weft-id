@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Email Address Management: Admin-Only Controls
+
+**Status:** Complete
+
+**Resolution:** Self-service email mutation (add, remove, promote, verify, resend verification)
+has been removed from both the web UI and API. The `/account/emails` page is now read-only.
+The `allow_users_add_emails` tenant security setting was removed (migration 0024 drops the
+column). Admin email management is unchanged. When an admin promotes an email to primary and
+the new email's domain routes to a different IdP, the web UI shows an amber warning banner
+with a confirm/cancel option, and the API returns 409 with `routing_change` error code
+(pass `?confirm_routing_change=true` to proceed).
+
+**Effort:** M
+**Value:** High
+
+---
+
 ## Invitation and Set-Password Link Security Hardening
 
 **Status:** Complete

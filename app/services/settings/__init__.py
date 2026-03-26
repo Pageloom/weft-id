@@ -24,7 +24,6 @@ from services.settings.domains import (
 )
 from services.settings.security import (
     can_user_edit_profile,
-    can_users_add_emails,
     get_certificate_lifetime,
     get_certificate_rotation_window,
     get_group_assertion_scope,
@@ -48,7 +47,6 @@ __all__ = [
     "list_privileged_domains",
     # Security
     "can_user_edit_profile",
-    "can_users_add_emails",
     "get_certificate_lifetime",
     "get_certificate_rotation_window",
     "get_group_assertion_scope",

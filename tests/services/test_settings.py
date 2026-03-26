@@ -274,7 +274,6 @@ def test_get_security_settings_as_super_admin(test_tenant, test_super_admin_user
     assert hasattr(result, "session_timeout_seconds")
     assert hasattr(result, "persistent_sessions")
     assert hasattr(result, "allow_users_edit_profile")
-    assert hasattr(result, "allow_users_add_emails")
 
 
 def test_get_security_settings_returns_defaults_when_not_set(test_tenant, test_super_admin_user):
@@ -287,7 +286,6 @@ def test_get_security_settings_returns_defaults_when_not_set(test_tenant, test_s
     assert result.session_timeout_seconds is None
     assert result.persistent_sessions is True
     assert result.allow_users_edit_profile is True
-    assert result.allow_users_add_emails is True
 
 
 def test_get_security_settings_returns_saved_values(test_tenant, test_super_admin_user):
@@ -301,7 +299,6 @@ def test_get_security_settings_returns_saved_values(test_tenant, test_super_admi
         session_timeout_seconds=7200,
         persistent_sessions=False,
         allow_users_edit_profile=False,
-        allow_users_add_emails=False,
     )
     settings_service.update_security_settings(requesting_user, settings_update)
 
@@ -311,7 +308,6 @@ def test_get_security_settings_returns_saved_values(test_tenant, test_super_admi
     assert result.session_timeout_seconds == 7200
     assert result.persistent_sessions is False
     assert result.allow_users_edit_profile is False
-    assert result.allow_users_add_emails is False
 
 
 def test_get_security_settings_as_admin_forbidden(test_tenant, test_admin_user):
@@ -360,7 +356,6 @@ def test_update_security_settings_as_super_admin(test_tenant, test_super_admin_u
         session_timeout_seconds=3600,
         persistent_sessions=False,
         allow_users_edit_profile=False,
-        allow_users_add_emails=False,
     )
 
     result = settings_service.update_security_settings(requesting_user, settings_update)
@@ -368,7 +363,6 @@ def test_update_security_settings_as_super_admin(test_tenant, test_super_admin_u
     assert result.session_timeout_seconds == 3600
     assert result.persistent_sessions is False
     assert result.allow_users_edit_profile is False
-    assert result.allow_users_add_emails is False
 
     # Verify event logged
     _verify_event_logged(test_tenant["id"], "tenant_settings_updated", test_tenant["id"])
@@ -385,7 +379,6 @@ def test_update_security_settings_partial_update(test_tenant, test_super_admin_u
         session_timeout_seconds=1800,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
     )
     settings_service.update_security_settings(requesting_user, full_update)
 
@@ -398,7 +391,6 @@ def test_update_security_settings_partial_update(test_tenant, test_super_admin_u
     assert result.session_timeout_seconds == 7200
     assert result.persistent_sessions is True  # Unchanged
     assert result.allow_users_edit_profile is True  # Unchanged
-    assert result.allow_users_add_emails is True  # Unchanged
 
 
 def test_update_security_settings_as_admin_forbidden(test_tenant, test_admin_user):
@@ -472,28 +464,6 @@ def test_is_privileged_domain_case_insensitive(test_tenant, test_admin_user):
     result = settings_service.is_privileged_domain(test_tenant["id"], "CASETEST.COM")
 
     assert result is True
-
-
-def test_can_users_add_emails_default_true(test_tenant):
-    """Test can_users_add_emails returns True by default."""
-    result = settings_service.can_users_add_emails(test_tenant["id"])
-
-    assert result is True
-
-
-def test_can_users_add_emails_when_set_to_false(test_tenant, test_super_admin_user):
-    """Test can_users_add_emails returns False when set."""
-    from schemas.settings import TenantSecuritySettingsUpdate
-
-    # Set to false
-    requesting_user = _make_requesting_user(test_super_admin_user, test_tenant["id"], "super_admin")
-    settings_update = TenantSecuritySettingsUpdate(allow_users_add_emails=False)
-    settings_service.update_security_settings(requesting_user, settings_update)
-
-    # Check it
-    result = settings_service.can_users_add_emails(test_tenant["id"])
-
-    assert result is False
 
 
 def test_can_user_edit_profile_default_true(test_tenant):

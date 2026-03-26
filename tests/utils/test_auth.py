@@ -94,7 +94,6 @@ def test_get_current_user_with_valid_session_timeout(test_user, test_admin_user)
         timeout_seconds=3600,  # 1 hour
         persistent_sessions=False,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -130,7 +129,6 @@ def test_get_current_user_with_expired_session_timeout(test_user, test_admin_use
         timeout_seconds=1800,  # 30 minutes
         persistent_sessions=False,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -269,7 +267,6 @@ def test_get_current_user_session_timeout(test_tenant, test_user):
         timeout_seconds=1,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,

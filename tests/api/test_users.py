@@ -577,223 +577,6 @@ def test_list_current_user_emails(make_user_dict, override_api_auth):
         assert len(data["items"]) >= 1
 
 
-def test_add_email_to_current_user(make_user_dict, override_api_auth):
-    """Test adding an email to current user's account."""
-    user = make_user_dict(role="member")
-
-    mock_email = EmailInfo(
-        id=str(uuid4()),
-        email="newemail@test.example.com",
-        is_primary=False,
-        verified_at=None,
-        created_at=datetime.now(UTC),
-    )
-
-    override_api_auth(user, level="user")
-
-    with (
-        patch("routers.api.v1.users.emails_service") as mock_svc,
-        patch("routers.api.v1.users.send_email_verification"),
-    ):
-        mock_svc.add_user_email.return_value = mock_email
-
-        client = TestClient(app)
-        response = client.post(
-            "/api/v1/users/me/emails",
-            json={"email": "newemail@test.example.com"},
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data["email"] == "newemail@test.example.com"
-        assert data["is_primary"] is False
-        assert data["verified_at"] is None
-
-
-def test_add_duplicate_email_fails(make_user_dict, override_api_auth):
-    """Test adding a duplicate email fails."""
-    user = make_user_dict(role="member")
-
-    override_api_auth(user, level="user")
-
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.add_user_email.side_effect = ConflictError(
-            message="Email already exists", code="email_exists"
-        )
-
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.post(
-            "/api/v1/users/me/emails",
-            json={"email": "existing@example.com"},
-        )
-
-        assert response.status_code == 409
-
-
-def test_delete_email_from_current_user(make_user_dict, override_api_auth):
-    """Test deleting a secondary email from current user's account."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    override_api_auth(user, level="user")
-
-    with (
-        patch("routers.api.v1.users.emails_service") as mock_svc,
-        patch("routers.api.v1.users.send_secondary_email_removed_notification"),
-    ):
-        mock_svc.delete_user_email.return_value = None
-
-        client = TestClient(app)
-        response = client.delete(f"/api/v1/users/me/emails/{email_id}")
-
-        assert response.status_code == 204
-
-
-def test_cannot_delete_primary_email(make_user_dict, override_api_auth):
-    """Test that deleting primary email fails."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    override_api_auth(user, level="user")
-
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.delete_user_email.side_effect = ValidationError(
-            message="Cannot delete primary email",
-            code="primary_email_deletion",
-        )
-
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.delete(f"/api/v1/users/me/emails/{email_id}")
-
-        assert response.status_code == 400
-        assert "primary" in response.json()["detail"].lower()
-
-
-def test_set_primary_email(make_user_dict, override_api_auth):
-    """Test setting a verified email as primary."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    mock_email = EmailInfo(
-        id=email_id,
-        email="newprimary@test.example.com",
-        is_primary=True,
-        verified_at=datetime.now(UTC),
-        created_at=datetime.now(UTC),
-    )
-
-    override_api_auth(user, level="user")
-
-    with (
-        patch("routers.api.v1.users.emails_service") as mock_svc,
-        patch("routers.api.v1.users.send_primary_email_changed_notification"),
-    ):
-        mock_svc.set_primary_email.return_value = mock_email
-
-        client = TestClient(app)
-        response = client.post(f"/api/v1/users/me/emails/{email_id}/set-primary")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["is_primary"] is True
-
-
-def test_cannot_set_unverified_email_as_primary(make_user_dict, override_api_auth):
-    """Test that setting an unverified email as primary fails."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    override_api_auth(user, level="user")
-
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.set_primary_email.side_effect = ValidationError(
-            message="Cannot set unverified email as primary",
-            code="unverified_email",
-        )
-
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.post(f"/api/v1/users/me/emails/{email_id}/set-primary")
-
-        assert response.status_code == 400
-        assert "unverified" in response.json()["detail"].lower()
-
-
-def test_resend_email_verification(make_user_dict, override_api_auth):
-    """Test resending verification email."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-    mock_email_data = {
-        "email_id": email_id,
-        "email": "resendtest@test.example.com",
-        "verify_nonce": 12345,
-    }
-
-    override_api_auth(user, level="user")
-
-    with (
-        patch("routers.api.v1.users.emails_service") as mock_svc,
-        patch("routers.api.v1.users.send_email_verification"),
-    ):
-        mock_svc.resend_verification.return_value = mock_email_data
-
-        client = TestClient(app)
-        response = client.post(f"/api/v1/users/me/emails/{email_id}/resend-verification")
-
-        assert response.status_code == 200
-        assert "sent" in response.json()["message"].lower()
-
-
-def test_verify_email(make_user_dict, override_api_auth):
-    """Test verifying an email address."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    mock_email = EmailInfo(
-        id=email_id,
-        email="verifytest@test.example.com",
-        is_primary=False,
-        verified_at=datetime.now(UTC),
-        created_at=datetime.now(UTC),
-    )
-
-    override_api_auth(user, level="user")
-
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.verify_email.return_value = mock_email
-
-        client = TestClient(app)
-        response = client.post(
-            f"/api/v1/users/me/emails/{email_id}/verify",
-            json={"nonce": 12345},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["verified_at"] is not None
-
-
-def test_verify_email_invalid_nonce(make_user_dict, override_api_auth):
-    """Test verifying with invalid nonce fails."""
-    user = make_user_dict(role="member")
-    email_id = str(uuid4())
-
-    override_api_auth(user, level="user")
-
-    with patch("routers.api.v1.users.emails_service") as mock_svc:
-        mock_svc.verify_email.side_effect = ValidationError(
-            message="Invalid verification code",
-            code="invalid_nonce",
-        )
-
-        client = TestClient(app, raise_server_exceptions=False)
-        response = client.post(
-            f"/api/v1/users/me/emails/{email_id}/verify",
-            json={"nonce": 99999},
-        )
-
-        assert response.status_code == 400
-
-
 # =============================================================================
 # Admin Email Management
 # =============================================================================
@@ -891,6 +674,8 @@ def test_admin_set_user_primary_email(make_user_dict, override_api_auth):
     override_api_auth(admin)
 
     with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.get_email_address_by_id.return_value = "adminprimary@test.example.com"
+        mock_svc.check_routing_change.return_value = None
         mock_svc.set_primary_email.return_value = mock_email
 
         client = TestClient(app)
@@ -899,6 +684,60 @@ def test_admin_set_user_primary_email(make_user_dict, override_api_auth):
         assert response.status_code == 200
         data = response.json()
         assert data["is_primary"] is True
+
+
+def test_admin_set_primary_email_routing_change_blocked(make_user_dict, override_api_auth):
+    """Test admin promote returns 409 when IdP routing would change."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    email_id = str(uuid4())
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.get_email_address_by_id.return_value = "user@other-idp.com"
+        mock_svc.check_routing_change.return_value = {
+            "current_idp_name": "Okta Corporate",
+            "new_idp_name": "Google Workspace",
+        }
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(f"/api/v1/users/{user_id}/emails/{email_id}/set-primary")
+
+        assert response.status_code == 409
+        data = response.json()["detail"]
+        assert data["error_code"] == "routing_change"
+        assert data["details"]["current_idp_name"] == "Okta Corporate"
+        assert data["details"]["new_idp_name"] == "Google Workspace"
+
+
+def test_admin_set_primary_email_routing_change_confirmed(make_user_dict, override_api_auth):
+    """Test admin promote succeeds when routing change is confirmed."""
+    admin = make_user_dict(role="admin")
+    user_id = str(uuid4())
+    email_id = str(uuid4())
+
+    mock_email = EmailInfo(
+        id=email_id,
+        email="user@other-idp.com",
+        is_primary=True,
+        verified_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+    )
+
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.set_primary_email.return_value = mock_email
+
+        client = TestClient(app)
+        response = client.post(
+            f"/api/v1/users/{user_id}/emails/{email_id}/set-primary?confirm_routing_change=true"
+        )
+
+        assert response.status_code == 200
+        # Should not check routing when confirm_routing_change=true
+        mock_svc.check_routing_change.assert_not_called()
 
 
 # =============================================================================

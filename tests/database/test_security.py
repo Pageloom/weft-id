@@ -11,7 +11,6 @@ def test_get_security_settings(test_tenant, test_admin_user):
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=False,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -28,7 +27,6 @@ def test_get_security_settings(test_tenant, test_admin_user):
     assert settings["session_timeout_seconds"] == 3600
     assert settings["persistent_sessions"] is True
     assert settings["allow_users_edit_profile"] is True
-    assert settings["allow_users_add_emails"] is False
 
 
 def test_get_session_settings(test_tenant, test_admin_user):
@@ -41,7 +39,6 @@ def test_get_session_settings(test_tenant, test_admin_user):
         timeout_seconds=7200,
         persistent_sessions=False,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -69,7 +66,6 @@ def test_get_session_timeout(test_tenant, test_admin_user):
         timeout_seconds=1800,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -96,7 +92,6 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -118,7 +113,6 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=False,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -135,55 +129,6 @@ def test_can_user_edit_profile(test_tenant, test_admin_user):
     assert result["allow_users_edit_profile"] is False
 
 
-def test_can_user_add_emails(test_tenant, test_admin_user):
-    """Test checking if users can add email addresses."""
-    import database
-
-    # Create settings where users CAN add emails
-    database.security.update_security_settings(
-        test_tenant["id"],
-        timeout_seconds=3600,
-        persistent_sessions=True,
-        allow_users_edit_profile=True,
-        allow_users_add_emails=True,
-        inactivity_threshold_days=None,
-        max_certificate_lifetime_years=10,
-        certificate_rotation_window_days=90,
-        minimum_password_length=14,
-        minimum_zxcvbn_score=3,
-        group_assertion_scope="access_relevant",
-        updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"],
-    )
-
-    result = database.security.can_user_add_emails(test_tenant["id"])
-
-    assert result is not None
-    assert result["allow_users_add_emails"] is True
-
-    # Update to disallow adding emails
-    database.security.update_security_settings(
-        test_tenant["id"],
-        timeout_seconds=3600,
-        persistent_sessions=True,
-        allow_users_edit_profile=True,
-        allow_users_add_emails=False,
-        inactivity_threshold_days=None,
-        max_certificate_lifetime_years=10,
-        certificate_rotation_window_days=90,
-        minimum_password_length=14,
-        minimum_zxcvbn_score=3,
-        group_assertion_scope="access_relevant",
-        updated_by=test_admin_user["id"],
-        tenant_id_value=test_tenant["id"],
-    )
-
-    result = database.security.can_user_add_emails(test_tenant["id"])
-
-    assert result is not None
-    assert result["allow_users_add_emails"] is False
-
-
 def test_update_security_settings(test_tenant, test_admin_user):
     """Test updating security settings (upsert behavior)."""
     import database
@@ -194,7 +139,6 @@ def test_update_security_settings(test_tenant, test_admin_user):
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -214,7 +158,6 @@ def test_update_security_settings(test_tenant, test_admin_user):
         timeout_seconds=7200,
         persistent_sessions=False,
         allow_users_edit_profile=False,
-        allow_users_add_emails=False,
         inactivity_threshold_days=30,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -229,7 +172,6 @@ def test_update_security_settings(test_tenant, test_admin_user):
     assert settings["session_timeout_seconds"] == 7200
     assert settings["persistent_sessions"] is False
     assert settings["allow_users_edit_profile"] is False
-    assert settings["allow_users_add_emails"] is False
 
 
 def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user):
@@ -242,7 +184,6 @@ def test_update_security_settings_with_none_timeout(test_tenant, test_admin_user
         timeout_seconds=None,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -266,7 +207,6 @@ def test_get_security_settings_includes_certificate_lifetime(test_tenant, test_a
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=3,
         certificate_rotation_window_days=90,
@@ -301,7 +241,6 @@ def test_get_certificate_lifetime_configured(test_tenant, test_admin_user):
         timeout_seconds=None,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=5,
         certificate_rotation_window_days=90,
@@ -326,7 +265,6 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=2,
         certificate_rotation_window_days=90,
@@ -346,7 +284,6 @@ def test_update_security_settings_with_certificate_lifetime(test_tenant, test_ad
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=5,
         certificate_rotation_window_days=90,
@@ -553,7 +490,6 @@ def test_get_group_assertion_scope_configured(test_tenant, test_admin_user):
         timeout_seconds=None,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,
@@ -579,7 +515,6 @@ def test_get_group_assertion_scope_all_values(test_tenant, test_admin_user):
             timeout_seconds=None,
             persistent_sessions=True,
             allow_users_edit_profile=True,
-            allow_users_add_emails=True,
             inactivity_threshold_days=None,
             max_certificate_lifetime_years=10,
             certificate_rotation_window_days=90,
@@ -603,7 +538,6 @@ def test_get_security_settings_includes_group_assertion_scope(test_tenant, test_
         timeout_seconds=3600,
         persistent_sessions=True,
         allow_users_edit_profile=True,
-        allow_users_add_emails=True,
         inactivity_threshold_days=None,
         max_certificate_lifetime_years=10,
         certificate_rotation_window_days=90,

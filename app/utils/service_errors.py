@@ -26,6 +26,15 @@ def translate_to_http_exception(exc: ServiceError) -> HTTPException:
         return HTTPException(status_code=400, detail=exc.message)
 
     if isinstance(exc, ConflictError):
+        if exc.code == "routing_change":
+            return HTTPException(
+                status_code=409,
+                detail={
+                    "message": exc.message,
+                    "error_code": exc.code,
+                    "details": exc.details,
+                },
+            )
         return HTTPException(status_code=409, detail=exc.message)
 
     if isinstance(exc, RateLimitError):

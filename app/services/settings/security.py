@@ -23,7 +23,6 @@ _SETTINGS_FIELDS: list[tuple[str, str, Any]] = [
     ("session_timeout_seconds", "session_timeout_seconds", None),
     ("persistent_sessions", "persistent_sessions", True),
     ("allow_users_edit_profile", "allow_users_edit_profile", True),
-    ("allow_users_add_emails", "allow_users_add_emails", True),
     ("inactivity_threshold_days", "inactivity_threshold_days", None),
     ("max_certificate_lifetime_years", "max_certificate_lifetime_years", 10),
     ("certificate_rotation_window_days", "certificate_rotation_window_days", 90),
@@ -101,7 +100,6 @@ def get_security_settings(
             session_timeout_seconds=None,
             persistent_sessions=True,
             allow_users_edit_profile=True,
-            allow_users_add_emails=True,
             inactivity_threshold_days=None,
             max_certificate_lifetime_years=10,
             certificate_rotation_window_days=90,
@@ -114,7 +112,6 @@ def get_security_settings(
         session_timeout_seconds=settings.get("session_timeout_seconds"),
         persistent_sessions=settings.get("persistent_sessions", True),
         allow_users_edit_profile=settings.get("allow_users_edit_profile", True),
-        allow_users_add_emails=settings.get("allow_users_add_emails", True),
         inactivity_threshold_days=settings.get("inactivity_threshold_days"),
         max_certificate_lifetime_years=settings.get("max_certificate_lifetime_years", 10),
         certificate_rotation_window_days=settings.get("certificate_rotation_window_days", 90),
@@ -127,24 +124,6 @@ def get_security_settings(
 # =============================================================================
 # Utility Queries (no authorization required)
 # =============================================================================
-
-
-def can_users_add_emails(tenant_id: str) -> bool:
-    """
-    Check if users are allowed to add email addresses.
-
-    This is a utility function that does not require authorization.
-
-    Args:
-        tenant_id: The tenant ID
-
-    Returns:
-        True if users can add emails, False otherwise
-    """
-    settings = database.security.get_security_settings(tenant_id)
-    if not settings:
-        return True  # Default to allowing
-    return bool(settings.get("allow_users_add_emails", True))
 
 
 def get_session_settings(tenant_id: str) -> dict | None:
@@ -367,7 +346,6 @@ def update_security_settings(
         timeout_seconds=resolved["session_timeout_seconds"],
         persistent_sessions=resolved["persistent_sessions"],
         allow_users_edit_profile=resolved["allow_users_edit_profile"],
-        allow_users_add_emails=resolved["allow_users_add_emails"],
         inactivity_threshold_days=resolved["inactivity_threshold_days"],
         max_certificate_lifetime_years=resolved["max_certificate_lifetime_years"],
         certificate_rotation_window_days=resolved["certificate_rotation_window_days"],
@@ -477,7 +455,6 @@ def update_security_settings(
         session_timeout_seconds=resolved["session_timeout_seconds"],
         persistent_sessions=resolved["persistent_sessions"],
         allow_users_edit_profile=resolved["allow_users_edit_profile"],
-        allow_users_add_emails=resolved["allow_users_add_emails"],
         inactivity_threshold_days=resolved["inactivity_threshold_days"],
         max_certificate_lifetime_years=resolved["max_certificate_lifetime_years"],
         certificate_rotation_window_days=resolved["certificate_rotation_window_days"],

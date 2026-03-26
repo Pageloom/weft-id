@@ -6,34 +6,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Email Address Management: Admin-Only Controls
-
-**User Story:**
-As an admin or super admin,
-I want full control over user email addresses without users being able to manage their own,
-So that email address changes (which affect IdP routing) are always intentional administrative actions.
-
-**Context:**
-
-Currently, users can add, remove, and promote email addresses via `/account/emails`. Because
-primary email domain determines IdP routing (which identity provider a user is authenticated
-against), this is too sensitive to leave as self-service. An unintended primary email promotion
-could silently route a user to a completely different IdP.
-
-**Acceptance Criteria:**
-
-- [ ] The `/account/emails` page is replaced with a read-only view (users can see their email addresses but not add, remove, or promote)
-- [ ] All self-service email mutation API endpoints (`POST/DELETE /api/v1/users/me/emails`, `POST /api/v1/users/me/emails/{id}/set-primary`) are removed or return 403
-- [ ] The tenant security setting `allow_users_add_emails` is removed (no longer needed); migration drops the column
-- [ ] Admin and super admin retain all existing email management capabilities on the user detail page
-- [ ] When an admin promotes a secondary email to primary, and the new primary's domain routes to a **different IdP** than the current primary, a confirmation warning is shown: "Switching the primary email to `new@domain.com` will route this user to a different identity provider. They will authenticate via [IdP name] going forward."
-- [ ] The IdP routing warning also applies to the API: the `POST /api/v1/users/{id}/emails/{email_id}/set-primary` endpoint returns a 409 with a `routing_change` error code and details when a routing change would occur, unless a `confirm_routing_change=true` parameter is passed
-- [ ] Event log entries are unchanged (email operations continue to be logged)
-- [ ] API endpoint docstrings document the `confirm_routing_change` parameter and `routing_change` error
-
-**Effort:** M
-**Value:** High
-**Version impact:** Minor (removes user capability, adds admin-only routing warning)
+## ~~Email Address Management: Admin-Only Controls~~ (Complete)
 
 ---
 

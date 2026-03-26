@@ -518,6 +518,7 @@ def test_promote_user_email_success(test_admin_user, mocker, override_auth):
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_send = mocker.patch(f"{USERS_EMAILS}.send_primary_email_changed_notification")
+    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
 
     mock_old_primary.return_value = "old@example.com"
     mock_get_addr.return_value = "new@example.com"
@@ -549,6 +550,7 @@ def test_promote_user_email_already_primary(test_admin_user, mocker, override_au
     mock_old_primary = mocker.patch(f"{SERVICES_EMAILS}.get_primary_email")
     mock_get_addr = mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id")
     mock_set = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
+    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
 
     # Same email - already primary
     mock_old_primary.return_value = "already@primary.com"
@@ -2872,6 +2874,7 @@ def test_promote_user_email_not_verified(test_admin_user, mocker, override_auth)
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_promote.side_effect = ValidationError(
         message="Email not verified", code="email_not_verified"
@@ -2896,6 +2899,7 @@ def test_promote_user_email_validation_error(test_admin_user, mocker, override_a
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 
@@ -2921,6 +2925,7 @@ def test_promote_user_email_service_error(test_admin_user, mocker, override_auth
 
     mocker.patch(f"{SERVICES_EMAILS}.get_primary_email", return_value="old@example.com")
     mocker.patch(f"{SERVICES_EMAILS}.get_email_address_by_id", return_value="new@example.com")
+    mocker.patch(f"{SERVICES_EMAILS}.check_routing_change", return_value=None)
     mock_promote = mocker.patch(f"{SERVICES_EMAILS}.set_primary_email")
     mock_error_page = mocker.patch(f"{USERS_EMAILS}.render_error_page")
 

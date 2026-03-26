@@ -21,13 +21,12 @@ from services import mfa as mfa_service
 from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import (
-    ConflictError,
     NotFoundError,
     RateLimitError,
     ServiceError,
     ValidationError,
 )
-from utils.email import send_email_verification, send_mfa_code_email
+from utils.email import send_mfa_code_email
 from utils.qr import generate_qr_code_base64
 from utils.ratelimit import HOUR, ratelimit
 from utils.service_errors import render_error_page
@@ -276,137 +275,6 @@ def mfa_settings(
             backup_codes=backup_codes,
         ),
     )
-
-
-@router.post("/emails/add")
-def add_email(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    email: Annotated[str, Form()],
-):
-    """Add a new email address to the user's account."""
-    # Check if user is allowed to add emails
-    # Super admins are always allowed, otherwise check tenant security setting
-    allow_add = settings_service.can_users_add_emails(tenant_id)
-    if user.get("role") != "super_admin" and not allow_add:
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    try:
-        # Add email via service (non-admin action, requires verification)
-        created_email = emails_service.add_user_email(
-            requesting_user,
-            user["id"],
-            email,
-            is_admin_action=False,
-            allow_users_add_emails=allow_add,
-        )
-
-        # Get verification info and send verification email
-        verification_info = emails_service.resend_verification(
-            requesting_user, user["id"], created_email.id
-        )
-        verification_url = (
-            f"{request.base_url}account/emails/verify/"
-            f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
-        )
-        send_email_verification(email.lower(), str(verification_url), tenant_id=tenant_id)
-    except (ValidationError, NotFoundError, ConflictError):
-        # Email exists or other error - redirect back silently
-        pass
-
-    return RedirectResponse(url="/account/emails", status_code=303)
-
-
-@router.post("/emails/set-primary/{email_id}")
-def set_primary_email(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    email_id: str,
-):
-    """Set an email as the primary email for the user."""
-    requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    try:
-        emails_service.set_primary_email(requesting_user, user["id"], email_id)
-    except (NotFoundError, ValidationError):
-        # Email not found or not verified - redirect back silently
-        pass
-
-    return RedirectResponse(url="/account/emails", status_code=303)
-
-
-@router.post("/emails/delete/{email_id}")
-def delete_email(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    email_id: str,
-):
-    """Delete an email address from the user's account."""
-    requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    try:
-        emails_service.delete_user_email(requesting_user, user["id"], email_id)
-    except (NotFoundError, ValidationError):
-        # Email not found, is primary, or is last email - redirect back silently
-        pass
-
-    return RedirectResponse(url="/account/emails", status_code=303)
-
-
-@router.post("/emails/resend-verification/{email_id}")
-def resend_verification_route(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user)],
-    email_id: str,
-):
-    """Resend verification email for an unverified email address."""
-    requesting_user = build_requesting_user(user, user["tenant_id"], request)
-    try:
-        verification_info = emails_service.resend_verification(
-            requesting_user, user["id"], email_id
-        )
-        verification_url = (
-            f"{request.base_url}account/emails/verify/"
-            f"{verification_info['email_id']}/{verification_info['verify_nonce']}"
-        )
-        send_email_verification(
-            verification_info["email"], str(verification_url), tenant_id=tenant_id
-        )
-    except NotFoundError:
-        # Email not found - redirect back silently
-        pass
-
-    return RedirectResponse(url="/account/emails", status_code=303)
-
-
-@router.get("/emails/verify/{email_id}/{nonce}")
-def verify_email_route(
-    request: Request,
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    email_id: str,
-    nonce: int,
-):
-    """Verify an email address using the verification link."""
-    # First get email info to get the user_id
-    email_info = emails_service.get_email_for_verification(tenant_id, email_id)
-
-    if not email_info:
-        return RedirectResponse(url="/login", status_code=303)
-
-    # Check if already verified
-    if email_info["verified_at"]:
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    try:
-        emails_service.verify_email(tenant_id, email_id, str(email_info["user_id"]), nonce)
-    except (NotFoundError, ValidationError):
-        # Invalid nonce or email - redirect back silently
-        return RedirectResponse(url="/account/emails", status_code=303)
-
-    return RedirectResponse(url="/account/emails", status_code=303)
 
 
 @router.get("/mfa/setup/totp", response_class=HTMLResponse)

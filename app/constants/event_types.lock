@@ -33,6 +33,7 @@ idp_group_invalidated
 idp_group_member_added
 idp_group_member_removed
 idp_group_relationship_created
+invitation_resent
 jobs_deleted
 login_failed
 mfa_backup_codes_regenerated

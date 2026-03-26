@@ -54,6 +54,24 @@
             </div>
         </div>
 
+        <!-- Resend Invitation -->
+        {% if not target_user.has_password and target_user.id != user.id and not target_user.is_inactivated and not target_user.is_anonymized %}
+        <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Invitation</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This user has not completed onboarding. Resending the invitation will generate a fresh link and invalidate any previous one.
+            </p>
+            <form method="post" action="/users/{{ target_user.id }}/resend-invitation" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="confirm-btn bg-blue-600 text-white hover:bg-blue-700 font-medium py-2 px-4 rounded-md transition duration-150"
+                        data-confirm="Resend invitation to {{ target_user.first_name }} {{ target_user.last_name }}?&#10;&#10;The previous invitation link will be invalidated.">
+                    Resend Invitation
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
         <!-- Edit Name Form -->
         <div class="mb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <h2 class="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Edit Name</h2>

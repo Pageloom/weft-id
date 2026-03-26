@@ -20,6 +20,7 @@ from services import settings as settings_service
 from services import users as users_service
 from services.exceptions import NotFoundError, ServiceError, ValidationError
 from starlette.responses import Response
+from utils.email import send_new_user_invitation, send_new_user_privileged_domain_notification
 from utils.service_errors import render_error_page
 from utils.template_context import get_template_context
 from utils.templates import templates
@@ -407,4 +408,46 @@ def force_password_reset_route(
 
     return RedirectResponse(
         url=f"/users/{user_id}/danger?success=password_reset_forced", status_code=303
+    )
+
+
+@router.post("/{user_id}/resend-invitation")
+def resend_invitation_route(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    user: Annotated[dict, Depends(get_current_user)],
+    user_id: str,
+):
+    """Resend invitation email to a user who has not completed onboarding."""
+    if not has_page_access("/users/user", user.get("role")):
+        return RedirectResponse(url="/dashboard", status_code=303)
+
+    requesting_user = build_requesting_user(user, tenant_id, request)
+    try:
+        result = users_service.resend_invitation(requesting_user, user_id)
+    except NotFoundError:
+        return RedirectResponse(url="/users/list?error=user_not_found", status_code=303)
+    except ValidationError as exc:
+        return RedirectResponse(url=f"/users/{user_id}/profile?error={exc.code}", status_code=303)
+    except ServiceError as exc:
+        return render_error_page(request, tenant_id, exc)
+
+    org_name = users_service.get_tenant_name(tenant_id)
+    admin_name = f"{user.get('first_name')} {user.get('last_name')}"
+
+    if result["invitation_type"] == "set_password":
+        password_set_url = (
+            f"{request.base_url}set-password?email_id={result['email_id']}&nonce={result['nonce']}"
+        )
+        send_new_user_privileged_domain_notification(
+            result["email"], admin_name, org_name, password_set_url, tenant_id=tenant_id
+        )
+    else:
+        verification_url = f"{request.base_url}verify-email/{result['email_id']}/{result['nonce']}"
+        send_new_user_invitation(
+            result["email"], admin_name, org_name, verification_url, tenant_id=tenant_id
+        )
+
+    return RedirectResponse(
+        url=f"/users/{user_id}/profile?success=invitation_resent", status_code=303
     )

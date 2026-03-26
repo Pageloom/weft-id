@@ -22,6 +22,8 @@ from services import users as users_service  # noqa: F401
 from utils.email import (
     send_email_verification,  # noqa: F401
     send_mfa_code_email,  # noqa: F401
+    send_new_user_invitation,  # noqa: F401
+    send_new_user_privileged_domain_notification,  # noqa: F401
     send_primary_email_changed_notification,  # noqa: F401
     send_secondary_email_added_notification,  # noqa: F401
     send_secondary_email_removed_notification,  # noqa: F401

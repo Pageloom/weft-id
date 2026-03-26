@@ -277,6 +277,22 @@ The shared layout in `app/utils/email.py` uses style constants (`_S_BUTTON`, `_S
 
 ---
 
+## Set-Password Links Must Include the Nonce
+
+**Wrong:** Constructing `/set-password?email_id={id}` (no nonce)
+**Right:** `/set-password?email_id={id}&nonce={set_password_nonce}`
+
+The `set_password_nonce` column on `user_emails` makes set-password links one-time use,
+the same way `verify_nonce` makes email verification links one-time use. Any code that
+builds a set-password URL must fetch and include the current `set_password_nonce` value.
+On successful password set, call `emails_service.increment_set_password_nonce()` to
+invalidate the link.
+
+The "Resend Invitation" flow (future backlog item) must also increment the nonce *before*
+building the new link, so old copies of the invitation email become invalid.
+
+---
+
 ## Nginx 502 After Docker Container Rebuild
 
 **Wrong:** Assuming `make up` leaves nginx working after rebuilding the app container

@@ -27,7 +27,7 @@ BASE = "https://acme.example.com"
 def _send_all(kw: dict) -> list[tuple[str, bool]]:
     """Send every email type and return (name, success) pairs."""
     verify = f"{BASE}/verify-email/abc/def"
-    cred_set = f"{BASE}/set-password?id=abc"  # noqa: S105 (not a real credential)
+    cred_set = f"{BASE}/set-password?email_id=abc&nonce=1"  # noqa: S105 (not a real credential)
     cred_reset = f"{BASE}/reset-password/token123"  # noqa: S105
     login = f"{BASE}/login"
     reqs = f"{BASE}/admin/reactivation-requests"

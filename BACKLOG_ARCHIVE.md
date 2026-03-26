@@ -4,6 +4,23 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Invitation and Set-Password Link Security Hardening
+
+**Status:** Complete
+
+**Resolution:** Migration 0023 adds `set_password_nonce INTEGER DEFAULT 1 NOT NULL` to
+`user_emails`. All set-password URLs now carry `?email_id={id}&nonce={nonce}`. The GET and POST
+handlers in `routers/auth/onboarding.py` validate the nonce; on success `increment_set_password_nonce()`
+is called to invalidate the link. Error redirects (bad password, mismatch) preserve the nonce so
+the form stays usable. The privileged-domain invitation email and the post-verify-email redirect
+were both updated. The "Resend Invitation" criterion (increment nonce before generating a new link)
+will be handled when the Resend Invitation backlog item is implemented.
+
+**Effort:** S
+**Value:** High
+
+---
+
 ## Drop Unused `site_title` Column from `tenant_branding`
 
 **Status:** Complete

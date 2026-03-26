@@ -105,40 +105,6 @@ bulk imports where some users never accept.
 
 ---
 
-## Invitation and Set-Password Link Security Hardening
-
-**User Story:**
-As a security-conscious operator,
-I want invitation and set-password links to be time-limited and single-use,
-So that a stale link from an old email cannot be used to compromise an account.
-
-**Context:**
-
-The current `/set-password?email_id=X` link (used for both privileged-domain invitations and
-the post-verification redirect) contains no secret and has no expiry. It remains valid as long
-as the user has no `password_hash`. If the password hash is ever cleared (e.g. a future
-admin force-reset flow), the link from the original invitation email would become usable again.
-
-See the security issue logged in ISSUES.md for the specific gap.
-
-**Acceptance Criteria:**
-
-- [ ] A `set_password_nonce` column is added to `user_emails` (integer, default 1, analogous to `verify_nonce`)
-- [ ] The set-password link format becomes `/set-password?email_id={id}&nonce={nonce}`
-- [ ] The GET and POST handlers validate the nonce matches `user_emails.set_password_nonce`
-- [ ] On successful password set, the nonce is incremented (invalidating the link)
-- [ ] On "Resend invitation", the nonce is also incremented before generating the new link
-- [ ] All existing code paths that produce a set-password URL are updated to include the nonce
-- [ ] The privileged-domain invitation email (`send_new_user_privileged_domain_notification`) is updated to include the nonce in the link
-- [ ] Set-password links display a user-friendly "This link has expired" page (not a silent redirect to `/login`) when the nonce does not match
-- [ ] Preview email script and any fixture/seed data that constructs set-password URLs are updated
-
-**Effort:** S
-**Value:** High
-**Version impact:** Patch (security hardening, no API surface change)
-
----
-
 ## Create `/accessibility` Skill
 
 **User Story:**

@@ -10,9 +10,8 @@ from schemas.api import (
     EmailCreate,
     EmailInfo,
     EmailList,
-    EmailVerifyRequest,
 )
-from services.exceptions import ServiceError
+from services.exceptions import ConflictError, ServiceError
 from utils.service_errors import translate_to_http_exception
 
 router = APIRouter()
@@ -38,176 +37,6 @@ def list_current_user_emails(
         requesting_user = build_requesting_user(user, tenant_id, None)
         emails = _pkg.emails_service.list_user_emails(requesting_user, str(user["id"]))
         return EmailList(items=emails)
-    except ServiceError as e:
-        raise translate_to_http_exception(e)
-
-
-@router.post("/me/emails", response_model=EmailInfo, status_code=201)
-def add_current_user_email(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user_api)],
-    email_data: EmailCreate,
-):
-    """
-    Add a new email address to the current user's account.
-
-    The email will be unverified until the user clicks the verification link
-    sent to the email address.
-
-    Request Body:
-        email: Email address to add
-
-    Returns:
-        Created email info (unverified)
-
-    Note:
-        May be restricted by tenant security settings (allow_users_add_emails).
-        Super admins can always add emails.
-    """
-    try:
-        requesting_user = build_requesting_user(user, tenant_id, None)
-        user_id = str(user["id"])
-
-        # Get tenant setting for user email add permission
-        allow_add = _pkg.settings_service.can_users_add_emails(tenant_id)
-
-        # Add email via service (user action, not admin)
-        email_info = _pkg.emails_service.add_user_email(
-            requesting_user,
-            user_id,
-            email_data.email,
-            is_admin_action=False,
-            allow_users_add_emails=allow_add,
-        )
-
-        # Get verification info to send email
-        verification_info = _pkg.emails_service.resend_verification(
-            requesting_user, user_id, email_info.id
-        )
-
-        # Send verification email
-        verification_url = (
-            f"/api/v1/users/me/emails/{email_info.id}/verify"
-            f"?nonce={verification_info['verify_nonce']}"
-        )
-        _pkg.send_email_verification(
-            email_info.email, verification_url, tenant_id=requesting_user["tenant_id"]
-        )
-
-        return email_info
-    except ServiceError as e:
-        raise translate_to_http_exception(e)
-
-
-@router.delete("/me/emails/{email_id}", status_code=204)
-def delete_current_user_email(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user_api)],
-    email_id: str,
-):
-    """
-    Delete an email address from the current user's account.
-
-    Path Parameters:
-        email_id: Email UUID
-
-    Returns:
-        204 No Content on success
-
-    Note:
-        Cannot delete the primary email address.
-    """
-    try:
-        requesting_user = build_requesting_user(user, tenant_id, None)
-        _pkg.emails_service.delete_user_email(requesting_user, str(user["id"]), email_id)
-        return None
-    except ServiceError as e:
-        raise translate_to_http_exception(e)
-
-
-@router.post("/me/emails/{email_id}/set-primary", response_model=EmailInfo)
-def set_current_user_primary_email(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user_api)],
-    email_id: str,
-):
-    """
-    Set an email address as the primary email for the current user.
-
-    Path Parameters:
-        email_id: Email UUID
-
-    Returns:
-        Updated email info
-
-    Note:
-        Email must be verified before it can be set as primary.
-    """
-    try:
-        requesting_user = build_requesting_user(user, tenant_id, None)
-        return _pkg.emails_service.set_primary_email(requesting_user, str(user["id"]), email_id)
-    except ServiceError as e:
-        raise translate_to_http_exception(e)
-
-
-@router.post("/me/emails/{email_id}/resend-verification")
-def resend_current_user_email_verification(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user_api)],
-    email_id: str,
-):
-    """
-    Resend verification email for an unverified email address.
-
-    Path Parameters:
-        email_id: Email UUID
-
-    Returns:
-        Success message
-    """
-    try:
-        requesting_user = build_requesting_user(user, tenant_id, None)
-        verification_info = _pkg.emails_service.resend_verification(
-            requesting_user, str(user["id"]), email_id
-        )
-
-        # Send verification email
-        verification_url = (
-            f"/api/v1/users/me/emails/{verification_info['email_id']}/verify"
-            f"?nonce={verification_info['verify_nonce']}"
-        )
-        _pkg.send_email_verification(
-            verification_info["email"], verification_url, tenant_id=requesting_user["tenant_id"]
-        )
-
-        return {"message": "Verification email sent"}
-    except ServiceError as e:
-        raise translate_to_http_exception(e)
-
-
-@router.post("/me/emails/{email_id}/verify", response_model=EmailInfo)
-def verify_current_user_email(
-    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
-    user: Annotated[dict, Depends(get_current_user_api)],
-    email_id: str,
-    verify_request: EmailVerifyRequest,
-):
-    """
-    Verify an email address using the verification nonce.
-
-    Path Parameters:
-        email_id: Email UUID
-
-    Request Body:
-        nonce: Verification nonce from email link
-
-    Returns:
-        Verified email info
-    """
-    try:
-        return _pkg.emails_service.verify_email(
-            tenant_id, email_id, str(user["id"]), verify_request.nonce
-        )
     except ServiceError as e:
         raise translate_to_http_exception(e)
 
@@ -350,6 +179,7 @@ def set_user_primary_email(
     admin: Annotated[dict, Depends(require_admin_api)],
     user_id: str,
     email_id: str,
+    confirm_routing_change: bool = False,
 ):
     """
     Set an email address as the primary email for a user (admin operation).
@@ -360,8 +190,18 @@ def set_user_primary_email(
         user_id: User UUID
         email_id: Email UUID
 
+    Query Parameters:
+        confirm_routing_change: Set to true to acknowledge and proceed with an
+            IdP routing change. Required when promoting an email whose domain
+            routes to a different IdP than the user's current assignment.
+
     Returns:
         Updated email info
+
+    Errors:
+        409 Conflict (routing_change): Returned when the promotion would change
+            the user's IdP routing and confirm_routing_change is not set. The
+            response body includes current_idp_name and new_idp_name.
 
     Note:
         Email must be verified before it can be set as primary.
@@ -369,6 +209,22 @@ def set_user_primary_email(
     """
     try:
         requesting_user = build_requesting_user(admin, tenant_id, None)
+
+        # Check for IdP routing change before proceeding
+        if not confirm_routing_change:
+            email_address = _pkg.emails_service.get_email_address_by_id(
+                tenant_id, user_id, email_id
+            )
+            if email_address:
+                routing_info = _pkg.emails_service.check_routing_change(
+                    tenant_id, user_id, email_address
+                )
+                if routing_info:
+                    raise ConflictError(
+                        message=("Promoting this email will change the user's IdP routing"),
+                        code="routing_change",
+                        details=routing_info,
+                    )
 
         # Get current primary email for notification before change
         old_primary = _pkg.emails_service.get_primary_email(tenant_id, user_id)

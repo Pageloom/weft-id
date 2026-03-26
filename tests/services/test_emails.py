@@ -188,41 +188,6 @@ def test_add_user_email_conflict(test_tenant, test_user):
     assert exc_info.value.code == "email_exists"
 
 
-def test_add_user_email_disabled_by_tenant(test_tenant, test_user):
-    """Test that tenant setting can disable user self-service email adds."""
-    requesting_user = _make_requesting_user(test_user, test_tenant["id"], "member")
-
-    with pytest.raises(ForbiddenError) as exc_info:
-        emails_service.add_user_email(
-            requesting_user,
-            str(test_user["id"]),
-            "disabled@example.com",
-            is_admin_action=False,
-            allow_users_add_emails=False,  # Tenant setting
-        )
-
-    assert exc_info.value.code == "email_add_disabled"
-
-
-def test_add_user_email_super_admin_bypasses_tenant_setting(test_tenant, test_super_admin_user):
-    """Test that super_admin bypasses tenant allow_users_add_emails setting."""
-    requesting_user = _make_requesting_user(
-        test_super_admin_user, str(test_tenant["id"]), "super_admin"
-    )
-
-    new_email = f"super-bypass-{str(test_super_admin_user['id'])[:8]}@example.com"
-
-    result = emails_service.add_user_email(
-        requesting_user,
-        str(test_super_admin_user["id"]),
-        new_email,
-        is_admin_action=False,
-        allow_users_add_emails=False,  # Should be bypassed
-    )
-
-    assert result.email == new_email.lower()
-
-
 def test_add_user_email_user_not_found(test_tenant, test_admin_user):
     """Test adding email to non-existent user returns NotFoundError."""
     requesting_user = _make_requesting_user(test_admin_user, test_tenant["id"], "admin")
@@ -756,3 +721,95 @@ def test_verify_email_by_nonce_not_found(test_tenant):
     )
 
     assert result is False
+
+
+# =============================================================================
+# check_routing_change
+# =============================================================================
+
+
+def test_check_routing_change_no_change_both_password(test_tenant, test_user):
+    """Test no routing change when user has no IdP and domain has no binding."""
+    result = emails_service.check_routing_change(
+        test_tenant["id"], str(test_user["id"]), test_user["email"]
+    )
+
+    assert result is None
+
+
+def test_check_routing_change_user_not_found(test_tenant):
+    """Test returns None when user does not exist."""
+    result = emails_service.check_routing_change(
+        test_tenant["id"],
+        "00000000-0000-0000-0000-000000000000",
+        "test@example.com",
+    )
+
+    assert result is None
+
+
+def test_check_routing_change_detects_idp_to_password(test_tenant, test_user, mocker):
+    """Test detects routing change when user has IdP but new domain has no binding."""
+    mocker.patch(
+        "services.emails.database.users.get_user_by_id",
+        return_value={
+            "id": test_user["id"],
+            "saml_idp_id": "idp-123",
+            "saml_idp_name": "Okta Corporate",
+        },
+    )
+    mocker.patch("services.emails.database.saml.get_idp_for_domain", return_value=None)
+
+    result = emails_service.check_routing_change(
+        test_tenant["id"], str(test_user["id"]), "user@unbound-domain.com"
+    )
+
+    assert result is not None
+    assert result["current_idp_name"] == "Okta Corporate"
+    assert result["new_idp_name"] == "Password authentication"
+
+
+def test_check_routing_change_detects_password_to_idp(test_tenant, test_user, mocker):
+    """Test detects routing change when user has no IdP but new domain is bound."""
+    mocker.patch(
+        "services.emails.database.users.get_user_by_id",
+        return_value={
+            "id": test_user["id"],
+            "saml_idp_id": None,
+            "saml_idp_name": None,
+        },
+    )
+    mocker.patch(
+        "services.emails.database.saml.get_idp_for_domain",
+        return_value={"id": "idp-456", "name": "Google Workspace"},
+    )
+
+    result = emails_service.check_routing_change(
+        test_tenant["id"], str(test_user["id"]), "user@google-domain.com"
+    )
+
+    assert result is not None
+    assert result["current_idp_name"] == "Password authentication"
+    assert result["new_idp_name"] == "Google Workspace"
+
+
+def test_check_routing_change_no_change_same_idp(test_tenant, test_user, mocker):
+    """Test no routing change when user and domain are on the same IdP."""
+    mocker.patch(
+        "services.emails.database.users.get_user_by_id",
+        return_value={
+            "id": test_user["id"],
+            "saml_idp_id": "idp-123",
+            "saml_idp_name": "Okta Corporate",
+        },
+    )
+    mocker.patch(
+        "services.emails.database.saml.get_idp_for_domain",
+        return_value={"id": "idp-123", "name": "Okta Corporate"},
+    )
+
+    result = emails_service.check_routing_change(
+        test_tenant["id"], str(test_user["id"]), "user@okta-domain.com"
+    )
+
+    assert result is None

@@ -106,22 +106,18 @@ def add_user_email(
     user_id: str,
     email: str,
     is_admin_action: bool = False,
-    allow_users_add_emails: bool = True,
 ) -> EmailInfo:
     """
     Add an email address to a user's account.
 
     Authorization:
     - Admin can add to any user (email is auto-verified)
-    - Users can add to their own account (email requires verification)
-    - Super_admin bypasses tenant settings
 
     Args:
         requesting_user: The authenticated user making the request
         user_id: UUID of the user to add email to
         email: Email address to add
         is_admin_action: Whether this is an admin adding email (auto-verify)
-        allow_users_add_emails: Tenant setting for user self-service
 
     Returns:
         Created EmailInfo
@@ -140,17 +136,6 @@ def add_user_email(
         raise ForbiddenError(
             message="Cannot add email to other user's account",
             code="email_access_denied",
-        )
-
-    # Check tenant setting for non-admin, non-super_admin users
-    if (
-        not is_admin_action
-        and requesting_user["role"] != "super_admin"
-        and not allow_users_add_emails
-    ):
-        raise ForbiddenError(
-            message="Adding email addresses is disabled by administrator",
-            code="email_add_disabled",
         )
 
     # Verify user exists (for admin operations)
@@ -526,6 +511,46 @@ def resend_verification(
         "email": email["email"],
         "verify_nonce": email["verify_nonce"],
         "email_id": str(email["id"]),
+    }
+
+
+def check_routing_change(tenant_id: str, user_id: str, email: str) -> dict | None:
+    """
+    Check whether promoting an email to primary would change the user's IdP routing.
+
+    Compares the user's current IdP assignment with the IdP bound to the
+    new email's domain. Returns routing change details if they differ.
+
+    Args:
+        tenant_id: Tenant ID
+        user_id: User ID
+        email: Email address being promoted
+
+    Returns:
+        Dict with current_idp_name and new_idp_name if routing would change,
+        or None if no change.
+    """
+    user = database.users.get_user_by_id(tenant_id, user_id)
+    if not user:
+        return None
+
+    current_idp_id = user.get("saml_idp_id")
+    current_idp_name = user.get("saml_idp_name") or "Password authentication"
+
+    domain = email.split("@")[1] if "@" in email else ""
+    domain_idp = database.saml.get_idp_for_domain(tenant_id, domain) if domain else None
+
+    new_idp_id = str(domain_idp["id"]) if domain_idp else None
+    new_idp_name = domain_idp["name"] if domain_idp else "Password authentication"
+
+    # Compare: convert current_idp_id to string for comparison
+    current_idp_str = str(current_idp_id) if current_idp_id else None
+    if current_idp_str == new_idp_id:
+        return None
+
+    return {
+        "current_idp_name": current_idp_name,
+        "new_idp_name": new_idp_name,
     }
 
 

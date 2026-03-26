@@ -315,7 +315,6 @@ def test_get_tenant_security_as_super_admin(client, test_tenant_host, oauth2_sup
     assert "session_timeout_seconds" in data
     assert "persistent_sessions" in data
     assert "allow_users_edit_profile" in data
-    assert "allow_users_add_emails" in data
 
 
 def test_get_tenant_security_as_admin_forbidden(

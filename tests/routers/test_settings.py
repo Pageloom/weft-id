@@ -304,7 +304,6 @@ def test_tenant_security_sessions_page(test_super_admin_user, override_auth, moc
         "session_timeout_seconds": 1800,
         "persistent_sessions": False,
         "allow_users_edit_profile": True,
-        "allow_users_add_emails": False,
     }
 
     client = TestClient(app)
@@ -451,7 +450,6 @@ def test_update_tenant_security_permissions(test_super_admin_user, override_auth
         "/admin/settings/security/permissions/update",
         data={
             "allow_users_edit_profile": "true",
-            "allow_users_add_emails": "",  # Unchecked
         },
         follow_redirects=False,
     )
@@ -1105,7 +1103,6 @@ def test_tenant_security_passwords_page(test_super_admin_user, override_auth, mo
             "session_timeout_seconds": None,
             "persistent_sessions": True,
             "allow_users_edit_profile": True,
-            "allow_users_add_emails": True,
             "inactivity_threshold_days": None,
             "max_certificate_lifetime_years": 10,
             "certificate_rotation_window_days": 90,
@@ -1135,7 +1132,6 @@ def test_update_tenant_security_passwords(test_super_admin_user, override_auth, 
             "session_timeout_seconds": None,
             "persistent_sessions": True,
             "allow_users_edit_profile": True,
-            "allow_users_add_emails": True,
             "inactivity_threshold_days": None,
             "max_certificate_lifetime_years": 10,
             "certificate_rotation_window_days": 90,

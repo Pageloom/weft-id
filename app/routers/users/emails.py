@@ -135,6 +135,7 @@ def promote_user_email_route(
     user: Annotated[dict, Depends(get_current_user)],
     user_id: str,
     email_id: str,
+    confirm_routing_change: Annotated[str, Form()] = "",
 ):
     """Promote a secondary email to primary (admin only)."""
     # Check admin permission
@@ -146,6 +147,22 @@ def promote_user_email_route(
 
     # Get the new primary email address (for notification)
     new_primary_email = emails_service.get_email_address_by_id(tenant_id, user_id, email_id)
+
+    # Check for IdP routing change before proceeding
+    if new_primary_email and not confirm_routing_change:
+        routing_info = emails_service.check_routing_change(tenant_id, user_id, new_primary_email)
+        if routing_info:
+            from urllib.parse import quote
+
+            return RedirectResponse(
+                url=(
+                    f"/users/{user_id}/profile?warning=routing_change"
+                    f"&email_id={email_id}"
+                    f"&current_idp={quote(routing_info['current_idp_name'])}"
+                    f"&new_idp={quote(routing_info['new_idp_name'])}"
+                ),
+                status_code=303,
+            )
 
     # Set primary via service layer
     requesting_user = build_requesting_user(user, tenant_id, request)

@@ -294,7 +294,6 @@ def test_tenant_settings_update_logs_event(make_requesting_user):
             "session_timeout_seconds": 3600,
             "persistent_sessions": True,
             "allow_users_edit_profile": True,
-            "allow_users_add_emails": True,
             "inactivity_threshold_days": None,
             "max_certificate_lifetime_years": 10,
             "certificate_rotation_window_days": 90,

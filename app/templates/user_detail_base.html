@@ -111,6 +111,27 @@
     </div>
     {% endif %}
 
+    {% set warning = request.query_params.get('warning') %}
+    {% if warning == 'routing_change' %}
+    <div class="mb-6 p-4 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+        <p class="text-sm text-amber-800 dark:text-amber-300 mb-3">
+            <strong>IdP routing change:</strong> Promoting this email will change the user's sign-in route
+            from <strong>{{ request.query_params.get('current_idp', 'Unknown') }}</strong>
+            to <strong>{{ request.query_params.get('new_idp', 'Unknown') }}</strong>.
+            This may affect how the user authenticates.
+        </p>
+        <form method="post" action="/users/{{ target_user.id }}/promote-email/{{ request.query_params.get('email_id', '') }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="confirm_routing_change" value="true">
+            <button type="submit"
+                    class="bg-amber-600 text-white hover:bg-amber-700 font-medium py-1.5 px-4 rounded-md text-sm transition duration-150 mr-2">
+                Confirm &amp; Promote
+            </button>
+        </form>
+        <a href="/users/{{ target_user.id }}/profile" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Cancel</a>
+    </div>
+    {% endif %}
+
     <!-- Account Status Banner -->
     {% if target_user.is_anonymized %}
     <div class="mb-6 p-4 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 rounded-md">

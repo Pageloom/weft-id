@@ -77,6 +77,27 @@ def test_translate_conflict_error_to_409():
     assert result.detail == "Resource already exists"
 
 
+def test_translate_routing_change_conflict_to_structured_409():
+    """Test routing_change ConflictError translates to structured 409 response."""
+    from utils.service_errors import translate_to_http_exception
+
+    exc = ConflictError(
+        message="Routing change detected",
+        code="routing_change",
+        details={"current_idp_name": "Okta", "new_idp_name": "Google"},
+    )
+
+    result = translate_to_http_exception(exc)
+
+    assert isinstance(result, HTTPException)
+    assert result.status_code == 409
+    assert isinstance(result.detail, dict)
+    assert result.detail["message"] == "Routing change detected"
+    assert result.detail["error_code"] == "routing_change"
+    assert result.detail["details"]["current_idp_name"] == "Okta"
+    assert result.detail["details"]["new_idp_name"] == "Google"
+
+
 def test_translate_generic_service_error_to_500():
     """Test generic ServiceError translates to 500 HTTP exception."""
     from utils.service_errors import translate_to_http_exception

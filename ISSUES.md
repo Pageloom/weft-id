@@ -10,7 +10,7 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Medium | 2 | File Structure, Authentication |
+| Medium | 1 | File Structure |
 | Low | 1 | Duplication |
 
 **Last security scan:** 2026-03-21 (deep: full codebase, all OWASP categories)
@@ -22,42 +22,6 @@ For resolved issues, see [ISSUES_ARCHIVE.md](ISSUES_ARCHIVE.md).
 **Last test code audit:** 2026-02-21 (database integration test gap analysis, 6 issues logged)
 **Last copy review:** 2026-03-21 (password templates, API/service errors, self-hosting docs)
 **Last security scan:** 2026-03-21 (weftid management script PR review, 3 issues found and resolved)
-
----
-
-## [SECURITY] Set-password link lacks one-time nonce and expiry
-
-**Found in:** `app/routers/auth/onboarding.py:78-129`
-**Impact:** Medium
-**Category:** Authentication / Token Security
-
-**Description:**
-The `/set-password?email_id=X` link used during user onboarding contains no secret nonce and has
-no expiry. Its only protection is that it checks `user.get("password_hash") is None` (line 102).
-This means:
-
-1. **No secret in the URL**: The link contains only the `email_id` UUID. Anyone who obtains the
-   URL (browser history, email forwarding, email server logs) can use it before the user does.
-2. **No expiry**: The link is valid indefinitely until the user sets a password.
-3. **Reusable if hash is cleared**: If a future admin flow (e.g. forced password reset) clears
-   the `password_hash`, the original invitation link from the user's inbox becomes valid again.
-
-The same issue applies to the privileged-domain invitation path where the auto-verified email
-produces a set-password link with no nonce (`send_new_user_privileged_domain_notification`).
-
-**Why It Matters:**
-Password-setting links are high-privilege. Industry standard is time-limited, single-use tokens.
-The `verify_nonce` mechanism already exists on `user_emails` for email verification; the same
-approach should be applied to set-password links.
-
-**Fix:**
-Add a `set_password_nonce` column to `user_emails` (integer, default 1). Include the nonce in
-all set-password URLs. Validate it in the GET and POST handlers. Increment it on successful use
-and on invitation resend. See the BACKLOG item "Invitation and Set-Password Link Security
-Hardening" for full acceptance criteria.
-
-**Files Affected:** `app/routers/auth/onboarding.py`, `app/database/user_emails.py`,
-`app/utils/email.py` (privileged domain invitation), migration required
 
 ---
 

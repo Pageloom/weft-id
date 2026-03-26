@@ -5,6 +5,22 @@ This document contains resolved issues for historical reference.
 
 ---
 
+### [SECURITY] Set-password link lacks one-time nonce and expiry
+
+**Status:** Resolved (2026-03-26)
+**Found in:** `app/routers/auth/onboarding.py`
+**Severity:** Medium
+**Category:** Authentication / Token Security
+**Fix:** Added `set_password_nonce` (integer, DEFAULT 1) to `user_emails` via migration 0023.
+All set-password URLs now include the current nonce value as a query parameter. The GET and
+POST handlers validate the nonce before processing. On successful password set the nonce is
+incremented, invalidating any copies of the link. Error redirects (weak password, mismatch)
+preserve the nonce so the form remains usable. Privileged-domain invitation emails now include
+the nonce. The corresponding backlog item "Invitation and Set-Password Link Security Hardening"
+remains for future work (expiry window, resend-invitation flow).
+
+---
+
 ### [SECURITY] Imprecise Docker volume matching in weftid script
 
 **Status:** Resolved (2026-03-21)

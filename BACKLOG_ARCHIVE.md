@@ -4,6 +4,24 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Resend Invitation Email
+
+**Status:** Complete
+
+**Resolution:** Admins can resend invitation emails to users who haven't completed onboarding
+(no password set). The service checks whether the primary email is verified to choose the
+invitation type: verified emails get a set-password link, unverified emails get a verification
+link. The appropriate nonce is incremented before sending to invalidate any previous invitation
+link. A "Resend Invitation" button appears on the user profile tab (hidden once the user has
+a password, is inactivated, or is anonymized). The `invitation_resent` audit event logs the
+actor, target user, and invitation type. API endpoint: `POST /api/v1/users/{user_id}/resend-invitation`
+returns 204 on success, 400 if already onboarded.
+
+**Effort:** S
+**Value:** Medium
+
+---
+
 ## Email Address Management: Admin-Only Controls
 
 **Status:** Complete

@@ -40,6 +40,8 @@
             User added to {{ request.query_params.get('count', '') }} group(s) successfully.
             {% elif success == 'group_removed' %}
             User removed from group successfully.
+            {% elif success == 'invitation_resent' %}
+            Invitation email resent successfully.
             {% else %}
             Operation completed successfully.
             {% endif %}
@@ -104,6 +106,10 @@
             Cannot modify membership for IdP-managed groups.
             {% elif error == 'group_not_found' %}
             Group not found.
+            {% elif error == 'already_onboarded' %}
+            This user has already completed onboarding and set a password.
+            {% elif error == 'no_primary_email' %}
+            This user has no primary email address.
             {% else %}
             An error occurred. Please try again.
             {% endif %}

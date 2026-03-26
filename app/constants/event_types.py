@@ -40,6 +40,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "user_auto_inactivated": "User automatically inactivated due to inactivity",
     "user_anonymized": "User data anonymized for privacy",
     "super_admin_self_reactivated": "Super admin self-reactivated their account",
+    "invitation_resent": "Invitation email resent to user who has not completed onboarding",
     # Email Management
     "email_added": "Email address added to user account",
     "email_deleted": "Email address removed from user account",

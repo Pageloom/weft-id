@@ -236,6 +236,102 @@ def create_user(
     return _user_row_to_detail(user, emails, is_service=False)
 
 
+def resend_invitation(
+    requesting_user: RequestingUser,
+    target_user_id: str,
+) -> dict:
+    """
+    Resend the invitation email to a user who has not completed onboarding.
+
+    Authorization: Requires admin role.
+
+    Increments the appropriate nonce to invalidate any previous invitation link,
+    then returns the data the router needs to build the URL and send the email.
+
+    Args:
+        requesting_user: The authenticated admin making the request
+        target_user_id: UUID of the user to resend invitation to
+
+    Returns:
+        Dict with email_id, email, nonce, invitation_type ('set_password' or 'verify')
+
+    Raises:
+        ForbiddenError: If user lacks admin permissions
+        NotFoundError: If target user not found or has no primary email
+        ValidationError: If user has already set a password
+    """
+    require_admin(requesting_user, log_failure=True, service_name="users")
+
+    tenant_id = requesting_user["tenant_id"]
+
+    user = database.users.get_user_by_id(tenant_id, target_user_id)
+    if not user:
+        raise NotFoundError(
+            message="User not found.",
+            code="user_not_found",
+        )
+
+    if user.get("has_password"):
+        raise ValidationError(
+            message="This user has already set a password and completed onboarding.",
+            code="already_onboarded",
+        )
+
+    if user.get("is_inactivated"):
+        raise ValidationError(
+            message="Cannot resend invitation to an inactivated user.",
+            code="user_inactivated",
+        )
+
+    if user.get("is_anonymized"):
+        raise ValidationError(
+            message="Cannot resend invitation to an anonymized user.",
+            code="user_anonymized",
+        )
+
+    primary_email = database.user_emails.get_primary_email_for_resend(tenant_id, target_user_id)
+    if not primary_email:
+        raise NotFoundError(
+            message="User has no primary email address.",
+            code="no_primary_email",
+        )
+
+    email_id = str(primary_email["id"])
+
+    if primary_email["verified_at"]:
+        # Email is verified: increment set_password_nonce, send set-password link
+        database.user_emails.increment_set_password_nonce(tenant_id, email_id)
+        nonce = primary_email["set_password_nonce"] + 1
+        invitation_type = "set_password"
+    else:
+        # Email is unverified: increment verify_nonce, send verification link
+        database.user_emails.increment_verify_nonce(tenant_id, email_id)
+        nonce = primary_email["verify_nonce"] + 1
+        invitation_type = "verify"
+
+    log_event(
+        tenant_id=tenant_id,
+        actor_user_id=requesting_user["id"],
+        event_type="invitation_resent",
+        artifact_type="user",
+        artifact_id=target_user_id,
+        metadata={
+            "target_user_name": f"{user['first_name']} {user['last_name']}",
+            "email": primary_email["email"],
+            "invitation_type": invitation_type,
+        },
+    )
+
+    return {
+        "email_id": email_id,
+        "email": primary_email["email"],
+        "nonce": nonce,
+        "invitation_type": invitation_type,
+        "first_name": user["first_name"],
+        "last_name": user["last_name"],
+    }
+
+
 def update_user(
     requesting_user: RequestingUser,
     user_id: str,

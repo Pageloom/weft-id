@@ -33,6 +33,7 @@ from services.users.crud import (
     delete_user,
     get_user,
     list_users,
+    resend_invitation,
     update_user,
 )
 
@@ -88,6 +89,7 @@ __all__ = [
     "delete_user",
     "get_user",
     "list_users",
+    "resend_invitation",
     "update_user",
     # Password
     "change_password",

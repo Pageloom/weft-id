@@ -281,6 +281,44 @@ def count_user_emails(tenant_id: TenantArg, user_id: str) -> int:
     return result["count"] if result else 0
 
 
+def get_primary_email_for_resend(tenant_id: TenantArg, user_id: str) -> dict | None:
+    """
+    Get the primary email with nonce values for resending an invitation.
+
+    Returns:
+        Dict with id, email, verified_at, verify_nonce, set_password_nonce,
+        or None if no primary email found
+    """
+    return fetchone(
+        tenant_id,
+        """
+        select id, email, verified_at, verify_nonce, set_password_nonce
+        from user_emails
+        where user_id = :user_id and is_primary = true
+        """,
+        {"user_id": user_id},
+    )
+
+
+def increment_verify_nonce(tenant_id: TenantArg, email_id: str) -> int:
+    """
+    Increment the verify_nonce for an email, invalidating the current
+    verification link without marking the email as verified.
+
+    Returns:
+        Number of rows affected
+    """
+    return execute(
+        tenant_id,
+        """
+        update user_emails
+        set verify_nonce = verify_nonce + 1
+        where id = :email_id
+        """,
+        {"email_id": email_id},
+    )
+
+
 def anonymize_user_emails(tenant_id: TenantArg, user_id: str) -> int:
     """
     Anonymize all email addresses for a user (GDPR anonymization).

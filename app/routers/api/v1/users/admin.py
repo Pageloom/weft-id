@@ -5,7 +5,7 @@ from typing import Annotated
 import routers.api.v1.users as _pkg
 from api_dependencies import require_admin_api, require_super_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from schemas.api import (
     UserCreate,
     UserDetail,
@@ -407,3 +407,60 @@ def get_user_accessible_apps(
         return _pkg.sp_service.get_user_accessible_apps_admin(requesting_user, user_id)
     except ServiceError as e:
         raise translate_to_http_exception(e)
+
+
+# ============================================================================
+# Admin User Invitation Endpoints
+# ============================================================================
+
+
+@router.post("/{user_id}/resend-invitation", status_code=204)
+def resend_invitation(
+    request: Request,
+    tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
+    admin: Annotated[dict, Depends(require_admin_api)],
+    user_id: str,
+):
+    """
+    Resend the invitation email to a user who has not completed onboarding.
+
+    Generates a fresh invitation link (invalidating the previous one) and sends
+    the appropriate email based on the user's email verification status.
+
+    Requires admin role.
+
+    Path Parameters:
+        user_id: User UUID
+
+    Returns:
+        204 No Content on success
+
+    Errors:
+        403: Insufficient permissions (admin required)
+        404: User not found
+        400: User has already set a password (already_onboarded),
+             user is inactivated, or user is anonymized
+    """
+    try:
+        requesting_user = build_requesting_user(admin, tenant_id, request)
+        result = _pkg.users_service.resend_invitation(requesting_user, user_id)
+    except ServiceError as e:
+        raise translate_to_http_exception(e)
+
+    org_name = _pkg.users_service.get_tenant_name(tenant_id)
+    admin_name = f"{admin.get('first_name')} {admin.get('last_name')}"
+
+    if result["invitation_type"] == "set_password":
+        password_set_url = (
+            f"{request.base_url}set-password?email_id={result['email_id']}&nonce={result['nonce']}"
+        )
+        _pkg.send_new_user_privileged_domain_notification(
+            result["email"], admin_name, org_name, password_set_url, tenant_id=tenant_id
+        )
+    else:
+        verification_url = f"{request.base_url}verify-email/{result['email_id']}/{result['nonce']}"
+        _pkg.send_new_user_invitation(
+            result["email"], admin_name, org_name, verification_url, tenant_id=tenant_id
+        )
+
+    return None

@@ -50,31 +50,7 @@ large tenants could have thousands of users.
 
 ---
 
-## Resend Invitation Email
-
-**User Story:**
-As an admin,
-I want to resend an invitation email to a user who has not yet accepted their invitation,
-So that I can help users who missed or lost the original email without recreating the account.
-
-**Context:**
-
-Currently there is no way to resend an invitation. The only workaround is deleting and recreating
-the user, which loses audit history and group memberships. This is especially painful for large
-bulk imports where some users never accept.
-
-**Acceptance Criteria:**
-
-- [ ] A "Resend invitation" button appears on the user detail page when the user has no `password_hash` set (i.e. has never completed onboarding)
-- [ ] Clicking it generates a fresh invitation link (new nonce for non-privileged domains; new signed token for privileged domains — see the "Invitation Link Security Hardening" item) and sends the appropriate invitation email
-- [ ] The old invitation link is invalidated when a new one is sent (nonce incremented)
-- [ ] An audit event (`invitation_resent`) is logged with the actor admin and target user
-- [ ] API endpoint: `POST /api/v1/users/{user_id}/resend-invitation`
-- [ ] Button is hidden and API returns 400 if the user has already set a password
-
-**Effort:** S
-**Value:** Medium
-**Version impact:** Minor (new feature)
+## ~~Resend Invitation Email~~ (Complete)
 
 ---
 

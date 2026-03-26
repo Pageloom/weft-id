@@ -741,6 +741,78 @@ def test_admin_set_primary_email_routing_change_confirmed(make_user_dict, overri
 
 
 # =============================================================================
+# Admin Email Management - Error Paths
+# =============================================================================
+
+
+def test_list_current_user_emails_service_error(make_user_dict, override_api_auth):
+    """Test listing current user emails returns error on ServiceError."""
+    user = make_user_dict(role="member")
+    override_api_auth(user, level="user")
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.list_user_emails.side_effect = ForbiddenError(
+            message="Forbidden", code="forbidden"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/api/v1/users/me/emails")
+
+        assert response.status_code == 403
+
+
+def test_admin_list_user_emails_service_error(make_user_dict, override_api_auth):
+    """Test admin listing emails returns error on ServiceError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.list_user_emails.side_effect = NotFoundError(
+            message="User not found", code="user_not_found"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get(f"/api/v1/users/{uuid4()}/emails")
+
+        assert response.status_code == 404
+
+
+def test_admin_add_email_service_error(make_user_dict, override_api_auth):
+    """Test admin add email returns error on ServiceError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.add_user_email.side_effect = ValidationError(
+            message="Domain not privileged", code="domain_not_privileged"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post(
+            f"/api/v1/users/{uuid4()}/emails",
+            json={"email": "bad@external.com"},
+        )
+
+        assert response.status_code == 400
+
+
+def test_admin_delete_email_service_error(make_user_dict, override_api_auth):
+    """Test admin delete email returns error on ServiceError."""
+    admin = make_user_dict(role="admin")
+    override_api_auth(admin)
+
+    with patch("routers.api.v1.users.emails_service") as mock_svc:
+        mock_svc.delete_user_email.side_effect = ValidationError(
+            message="Cannot remove primary", code="cannot_remove_primary"
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.delete(f"/api/v1/users/{uuid4()}/emails/{uuid4()}")
+
+        assert response.status_code == 400
+
+
+# =============================================================================
 # User MFA Management
 # =============================================================================
 

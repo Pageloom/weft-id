@@ -117,6 +117,42 @@ class TestGetEmailBranding:
 
 
 # =============================================================================
+# _generate_mandala_png
+# =============================================================================
+
+
+class TestGenerateMandalaPng:
+    """Tests for _generate_mandala_png()."""
+
+    def test_success(self):
+        """Happy path: cairosvg rasterizes the mandala SVG."""
+        from utils.email_branding import _generate_mandala_png
+
+        with (
+            patch("utils.mandala.generate_mandala_svg") as mock_mandala,
+            patch.dict("sys.modules", {"cairosvg": MagicMock()}) as _,
+        ):
+            mock_mandala.return_value = ("<svg>light</svg>", "<svg>dark</svg>", "<svg>fav</svg>")
+            import sys
+
+            sys.modules["cairosvg"].svg2png.return_value = b"\x89PNGfake"
+
+            result = _generate_mandala_png("tenant-123")
+
+        assert result == b"\x89PNGfake"
+        mock_mandala.assert_called_once_with("tenant-123")
+
+    def test_cairosvg_exception_returns_none(self):
+        """Exception during rasterization returns None instead of crashing."""
+        from utils.email_branding import _generate_mandala_png
+
+        with patch("utils.mandala.generate_mandala_svg", side_effect=RuntimeError("boom")):
+            result = _generate_mandala_png("tenant-123")
+
+        assert result is None
+
+
+# =============================================================================
 # Shared email layout
 # =============================================================================
 

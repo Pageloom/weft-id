@@ -530,3 +530,279 @@ def test_send_mfa_reset_notification_failure():
         )
 
         assert result is False
+
+
+# =============================================================================
+# Email possession code (sign-in anti-enumeration)
+# =============================================================================
+
+
+# =============================================================================
+# Branding integration
+# =============================================================================
+
+
+def test_get_branding_exception_returns_none():
+    """Test _get_branding returns None when branding fetch throws."""
+    from utils.email import _get_branding
+
+    with patch("utils.email_branding.get_email_branding", side_effect=RuntimeError("DB down")):
+        result = _get_branding("some-tenant-id")
+
+    assert result is None
+
+
+def test_get_branding_no_tenant_id_returns_none():
+    """Test _get_branding returns None when tenant_id is None."""
+    from utils.email import _get_branding
+
+    result = _get_branding(None)
+    assert result is None
+
+
+def test_wrap_html_with_branding():
+    """Test _wrap_html includes branded header when branding provided."""
+    from utils.email import _wrap_html
+
+    branding = {"tenant_name": "Acme Corp", "logo_data_uri": "data:image/png;base64,ABC"}
+    html = _wrap_html("<p>Hello</p>", branding)
+
+    assert "Acme Corp" in html
+    assert "data:image/png;base64,ABC" in html
+    assert "<p>Hello</p>" in html
+    assert "WeftID by Pageloom" in html
+
+
+def test_wrap_html_without_branding():
+    """Test _wrap_html omits header when no branding."""
+    from utils.email import _wrap_html
+
+    html = _wrap_html("<p>Hello</p>", None)
+
+    assert "<p>Hello</p>" in html
+    assert "WeftID by Pageloom" in html
+
+
+def test_wrap_text_with_branding():
+    """Test _wrap_text includes tenant name header when branding provided."""
+    from utils.email import _wrap_text
+
+    branding = {"tenant_name": "Acme Corp", "logo_data_uri": None}
+    text = _wrap_text("Hello world", branding)
+
+    assert text.startswith("Acme Corp\n")
+    assert "Hello world" in text
+    assert "WeftID by Pageloom" in text
+
+
+def test_wrap_text_without_branding():
+    """Test _wrap_text omits header when no branding."""
+    from utils.email import _wrap_text
+
+    text = _wrap_text("Hello world", None)
+
+    assert not text.startswith("Acme Corp")
+    assert "Hello world" in text
+    assert "WeftID by Pageloom" in text
+
+
+def test_build_header_html_with_logo():
+    """Test _build_header_html includes logo img when data URI present."""
+    from utils.email import _build_header_html
+
+    branding = {"tenant_name": "Acme Corp", "logo_data_uri": "data:image/png;base64,XYZ"}
+    html = _build_header_html(branding)
+
+    assert "<img" in html
+    assert "data:image/png;base64,XYZ" in html
+    assert "Acme Corp" in html
+
+
+def test_build_header_html_without_logo():
+    """Test _build_header_html uses text-only header when no logo."""
+    from utils.email import _build_header_html
+
+    branding = {"tenant_name": "Acme Corp", "logo_data_uri": None}
+    html = _build_header_html(branding)
+
+    assert "<img" not in html
+    assert "Acme Corp" in html
+
+
+# =============================================================================
+# Email possession code (sign-in anti-enumeration)
+# =============================================================================
+
+
+def test_send_email_possession_code():
+    """Test sending email possession verification code."""
+    from utils.email import send_email_possession_code
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_email_possession_code(to_email="user@example.com", code="482917")
+
+        assert result is True
+        mock_send.assert_called_once()
+        to_email, subject, html_body, text_body = mock_send.call_args[0]
+
+        assert to_email == "user@example.com"
+        assert subject == "Your sign-in code"
+        assert "482917" in html_body
+        assert "482917" in text_body
+        assert "5 minutes" in html_body
+        assert "5 minutes" in text_body
+
+
+def test_send_email_possession_code_failure():
+    """Test email possession code sending failure."""
+    from utils.email import send_email_possession_code
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_email_possession_code(to_email="user@example.com", code="123456")
+
+        assert result is False
+
+
+def test_send_email_possession_code_with_branding():
+    """Test that possession code email includes branding when tenant_id provided."""
+    from utils.email import send_email_possession_code
+
+    with (
+        patch("utils.email.send_email") as mock_send,
+        patch("utils.email._get_branding") as mock_branding,
+    ):
+        mock_branding.return_value = {"tenant_name": "Acme Corp", "logo_data_uri": None}
+        mock_send.return_value = True
+
+        result = send_email_possession_code(
+            to_email="user@example.com", code="999999", tenant_id="tid-123"
+        )
+
+        assert result is True
+        mock_branding.assert_called_once_with("tid-123")
+        # Branding header should appear in text body
+        _, _, _, text_body = mock_send.call_args[0]
+        assert "Acme Corp" in text_body
+
+
+# =============================================================================
+# New user invitation emails
+# =============================================================================
+
+
+def test_send_new_user_privileged_domain_notification():
+    """Test sending welcome email to new user on a privileged domain."""
+    from utils.email import send_new_user_privileged_domain_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_new_user_privileged_domain_notification(
+            to_email="jane@acme.com",
+            admin_name="Admin User",
+            org_name="Acme Corp",
+            password_set_url="https://acme.example.com/set-password?email_id=eid&nonce=1",
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        to_email, subject, html_body, text_body = mock_send.call_args[0]
+
+        assert to_email == "jane@acme.com"
+        assert subject == "Welcome to Acme Corp"
+        assert "Admin User" in html_body
+        assert "Admin User" in text_body
+        assert "trusted email domain" in text_body
+        assert "set-password?email_id=eid&amp;nonce=1" in html_body
+        assert "set-password?email_id=eid&nonce=1" in text_body
+        assert "Set Your Password" in html_body
+
+
+def test_send_new_user_privileged_domain_notification_failure():
+    """Test privileged domain notification sending failure."""
+    from utils.email import send_new_user_privileged_domain_notification
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_new_user_privileged_domain_notification(
+            to_email="jane@acme.com",
+            admin_name="Admin",
+            org_name="Acme",
+            password_set_url="https://example.com/set-password",
+        )
+
+        assert result is False
+
+
+def test_send_new_user_invitation():
+    """Test sending invitation to new user on a non-privileged domain."""
+    from utils.email import send_new_user_invitation
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = True
+
+        result = send_new_user_invitation(
+            to_email="john@external.com",
+            admin_name="Admin User",
+            org_name="Acme Corp",
+            verification_url="https://acme.example.com/verify-email/eid/42",
+        )
+
+        assert result is True
+        mock_send.assert_called_once()
+        to_email, subject, html_body, text_body = mock_send.call_args[0]
+
+        assert to_email == "john@external.com"
+        assert subject == "You've been invited to join Acme Corp"
+        assert "Admin User" in html_body
+        assert "Admin User" in text_body
+        assert "verify-email/eid/42" in html_body
+        assert "verify-email/eid/42" in text_body
+        assert "Verify Email" in html_body
+
+
+def test_send_new_user_invitation_failure():
+    """Test non-privileged domain invitation sending failure."""
+    from utils.email import send_new_user_invitation
+
+    with patch("utils.email.send_email") as mock_send:
+        mock_send.return_value = False
+
+        result = send_new_user_invitation(
+            to_email="john@external.com",
+            admin_name="Admin",
+            org_name="Acme",
+            verification_url="https://example.com/verify",
+        )
+
+        assert result is False
+
+
+def test_send_new_user_invitation_with_branding():
+    """Test that invitation emails include branding when tenant_id provided."""
+    from utils.email import send_new_user_invitation
+
+    with (
+        patch("utils.email.send_email") as mock_send,
+        patch("utils.email._get_branding") as mock_branding,
+    ):
+        mock_branding.return_value = {"tenant_name": "Acme Corp", "logo_data_uri": None}
+        mock_send.return_value = True
+
+        result = send_new_user_invitation(
+            to_email="john@external.com",
+            admin_name="Admin",
+            org_name="Acme Corp",
+            verification_url="https://example.com/verify",
+            tenant_id="tid-456",
+        )
+
+        assert result is True
+        mock_branding.assert_called_once_with("tid-456")
+        _, _, _, text_body = mock_send.call_args[0]
+        assert "Acme Corp" in text_body

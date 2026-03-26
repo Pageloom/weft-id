@@ -6,6 +6,139 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
+## Email Address Management: Admin-Only Controls
+
+**User Story:**
+As an admin or super admin,
+I want full control over user email addresses without users being able to manage their own,
+So that email address changes (which affect IdP routing) are always intentional administrative actions.
+
+**Context:**
+
+Currently, users can add, remove, and promote email addresses via `/account/emails`. Because
+primary email domain determines IdP routing (which identity provider a user is authenticated
+against), this is too sensitive to leave as self-service. An unintended primary email promotion
+could silently route a user to a completely different IdP.
+
+**Acceptance Criteria:**
+
+- [ ] The `/account/emails` page is replaced with a read-only view (users can see their email addresses but not add, remove, or promote)
+- [ ] All self-service email mutation API endpoints (`POST/DELETE /api/v1/users/me/emails`, `POST /api/v1/users/me/emails/{id}/set-primary`) are removed or return 403
+- [ ] The tenant security setting `allow_users_add_emails` is removed (no longer needed); migration drops the column
+- [ ] Admin and super admin retain all existing email management capabilities on the user detail page
+- [ ] When an admin promotes a secondary email to primary, and the new primary's domain routes to a **different IdP** than the current primary, a confirmation warning is shown: "Switching the primary email to `new@domain.com` will route this user to a different identity provider. They will authenticate via [IdP name] going forward."
+- [ ] The IdP routing warning also applies to the API: the `POST /api/v1/users/{id}/emails/{email_id}/set-primary` endpoint returns a 409 with a `routing_change` error code and details when a routing change would occur, unless a `confirm_routing_change=true` parameter is passed
+- [ ] Event log entries are unchanged (email operations continue to be logged)
+- [ ] API endpoint docstrings document the `confirm_routing_change` parameter and `routing_change` error
+
+**Effort:** M
+**Value:** High
+**Version impact:** Minor (removes user capability, adds admin-only routing warning)
+
+---
+
+## Bulk User Attribute Update via Spreadsheet
+
+**User Story:**
+As an admin,
+I want to download a spreadsheet of current users and upload it with secondary emails and/or name changes populated,
+So that I can prepare user records in bulk before an upstream IdP migration (e.g. renaming email domains).
+
+**Context:**
+
+The primary use case is pre-migration preparation: before an IdP email domain change takes effect,
+admins add the new addresses as secondary emails on each user. When the IdP sync eventually pushes
+the new address, WeftID matches it to the existing secondary email and the transition is seamless.
+The spreadsheet also supports first/last name corrections.
+
+The download should be generated as a background job (deferred) rather than synchronously, since
+large tenants could have thousands of users.
+
+**Acceptance Criteria:**
+
+- [ ] Admin page has a "Download user template" button that enqueues a background job and shows a status indicator (spinner → download link when ready)
+- [ ] The generated Excel file has columns: `user_id`, `email` (current primary, read-only reference), `first_name` (current), `last_name` (current), `new_secondary_email` (blank), `new_first_name` (blank), `new_last_name` (blank)
+- [ ] The file is named `users_YYYY-MM-DD.xlsx` and uses the tenant subdomain prefix
+- [ ] Download link is scoped to the requesting admin's session (not guessable)
+- [ ] Admin uploads the filled-in spreadsheet via a file input on the same admin page
+- [ ] On upload, each row is processed in turn:
+  - If `new_secondary_email` is non-empty: add it as a verified secondary email (admin-added emails are auto-verified, per existing behaviour). Skip if the address already exists on the user or is already in use by another user in the tenant.
+  - If `new_first_name` or `new_last_name` is non-empty: update those fields
+  - Rows with all blank "new" columns are skipped
+- [ ] After processing, show a summary: N emails added, N names updated, N rows skipped (with per-row error details for failures)
+- [ ] Each mutation emits the appropriate audit log events (`email_added`, `user_updated`)
+- [ ] API endpoints: `POST /api/v1/users/bulk-update/request-download` (returns job ID), `GET /api/v1/users/bulk-update/download/{job_id}` (returns file or 202 if pending), `POST /api/v1/users/bulk-update/upload` (multipart form, returns summary)
+- [ ] Row limit enforced: refuse uploads exceeding 10,000 rows with a clear error
+- [ ] The spreadsheet uses `openpyxl`; no new library dependencies are introduced for Excel support (check if already present before adding)
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
+## Resend Invitation Email
+
+**User Story:**
+As an admin,
+I want to resend an invitation email to a user who has not yet accepted their invitation,
+So that I can help users who missed or lost the original email without recreating the account.
+
+**Context:**
+
+Currently there is no way to resend an invitation. The only workaround is deleting and recreating
+the user, which loses audit history and group memberships. This is especially painful for large
+bulk imports where some users never accept.
+
+**Acceptance Criteria:**
+
+- [ ] A "Resend invitation" button appears on the user detail page when the user has no `password_hash` set (i.e. has never completed onboarding)
+- [ ] Clicking it generates a fresh invitation link (new nonce for non-privileged domains; new signed token for privileged domains — see the "Invitation Link Security Hardening" item) and sends the appropriate invitation email
+- [ ] The old invitation link is invalidated when a new one is sent (nonce incremented)
+- [ ] An audit event (`invitation_resent`) is logged with the actor admin and target user
+- [ ] API endpoint: `POST /api/v1/users/{user_id}/resend-invitation`
+- [ ] Button is hidden and API returns 400 if the user has already set a password
+
+**Effort:** S
+**Value:** Medium
+**Version impact:** Minor (new feature)
+
+---
+
+## Invitation and Set-Password Link Security Hardening
+
+**User Story:**
+As a security-conscious operator,
+I want invitation and set-password links to be time-limited and single-use,
+So that a stale link from an old email cannot be used to compromise an account.
+
+**Context:**
+
+The current `/set-password?email_id=X` link (used for both privileged-domain invitations and
+the post-verification redirect) contains no secret and has no expiry. It remains valid as long
+as the user has no `password_hash`. If the password hash is ever cleared (e.g. a future
+admin force-reset flow), the link from the original invitation email would become usable again.
+
+See the security issue logged in ISSUES.md for the specific gap.
+
+**Acceptance Criteria:**
+
+- [ ] A `set_password_nonce` column is added to `user_emails` (integer, default 1, analogous to `verify_nonce`)
+- [ ] The set-password link format becomes `/set-password?email_id={id}&nonce={nonce}`
+- [ ] The GET and POST handlers validate the nonce matches `user_emails.set_password_nonce`
+- [ ] On successful password set, the nonce is incremented (invalidating the link)
+- [ ] On "Resend invitation", the nonce is also incremented before generating the new link
+- [ ] All existing code paths that produce a set-password URL are updated to include the nonce
+- [ ] The privileged-domain invitation email (`send_new_user_privileged_domain_notification`) is updated to include the nonce in the link
+- [ ] Set-password links display a user-friendly "This link has expired" page (not a silent redirect to `/login`) when the nonce does not match
+- [ ] Preview email script and any fixture/seed data that constructs set-password URLs are updated
+
+**Effort:** S
+**Value:** High
+**Version impact:** Patch (security hardening, no API surface change)
+
+---
+
 ## Create `/accessibility` Skill
 
 **User Story:**

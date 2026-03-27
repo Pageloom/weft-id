@@ -89,16 +89,10 @@ def handle_bulk_update_users(task: dict) -> dict[str, Any]:
 
             user_id = str(row_list[_COL_USER_ID]).strip() if row_list[_COL_USER_ID] else ""
             new_email = (
-                str(row_list[_COL_NEW_EMAIL]).strip().lower()
-                if row_list[_COL_NEW_EMAIL]
-                else ""
+                str(row_list[_COL_NEW_EMAIL]).strip().lower() if row_list[_COL_NEW_EMAIL] else ""
             )
-            new_first = (
-                str(row_list[_COL_NEW_FIRST]).strip() if row_list[_COL_NEW_FIRST] else ""
-            )
-            new_last = (
-                str(row_list[_COL_NEW_LAST]).strip() if row_list[_COL_NEW_LAST] else ""
-            )
+            new_first = str(row_list[_COL_NEW_FIRST]).strip() if row_list[_COL_NEW_FIRST] else ""
+            new_last = str(row_list[_COL_NEW_LAST]).strip() if row_list[_COL_NEW_LAST] else ""
 
             if not new_email and not new_first and not new_last:
                 rows_skipped += 1
@@ -110,9 +104,7 @@ def handle_bulk_update_users(task: dict) -> dict[str, Any]:
 
             user = database.users.get_user_by_id(tenant_id, user_id)
             if not user:
-                row_errors.append(
-                    {"row": row_num, "user_id": user_id, "error": "User not found"}
-                )
+                row_errors.append({"row": row_num, "user_id": user_id, "error": "User not found"})
                 continue
 
             if new_email:

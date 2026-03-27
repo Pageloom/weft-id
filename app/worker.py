@@ -209,8 +209,10 @@ def main() -> None:
     # This must happen before creating the worker
     try:
         from jobs import (
+            bulk_update_users,  # noqa: F401
             cleanup_exports,  # noqa: F401
             export_events,  # noqa: F401
+            export_users_template,  # noqa: F401
         )
     except ImportError as e:
         logger.warning("Could not import job handlers: %s", e)

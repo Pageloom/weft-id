@@ -108,6 +108,9 @@ EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "export_task_created": "Background export job created",
     "export_downloaded": "Export file downloaded",
     "jobs_deleted": "Background jobs cleaned up",
+    # Bulk Operations (Users)
+    "bulk_update_task_created": "Background task created for bulk user template download",
+    "bulk_update_completed": "Bulk user attribute update completed via spreadsheet upload",
     # Groups & Group Management
     "group_created": "Group created",
     "group_updated": "Group updated",

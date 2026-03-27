@@ -39,7 +39,7 @@ from database.users.lifecycle import (
     reactivate_user,
     set_reactivation_denied,
 )
-from database.users.listing import count_users, list_users
+from database.users.listing import count_users, list_all_users_for_export, list_users
 from database.users.profile import (
     update_user_locale,
     update_user_profile,
@@ -89,6 +89,7 @@ __all__ = [
     "get_idle_users_for_tenant",
     # listing
     "count_users",
+    "list_all_users_for_export",
     "list_users",
     # authentication
     "update_user_role",

@@ -171,6 +171,87 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
+## Password-Encrypted XLSX Export Capability
+
+**User Story:**
+As an admin,
+I want all XLSX exports to be password-encrypted,
+So that exported files containing PII are protected at rest and cannot be opened if a device is lost or the file is shared accidentally.
+
+**Context:**
+
+Any XLSX export from WeftID (user data, audit logs) contains PII: email addresses, IP addresses,
+authentication events, session metadata. These files end up on admin laptops and in email attachments.
+Encryption is always on. There is no unencrypted XLSX option. Programmatic consumers who need raw
+data should use the API.
+
+The worker generates a random one-time password per export, encrypts the file with `msoffcrypto-tool`
+(AES, natively supported by Excel, LibreOffice, and Google Sheets), and stores the password only in
+the background task's result payload. The admin page displays the password once alongside the download
+link. If the admin navigates away, they re-export. The password is cleaned up with the task on the
+standard expiry cycle. The file is never stored unencrypted.
+
+This is a shared capability used by all XLSX exports (bulk user update template, audit log export,
+and any future exports).
+
+**Acceptance Criteria:**
+
+- [ ] New utility function that takes an `openpyxl` Workbook and returns an encrypted bytes buffer with a generated password
+- [ ] Uses `msoffcrypto-tool` for AES encryption (compatible with Excel, LibreOffice, Google Sheets)
+- [ ] Password is a passphrase of six random lowercase words joined by dashes (e.g. `velvet-morning-copper-bridge-eastern-lamp`). Words are drawn from a curated wordlist of ~2048 common English words (short, unambiguous, easy to type). Six words gives ~66 bits of entropy, which is infeasible to brute-force offline even if an attacker knows the format. No digits or special characters beyond the dashes.
+- [ ] The encrypted file is what gets stored (local or Spaces). The plaintext XLSX is never written to storage.
+- [ ] Password is stored in the background task result payload (JSON field), not in the file or a separate table
+- [ ] Password is displayed once on the admin page alongside the download link
+- [ ] Password is cleaned up when the background task expires (standard expiry cycle)
+- [ ] Existing bulk user update export uses this capability
+- [ ] Dependency `msoffcrypto-tool` added to `pyproject.toml`
+- [ ] Tests verify encryption produces a file that requires a password to open, and that the correct password works
+
+**Effort:** S
+**Value:** High
+**Version impact:** Minor (new capability, no breaking changes)
+
+---
+
+## Audit Log XLSX Export with Date Range
+
+**User Story:**
+As an admin,
+I want to export the audit log as a password-encrypted Excel file for a specific date range,
+So that I can produce compliance evidence for a given period without handling unprotected PII.
+
+**Context:**
+
+The existing JSON export is being retired from the UI. Programmatic consumers should use the
+event log API directly. The XLSX export replaces it as the admin-facing export.
+
+Date range filtering serves two purposes: compliance teams are often asked to produce evidence for
+a specific period (e.g. "all authentication events in Q4 2025"), and it provides a natural way to
+chunk exports for large tenants that might exceed the ~1M row XLSX limit.
+
+All XLSX exports are always password-encrypted (see "Password-Encrypted XLSX Export Capability").
+
+**Acceptance Criteria:**
+
+- [ ] Export form on the audit events page includes optional start date and end date pickers
+- [ ] "All time" is the default (both dates blank)
+- [ ] Date range is validated: start must be before end, dates must not be in the future
+- [ ] Background job generates an XLSX with columns: Timestamp, Event Type, Description, Actor Email, Artifact Type, Artifact ID, Artifact Name, IP Address, User Agent, Device, API Client, Additional Metadata (JSON string for event-specific fields)
+- [ ] The file is password-encrypted using the shared encrypted XLSX capability
+- [ ] Filename includes the date range: `audit-log_YYYY-MM-DD_to_YYYY-MM-DD.xlsx` (or `audit-log_all.xlsx` for full export)
+- [ ] Events are fetched in batches to control memory usage (consistent with existing export job pattern)
+- [ ] If the export exceeds 1,000,000 rows, the job fails with a clear message suggesting a narrower date range
+- [ ] The existing JSON export (`export_events` job) is removed from the admin UI. The API endpoint for creating exports accepts a `format` parameter but only `xlsx` is supported.
+- [ ] API endpoint: `POST /api/v1/exports` accepts optional `start_date` and `end_date` query parameters (ISO 8601)
+- [ ] Admin page shows the one-time password alongside the download link when the export is ready
+- [ ] Audit event logged: `export_task_created` with metadata including format and date range
+
+**Effort:** M
+**Value:** High
+**Version impact:** Minor (new feature, deprecates JSON export from UI)
+
+---
+
 ## Self-Updating Management Script and Env Var Diffing
 
 **User Story:**

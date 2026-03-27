@@ -30,6 +30,7 @@ from routers import saml_idp as saml_idp_router  # noqa: E402
 from routers import settings as settings_router  # noqa: E402
 from routers import settings_branding as settings_branding_router  # noqa: E402
 from routers.api.v1 import branding as branding_api  # noqa: E402
+from routers.api.v1 import bulk_update as bulk_update_api  # noqa: E402
 from routers.api.v1 import events as events_api  # noqa: E402
 from routers.api.v1 import exports as exports_api  # noqa: E402
 from routers.api.v1 import groups as groups_api  # noqa: E402
@@ -125,6 +126,7 @@ app.include_router(saml.router)
 
 # Include API routers (JSON)
 app.include_router(branding_api.router)
+app.include_router(bulk_update_api.router)
 app.include_router(events_api.router)
 app.include_router(exports_api.router)
 app.include_router(groups_api.router)

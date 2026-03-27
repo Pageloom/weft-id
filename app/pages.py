@@ -99,6 +99,12 @@ PAGES = [
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
+            Page(
+                path="/users/bulk-update",
+                title="Bulk Update",
+                permission=PagePermission.ADMIN,
+                show_in_nav=True,
+            ),
         ],
     ),
     Page(

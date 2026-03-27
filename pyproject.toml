@@ -34,6 +34,7 @@ werkzeug = ">=3.1.6"
 dnspython = "^2.7.0"
 zxcvbn = "^4.5.0"
 cairosvg = "^2.7.0"
+openpyxl = "^3.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"
@@ -79,7 +80,7 @@ namespace_packages = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pymemcache.*", "sendgrid.*", "ua_parser.*", "onelogin.*", "requests.*", "qrcode.*", "PIL.*", "xmlsec", "xmlsec.*"]
+module = ["pymemcache.*", "sendgrid.*", "ua_parser.*", "onelogin.*", "requests.*", "qrcode.*", "PIL.*", "xmlsec", "xmlsec.*", "openpyxl", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

@@ -300,3 +300,32 @@ def list_users(
     """
 
     return fetchall(tenant_id, query, params)
+
+
+def list_all_users_for_export(tenant_id: TenantArg) -> list[dict]:
+    """List all active, non-anonymized users with their primary email.
+
+    Returns all users without pagination, suitable for spreadsheet generation.
+    Excludes service accounts, inactivated users, and anonymized users.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        List of dicts with id, first_name, last_name, email
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select u.id, u.first_name, u.last_name, ue.email
+        from users u
+        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        where u.is_inactivated = false
+          and u.is_anonymized = false
+          and not exists (
+              select 1 from oauth2_clients oc where oc.service_user_id = u.id
+          )
+        order by u.last_name asc, u.first_name asc
+        """,
+        {},
+    )

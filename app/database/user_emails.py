@@ -87,6 +87,36 @@ def list_emails_for_users(
     )
 
 
+def list_distinct_domains(tenant_id: TenantArg) -> list[dict]:
+    """Get all distinct email domains used in the tenant.
+
+    Returns:
+        List of dicts with domain field, sorted alphabetically.
+    """
+    return fetchall(
+        tenant_id,
+        "select distinct domain from user_emails order by domain",
+        {},
+    )
+
+
+def list_secondary_email_domains(tenant_id: TenantArg) -> list[dict]:
+    """Get distinct domains used in secondary (non-primary) emails.
+
+    Returns:
+        List of dicts with domain field, sorted alphabetically.
+    """
+    return fetchall(
+        tenant_id,
+        """
+        select distinct domain from user_emails
+        where is_primary = false
+        order by domain
+        """,
+        {},
+    )
+
+
 def email_exists(tenant_id: TenantArg, email: str) -> bool:
     """
     Check if an email address already exists in the tenant.
@@ -118,11 +148,16 @@ def add_email(tenant_id: TenantArg, user_id: str, email: str, tenant_id_value: s
     return fetchone(
         tenant_id,
         """
-        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
-        values (:tenant_id, :user_id, :email, false, null)
+        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at, domain)
+        values (:tenant_id, :user_id, :email, false, null, :domain)
         returning id, verify_nonce
         """,
-        {"tenant_id": tenant_id_value, "user_id": user_id, "email": email},
+        {
+            "tenant_id": tenant_id_value,
+            "user_id": user_id,
+            "email": email,
+            "domain": email.split("@")[1] if "@" in email else "",
+        },
     )
 
 
@@ -285,8 +320,8 @@ def add_verified_email(
     return fetchone(
         tenant_id,
         """
-        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
-        values (:tenant_id, :user_id, :email, :is_primary, now())
+        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at, domain)
+        values (:tenant_id, :user_id, :email, :is_primary, now(), :domain)
         returning id, email, set_password_nonce
         """,
         {
@@ -294,6 +329,7 @@ def add_verified_email(
             "user_id": user_id,
             "email": email,
             "is_primary": is_primary,
+            "domain": email.split("@")[1] if "@" in email else "",
         },
     )
 

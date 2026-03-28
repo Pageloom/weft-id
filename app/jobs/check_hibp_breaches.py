@@ -20,6 +20,7 @@ from utils.password_strength import (
     HIBP_TIMEOUT_SECONDS,
     check_hibp_suffix_against_hmac,
 )
+from utils.request_context import system_context
 
 logger = logging.getLogger(__name__)
 
@@ -138,52 +139,57 @@ def _process_tenant(
 
     breached_user_ids = []
 
-    for user in users:
-        user_id = str(user["id"])
-        prefix = user["hibp_prefix"]
-        stored_hmac = user["hibp_check_hmac"]
+    with system_context():
+        for user in users:
+            user_id = str(user["id"])
+            prefix = user["hibp_prefix"]
+            stored_hmac = user["hibp_check_hmac"]
 
-        # Fetch suffixes (with caching and rate limiting)
-        if prefix not in prefix_cache:
-            suffixes = _fetch_hibp_suffixes(prefix)
-            prefix_cache[prefix] = suffixes
-            # Respect HIBP rate limit
-            time.sleep(HIBP_RATE_LIMIT_SECONDS)
-        else:
-            suffixes = prefix_cache[prefix]
+            # Fetch suffixes (with caching and rate limiting)
+            if prefix not in prefix_cache:
+                suffixes = _fetch_hibp_suffixes(prefix)
+                prefix_cache[prefix] = suffixes
+                # Respect HIBP rate limit
+                time.sleep(HIBP_RATE_LIMIT_SECONDS)
+            else:
+                suffixes = prefix_cache[prefix]
 
-        if not suffixes:
-            continue
+            if not suffixes:
+                continue
 
-        # Check if any suffix matches our stored HMAC
-        if check_hibp_suffix_against_hmac(prefix, stored_hmac, hmac_key, suffixes):
-            logger.warning("Tenant %s: user %s password found in HIBP breach", tenant_id, user_id)
+            # Check if any suffix matches our stored HMAC
+            if check_hibp_suffix_against_hmac(prefix, stored_hmac, hmac_key, suffixes):
+                logger.warning(
+                    "Tenant %s: user %s password found in HIBP breach",
+                    tenant_id,
+                    user_id,
+                )
 
-            # Flag user for password reset
-            database.users.set_password_reset_required(tenant_id, user_id, True)
-            database.users.clear_hibp_data(tenant_id, user_id)
+                # Flag user for password reset
+                database.users.set_password_reset_required(tenant_id, user_id, True)
+                database.users.clear_hibp_data(tenant_id, user_id)
 
-            # Revoke OAuth2 tokens
-            revoked = database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
-            if revoked > 0:
+                # Revoke OAuth2 tokens
+                revoked = database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+                if revoked > 0:
+                    log_event(
+                        tenant_id=tenant_id,
+                        actor_user_id=SYSTEM_ACTOR_ID,
+                        event_type="oauth2_user_tokens_revoked",
+                        artifact_type="user",
+                        artifact_id=user_id,
+                        metadata={"reason": "hibp_breach", "tokens_revoked": revoked},
+                    )
+
                 log_event(
                     tenant_id=tenant_id,
                     actor_user_id=SYSTEM_ACTOR_ID,
-                    event_type="oauth2_user_tokens_revoked",
+                    event_type="password_breach_detected",
                     artifact_type="user",
                     artifact_id=user_id,
-                    metadata={"reason": "hibp_breach", "tokens_revoked": revoked},
                 )
 
-            log_event(
-                tenant_id=tenant_id,
-                actor_user_id=SYSTEM_ACTOR_ID,
-                event_type="password_breach_detected",
-                artifact_type="user",
-                artifact_id=user_id,
-            )
-
-            breached_user_ids.append(user_id)
+                breached_user_ids.append(user_id)
 
     # Notify admins if breaches were found
     if breached_user_ids:

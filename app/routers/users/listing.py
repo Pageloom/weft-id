@@ -97,13 +97,15 @@ def users_list(
     # Parse group filter
     group_id = request.query_params.get("group_id", "").strip() or None
 
-    # Parse secondary email filter
+    # Parse secondary email filter (yes/no or domain:X)
     secondary_param = request.query_params.get("has_secondary_email", "").strip()
-    has_secondary_email: bool | None = None
+    has_secondary_email: bool | str | None = None
     if secondary_param == "yes":
         has_secondary_email = True
     elif secondary_param == "no":
         has_secondary_email = False
+    elif secondary_param.startswith("domain:"):
+        has_secondary_email = secondary_param
 
     # Parse activity date range
     activity_start: date | None = None
@@ -214,7 +216,10 @@ def users_list(
     if group_id:
         filter_criteria["group_id"] = group_id
     if has_secondary_email is not None:
-        filter_criteria["has_secondary_email"] = "yes" if has_secondary_email else "no"
+        if isinstance(has_secondary_email, str):
+            filter_criteria["has_secondary_email"] = has_secondary_email
+        else:
+            filter_criteria["has_secondary_email"] = "yes" if has_secondary_email else "no"
     if activity_start:
         filter_criteria["activity_start"] = activity_start.isoformat()
     if activity_end:

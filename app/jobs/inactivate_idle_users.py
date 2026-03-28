@@ -10,6 +10,7 @@ from typing import Any
 import database
 from database._core import session
 from services.event_log import SYSTEM_ACTOR_ID, log_event
+from utils.request_context import system_context
 
 logger = logging.getLogger(__name__)
 
@@ -114,49 +115,50 @@ def _process_tenant(tenant_id: str, threshold_days: int) -> dict[str, Any]:
 
     inactivated_user_ids = []
 
-    for user in idle_users:
-        user_id = str(user["user_id"])
+    with system_context():
+        for user in idle_users:
+            user_id = str(user["user_id"])
 
-        try:
-            # Inactivate the user
-            database.users.inactivate_user(tenant_id, user_id)
+            try:
+                # Inactivate the user
+                database.users.inactivate_user(tenant_id, user_id)
 
-            # Revoke OAuth tokens
-            database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
+                # Revoke OAuth tokens
+                database.oauth2.revoke_all_user_tokens(tenant_id, user_id)
 
-            # Log the event (with system as actor since this is automated)
-            log_event(
-                tenant_id=tenant_id,
-                actor_user_id=SYSTEM_ACTOR_ID,
-                artifact_type="user",
-                artifact_id=user_id,
-                event_type="user_auto_inactivated",
-                metadata={
-                    "reason": "inactivity",
-                    "threshold_days": threshold_days,
-                    "last_activity_at": (
-                        user["last_activity_at"].isoformat()
-                        if user.get("last_activity_at")
-                        else None
-                    ),
-                },
-            )
+                # Log the event (with system as actor since this is automated)
+                log_event(
+                    tenant_id=tenant_id,
+                    actor_user_id=SYSTEM_ACTOR_ID,
+                    artifact_type="user",
+                    artifact_id=user_id,
+                    event_type="user_auto_inactivated",
+                    metadata={
+                        "reason": "inactivity",
+                        "threshold_days": threshold_days,
+                        "last_activity_at": (
+                            user["last_activity_at"].isoformat()
+                            if user.get("last_activity_at")
+                            else None
+                        ),
+                    },
+                )
 
-            inactivated_user_ids.append(user_id)
-            logger.info(
-                "Tenant %s: inactivated user %s (%s %s) due to inactivity",
-                tenant_id,
-                user_id,
-                user.get("first_name", ""),
-                user.get("last_name", ""),
-            )
+                inactivated_user_ids.append(user_id)
+                logger.info(
+                    "Tenant %s: inactivated user %s (%s %s) due to inactivity",
+                    tenant_id,
+                    user_id,
+                    user.get("first_name", ""),
+                    user.get("last_name", ""),
+                )
 
-        except Exception as e:
-            logger.error(
-                "Tenant %s: failed to inactivate user %s: %s",
-                tenant_id,
-                user_id,
-                e,
-            )
+            except Exception as e:
+                logger.error(
+                    "Tenant %s: failed to inactivate user %s: %s",
+                    tenant_id,
+                    user_id,
+                    e,
+                )
 
     return {"count": len(inactivated_user_ids), "user_ids": inactivated_user_ids}

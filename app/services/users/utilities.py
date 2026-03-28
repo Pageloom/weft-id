@@ -34,7 +34,7 @@ def count_users(
     auth_methods: list[str] | None = None,
     domain: str | None = None,
     group_id: str | None = None,
-    has_secondary_email: bool | None = None,
+    has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
 ) -> int:
@@ -86,7 +86,7 @@ def list_users_raw(
     auth_methods: list[str] | None = None,
     domain: str | None = None,
     group_id: str | None = None,
-    has_secondary_email: bool | None = None,
+    has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
 ) -> list[dict]:
@@ -168,19 +168,34 @@ def get_auth_method_options(tenant_id: str) -> list[dict]:
     return options
 
 
-def get_domain_filter_options(tenant_id: str) -> list[str]:
-    """Get available email domains for filtering.
+def get_domain_filter_options(tenant_id: str) -> list[dict]:
+    """Get all observed email domains for filtering.
 
-    Returns sorted list of privileged domain strings.
+    Returns all distinct domains from user emails, with a flag indicating
+    whether each domain is a privileged domain.
 
     Args:
         tenant_id: Tenant ID
 
     Returns:
-        Sorted list of domain strings
+        List of dicts with domain (str) and privileged (bool), sorted alphabetically.
     """
-    domains = database.settings.list_privileged_domains(tenant_id)
-    return sorted(d["domain"] for d in domains)
+    privileged = {d["domain"] for d in database.settings.list_privileged_domains(tenant_id)}
+    all_domains = database.user_emails.list_distinct_domains(tenant_id)
+    return [{"domain": d["domain"], "privileged": d["domain"] in privileged} for d in all_domains]
+
+
+def get_secondary_email_domain_options(tenant_id: str) -> list[str]:
+    """Get distinct domains used in secondary (non-primary) emails.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        Sorted list of domain strings.
+    """
+    rows = database.user_emails.list_secondary_email_domains(tenant_id)
+    return [r["domain"] for r in rows]
 
 
 def get_group_filter_options(tenant_id: str) -> list[dict]:

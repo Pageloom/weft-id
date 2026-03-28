@@ -6,8 +6,8 @@
 
 {% block content %}
 <!-- Filter Params Macro - generates query string for all active filters -->
-{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={{ auth_methods|join(',') }}{% endif %}{% if domain %}&domain={{ domain }}{% endif %}{% if group_id %}&group_id={{ group_id }}{% endif %}{% if has_secondary_email is not none %}&has_secondary_email={{ 'yes' if has_secondary_email else 'no' }}{% endif %}{% if activity_start %}&activity_start={{ activity_start }}{% endif %}{% if activity_end %}&activity_end={{ activity_end }}{% endif %}{% endmacro %}
-{% set has_any_filter = roles or statuses or auth_methods or domain or group_id or has_secondary_email is not none or activity_start or activity_end %}
+{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={{ auth_methods|join(',') }}{% endif %}{% if domain %}&domain={{ domain }}{% endif %}{% if group_id %}&group_id={{ group_id }}{% endif %}{% endmacro %}
+{% set has_any_filter = roles or statuses or auth_methods or domain or group_id %}
 
 <!-- Pagination Controls Macro -->
 {% macro pagination_controls(border_class="border-t") %}
@@ -132,71 +132,45 @@
             <!-- Filter Panel (collapsible) -->
             <div id="filter-panel" class="hidden mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
                 <div class="flex flex-wrap gap-6 items-end">
+                    {% set select_base = "border rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" %}
+                    {% set select_idle = select_base ~ " border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" %}
+                    {% set select_active = select_base ~ " border-blue-500 dark:border-blue-400 ring-2 ring-blue-500 dark:ring-blue-400" %}
+
                     <!-- Role Filter -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
-                        <div class="flex gap-3">
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-member" value="member"
-                                       {% if 'member' in roles %}checked{% endif %}
-                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Member</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-admin" value="admin"
-                                       {% if 'admin' in roles %}checked{% endif %}
-                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Admin</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-super_admin" value="super_admin"
-                                       {% if 'super_admin' in roles %}checked{% endif %}
-                                       class="filter-role rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Super Admin</span>
-                            </label>
-                        </div>
+                        <label for="filter-role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
+                        <select id="filter-role"
+                                class="{{ select_active if roles else select_idle }}">
+                            <option value="">All roles</option>
+                            <option value="member" {% if 'member' in roles %}selected{% endif %}>Member</option>
+                            <option value="admin" {% if 'admin' in roles %}selected{% endif %}>Admin</option>
+                            <option value="super_admin" {% if 'super_admin' in roles %}selected{% endif %}>Super Admin</option>
+                        </select>
                     </div>
 
                     <!-- Status Filter -->
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-                        <div class="flex gap-3">
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-active" value="active"
-                                       {% if 'active' in statuses %}checked{% endif %}
-                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Active</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-inactivated" value="inactivated"
-                                       {% if 'inactivated' in statuses %}checked{% endif %}
-                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Inactivated</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-anonymized" value="anonymized"
-                                       {% if 'anonymized' in statuses %}checked{% endif %}
-                                       class="filter-status rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Anonymized</span>
-                            </label>
-                        </div>
+                        <label for="filter-status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                        <select id="filter-status"
+                                class="{{ select_active if statuses else select_idle }}">
+                            <option value="">All statuses</option>
+                            <option value="active" {% if 'active' in statuses %}selected{% endif %}>Active</option>
+                            <option value="inactivated" {% if 'inactivated' in statuses %}selected{% endif %}>Inactivated</option>
+                            <option value="anonymized" {% if 'anonymized' in statuses %}selected{% endif %}>Anonymized</option>
+                        </select>
                     </div>
 
                     <!-- Auth Method Filter -->
                     {% if auth_method_options %}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Auth Method</label>
-                        <div class="flex flex-wrap gap-3">
+                        <label for="filter-auth-method" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Auth Method</label>
+                        <select id="filter-auth-method"
+                                class="{{ select_active if auth_methods else select_idle }}">
+                            <option value="">All methods</option>
                             {% for opt in auth_method_options %}
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" id="filter-auth-{{ loop.index0 }}"
-                                       value="{{ opt.auth_method_key }}"
-                                       {% if opt.auth_method_key in auth_methods %}checked{% endif %}
-                                       class="filter-auth-method rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
-                                <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ opt.auth_method_label }}</span>
-                            </label>
+                            <option value="{{ opt.auth_method_key }}" {% if opt.auth_method_key in auth_methods %}selected{% endif %}>{{ opt.auth_method_label }}</option>
                             {% endfor %}
-                        </div>
+                        </select>
                     </div>
                     {% endif %}
 
@@ -205,10 +179,10 @@
                     <div>
                         <label for="filter-domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Domain</label>
                         <select id="filter-domain"
-                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                                class="{{ select_active if domain else select_idle }}">
                             <option value="">All domains</option>
                             {% for d in domain_options %}
-                            <option value="{{ d }}" {% if domain == d %}selected{% endif %}>{{ d }}</option>
+                            <option value="{{ d.domain }}" {% if domain == d.domain %}selected{% endif %}>{{ d.domain }}{% if d.privileged %} ★{% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -219,7 +193,7 @@
                     <div>
                         <label for="filter-group" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Group</label>
                         <select id="filter-group"
-                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                                class="{{ select_active if group_id else select_idle }}">
                             <option value="">All groups</option>
                             {% for g in group_options %}
                             <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
@@ -228,98 +202,9 @@
                     </div>
                     {% endif %}
 
-                    <!-- Secondary Email Filter -->
-                    <div>
-                        <label for="filter-secondary-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Secondary Email</label>
-                        <select id="filter-secondary-email"
-                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
-                            <option value="">All</option>
-                            <option value="yes" {% if has_secondary_email == true %}selected{% endif %}>Has secondary</option>
-                            <option value="no" {% if has_secondary_email == false %}selected{% endif %}>No secondary</option>
-                        </select>
-                    </div>
-
-                    <!-- Activity Date Range -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Activity</label>
-                        <div class="flex items-center gap-2">
-                            <input type="date" id="filter-activity-start" value="{{ activity_start }}"
-                                   class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">to</span>
-                            <input type="date" id="filter-activity-end" value="{{ activity_end }}"
-                                   class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Apply/Clear Buttons -->
-                <div class="flex gap-2 mt-4">
-                    <button
-                        type="button"
-                        id="apply-filters-btn"
-                        class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                        Apply Filters
-                    </button>
-                    {% if has_any_filter %}
-                    <a
-                        href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
-                        class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                    >
-                        Clear Filters
-                    </a>
-                    {% endif %}
                 </div>
             </div>
         </div>
-
-        <!-- Active Filters Indicator -->
-        {% if has_any_filter %}
-        <div class="mb-4 flex flex-wrap gap-2 items-center">
-            <span class="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
-            {% for role in roles %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {% if role == 'super_admin' %}bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300
-                {% elif role == 'admin' %}bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300
-                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                {{ role }}
-            </span>
-            {% endfor %}
-            {% for status in statuses %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                {% if status == 'active' %}bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300
-                {% elif status == 'inactivated' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300
-                {% else %}bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                {{ status }}
-            </span>
-            {% endfor %}
-            {% for am in auth_methods %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
-                {% for opt in auth_method_options %}{% if opt.auth_method_key == am %}{{ opt.auth_method_label }}{% endif %}{% endfor %}
-            </span>
-            {% endfor %}
-            {% if domain %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
-                @{{ domain }}
-            </span>
-            {% endif %}
-            {% if group_id %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300">
-                {% for g in group_options %}{% if g.id == group_id %}{{ g.name }}{% endif %}{% endfor %}
-            </span>
-            {% endif %}
-            {% if has_secondary_email is not none %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300">
-                {{ 'Has' if has_secondary_email else 'No' }} secondary email
-            </span>
-            {% endif %}
-            {% if activity_start or activity_end %}
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300">
-                Activity: {{ activity_start or '...' }} to {{ activity_end or '...' }}
-            </span>
-            {% endif %}
-        </div>
-        {% endif %}
 
         <!-- Results count -->
         {% if search %}
@@ -535,37 +420,29 @@ WeftUtils.listManager({
         toggleBtn: '#toggle-filters-btn',
         panel: '#filter-panel',
         chevron: '#filter-chevron',
-        applyBtn: '#apply-filters-btn',
-        clearSelectors: '.clear-filters-action, #clear-filters-link',
+        clearSelectors: '#clear-filters-link',
         getState: () => {
-            const state = {
-                roles:        Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
-                statuses:     Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
-                auth_methods: Array.from(document.querySelectorAll('.filter-auth-method:checked')).map(el => el.value),
-            };
+            const state = {};
+            const role = document.getElementById('filter-role')?.value;
+            if (role) state.role = role;
+            const status = document.getElementById('filter-status')?.value;
+            if (status) state.status = status;
+            const authMethod = document.getElementById('filter-auth-method')?.value;
+            if (authMethod) state.auth_method = authMethod;
             const domain = document.getElementById('filter-domain')?.value;
             if (domain) state.domain = domain;
             const group = document.getElementById('filter-group')?.value;
             if (group) state.group_id = group;
-            const secondary = document.getElementById('filter-secondary-email')?.value;
-            if (secondary) state.has_secondary_email = secondary;
-            const actStart = document.getElementById('filter-activity-start')?.value;
-            if (actStart) state.activity_start = actStart;
-            const actEnd = document.getElementById('filter-activity-end')?.value;
-            if (actEnd) state.activity_end = actEnd;
             return state;
         },
         buildUrl: (state, size) => {
             let url = `/users/list?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
             if (search) url += `&search=${encodeURIComponent(search)}`;
-            if (state.roles?.length) url += `&role=${state.roles.join(',')}`;
-            if (state.statuses?.length) url += `&status=${state.statuses.join(',')}`;
-            if (state.auth_methods?.length) url += `&auth_method=${state.auth_methods.join(',')}`;
+            if (state.role) url += `&role=${state.role}`;
+            if (state.status) url += `&status=${state.status}`;
+            if (state.auth_method) url += `&auth_method=${state.auth_method}`;
             if (state.domain) url += `&domain=${encodeURIComponent(state.domain)}`;
             if (state.group_id) url += `&group_id=${state.group_id}`;
-            if (state.has_secondary_email) url += `&has_secondary_email=${state.has_secondary_email}`;
-            if (state.activity_start) url += `&activity_start=${state.activity_start}`;
-            if (state.activity_end) url += `&activity_end=${state.activity_end}`;
             return url;
         },
     },
@@ -608,6 +485,33 @@ WeftUtils.listManager({
             filtersActive,
         },
     },
+});
+const applyFilters = () => {
+    const state = {};
+    const role = document.getElementById('filter-role')?.value;
+    if (role) state.role = role;
+    const status = document.getElementById('filter-status')?.value;
+    if (status) state.status = status;
+    const authMethod = document.getElementById('filter-auth-method')?.value;
+    if (authMethod) state.auth_method = authMethod;
+    const dom = document.getElementById('filter-domain')?.value;
+    if (dom) state.domain = dom;
+    const group = document.getElementById('filter-group')?.value;
+    if (group) state.group_id = group;
+    let url = `/users/list?page=1&size=${pageSize}&sort=${sortField}&order=${sortOrder}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (state.role) url += `&role=${state.role}`;
+    if (state.status) url += `&status=${state.status}`;
+    if (state.auth_method) url += `&auth_method=${state.auth_method}`;
+    if (state.domain) url += `&domain=${encodeURIComponent(state.domain)}`;
+    if (state.group_id) url += `&group_id=${state.group_id}`;
+    try { localStorage.setItem(`weftid_filters_${tenantId}`, JSON.stringify(state)); } catch(e) {}
+    window.location.href = url;
+};
+['filter-role', 'filter-status', 'filter-auth-method', 'filter-domain',
+ 'filter-group'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', applyFilters);
 });
 </script>
 {% endblock %}

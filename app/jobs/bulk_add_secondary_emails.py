@@ -11,6 +11,7 @@ from typing import Any
 import database
 from jobs.registry import register_handler
 from services.event_log import log_event
+from utils.request_context import system_context
 
 logger = logging.getLogger(__name__)
 
@@ -35,82 +36,83 @@ def handle_bulk_add_secondary_emails(task: dict) -> dict[str, Any]:
     errors = 0
     details: list[dict[str, str]] = []
 
-    for item in items:
-        user_id = item["user_id"]
-        email = item["email"].strip().lower()
+    with system_context():
+        for item in items:
+            user_id = item["user_id"]
+            email = item["email"].strip().lower()
 
-        try:
-            # Check if email already exists in tenant
-            if database.user_emails.email_exists(tenant_id, email):
-                skipped += 1
+            try:
+                # Check if email already exists in tenant
+                if database.user_emails.email_exists(tenant_id, email):
+                    skipped += 1
+                    details.append(
+                        {
+                            "user_id": user_id,
+                            "email": email,
+                            "status": "skipped",
+                            "reason": "Email already exists in tenant",
+                        }
+                    )
+                    continue
+
+                # Verify user exists
+                user = database.users.get_user_by_id(tenant_id, user_id)
+                if not user:
+                    errors += 1
+                    details.append(
+                        {
+                            "user_id": user_id,
+                            "email": email,
+                            "status": "error",
+                            "reason": "User not found",
+                        }
+                    )
+                    continue
+
+                # Add as verified secondary email (admin action)
+                database.user_emails.add_verified_email(
+                    tenant_id=tenant_id,
+                    tenant_id_value=tenant_id,
+                    user_id=user_id,
+                    email=email,
+                    is_primary=False,
+                )
+
+                # Log audit event for each addition
+                log_event(
+                    tenant_id=tenant_id,
+                    actor_user_id=created_by,
+                    artifact_type="user",
+                    artifact_id=user_id,
+                    event_type="email_added",
+                    metadata={
+                        "email": email,
+                        "is_admin_action": True,
+                        "auto_verified": True,
+                        "bulk_operation": True,
+                    },
+                )
+
+                added += 1
                 details.append(
                     {
                         "user_id": user_id,
                         "email": email,
-                        "status": "skipped",
-                        "reason": "Email already exists in tenant",
+                        "status": "added",
                     }
                 )
-                continue
 
-            # Verify user exists
-            user = database.users.get_user_by_id(tenant_id, user_id)
-            if not user:
+            except Exception:
+                logger.exception("Failed to add email %s for user %s", email, user_id)
                 errors += 1
                 details.append(
                     {
                         "user_id": user_id,
                         "email": email,
                         "status": "error",
-                        "reason": "User not found",
+                        "reason": "Unexpected error",
                     }
                 )
-                continue
-
-            # Add as verified secondary email (admin action)
-            database.user_emails.add_verified_email(
-                tenant_id=tenant_id,
-                tenant_id_value=tenant_id,
-                user_id=user_id,
-                email=email,
-                is_primary=False,
-            )
-
-            # Log audit event for each addition
-            log_event(
-                tenant_id=tenant_id,
-                actor_user_id=created_by,
-                artifact_type="user",
-                artifact_id=user_id,
-                event_type="email_added",
-                metadata={
-                    "email": email,
-                    "is_admin_action": True,
-                    "auto_verified": True,
-                    "bulk_operation": True,
-                },
-            )
-
-            added += 1
-            details.append(
-                {
-                    "user_id": user_id,
-                    "email": email,
-                    "status": "added",
-                }
-            )
-
-        except Exception:
-            logger.exception("Failed to add email %s for user %s", email, user_id)
-            errors += 1
-            details.append(
-                {
-                    "user_id": user_id,
-                    "email": email,
-                    "status": "error",
-                    "reason": "Unexpected error",
-                }
-            )
 
     output = f"{added} added, {skipped} skipped, {errors} errors"
     logger.info("Bulk add secondary emails complete: %s (tenant=%s)", output, tenant_id)

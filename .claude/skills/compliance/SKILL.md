@@ -105,6 +105,14 @@ All functionality achievable via RESTful API endpoints in `app/routers/api/v1/`.
 - SDK clients that make HTTP requests should configure timeout on their transport
 - Suppress with `# outbound-timeout: ok` on the call line
 
+### 12. Job System Context
+
+**Rule:** Job handlers in `app/jobs/` that call `log_event()` must use `system_context()`.
+
+- Background jobs have no HTTP request context
+- `log_event()` without `system_context()` raises `RuntimeError` at runtime
+- Wrap the code that calls `log_event()` in `with system_context():`
+
 ### 7. RLS Policy Consistency
 
 **Rule:** Every table with `ENABLE ROW LEVEL SECURITY` must have a correct policy.
@@ -135,6 +143,7 @@ Compliance-only options:
 --check migration-safety # Backwards compatibility of migration files
 --check template-links       # Template href/action link validity
 --check outbound-timeouts    # Outbound HTTP calls must have timeouts
+--check job-context          # Job handlers must use system_context() for log_event()
 ```
 
 ### 2. Investigate Findings

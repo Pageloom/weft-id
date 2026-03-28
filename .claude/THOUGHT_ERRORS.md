@@ -299,3 +299,50 @@ building the new link, so old copies of the invitation email become invalid.
 **Right:** Restart the reverse proxy after a rebuild: `docker compose restart reverse-proxy`
 
 When `make up` recreates the app container, nginx may lose its upstream connection and return 502 for all requests. The app container itself is healthy (responds to `curl` internally), but nginx's cached DNS/connection to the old container is stale. A quick `docker compose restart reverse-proxy` fixes it. This is a dev-only issue (production uses a separate deploy flow).
+
+---
+
+## Background Jobs Must Use `system_context()` for `log_event()`
+
+**Wrong:** Calling `log_event()` directly in a job handler
+**Right:** Wrap the code that calls `log_event()` in `with system_context():`
+
+`log_event()` requires HTTP request metadata (IP, user agent, session hash) from middleware. Background jobs have no HTTP request, so `log_event()` raises `RuntimeError: log_event called without request context`. The `system_context()` context manager signals that this is intentional (automated/background action) and bypasses the requirement.
+
+```python
+from utils.request_context import system_context
+
+@register_handler("my_job")
+def handle_my_job(task: dict) -> dict:
+    with system_context():
+        # ... do work ...
+        log_event(...)  # Now works without request context
+```
+
+---
+
+## Jinja2 Autoescape Mangles JSON in Script Blocks
+
+**Wrong:** Passing `json.dumps(data)` via template context and using `{{ json_string }}` in a `<script type="application/json">` block
+**Right:** Pass the dict directly and use `{{ data | tojson }}` in the template
+
+Jinja2 autoescape is enabled globally (`autoescape=True`). Raw strings passed through `{{ }}` get HTML-encoded (`"` becomes `&#34;`), producing invalid JSON that breaks `JSON.parse()`. The `tojson` filter serializes to JSON AND marks the output as Markup-safe, bypassing autoescape.
+
+**Symptoms:** `SyntaxError` on `JSON.parse(document.getElementById('page-data').textContent)` with no visible cause. Inspect the rendered HTML to see `&#34;` in the JSON.
+
+---
+
+## psycopg Named Params Conflict with PostgreSQL Cast Syntax
+
+**Wrong:** `split_part(:email::text, '@', 2)` in a SQL query with named parameters
+**Right:** Extract the value in Python and pass as a separate parameter
+
+psycopg interprets `::text` as a named parameter `:text`, not a PostgreSQL type cast. This causes `ProgrammingError: query parameter missing: text`. Instead, compute the value in Python before passing it to the query:
+
+```python
+# Wrong:
+fetchone(tenant_id, "INSERT ... split_part(:email::text, '@', 2)", {"email": email})
+
+# Right:
+fetchone(tenant_id, "INSERT ... :domain", {"email": email, "domain": email.split("@")[1]})
+```

@@ -1,5 +1,6 @@
 """User search and listing database operations."""
 
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from database._core import TenantArg, escape_like, fetchall, fetchone
@@ -91,16 +92,80 @@ def _build_auth_method_clauses(
         where_clauses.append(f"({' or '.join(conditions)})")
 
 
+def _build_domain_clause(
+    domain: str | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Filter by primary email domain."""
+    if not domain:
+        return
+    where_clauses.append("lower(substring(ue.email from '@(.*)$')) = lower(:domain)")
+    params["domain"] = domain
+
+
+def _build_group_clause(
+    group_id: str | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Filter by group membership."""
+    if not group_id:
+        return
+    where_clauses.append(
+        "exists (select 1 from group_memberships gm_f"
+        " where gm_f.user_id = u.id and gm_f.group_id = :filter_group_id)"
+    )
+    params["filter_group_id"] = group_id
+
+
+def _build_secondary_email_clause(
+    has_secondary_email: bool | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Filter by presence of secondary email addresses."""
+    if has_secondary_email is None:
+        return
+    subquery = "(select 1 from user_emails ue2 where ue2.user_id = u.id and ue2.is_primary = false)"
+    if has_secondary_email:
+        where_clauses.append(f"exists {subquery}")
+    else:
+        where_clauses.append(f"not exists {subquery}")
+
+
+def _build_activity_date_clauses(
+    activity_start: date | None,
+    activity_end: date | None,
+    where_clauses: list[str],
+    params: dict[str, Any],
+) -> None:
+    """Filter by last activity date range (inclusive)."""
+    if activity_start:
+        where_clauses.append("ua.last_activity_at >= :activity_start")
+        params["activity_start"] = datetime.combine(activity_start, time.min, tzinfo=UTC)
+    if activity_end:
+        where_clauses.append("ua.last_activity_at < :activity_end_exclusive")
+        params["activity_end_exclusive"] = datetime.combine(
+            activity_end + timedelta(days=1), time.min, tzinfo=UTC
+        )
+
+
 def count_users(
     tenant_id: TenantArg,
     search: str | None = None,
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
     auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
 ) -> int:
     """
     Count users, optionally filtered by search term, roles, statuses,
-    and auth methods.
+    auth methods, domain, group, secondary email, and activity date range.
 
     Args:
         tenant_id: Tenant ID
@@ -108,6 +173,11 @@ def count_users(
         roles: List of roles to filter by (member, admin, super_admin)
         statuses: List of statuses to filter by (active, inactivated, anonymized)
         auth_methods: List of auth method keys to filter by
+        domain: Email domain to filter by
+        group_id: Group UUID to filter by membership
+        has_secondary_email: Filter by presence of secondary email addresses
+        activity_start: Filter by activity on or after this date (inclusive)
+        activity_end: Filter by activity on or before this date (inclusive)
 
     Returns:
         Total count of matching users
@@ -138,6 +208,10 @@ def count_users(
             where_clauses.append(f"({' or '.join(status_conditions)})")
 
     _build_auth_method_clauses(auth_methods, where_clauses, params)
+    _build_domain_clause(domain, where_clauses, params)
+    _build_group_clause(group_id, where_clauses, params)
+    _build_secondary_email_clause(has_secondary_email, where_clauses, params)
+    _build_activity_date_clauses(activity_start, activity_end, where_clauses, params)
 
     where_clause = "where " + " and ".join(where_clauses)
 
@@ -146,11 +220,17 @@ def count_users(
     if auth_methods:
         idp_join = "left join saml_identity_providers idp on u.saml_idp_id = idp.id"
 
+    # Need activity join for activity date filtering
+    activity_join = ""
+    if activity_start or activity_end:
+        activity_join = "left join user_activity ua on u.id = ua.user_id"
+
     query = f"""
         select count(distinct u.id) as count
         from users u
         left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
         {idp_join}
+        {activity_join}
         {where_clause}
     """
 
@@ -169,6 +249,11 @@ def list_users(
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
     auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
 ) -> list[dict]:
     """
     List users with pagination, sorting, search, and filtering.
@@ -187,6 +272,11 @@ def list_users(
         roles: List of roles to filter by (member, admin, super_admin)
         statuses: List of statuses to filter by (active, inactivated, anonymized)
         auth_methods: List of auth method keys to filter by
+        domain: Email domain to filter by
+        group_id: Group UUID to filter by membership
+        has_secondary_email: Filter by presence of secondary email addresses
+        activity_start: Filter by activity on or after this date (inclusive)
+        activity_end: Filter by activity on or before this date (inclusive)
 
     Returns:
         List of user dicts with id, first_name, last_name, role, created_at,
@@ -221,6 +311,10 @@ def list_users(
             where_clauses.append(f"({' or '.join(status_conditions)})")
 
     _build_auth_method_clauses(auth_methods, where_clauses, params)
+    _build_domain_clause(domain, where_clauses, params)
+    _build_group_clause(group_id, where_clauses, params)
+    _build_secondary_email_clause(has_secondary_email, where_clauses, params)
+    _build_activity_date_clauses(activity_start, activity_end, where_clauses, params)
 
     where_clause = "where " + " and ".join(where_clauses)
 

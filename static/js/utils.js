@@ -422,6 +422,69 @@ const WeftUtils = {
                     });
                 });
             }
+
+            // --- Select All Matching ---
+            if (ms.selectAllMatching) {
+                const sam = ms.selectAllMatching;
+                const samBtn = sam.btn ? document.querySelector(sam.btn) : null;
+                const samIndicator = sam.indicator ? document.querySelector(sam.indicator) : null;
+                const modeField = sam.modeField ? document.querySelector(sam.modeField) : null;
+                const criteriaField = sam.criteriaField ? document.querySelector(sam.criteriaField) : null;
+                let allMatchingActive = false;
+
+                const resetSelectAllMatching = () => {
+                    allMatchingActive = false;
+                    if (samBtn) samBtn.classList.add('hidden');
+                    if (samIndicator) samIndicator.classList.add('hidden');
+                    if (modeField) modeField.value = 'ids';
+                    if (criteriaField) criteriaField.value = '';
+                };
+
+                const showSelectAllMatchingPrompt = () => {
+                    if (!sam.filtersActive && !sam.filterCriteria?.search) return;
+                    if (sam.totalCount <= sam.pageCount) return;
+                    const allChecked = document.querySelectorAll(ms.rowCheckboxSelector);
+                    const allCheckedCount = document.querySelectorAll(`${ms.rowCheckboxSelector}:checked`).length;
+                    if (allCheckedCount > 0 && allCheckedCount === allChecked.length && !allMatchingActive) {
+                        if (samBtn) samBtn.classList.remove('hidden');
+                    } else if (!allMatchingActive) {
+                        if (samBtn) samBtn.classList.add('hidden');
+                    }
+                };
+
+                // Override updateActionBar to also handle select-all-matching
+                const origUpdate = updateActionBar;
+                const enhancedUpdate = () => {
+                    if (allMatchingActive) return;
+                    origUpdate();
+                    showSelectAllMatchingPrompt();
+                };
+
+                // Re-bind checkbox events with enhanced handler
+                if (selectAllEl) {
+                    selectAllEl.addEventListener('change', () => {
+                        if (!selectAllEl.checked) resetSelectAllMatching();
+                        enhancedUpdate();
+                    });
+                }
+                document.querySelectorAll(ms.rowCheckboxSelector).forEach((cb) => {
+                    cb.addEventListener('change', () => {
+                        resetSelectAllMatching();
+                        enhancedUpdate();
+                    });
+                });
+
+                if (samBtn) {
+                    samBtn.addEventListener('click', () => {
+                        allMatchingActive = true;
+                        samBtn.classList.add('hidden');
+                        if (samIndicator) samIndicator.classList.remove('hidden');
+                        if (countEl) countEl.textContent = sam.totalCount;
+                        if (modeField) modeField.value = 'filter';
+                        if (criteriaField) criteriaField.value = JSON.stringify(sam.filterCriteria);
+                    });
+                }
+            }
         }
     },
 

@@ -4,6 +4,8 @@ These are low-level utility functions without authorization.
 Callers must have already verified permissions.
 """
 
+from datetime import date
+
 import database
 
 
@@ -30,10 +32,15 @@ def count_users(
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
     auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
 ) -> int:
     """
     Count users in a tenant, optionally filtered by search term, roles,
-    statuses, and auth methods.
+    statuses, auth methods, domain, group, secondary email, and activity dates.
 
     This is a utility function without authorization.
 
@@ -43,11 +50,27 @@ def count_users(
         roles: Optional list of roles to filter by (member, admin, super_admin)
         statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
         auth_methods: Optional list of auth method keys to filter by
+        domain: Optional email domain to filter by
+        group_id: Optional group UUID to filter by membership
+        has_secondary_email: Optional filter by presence of secondary email addresses
+        activity_start: Optional filter by activity on or after this date
+        activity_end: Optional filter by activity on or before this date
 
     Returns:
         Total count of matching users
     """
-    return database.users.count_users(tenant_id, search, roles, statuses, auth_methods)
+    return database.users.count_users(
+        tenant_id,
+        search,
+        roles,
+        statuses,
+        auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
+    )
 
 
 def list_users_raw(
@@ -61,6 +84,11 @@ def list_users_raw(
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
     auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
 ) -> list[dict]:
     """
     List users with pagination - returns raw dicts for HTML templates.
@@ -79,6 +107,11 @@ def list_users_raw(
         roles: Optional list of roles to filter by (member, admin, super_admin)
         statuses: Optional list of statuses to filter by (active, inactivated, anonymized)
         auth_methods: Optional list of auth method keys to filter by
+        domain: Optional email domain to filter by
+        group_id: Optional group UUID to filter by membership
+        has_secondary_email: Optional filter by presence of secondary email addresses
+        activity_start: Optional filter by activity on or after this date
+        activity_end: Optional filter by activity on or before this date
 
     Returns:
         List of user dicts
@@ -94,6 +127,11 @@ def list_users_raw(
         roles=roles,
         statuses=statuses,
         auth_methods=auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
     )
 
 
@@ -128,6 +166,38 @@ def get_auth_method_options(tenant_id: str) -> list[dict]:
     options.append({"auth_method_key": "unverified", "auth_method_label": "Unverified"})
 
     return options
+
+
+def get_domain_filter_options(tenant_id: str) -> list[str]:
+    """Get available email domains for filtering.
+
+    Returns sorted list of privileged domain strings.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        Sorted list of domain strings
+    """
+    domains = database.settings.list_privileged_domains(tenant_id)
+    return sorted(d["domain"] for d in domains)
+
+
+def get_group_filter_options(tenant_id: str) -> list[dict]:
+    """Get available groups for filtering.
+
+    Returns list of dicts with id and name, sorted by name.
+
+    Args:
+        tenant_id: Tenant ID
+
+    Returns:
+        List of dicts with id and name keys
+    """
+    groups = database.groups.list_groups(
+        tenant_id, sort_field="name", sort_order="asc", page_size=10000
+    )
+    return [{"id": str(g["id"]), "name": g["name"]} for g in groups]
 
 
 def email_exists(tenant_id: str, email: str) -> bool:

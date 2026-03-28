@@ -15,6 +15,8 @@ All functions:
 - Track activity for reads
 """
 
+from datetime import date
+
 import database
 from schemas.api import (
     UserCreate,
@@ -50,6 +52,11 @@ def list_users(
     roles: list[str] | None = None,
     statuses: list[str] | None = None,
     auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
 ) -> UserListResponse:
     """
     List all users in the tenant with pagination and search.
@@ -66,6 +73,11 @@ def list_users(
         roles: Optional list of roles to filter by
         statuses: Optional list of statuses to filter by
         auth_methods: Optional list of auth method keys to filter by
+        domain: Optional email domain to filter by
+        group_id: Optional group UUID to filter by membership
+        has_secondary_email: Optional filter by presence of secondary email addresses
+        activity_start: Optional filter by activity on or after this date
+        activity_end: Optional filter by activity on or before this date
 
     Returns:
         UserListResponse with paginated results
@@ -89,10 +101,26 @@ def list_users(
         roles=roles,
         statuses=statuses,
         auth_methods=auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
     )
 
     # Get total count
-    total = database.users.count_users(tenant_id, search, roles, statuses, auth_methods)
+    total = database.users.count_users(
+        tenant_id,
+        search,
+        roles,
+        statuses,
+        auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
+    )
 
     return UserListResponse(
         items=[_user_row_to_summary(u) for u in users],

@@ -1,5 +1,6 @@
 """Admin user management API endpoints."""
 
+from datetime import date
 from typing import Annotated
 
 import routers.api.v1.users as _pkg
@@ -30,7 +31,7 @@ def list_users(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    limit: int = Query(25, ge=1, le=100, description="Number of results per page"),
+    limit: int = Query(25, ge=1, le=250, description="Number of results per page"),
     search: str | None = Query(None, description="Search by name or email"),
     sort_by: str = Query(
         "created_at",
@@ -44,6 +45,11 @@ def list_users(
         None, description="Comma-separated status filter (active,inactivated,anonymized)"
     ),
     auth_method: str | None = Query(None, description="Comma-separated auth method filter"),
+    domain: str | None = Query(None, description="Filter by email domain"),
+    group_id: str | None = Query(None, description="Filter by group membership (group UUID)"),
+    has_secondary_email: bool | None = Query(None, description="Filter by secondary email"),
+    activity_start: date | None = Query(None, description="Activity start date (YYYY-MM-DD)"),
+    activity_end: date | None = Query(None, description="Activity end date (YYYY-MM-DD)"),
 ):
     """
     List all users in the tenant with pagination and search.
@@ -52,13 +58,18 @@ def list_users(
 
     Query Parameters:
         page: Page number (default: 1)
-        limit: Results per page (default: 25, max: 100)
+        limit: Results per page (default: 25, max: 250)
         search: Search term for name or email
         sort_by: Field to sort by (name, email, role, created_at, last_login, last_activity_at)
         sort_order: Sort order (asc or desc)
         role: Comma-separated role filter (member, admin, super_admin)
         status: Comma-separated status filter (active, inactivated, anonymized)
         auth_method: Comma-separated auth method keys
+        domain: Filter by email domain (e.g. example.com)
+        group_id: Filter by group membership (group UUID)
+        has_secondary_email: Filter by secondary email existence (true/false)
+        activity_start: Filter by activity start date (YYYY-MM-DD, inclusive)
+        activity_end: Filter by activity end date (YYYY-MM-DD, inclusive)
 
     Returns:
         Paginated list of users
@@ -96,6 +107,11 @@ def list_users(
             roles=roles,
             statuses=statuses,
             auth_methods=auth_methods,
+            domain=domain,
+            group_id=group_id,
+            has_secondary_email=has_secondary_email,
+            activity_start=activity_start,
+            activity_end=activity_end,
         )
     except ServiceError as exc:
         raise translate_to_http_exception(exc)

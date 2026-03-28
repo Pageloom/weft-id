@@ -47,7 +47,9 @@ def test_count_users_delegates_to_database():
 
         assert result == 42
         mock_db.users.count_users.assert_called_once_with(
-            "t1", "jane", ["admin"], ["active"], ["password_email"]
+            "t1", "jane", ["admin"], ["active"], ["password_email"],
+            domain=None, group_id=None, has_secondary_email=None,
+            activity_start=None, activity_end=None,
         )
 
 
@@ -88,6 +90,11 @@ def test_list_users_raw_delegates_to_database():
             roles=["member"],
             statuses=["active"],
             auth_methods=["password_totp"],
+            domain=None,
+            group_id=None,
+            has_secondary_email=None,
+            activity_start=None,
+            activity_end=None,
         )
 
 

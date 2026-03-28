@@ -5,8 +5,9 @@
 {% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
 
 {% block content %}
-<!-- Filter Params Macro - generates query string for role, status, and auth_method filters -->
-{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={{ auth_methods|join(',') }}{% endif %}{% endmacro %}
+<!-- Filter Params Macro - generates query string for all active filters -->
+{% macro filter_params() %}{% if roles %}&role={{ roles|join(',') }}{% endif %}{% if statuses %}&status={{ statuses|join(',') }}{% endif %}{% if auth_methods %}&auth_method={{ auth_methods|join(',') }}{% endif %}{% if domain %}&domain={{ domain }}{% endif %}{% if group_id %}&group_id={{ group_id }}{% endif %}{% if has_secondary_email is not none %}&has_secondary_email={{ 'yes' if has_secondary_email else 'no' }}{% endif %}{% if activity_start %}&activity_start={{ activity_start }}{% endif %}{% if activity_end %}&activity_end={{ activity_end }}{% endif %}{% endmacro %}
+{% set has_any_filter = roles or statuses or auth_methods or domain or group_id or has_secondary_email is not none or activity_start or activity_end %}
 
 <!-- Pagination Controls Macro -->
 {% macro pagination_controls(border_class="border-t") %}
@@ -27,10 +28,10 @@
                 id="page-size"
                 class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
-                <option value="10" {% if pagination.page_size == 10 %}selected{% endif %}>10</option>
                 <option value="25" {% if pagination.page_size == 25 %}selected{% endif %}>25</option>
                 <option value="50" {% if pagination.page_size == 50 %}selected{% endif %}>50</option>
                 <option value="100" {% if pagination.page_size == 100 %}selected{% endif %}>100</option>
+                <option value="250" {% if pagination.page_size == 250 %}selected{% endif %}>250</option>
             </select>
         </div>
     </div>
@@ -74,6 +75,11 @@
                 {% if roles %}<input type="hidden" name="role" value="{{ roles|join(',') }}">{% endif %}
                 {% if statuses %}<input type="hidden" name="status" value="{{ statuses|join(',') }}">{% endif %}
                 {% if auth_methods %}<input type="hidden" name="auth_method" value="{{ auth_methods|join(',') }}">{% endif %}
+                {% if domain %}<input type="hidden" name="domain" value="{{ domain }}">{% endif %}
+                {% if group_id %}<input type="hidden" name="group_id" value="{{ group_id }}">{% endif %}
+                {% if has_secondary_email is not none %}<input type="hidden" name="has_secondary_email" value="{{ 'yes' if has_secondary_email else 'no' }}">{% endif %}
+                {% if activity_start %}<input type="hidden" name="activity_start" value="{{ activity_start }}">{% endif %}
+                {% if activity_end %}<input type="hidden" name="activity_end" value="{{ activity_end }}">{% endif %}
 
                 <input
                     type="text"
@@ -111,7 +117,7 @@
                     {{ icon("chevron-down", class="w-4 h-4 transition-transform", id="filter-chevron") }}
                     Filters
                 </button>
-                {% if roles or statuses or auth_methods %}
+                {% if has_any_filter %}
                 <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">Filtered results</span>
                 <a
                     href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
@@ -194,30 +200,81 @@
                     </div>
                     {% endif %}
 
-                    <!-- Apply/Clear Buttons -->
-                    <div class="flex gap-2">
-                        <button
-                            type="button"
-                            id="apply-filters-btn"
-                            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                        >
-                            Apply Filters
-                        </button>
-                        {% if roles or statuses or auth_methods %}
-                        <a
-                            href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
-                            class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                        >
-                            Clear Filters
-                        </a>
-                        {% endif %}
+                    <!-- Domain Filter -->
+                    {% if domain_options %}
+                    <div>
+                        <label for="filter-domain" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Domain</label>
+                        <select id="filter-domain"
+                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                            <option value="">All domains</option>
+                            {% for d in domain_options %}
+                            <option value="{{ d }}" {% if domain == d %}selected{% endif %}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
+                    {% endif %}
+
+                    <!-- Group Filter -->
+                    {% if group_options %}
+                    <div>
+                        <label for="filter-group" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Group</label>
+                        <select id="filter-group"
+                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                            <option value="">All groups</option>
+                            {% for g in group_options %}
+                            <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- Secondary Email Filter -->
+                    <div>
+                        <label for="filter-secondary-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Secondary Email</label>
+                        <select id="filter-secondary-email"
+                                class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
+                            <option value="">All</option>
+                            <option value="yes" {% if has_secondary_email == true %}selected{% endif %}>Has secondary</option>
+                            <option value="no" {% if has_secondary_email == false %}selected{% endif %}>No secondary</option>
+                        </select>
+                    </div>
+
+                    <!-- Activity Date Range -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Activity</label>
+                        <div class="flex items-center gap-2">
+                            <input type="date" id="filter-activity-start" value="{{ activity_start }}"
+                                   class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                            <span class="text-sm text-gray-500 dark:text-gray-400">to</span>
+                            <input type="date" id="filter-activity-end" value="{{ activity_end }}"
+                                   class="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Apply/Clear Buttons -->
+                <div class="flex gap-2 mt-4">
+                    <button
+                        type="button"
+                        id="apply-filters-btn"
+                        class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                        Apply Filters
+                    </button>
+                    {% if has_any_filter %}
+                    <a
+                        href="/users/list?sort={{ sort_field }}&order={{ sort_order }}&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}"
+                        class="clear-filters-action px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                        Clear Filters
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <!-- Active Filters Indicator -->
-        {% if roles or statuses or auth_methods %}
+        {% if has_any_filter %}
         <div class="mb-4 flex flex-wrap gap-2 items-center">
             <span class="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
             {% for role in roles %}
@@ -241,6 +298,26 @@
                 {% for opt in auth_method_options %}{% if opt.auth_method_key == am %}{{ opt.auth_method_label }}{% endif %}{% endfor %}
             </span>
             {% endfor %}
+            {% if domain %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+                @{{ domain }}
+            </span>
+            {% endif %}
+            {% if group_id %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300">
+                {% for g in group_options %}{% if g.id == group_id %}{{ g.name }}{% endif %}{% endfor %}
+            </span>
+            {% endif %}
+            {% if has_secondary_email is not none %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300">
+                {{ 'Has' if has_secondary_email else 'No' }} secondary email
+            </span>
+            {% endif %}
+            {% if activity_start or activity_end %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300">
+                Activity: {{ activity_start or '...' }} to {{ activity_end or '...' }}
+            </span>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -258,6 +335,10 @@
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
+                        <th scope="col" class="px-4 py-3 w-10">
+                            <input type="checkbox" id="select-all"
+                                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                        </th>
                         {% macro sort_header(field, label, width_class="") %}
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider {{ width_class }}">
                             <a href="?sort={{ field }}&order={% if sort_field == field and sort_order == 'asc' %}desc{% else %}asc{% endif %}&page=1&size={{ pagination.page_size }}{% if search %}&search={{ search | urlencode }}{% endif %}{{ filter_params() }}"
@@ -293,7 +374,11 @@
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {% if users %}
                         {% for u in users %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <td class="px-4 py-4">
+                                <input type="checkbox" name="user_ids" value="{{ u.id }}"
+                                    class="user-checkbox rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700">
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <a href="/users/{{ u.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
                                     {% if u.is_anonymized %}
@@ -369,7 +454,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="8" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            <td colspan="9" class="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                 {% if search %}
                                     No users found matching "{{ search }}"
                                 {% else %}
@@ -382,6 +467,26 @@
             </table>
         </div>
 
+        <!-- Bulk Action Bar -->
+        <div id="bulk-action-bar" class="hidden mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    <span id="selected-count">0</span> user(s) selected
+                </span>
+                <button type="button" id="select-all-matching-btn"
+                    class="hidden text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                    Select all {{ pagination.total_count }} matching users
+                </button>
+                <span id="all-matching-indicator" class="hidden text-sm text-blue-600 dark:text-blue-400 font-medium">
+                    All {{ pagination.total_count }} matching users selected
+                </span>
+            </div>
+            <div id="bulk-actions" class="flex gap-2">
+            </div>
+        </div>
+        <input type="hidden" id="selection-mode" value="ids">
+        <input type="hidden" id="filter-criteria" value="">
+
         <!-- Pagination Controls - Bottom -->
         <div class="mt-6">
             {{ pagination_controls(border_class="border-t") }}
@@ -392,23 +497,27 @@
 <script type="application/json" id="page-data">
 {
   "tenantId": {{ user.tenant_id | string | tojson }},
-  "filtersActive": {{ 'true' if (roles or statuses or auth_methods) else 'false' }},
+  "filtersActive": {{ 'true' if has_any_filter else 'false' }},
   "search": {{ search | tojson if search else 'null' }},
   "sortField": {{ sort_field | tojson }},
   "sortOrder": {{ sort_order | tojson }},
-  "pageSize": {{ pagination.page_size }}
+  "pageSize": {{ pagination.page_size }},
+  "totalCount": {{ pagination.total_count }},
+  "pageCount": {{ users | length }},
+  "filterCriteria": {{ filter_criteria_json }}
 }
 </script>
 <script nonce="{{ csp_nonce }}">
-const { tenantId, filtersActive, search, sortField, sortOrder, pageSize } = JSON.parse(
-    document.getElementById('page-data').textContent
-);
+const pageData = JSON.parse(document.getElementById('page-data').textContent);
+const { tenantId, filtersActive, search, sortField, sortOrder, pageSize, totalCount, pageCount, filterCriteria } = pageData;
 WeftUtils.listManager({
     storage: {
         filtersKey: `weftid_filters_${tenantId}`,
         pageSizeKey: `weftid_page_size_${tenantId}`,
         collapseKey: `weftid_filters_collapsed_${tenantId}`,
         currentSize: pageSize,
+        validPageSizes: [25, 50, 100, 250],
+        defaultPageSize: 25,
         filtersActive,
     },
     pageSizeSelector: '#page-size',
@@ -418,18 +527,53 @@ WeftUtils.listManager({
         chevron: '#filter-chevron',
         applyBtn: '#apply-filters-btn',
         clearSelectors: '.clear-filters-action, #clear-filters-link',
-        getState: () => ({
-            roles:        Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
-            statuses:     Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
-            auth_methods: Array.from(document.querySelectorAll('.filter-auth-method:checked')).map(el => el.value),
-        }),
+        getState: () => {
+            const state = {
+                roles:        Array.from(document.querySelectorAll('.filter-role:checked')).map(el => el.value),
+                statuses:     Array.from(document.querySelectorAll('.filter-status:checked')).map(el => el.value),
+                auth_methods: Array.from(document.querySelectorAll('.filter-auth-method:checked')).map(el => el.value),
+            };
+            const domain = document.getElementById('filter-domain')?.value;
+            if (domain) state.domain = domain;
+            const group = document.getElementById('filter-group')?.value;
+            if (group) state.group_id = group;
+            const secondary = document.getElementById('filter-secondary-email')?.value;
+            if (secondary) state.has_secondary_email = secondary;
+            const actStart = document.getElementById('filter-activity-start')?.value;
+            if (actStart) state.activity_start = actStart;
+            const actEnd = document.getElementById('filter-activity-end')?.value;
+            if (actEnd) state.activity_end = actEnd;
+            return state;
+        },
         buildUrl: (state, size) => {
             let url = `/users/list?page=1&size=${size}&sort=${sortField}&order=${sortOrder}`;
             if (search) url += `&search=${encodeURIComponent(search)}`;
             if (state.roles?.length) url += `&role=${state.roles.join(',')}`;
             if (state.statuses?.length) url += `&status=${state.statuses.join(',')}`;
             if (state.auth_methods?.length) url += `&auth_method=${state.auth_methods.join(',')}`;
+            if (state.domain) url += `&domain=${encodeURIComponent(state.domain)}`;
+            if (state.group_id) url += `&group_id=${state.group_id}`;
+            if (state.has_secondary_email) url += `&has_secondary_email=${state.has_secondary_email}`;
+            if (state.activity_start) url += `&activity_start=${state.activity_start}`;
+            if (state.activity_end) url += `&activity_end=${state.activity_end}`;
             return url;
+        },
+    },
+    multiselect: {
+        selectAll: '#select-all',
+        rowCheckboxSelector: '.user-checkbox',
+        actionBar: '#bulk-action-bar',
+        countDisplay: '#selected-count',
+        actions: [],
+        selectAllMatching: {
+            btn: '#select-all-matching-btn',
+            indicator: '#all-matching-indicator',
+            modeField: '#selection-mode',
+            criteriaField: '#filter-criteria',
+            totalCount,
+            pageCount,
+            filterCriteria,
+            filtersActive,
         },
     },
 });

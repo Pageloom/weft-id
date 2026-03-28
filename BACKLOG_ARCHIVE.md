@@ -4,6 +4,97 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Remove Bulk Update Spreadsheet Feature
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Remove `app/jobs/export_users_template.py` (template export job handler)
+- [x] Remove `app/jobs/bulk_update_users.py` (upload processing job handler)
+- [x] Remove `app/services/bulk_update.py` (service layer)
+- [x] Remove `app/routers/api/v1/bulk_update.py` (API endpoints)
+- [x] Remove `app/routers/users/bulk_update.py` (web route)
+- [x] Remove `app/templates/users_bulk_update.html` (template)
+- [x] Remove page registration from `pages.py`
+- [x] Remove job handler imports from `app/jobs/__init__.py`
+- [x] Remove all related tests
+- [x] Keep `app/utils/xlsx_encryption.py`, `app/utils/wordlist.py`, and their tests
+- [x] Keep `msoffcrypto-tool` and `openpyxl` dependencies
+- [x] Keep background job infrastructure (used by other features)
+- [x] Verify no broken imports or dead references
+
+**Resolution:** Removed all bulk update code (17 files, 2,252 lines deleted). Retained XLSX encryption utilities and dependencies for audit export features. Removed bulk update event types from both the descriptions dict and the lockfile.
+
+**Effort:** S
+**Value:** High
+
+---
+
+## Audit Log XLSX Export with Date Range
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Export form on the audit events page includes optional start date and end date pickers
+- [x] "All time" is the default (both dates blank)
+- [x] Date range is validated: start must be before end, dates must not be in the future
+- [x] Background job generates XLSX with columns: Timestamp, Event Type, Description, Actor Email, Artifact Type, Artifact ID, Artifact Name, IP Address, User Agent, Device, API Client, Metadata
+- [x] Password-encrypted using the shared encrypted XLSX capability
+- [x] Filename includes date range and timestamp
+- [x] Events fetched in batches to control memory
+- [x] Exceeding 1,000,000 rows fails with clear message
+- [x] JSON export removed from admin UI
+- [x] API: `POST /api/v1/exports` accepts optional `start_date` and `end_date` (ISO 8601)
+- [x] Password shown alongside download link when ready
+- [x] Audit event: `export_task_created` with date range metadata
+- [x] Cells read-only (sheet protection, sorting/filtering/resizing allowed)
+- [x] Font size 14 (Normal style)
+- [x] Full metadata JSON in Metadata column
+
+**Resolution:** Replaced gzipped JSON export with password-encrypted XLSX. Resolves artifact names (users, groups, SPs, IdPs, OAuth2 clients) and actor emails. Also satisfies the "Access Change Coverage" quality criteria.
+
+**Effort:** M
+**Value:** High
+
+---
+
+## Audit Log XLSX: Access Change Coverage
+
+**Status:** Complete
+
+**Resolution:** Implemented as part of the Audit Log XLSX Export. The export resolves artifact names, includes human-readable descriptions from EVENT_TYPE_DESCRIPTIONS, and includes full metadata JSON for all event context.
+
+**Effort:** S
+**Value:** High
+
+---
+
+## Enhanced User List Filtering and Bulk Selection
+
+**Status:** Complete
+
+**Acceptance Criteria:**
+
+- [x] Filter panel: domain, status, role, auth method, group membership, has secondary email, last activity date range
+- [x] Filters combinable (AND logic)
+- [x] Filter state in URL query params (shareable, bookmarkable)
+- [x] Page sizes: 25, 50, 100, 250
+- [x] "Select all on this page" checkbox
+- [x] "Select all N matching this filter" option (sends filter criteria, not IDs)
+- [x] Selected count in sticky action bar
+- [x] API: all filter params accepted, paginated results with total count
+- [x] Row click toggles checkbox (except links/buttons/inputs)
+- [x] Active filter pills
+
+**Resolution:** Added four new filter dimensions to database/service/router/API layers (domain, group membership, secondary email, activity date range). Checkbox column with multiselect, bulk action bar with "select all matching," expanded page sizes. Extended WeftUtils.listManager with selectAllMatching sub-config.
+
+**Effort:** L
+**Value:** High
+
+---
+
 ## Bulk User Attribute Update via Spreadsheet
 
 **Status:** Complete

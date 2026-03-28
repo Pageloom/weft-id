@@ -55,6 +55,38 @@ def list_user_emails(tenant_id: TenantArg, user_id: str) -> list[dict]:
     )
 
 
+def list_emails_for_users(
+    tenant_id: TenantArg,
+    user_ids: list[str],
+    primary: bool = False,
+) -> list[dict]:
+    """Fetch email addresses for multiple users.
+
+    Args:
+        tenant_id: Tenant ID
+        user_ids: List of user UUIDs
+        primary: If False (default), returns only non-primary emails.
+                 If True, returns all emails.
+
+    Returns:
+        List of dicts with user_id, email, is_primary, verified_at.
+    """
+    if not user_ids:
+        return []
+    primary_filter = "" if primary else "and is_primary = false"
+    return fetchall(
+        tenant_id,
+        f"""
+        select user_id, email, is_primary, verified_at
+        from user_emails
+        where user_id = any(:user_ids)
+          {primary_filter}
+        order by user_id, is_primary desc, created_at asc
+        """,
+        {"user_ids": user_ids},
+    )
+
+
 def email_exists(tenant_id: TenantArg, email: str) -> bool:
     """
     Check if an email address already exists in the tenant.

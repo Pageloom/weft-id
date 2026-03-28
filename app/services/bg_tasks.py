@@ -88,6 +88,57 @@ def create_export_task(
     return result
 
 
+def create_bulk_add_emails_task(
+    requesting_user: RequestingUser,
+    items: list[dict],
+) -> dict | None:
+    """
+    Create a background task to add secondary emails to users in bulk.
+
+    Authorization: Requires admin or super_admin role.
+
+    Args:
+        requesting_user: The user making the request
+        items: List of dicts with user_id and email keys
+
+    Returns:
+        Dict with task_id and created_at, or None if creation failed
+
+    Raises:
+        ValidationError: If items list is empty
+    """
+    require_admin(requesting_user)
+    track_activity(requesting_user["tenant_id"], requesting_user["id"])
+
+    if not items:
+        raise ValidationError(
+            message="At least one user-email pair is required",
+            code="empty_items",
+        )
+
+    result = database.bg_tasks.create_task(
+        tenant_id=requesting_user["tenant_id"],
+        job_type="bulk_add_secondary_emails",
+        created_by=requesting_user["id"],
+        payload={"items": items},
+    )
+
+    if result:
+        log_event(
+            tenant_id=requesting_user["tenant_id"],
+            actor_user_id=requesting_user["id"],
+            artifact_type="bg_task",
+            artifact_id=str(result["id"]),
+            event_type="bulk_secondary_emails_task_created",
+            metadata={
+                "job_type": "bulk_add_secondary_emails",
+                "item_count": len(items),
+            },
+        )
+
+    return result
+
+
 def list_user_jobs(requesting_user: RequestingUser) -> JobListResponse:
     """
     List background jobs created by the requesting user.

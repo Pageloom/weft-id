@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Add Secondary Emails - {{ site_title }}{% endblock %}
+
+{% block content_wrapper %}mx-auto px-4 py-8{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-1">
+                <a href="/users/list" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">&larr; Back to User List</a>
+            </div>
+            <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                Bulk Add Secondary Emails
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Enter a new secondary email address for each user below, or leave blank to skip.
+                A background job will process the additions.
+            </p>
+        </div>
+
+        <form method="post" action="/users/bulk-ops/secondary-emails">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-4 text-sm text-gray-700 dark:text-gray-300">
+                {{ user_count }} user{{ 's' if user_count != 1 else '' }} selected
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Primary Email
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Current Secondary Emails
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                New Secondary Email
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for u in users %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="hidden" name="user_ids" value="{{ u.id }}">
+                                <a href="/users/{{ u.id }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300">
+                                    {{ u.first_name }} {{ u.last_name }}
+                                </a>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                {{ u.email or 'N/A' }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                {% set secondaries = secondary_emails_by_user.get(u.id | string, []) %}
+                                {% if secondaries %}
+                                    {{ secondaries | join(', ') }}
+                                {% else %}
+                                    <span class="text-gray-400 dark:text-gray-500">None</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="email" name="emails"
+                                    placeholder="user@example.com"
+                                    class="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 flex items-center gap-4">
+                <button type="submit"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Add Secondary Emails
+                </button>
+                <a href="/users/list"
+                    class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md hover:bg-gray-50 dark:hover:bg-gray-700">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

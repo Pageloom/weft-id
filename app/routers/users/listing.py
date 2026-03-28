@@ -1,6 +1,5 @@
 """User listing routes."""
 
-import json
 from datetime import date
 from typing import Annotated
 
@@ -243,6 +242,6 @@ def users_list(
             has_secondary_email=has_secondary_email,
             activity_start=activity_start.isoformat() if activity_start else "",
             activity_end=activity_end.isoformat() if activity_end else "",
-            filter_criteria_json=json.dumps(filter_criteria),
+            filter_criteria=filter_criteria,
         ),
     )

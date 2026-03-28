@@ -97,10 +97,13 @@ def _build_domain_clause(
     where_clauses: list[str],
     params: dict[str, Any],
 ) -> None:
-    """Filter by primary email domain."""
+    """Filter by email domain (matches any email, primary or secondary)."""
     if not domain:
         return
-    where_clauses.append("lower(substring(ue.email from '@(.*)$')) = lower(:domain)")
+    where_clauses.append(
+        "exists (select 1 from user_emails ue_d"
+        " where ue_d.user_id = u.id and ue_d.domain = lower(:domain))"
+    )
     params["domain"] = domain
 
 
@@ -120,18 +123,34 @@ def _build_group_clause(
 
 
 def _build_secondary_email_clause(
-    has_secondary_email: bool | None,
+    has_secondary_email: bool | str | None,
     where_clauses: list[str],
     params: dict[str, Any],
 ) -> None:
-    """Filter by presence of secondary email addresses."""
+    """Filter by presence of secondary email addresses.
+
+    Accepts bool (has/doesn't have any secondary) or a string starting
+    with "domain:" to filter for users with a secondary at that domain.
+    """
     if has_secondary_email is None:
         return
-    subquery = "(select 1 from user_emails ue2 where ue2.user_id = u.id and ue2.is_primary = false)"
-    if has_secondary_email:
-        where_clauses.append(f"exists {subquery}")
+    if isinstance(has_secondary_email, str) and has_secondary_email.startswith("domain:"):
+        domain_val = has_secondary_email[7:]
+        where_clauses.append(
+            "exists (select 1 from user_emails ue2 where ue2.user_id = u.id"
+            " and ue2.is_primary = false and ue2.domain = :sec_domain)"
+        )
+        params["sec_domain"] = domain_val
+    elif has_secondary_email:
+        where_clauses.append(
+            "exists (select 1 from user_emails ue2"
+            " where ue2.user_id = u.id and ue2.is_primary = false)"
+        )
     else:
-        where_clauses.append(f"not exists {subquery}")
+        where_clauses.append(
+            "not exists (select 1 from user_emails ue2"
+            " where ue2.user_id = u.id and ue2.is_primary = false)"
+        )
 
 
 def _build_activity_date_clauses(
@@ -159,7 +178,7 @@ def count_users(
     auth_methods: list[str] | None = None,
     domain: str | None = None,
     group_id: str | None = None,
-    has_secondary_email: bool | None = None,
+    has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
 ) -> int:
@@ -251,7 +270,7 @@ def list_users(
     auth_methods: list[str] | None = None,
     domain: str | None = None,
     group_id: str | None = None,
-    has_secondary_email: bool | None = None,
+    has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
 ) -> list[dict]:

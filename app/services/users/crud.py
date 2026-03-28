@@ -54,7 +54,7 @@ def list_users(
     auth_methods: list[str] | None = None,
     domain: str | None = None,
     group_id: str | None = None,
-    has_secondary_email: bool | None = None,
+    has_secondary_email: bool | str | None = None,
     activity_start: date | None = None,
     activity_end: date | None = None,
 ) -> UserListResponse:

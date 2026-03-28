@@ -94,10 +94,10 @@ def add_user(
     database.execute(
         tenant_id,
         """
-        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at)
-        values (:tenant_id, :user_id, :email, true, now())
+        insert into user_emails (tenant_id, user_id, email, is_primary, verified_at, domain)
+        values (:tenant_id, :user_id, :email, true, now(), :domain)
         """,
-        {"tenant_id": tenant_id, "user_id": user_id, "email": email},
+        {"tenant_id": tenant_id, "user_id": user_id, "email": email, "domain": email.split("@")[1]},
     )
 
     logging.info("Created %s user %s for tenant %s", role, email, subdomain)

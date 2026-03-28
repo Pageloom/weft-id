@@ -28,6 +28,8 @@ Principles checked:
                         routes (catches dead links at CI time)
    11. outbound-timeouts - Outbound HTTP/network calls must have explicit
                         timeouts to prevent indefinite hangs
+   12. job-context      - Job handlers that call log_event() must use
+                        system_context() to provide request context
 
 Output:
     By default, outputs human-readable text. Use --json for machine-readable JSON output.
@@ -2408,6 +2410,66 @@ def check_outbound_timeout_violations(report: ComplianceReport) -> None:
 
 
 # =============================================================================
+# 12. Job System Context
+# =============================================================================
+
+
+def check_job_system_context_violations(report: ComplianceReport) -> None:
+    """Check that job handlers wrap log_event() calls in system_context().
+
+    Background jobs have no HTTP request context. Any call to log_event()
+    without system_context() raises RuntimeError at runtime.
+    """
+    jobs_path = get_app_path() / "jobs"
+    if not jobs_path.exists():
+        return
+
+    for py_file in jobs_path.rglob("*.py"):
+        if "__pycache__" in py_file.parts:
+            continue
+        if py_file.name in ("__init__.py", "registry.py"):
+            continue
+
+        report.files_scanned += 1
+
+        source = py_file.read_text()
+        rel_path = str(py_file.relative_to(get_project_root()))
+
+        # Skip files that don't call log_event
+        if "log_event(" not in source:
+            continue
+
+        # Check if system_context is imported and used
+        if "system_context" not in source:
+            # Find the first log_event call line number
+            for i, line in enumerate(source.splitlines(), 1):
+                if "log_event(" in line:
+                    report.add(
+                        Violation(
+                            principle="Job System Context",
+                            severity="high",
+                            file_path=rel_path,
+                            line_number=i,
+                            function_name=None,
+                            description=(
+                                "Job handler calls log_event() without "
+                                "system_context(). This will raise RuntimeError "
+                                "at runtime because background jobs have no "
+                                "HTTP request context."
+                            ),
+                            evidence="log_event(...) without system_context()",
+                            suggested_fix=(
+                                "Import system_context from "
+                                "utils.request_context and wrap the code that "
+                                "calls log_event() in "
+                                "'with system_context():'"
+                            ),
+                        )
+                    )
+                    break
+
+
+# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -2441,6 +2503,7 @@ def run_compliance_check(
         "migration-safety",
         "template-links",
         "outbound-timeouts",
+        "job-context",
     ]
     if principles is None:
         principles = all_principles
@@ -2478,6 +2541,9 @@ def run_compliance_check(
 
     if "outbound-timeouts" in principles:
         check_outbound_timeout_violations(report)
+
+    if "job-context" in principles:
+        check_job_system_context_violations(report)
 
     return report
 

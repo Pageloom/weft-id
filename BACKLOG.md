@@ -135,74 +135,11 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Remove Bulk Update Spreadsheet Feature
-
-**User Story:**
-As a developer,
-I want to remove the spreadsheet-based bulk update feature,
-So that the codebase is clean before building browser-native bulk operations.
-
-**Context:**
-
-The spreadsheet upload/download approach for bulk user updates has been superseded by a
-browser-native direction. The encrypted XLSX utility (`app/utils/xlsx_encryption.py`,
-`app/utils/wordlist.py`, `msoffcrypto-tool` dependency) must be retained for future
-audit export features. Only the bulk update-specific code is removed.
-
-**Acceptance Criteria:**
-
-- [ ] Remove `app/jobs/export_users_template.py` (template export job handler)
-- [ ] Remove `app/jobs/bulk_update_users.py` (upload processing job handler)
-- [ ] Remove `app/services/bulk_update.py` (service layer)
-- [ ] Remove `app/routers/api/v1/bulk_update.py` (API endpoints)
-- [ ] Remove `app/routers/users/bulk_update.py` (web route)
-- [ ] Remove `app/templates/users_bulk_update.html` (template)
-- [ ] Remove page registration from `pages.py`
-- [ ] Remove job handler imports from `app/jobs/__init__.py`
-- [ ] Remove all related tests
-- [ ] Keep `app/utils/xlsx_encryption.py`, `app/utils/wordlist.py`, and their tests
-- [ ] Keep `msoffcrypto-tool` and `openpyxl` dependencies
-- [ ] Keep background job infrastructure (used by other features)
-- [ ] Verify no broken imports or dead references
-
-**Effort:** S
-**Value:** High (removes dead code before rebuilding)
-**Version impact:** Minor (removes feature)
+## ~~Remove Bulk Update Spreadsheet Feature~~ (Complete)
 
 ---
 
-## Enhanced User List Filtering and Bulk Selection
-
-**User Story:**
-As an admin,
-I want to filter the user list by multiple criteria and select users across pages,
-So that I can efficiently identify and act on specific cohorts of users.
-
-**Context:**
-
-This is the foundational infrastructure for all browser-native bulk operations. The current
-user list has basic search and pagination. This item adds richer filtering, longer page size
-options, and cross-page bulk selection with a "select all matching filter" capability.
-
-The filter criteria and bulk selection mechanism are reusable. Each bulk operation (secondary
-emails, primary emails, inactivation) adds its own action button that appears when users are
-selected.
-
-**Acceptance Criteria:**
-
-- [ ] Filter panel on user list with criteria: domain, status (active/inactive), role, auth method (password/IdP, which IdP), group membership, has secondary email (yes/no), last activity date range
-- [ ] Filters are combinable (AND logic)
-- [ ] Filter state persisted in URL query params (shareable, bookmarkable)
-- [ ] Page size options: 25, 50, 100, 250
-- [ ] "Select all on this page" checkbox (existing pattern)
-- [ ] "Select all N matching this filter" option when any filter is active. Sends filter criteria to the backend, not individual IDs.
-- [ ] Selected count shown in sticky action bar
-- [ ] API: `GET /api/v1/users` accepts all filter params, returns paginated results with total count
-- [ ] API: bulk action endpoints accept either a list of user IDs or a filter object (for "select all matching")
-
-**Effort:** L
-**Value:** High
-**Version impact:** Minor (enhancement to existing feature)
+## ~~Enhanced User List Filtering and Bulk Selection~~ (Complete)
 
 ---
 
@@ -427,38 +364,7 @@ informed without requiring them to monitor logs.
 
 ---
 
-## Audit Log XLSX: Access Change Coverage
-
-**User Story:**
-As an admin producing a compliance report,
-I want the audit log XLSX export to include all access-related events with clear descriptions,
-So that I can filter for "all access grants and revocations in Q1" without gaps.
-
-**Context:**
-
-The audit log XLSX export item (already in the backlog) will produce a date-ranged export.
-This item ensures the event types and descriptions are complete enough for access change
-reporting. The event log already captures group membership changes, SP access changes, and
-role changes, but the descriptions should be auditor-friendly and the export should include
-resolved names (not just UUIDs) where possible.
-
-This is a quality checklist for the audit log XLSX implementation, not a separate feature.
-
-**Acceptance Criteria:**
-
-- [ ] These event types are included with human-readable descriptions in the export:
-  - `group_member_added`, `group_member_removed` (who was added/removed, which group)
-  - `user_created`, `user_inactivated`, `user_reactivated`, `user_auto_inactivated`, `user_anonymized`
-  - `user_role_changed` (old role, new role)
-  - `sp_group_added`, `sp_group_removed` (which SP, which group)
-  - `email_added`, `email_removed`, `email_promoted_to_primary` (once implemented)
-- [ ] The "Artifact Name" column resolves artifact IDs to human-readable names where possible (user email, group name, SP name)
-- [ ] The "Description" column provides a sentence summarizing the event (e.g. "User john@example.com added to group Engineering")
-- [ ] Verified by filtering the export for access-related events and confirming no gaps in coverage
-
-**Effort:** S (additive to the audit log XLSX item)
-**Value:** High
-**Version impact:** N/A (quality criteria for another item)
+## ~~Audit Log XLSX: Access Change Coverage~~ (Complete)
 
 ---
 
@@ -466,42 +372,7 @@ This is a quality checklist for the audit log XLSX implementation, not a separat
 
 ---
 
-## Audit Log XLSX Export with Date Range
-
-**User Story:**
-As an admin,
-I want to export the audit log as a password-encrypted Excel file for a specific date range,
-So that I can produce compliance evidence for a given period without handling unprotected PII.
-
-**Context:**
-
-The existing JSON export is being retired from the UI. Programmatic consumers should use the
-event log API directly. The XLSX export replaces it as the admin-facing export.
-
-Date range filtering serves two purposes: compliance teams are often asked to produce evidence for
-a specific period (e.g. "all authentication events in Q4 2025"), and it provides a natural way to
-chunk exports for large tenants that might exceed the ~1M row XLSX limit.
-
-All XLSX exports are always password-encrypted (see "Password-Encrypted XLSX Export Capability").
-
-**Acceptance Criteria:**
-
-- [ ] Export form on the audit events page includes optional start date and end date pickers
-- [ ] "All time" is the default (both dates blank)
-- [ ] Date range is validated: start must be before end, dates must not be in the future
-- [ ] Background job generates an XLSX with columns: Timestamp, Event Type, Description, Actor Email, Artifact Type, Artifact ID, Artifact Name, IP Address, User Agent, Device, API Client, Additional Metadata (JSON string for event-specific fields)
-- [ ] The file is password-encrypted using the shared encrypted XLSX capability
-- [ ] Filename includes the date range: `audit-log_YYYY-MM-DD_to_YYYY-MM-DD.xlsx` (or `audit-log_all.xlsx` for full export)
-- [ ] Events are fetched in batches to control memory usage (consistent with existing export job pattern)
-- [ ] If the export exceeds 1,000,000 rows, the job fails with a clear message suggesting a narrower date range
-- [ ] The existing JSON export (`export_events` job) is removed from the admin UI. The API endpoint for creating exports accepts a `format` parameter but only `xlsx` is supported.
-- [ ] API endpoint: `POST /api/v1/exports` accepts optional `start_date` and `end_date` query parameters (ISO 8601)
-- [ ] Admin page shows the one-time password alongside the download link when the export is ready
-- [ ] Audit event logged: `export_task_created` with metadata including format and date range
-
-**Effort:** M
-**Value:** High
-**Version impact:** Minor (new feature, deprecates JSON export from UI)
+## ~~Audit Log XLSX Export with Date Range~~ (Complete)
 
 ---
 

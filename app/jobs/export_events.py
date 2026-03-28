@@ -232,10 +232,12 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     # Enable auto-filter on the header row
     ws.auto_filter.ref = ws.dimensions
 
-    # Protect sheet to prevent accidental edits (allows sorting/filtering)
+    # Protect sheet to prevent accidental edits (allows sorting/filtering/resizing)
     ws.protection.sheet = True
     ws.protection.autoFilter = False
     ws.protection.sort = False
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
 
     # Encrypt
     encrypted = encrypt_workbook(wb)

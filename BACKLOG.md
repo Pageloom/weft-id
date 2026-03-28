@@ -453,4 +453,55 @@ formatting, stable JSON key ordering for metadata, and a defined null representa
 
 ---
 
+## User List Filter Improvements
+
+**User Story:**
+As an admin,
+I want the user list filters to use dropdown selects instead of multi-checkboxes, and to show all known email domains (not just privileged ones),
+So that filtering is faster, more compact, and covers the real domain landscape across primary and secondary emails.
+
+**Context:**
+
+The current filter panel uses checkbox groups for Role, Status, and Auth Method. These work
+but take up horizontal space and are visually noisy for small fixed option sets. Dropdowns
+(single-select or multi-select) would be more compact and consistent with the Domain and
+Group filters that already use `<select>`.
+
+The Domain filter currently only shows privileged domains (from `tenant_settings`). In
+practice, users may have emails on non-privileged domains (e.g. personal addresses added
+as secondaries, or domains that were never registered as privileged). The filter should
+show all domains actually in use across both primary and secondary emails.
+
+To make domain extraction efficient at query time, consider adding a `domain` column to
+the `user_emails` table, populated on insert/update by splitting the email at `@`. This
+avoids repeated `substring(email from '@(.*)$')` expressions in queries and enables a
+simple `SELECT DISTINCT domain FROM user_emails` for the filter options.
+
+**Acceptance Criteria:**
+
+**Filter control changes:**
+- [ ] Role filter: convert from checkboxes to a single `<select>` dropdown (options: All, Member, Admin, Super Admin)
+- [ ] Status filter: convert from checkboxes to a single `<select>` dropdown (options: All, Active, Inactivated, Anonymized)
+- [ ] Auth Method filter: convert from checkboxes to a single `<select>` dropdown (options: All, plus each auth method)
+- [ ] Existing filter persistence (localStorage via listManager) continues to work after the control change
+
+**Domain filter expansion:**
+- [ ] Domain filter shows all domains in use across primary and secondary emails, not just privileged domains
+- [ ] Privileged domains appear first (or are visually distinguished), followed by other observed domains
+- [ ] Secondary Email filter (`Has secondary` / `No secondary`) also offers domain-scoped options: a separate dropdown listing domains that appear as secondary email domains
+- [ ] Domain filter options are sorted alphabetically within each group
+
+**Database optimization (optional, recommended):**
+- [ ] Add `domain` column to `user_emails` table (migration)
+- [ ] Column populated automatically: `domain = split_part(email, '@', 2)`
+- [ ] Backfill existing rows in the migration
+- [ ] Insert/update paths set `domain` from the email value
+- [ ] Filter queries use the `domain` column instead of `substring()` expressions
+
+**Effort:** M
+**Value:** Medium
+**Version impact:** Patch (UI/UX improvement, optional schema change)
+
+---
+
 

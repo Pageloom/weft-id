@@ -55,6 +55,9 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Download
                             </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Password
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -121,6 +124,18 @@
                                 <span class="text-gray-400">N/A</span>
                                 {% endif %}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                {% if job.result and job.result.password %}
+                                <div class="flex items-center gap-2">
+                                    <code class="font-mono text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-gray-100 select-all xlsx-password">{{ job.result.password }}</code>
+                                    <button type="button" class="copy-pw-btn text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300" data-password="{{ job.result.password }}">
+                                        Copy
+                                    </button>
+                                </div>
+                                {% else %}
+                                <span class="text-gray-400">N/A</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -170,6 +185,11 @@
                 callback: () => document.getElementById('delete-jobs-form').submit(),
             }],
         },
+    });
+    document.querySelectorAll('.copy-pw-btn[data-password]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            WeftUtils.copyToClipboard(this.dataset.password, this);
+        });
     });
     if (hasActiveJobs) {
         setInterval(() => { window.location.reload(); }, 10000);

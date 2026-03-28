@@ -4,7 +4,7 @@ from typing import Annotated
 
 from api_dependencies import require_admin_api
 from dependencies import build_requesting_user, get_tenant_id_from_request
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from schemas.bg_tasks import JobListItem, JobStatus
 from services import bulk_update as bulk_update_service
@@ -109,10 +109,15 @@ async def upload_spreadsheet(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
     file: UploadFile,
+    password: Annotated[str, Form()] = "",
 ):
     """Upload a filled-in spreadsheet for bulk user attribute updates.
 
     Requires admin role.
+
+    Accepts an optional `password` form field for encrypted files. If the
+    uploaded file is encrypted (e.g. saved from Excel with the download
+    password), provide the password so the server can decrypt and process it.
 
     Validates the file structure, saves it to storage, and creates a
     background task to process the rows. Returns the job information.
@@ -121,7 +126,9 @@ async def upload_spreadsheet(
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
         file_data = await file.read()
-        result = bulk_update_service.create_upload_task(requesting_user, file_data)
+        result = bulk_update_service.create_upload_task(
+            requesting_user, file_data, password=password
+        )
         if not result:
             raise ServiceError(
                 message="Failed to create upload task",

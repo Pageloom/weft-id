@@ -43,18 +43,26 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Upload the filled-in spreadsheet. Emails added by admin are automatically verified. Rows with all blank update columns are skipped.
             </p>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4 flex-wrap">
                 <label class="flex items-center px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
                     Choose File
                     <input type="file" id="upload-file" accept=".xlsx" class="hidden">
                 </label>
                 <span id="file-name" class="text-sm text-gray-500 dark:text-gray-400">No file selected</span>
+            </div>
+            <div class="flex items-center gap-4 mt-3">
+                <label for="upload-password" class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">File Password</label>
+                <input type="text" id="upload-password" placeholder="e.g. velvet-copper-bridge-cabin-lamp-frost"
+                    class="px-3 py-2 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 w-80">
                 <button id="upload-btn"
                     class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled>
                     Upload &amp; Process
                 </button>
             </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                If the file is encrypted, enter the password shown when you downloaded the template.
+            </p>
             <span id="upload-status" class="text-sm text-gray-500 dark:text-gray-400 mt-2 hidden block"></span>
         </div>
 
@@ -113,6 +121,7 @@
     const uploadFile = document.getElementById('upload-file');
     const uploadBtn = document.getElementById('upload-btn');
     const uploadStatus = document.getElementById('upload-status');
+    const uploadPassword = document.getElementById('upload-password');
     const fileName = document.getElementById('file-name');
     const resultsSection = document.getElementById('results-section');
 
@@ -139,48 +148,84 @@
     });
 
     function pollDownload(jobId) {
-        const url = '/api/v1/users/bulk-update/download/' + jobId;
-
-        WeftUtils.apiFetch(url)
-        .then(response => {
-            if (response.status === 202) {
+        WeftUtils.apiFetch('/api/v1/jobs/' + jobId)
+        .then(r => r.json())
+        .then(job => {
+            if (job.status === 'pending' || job.status === 'processing') {
                 setTimeout(() => pollDownload(jobId), 2000);
                 return;
             }
-            if (response.status === 200) {
-                // File is ready; use Content-Disposition to get filename
-                return response.blob().then(blob => {
-                    const disposition = response.headers.get('Content-Disposition') || '';
-                    const match = disposition.match(/filename="?([^"]+)"?/);
-                    const name = match ? match[1] : 'users_template.xlsx';
-
-                    const blobUrl = URL.createObjectURL(blob);
-                    downloadLink.href = blobUrl;
-                    downloadLink.setAttribute('download', name);
-                    downloadLink.classList.remove('hidden');
-                    downloadStatus.classList.add('hidden');
-                    downloadBtn.classList.add('hidden');
-                });
+            if (job.status === 'completed' && job.result) {
+                downloadStatus.classList.add('hidden');
+                showDownloadReady(job.result, jobId);
+                return;
             }
-            if (response.status === 307) {
-                // Redirect to signed URL (Spaces)
-                const redirectUrl = response.headers.get('Location');
-                if (redirectUrl) {
-                    downloadLink.href = redirectUrl;
-                    downloadLink.classList.remove('hidden');
-                    downloadStatus.classList.add('hidden');
-                    downloadBtn.classList.add('hidden');
-                    return;
-                }
-            }
-            return response.json().then(data => {
-                downloadStatus.textContent = 'Error: ' + (data.detail || data.message || 'Download failed');
+            if (job.status === 'failed') {
+                downloadStatus.textContent = 'Error: ' + (job.error || 'Export failed');
                 downloadBtn.disabled = false;
-            });
+                return;
+            }
+            downloadStatus.textContent = 'Error: unexpected job status';
+            downloadBtn.disabled = false;
         })
         .catch(err => {
-            downloadStatus.textContent = 'Error: ' + (err.message || 'Download failed');
+            downloadStatus.textContent = 'Error: ' + (err.message || 'Failed to check status');
             downloadBtn.disabled = false;
+        });
+    }
+
+    function showDownloadReady(result, jobId) {
+        downloadBtn.classList.add('hidden');
+
+        // Auto-fill upload password field
+        if (result.password) {
+            uploadPassword.value = result.password;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'space-y-4';
+
+        const passwordBox = document.createElement('div');
+        passwordBox.className = 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4';
+        passwordBox.innerHTML =
+            '<p class="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">File Password (shown once)</p>' +
+            '<div class="flex items-center gap-3">' +
+                '<code class="font-mono text-sm bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-600 rounded px-3 py-2 text-gray-900 dark:text-gray-100 select-all flex-1">' +
+                    result.password +
+                '</code>' +
+                '<button type="button" class="copy-pw-btn px-3 py-2 text-sm text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-800/30 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 rounded-md whitespace-nowrap">Copy</button>' +
+            '</div>';
+        container.appendChild(passwordBox);
+
+        const dlBtn = document.createElement('button');
+        dlBtn.type = 'button';
+        dlBtn.className = 'inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300';
+        dlBtn.textContent = 'Download ' + result.filename;
+        dlBtn.addEventListener('click', () => {
+            const dlUrl = ['/api/v1/users/bulk-update/download', jobId].join('/');
+            WeftUtils.apiFetch(dlUrl)
+            .then(response => {
+                if (response.status === 307) {
+                    const url = response.headers.get('Location');
+                    if (url) window.location.href = url;
+                    return;
+                }
+                return response.blob().then(blob => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = result.filename;
+                    a.click();
+                    URL.revokeObjectURL(blobUrl);
+                });
+            });
+        });
+        container.appendChild(dlBtn);
+
+        downloadBtn.parentElement.appendChild(container);
+
+        container.querySelector('.copy-pw-btn').addEventListener('click', function() {
+            WeftUtils.copyToClipboard(result.password, this);
         });
     }
 
@@ -207,6 +252,9 @@
 
         const formData = new FormData();
         formData.append('file', file);
+        if (uploadPassword.value.trim()) {
+            formData.append('password', uploadPassword.value.trim());
+        }
 
         WeftUtils.apiFetch('/api/v1/users/bulk-update/upload', {
             method: 'POST',

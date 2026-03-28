@@ -4,8 +4,20 @@ from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import database
+import msoffcrypto
 import pytest
 from openpyxl import load_workbook
+
+
+def _decrypt_xlsx(data: bytes, password: str) -> BytesIO:
+    """Helper to decrypt an encrypted XLSX buffer."""
+    encrypted = BytesIO(data)
+    file = msoffcrypto.OfficeFile(encrypted)
+    file.load_key(password=password)
+    decrypted = BytesIO()
+    file.decrypt(decrypted)
+    decrypted.seek(0)
+    return decrypted
 
 
 class TestHandleExportUsersTemplate:
@@ -47,9 +59,12 @@ class TestHandleExportUsersTemplate:
         assert result["filename"].endswith(".xlsx")
         assert test_tenant["subdomain"] in result["filename"]
         assert result["file_id"] is not None
+        assert "password" in result
+        assert len(result["password"].split("-")) == 6
 
-        # Verify XLSX content
-        wb = load_workbook(filename=BytesIO(saved_data["data"]))
+        # Verify XLSX content (decrypt first)
+        decrypted = _decrypt_xlsx(saved_data["data"], result["password"])
+        wb = load_workbook(filename=decrypted)
         ws = wb.active
         assert ws.title == "Users"
 
@@ -116,8 +131,9 @@ class TestHandleExportUsersTemplate:
 
         assert result["records_processed"] == 0
 
-        # Should still have valid XLSX with header
-        wb = load_workbook(filename=BytesIO(saved_data["data"]))
+        # Should still have valid XLSX with header (decrypt first)
+        decrypted = _decrypt_xlsx(saved_data["data"], result["password"])
+        wb = load_workbook(filename=decrypted)
         ws = wb.active
         assert ws.cell(row=1, column=1).value == "user_id"
         assert ws.cell(row=2, column=1).value is None
@@ -138,6 +154,48 @@ class TestHandleExportUsersTemplate:
 
         with pytest.raises(ValueError, match="does not exist"):
             handle_export_users_template(task)
+
+    def test_stored_file_is_encrypted(self, test_tenant, test_admin_user):
+        """The file written to storage should be encrypted, not plaintext XLSX."""
+        from jobs.export_users_template import handle_export_users_template
+
+        bg_task = database.bg_tasks.create_task(
+            tenant_id=test_tenant["id"],
+            job_type="export_users_template",
+            created_by=test_admin_user["id"],
+        )
+
+        task = {
+            "id": bg_task["id"],
+            "tenant_id": test_tenant["id"],
+            "created_by": test_admin_user["id"],
+            "job_type": "export_users_template",
+            "payload": None,
+        }
+
+        saved_data = {}
+
+        def capture_save(key, data, content_type):
+            saved_data["data"] = data.read()
+            return f"local/{key}"
+
+        with patch("jobs.export_users_template.storage.get_backend") as mock_get_backend:
+            mock_backend = MagicMock()
+            mock_backend.save.side_effect = capture_save
+            mock_get_backend.return_value = mock_backend
+
+            result = handle_export_users_template(task)
+
+        # Stored file should NOT be readable as a plain XLSX
+        with pytest.raises(Exception):
+            load_workbook(filename=BytesIO(saved_data["data"]))
+
+        # But should be decryptable with the password from the result
+        decrypted = _decrypt_xlsx(saved_data["data"], result["password"])
+        wb = load_workbook(filename=decrypted)
+        ws = wb.active
+        assert ws.cell(row=1, column=1).value == "user_id"
+        wb.close()
 
     def test_export_file_record_created(self, test_tenant, test_admin_user):
         from jobs.export_users_template import handle_export_users_template

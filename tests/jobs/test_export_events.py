@@ -123,6 +123,11 @@ def test_export_produces_encrypted_xlsx(test_tenant, test_admin_user):
     # Verify data rows
     assert ws.max_row == 4  # 1 header + 3 data rows
 
+    # Verify font sizes
+    assert ws["A1"].font.bold is True
+    assert ws["A1"].font.size == 14
+    assert ws["A2"].font.size == 14  # data row
+
 
 def test_export_with_no_events(test_tenant, test_admin_user):
     """Test export with zero events produces headers-only XLSX."""

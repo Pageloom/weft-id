@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
-from io import BytesIO
 from typing import Any
 
 import database
@@ -120,11 +119,13 @@ def handle_export_users_template(task: dict) -> dict[str, Any]:
     ws.column_dimensions["G"].width = 20  # new_first_name
     ws.column_dimensions["H"].width = 20  # new_last_name
 
-    # Save to BytesIO
-    file_buffer = BytesIO()
-    wb.save(file_buffer)
-    file_buffer.seek(0)
-    file_size = file_buffer.getbuffer().nbytes
+    # Encrypt workbook (plaintext never written to storage)
+    from utils.xlsx_encryption import encrypt_workbook
+
+    encrypted = encrypt_workbook(wb)
+    file_buffer = encrypted.data
+    file_size = encrypted.file_size
+    password = encrypted.password
 
     # Generate filename and storage key
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H%M%S")
@@ -167,4 +168,5 @@ def handle_export_users_template(task: dict) -> dict[str, Any]:
         "records_processed": len(users),
         "filename": filename,
         "file_size": file_size,
+        "password": password,
     }

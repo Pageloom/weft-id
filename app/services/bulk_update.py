@@ -167,17 +167,23 @@ def get_download(
 def create_upload_task(
     requesting_user: RequestingUser,
     file_data: bytes,
+    password: str = "",
 ) -> dict | None:
     """Save uploaded spreadsheet to storage and create a background task.
 
     Validates the file is a readable XLSX with the expected columns, then
     saves it to the storage backend and enqueues a worker task.
 
+    If the file is encrypted and a password is provided, decryption is
+    attempted for validation. The original (encrypted) file is stored as-is,
+    and the password is passed to the worker via the job payload.
+
     Authorization: Requires admin or super_admin role.
 
     Args:
         requesting_user: The user making the request
         file_data: Raw bytes of the uploaded XLSX file
+        password: Optional password for encrypted files
 
     Returns:
         Dict with task id and created_at
@@ -191,9 +197,9 @@ def create_upload_task(
     tenant_id = requesting_user["tenant_id"]
 
     # Validate file structure before saving
-    _validate_xlsx(file_data)
+    _validate_xlsx(file_data, password)
 
-    # Save to storage
+    # Save to storage (encrypted file stored as-is)
     storage_key = f"uploads/{tenant_id}/bulk-update-{uuid4().hex[:12]}.xlsx"
     backend = storage.get_backend()
     backend.save(storage_key, BytesIO(file_data), XLSX_CONTENT_TYPE)
@@ -202,14 +208,18 @@ def create_upload_task(
     if storage_type != "spaces" or not settings.SPACES_BUCKET:
         storage_type = "local"
 
+    payload: dict[str, Any] = {
+        "storage_key": storage_key,
+        "storage_type": storage_type,
+    }
+    if password:
+        payload["password"] = password
+
     result = database.bg_tasks.create_task(
         tenant_id=tenant_id,
         job_type="bulk_update_users",
         created_by=requesting_user["id"],
-        payload={
-            "storage_key": storage_key,
-            "storage_type": storage_type,
-        },
+        payload=payload,
     )
 
     if result:
@@ -225,17 +235,44 @@ def create_upload_task(
     return result
 
 
-def _validate_xlsx(file_data: bytes) -> None:
-    """Validate that file_data is a readable XLSX with expected columns."""
+def _validate_xlsx(file_data: bytes, password: str = "") -> None:
+    """Validate that file_data is a readable XLSX with expected columns.
+
+    If the file cannot be opened directly and a password is provided,
+    attempts decryption before validation. Raises a clear error if the
+    file is encrypted but no password was given.
+    """
     from openpyxl import load_workbook
 
+    data_to_validate = file_data
     try:
-        wb = load_workbook(filename=BytesIO(file_data), read_only=True, data_only=True)
-    except Exception as e:
-        raise ValidationError(
-            message=f"Invalid XLSX file: {e}",
-            code="invalid_file",
-        )
+        wb = load_workbook(filename=BytesIO(data_to_validate), read_only=True, data_only=True)
+    except Exception as open_err:
+        # OLE2 magic bytes indicate an encrypted OOXML file (Excel saves
+        # encrypted XLSX as OLE2 containers, not ZIP). Plain XLSX starts with PK.
+        is_encrypted = file_data[:4] == b"\xd0\xcf\x11\xe0"
+        if not is_encrypted:
+            raise ValidationError(
+                message=f"Invalid XLSX file: {open_err}",
+                code="invalid_file",
+            )
+        if not password:
+            raise ValidationError(
+                message="File is encrypted. Please provide the file password.",
+                code="encrypted_file",
+            )
+        try:
+            from utils.xlsx_encryption import decrypt_xlsx_data
+
+            data_to_validate = decrypt_xlsx_data(file_data, password)
+            wb = load_workbook(filename=BytesIO(data_to_validate), read_only=True, data_only=True)
+        except ValidationError:
+            raise
+        except Exception as e:
+            raise ValidationError(
+                message=f"Failed to decrypt file. Check the password and try again. ({e})",
+                code="decrypt_failed",
+            )
 
     ws = wb.active
     if ws is None:

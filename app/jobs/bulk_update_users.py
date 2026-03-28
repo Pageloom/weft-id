@@ -69,6 +69,13 @@ def handle_bulk_update_users(task: dict) -> dict[str, Any]:
     with open(file_path, "rb") as f:
         file_data = f.read()
 
+    # Decrypt if password provided (file may have been saved encrypted from Excel)
+    password = payload.get("password", "")
+    if password:
+        from utils.xlsx_encryption import decrypt_xlsx_data
+
+        file_data = decrypt_xlsx_data(file_data, password)
+
     wb = load_workbook(filename=BytesIO(file_data), read_only=True, data_only=True)
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))

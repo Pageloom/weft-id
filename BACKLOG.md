@@ -10,43 +10,7 @@ For completed items, see [BACKLOG_ARCHIVE.md](BACKLOG_ARCHIVE.md).
 
 ---
 
-## Bulk User Attribute Update via Spreadsheet
-
-**User Story:**
-As an admin,
-I want to download a spreadsheet of current users and upload it with secondary emails and/or name changes populated,
-So that I can prepare user records in bulk before an upstream IdP migration (e.g. renaming email domains).
-
-**Context:**
-
-The primary use case is pre-migration preparation: before an IdP email domain change takes effect,
-admins add the new addresses as secondary emails on each user. When the IdP sync eventually pushes
-the new address, WeftID matches it to the existing secondary email and the transition is seamless.
-The spreadsheet also supports first/last name corrections.
-
-The download should be generated as a background job (deferred) rather than synchronously, since
-large tenants could have thousands of users.
-
-**Acceptance Criteria:**
-
-- [ ] Admin page has a "Download user template" button that enqueues a background job and shows a status indicator (spinner → download link when ready)
-- [ ] The generated Excel file has columns: `user_id`, `email` (current primary, read-only reference), `first_name` (current), `last_name` (current), `new_secondary_email` (blank), `new_first_name` (blank), `new_last_name` (blank)
-- [ ] The file is named `users_YYYY-MM-DD.xlsx` and uses the tenant subdomain prefix
-- [ ] Download link is scoped to the requesting admin's session (not guessable)
-- [ ] Admin uploads the filled-in spreadsheet via a file input on the same admin page
-- [ ] On upload, each row is processed in turn:
-  - If `new_secondary_email` is non-empty: add it as a verified secondary email (admin-added emails are auto-verified, per existing behaviour). Skip if the address already exists on the user or is already in use by another user in the tenant.
-  - If `new_first_name` or `new_last_name` is non-empty: update those fields
-  - Rows with all blank "new" columns are skipped
-- [ ] After processing, show a summary: N emails added, N names updated, N rows skipped (with per-row error details for failures)
-- [ ] Each mutation emits the appropriate audit log events (`email_added`, `user_updated`)
-- [ ] API endpoints: `POST /api/v1/users/bulk-update/request-download` (returns job ID), `GET /api/v1/users/bulk-update/download/{job_id}` (returns file or 202 if pending), `POST /api/v1/users/bulk-update/upload` (multipart form, returns summary)
-- [ ] Row limit enforced: refuse uploads exceeding 10,000 rows with a clear error
-- [ ] The spreadsheet uses `openpyxl`; no new library dependencies are introduced for Excel support (check if already present before adding)
-
-**Effort:** L
-**Value:** High
-**Version impact:** Minor (new feature)
+## ~~Bulk User Attribute Update via Spreadsheet~~ (Complete)
 
 ---
 

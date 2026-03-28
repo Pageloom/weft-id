@@ -4,6 +4,27 @@ This document contains completed backlog items for historical reference.
 
 ---
 
+## Bulk User Attribute Update via Spreadsheet
+
+**Status:** Complete
+
+**Resolution:** Admins can download a user template XLSX (background job) and upload it with
+secondary emails and/or name corrections. The download is session-scoped and generated via a
+background job. Upload processes rows in turn: adds verified secondary emails, updates names,
+skips no-op rows. Summary shows counts of emails added, names updated, and rows skipped with
+per-row error details. Audit events emitted for each mutation. API endpoints:
+`POST /api/v1/users/bulk-update/request-download`, `GET /api/v1/users/bulk-update/download/{job_id}`,
+`POST /api/v1/users/bulk-update/upload`. Row limit: 10,000.
+
+Note: XLSX files are currently unencrypted. Will be retrofitted with password encryption when
+the "Password-Encrypted XLSX Export Capability" backlog item is implemented.
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
 ## Resend Invitation Email
 
 **Status:** Complete

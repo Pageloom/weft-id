@@ -504,4 +504,56 @@ simple `SELECT DISTINCT domain FROM user_emails` for the filter options.
 
 ---
 
+## User List Filter: Negation and Group Hierarchy
+
+**User Story:**
+As an admin,
+I want to exclude values from filters (e.g. "everyone except @example.com") and filter by group including child group members,
+So that I can precisely target user segments for bulk operations and access reviews without manual cross-referencing.
+
+**Context:**
+
+Two related improvements to the user list filter panel:
+
+1. **Negation (exclude) mode.** Each filter dropdown gets a small toggle icon next to it that
+   flips the filter between include and exclude. When in exclude mode, the dropdown border
+   changes to red/orange to give a clear visual signal. The URL parameter carries the negation
+   (e.g. `role=!admin` or `domain=!example.com`). This applies to all filters: Role, Status,
+   Auth Method, Domain, and Group.
+
+   Use case: "Show me everyone who is NOT on the @example.com domain" for post-migration
+   cleanup. "Show me everyone who is NOT in the Engineering group" to find unassigned users.
+
+2. **Group hierarchy inclusion.** The Group filter currently matches exact membership only. A
+   checkbox below the Group dropdown ("Include child groups", checked by default) expands the
+   filter to include users who are members of any descendant group in the DAG. This uses the
+   existing `group_lineage` closure table for efficient ancestor/descendant queries.
+
+   Use case: Selecting the "Engineering" umbrella group shows all users in Engineering and its
+   sub-teams (Frontend, Backend, Platform) without selecting each one individually.
+
+**Acceptance Criteria:**
+
+**Negation toggle:**
+- [ ] Each filter dropdown has a small toggle icon (e.g. slash-circle) that switches between include and exclude mode
+- [ ] When in exclude mode, the dropdown border changes to red/orange (distinct from the blue active-filter ring)
+- [ ] Exclude mode is reflected in the URL parameter (e.g. `domain=!example.com`)
+- [ ] Exclude mode works with the "select all matching" bulk selection flow
+- [ ] Negation composes with other filters via AND logic (e.g. "not @example.com AND role=admin")
+- [ ] Filter state (including negation) persists in localStorage via listManager
+
+**Group hierarchy:**
+- [ ] "Include child groups" checkbox appears below the Group filter dropdown
+- [ ] Checked by default (hierarchical inclusion is the common case)
+- [ ] When checked, the SQL filter uses the `group_lineage` closure table to match users in the selected group or any of its descendants
+- [ ] When unchecked, the SQL filter matches exact group membership only (current behavior)
+- [ ] Checkbox state reflected in URL parameter (e.g. `group_children=true`)
+- [ ] Checkbox state persists in localStorage
+
+**Effort:** M
+**Value:** High
+**Version impact:** Patch (UI/UX improvement, no schema changes)
+
+---
+
 

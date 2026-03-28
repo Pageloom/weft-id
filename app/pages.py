@@ -99,6 +99,13 @@ PAGES = [
                 show_in_nav=False,
                 creates_nav_level=False,
             ),
+            Page(
+                path="/users/bulk-ops/secondary-emails",
+                title="Bulk Add Secondary Emails",
+                permission=PagePermission.ADMIN,
+                show_in_nav=False,
+                creates_nav_level=False,
+            ),
         ],
     ),
     Page(

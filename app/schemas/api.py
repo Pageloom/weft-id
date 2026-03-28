@@ -116,6 +116,24 @@ class EmailVerifyRequest(BaseModel):
 
 
 # ============================================================================
+# Bulk Email Operations Schemas
+# ============================================================================
+
+
+class BulkAddSecondaryEmailItem(BaseModel):
+    """Single user-email pair for bulk secondary email addition."""
+
+    user_id: str = Field(..., max_length=50)
+    email: EmailStr = Field(..., max_length=320)
+
+
+class BulkAddSecondaryEmailsRequest(BaseModel):
+    """Request to add secondary emails to multiple users."""
+
+    items: list[BulkAddSecondaryEmailItem] = Field(..., min_length=1, max_length=10000)
+
+
+# ============================================================================
 # MFA Management Schemas
 # ============================================================================
 

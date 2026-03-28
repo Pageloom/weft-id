@@ -209,6 +209,7 @@ def main() -> None:
     # This must happen before creating the worker
     try:
         from jobs import (
+            bulk_add_secondary_emails,  # noqa: F401
             cleanup_exports,  # noqa: F401
             export_events,  # noqa: F401
         )

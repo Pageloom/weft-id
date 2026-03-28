@@ -396,6 +396,35 @@ def list_users(
     return fetchall(tenant_id, query, params)
 
 
+def list_users_by_ids(
+    tenant_id: TenantArg,
+    user_ids: list[str],
+) -> list[dict]:
+    """Fetch users by a list of IDs with their primary email.
+
+    Args:
+        tenant_id: Tenant ID
+        user_ids: List of user UUIDs to fetch
+
+    Returns:
+        List of dicts with id, first_name, last_name, email (primary).
+        Ordered by last_name, first_name.
+    """
+    if not user_ids:
+        return []
+    return fetchall(
+        tenant_id,
+        """
+        select u.id, u.first_name, u.last_name, ue.email
+        from users u
+        left join user_emails ue on u.id = ue.user_id and ue.is_primary = true
+        where u.id = any(:user_ids)
+        order by u.last_name asc, u.first_name asc
+        """,
+        {"user_ids": user_ids},
+    )
+
+
 def list_all_users_for_export(tenant_id: TenantArg) -> list[dict]:
     """List all active, non-anonymized users with their primary email.
 

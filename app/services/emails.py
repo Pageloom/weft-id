@@ -12,7 +12,7 @@ All functions:
 - Have no knowledge of HTTP concepts
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import database
 from schemas.api import EmailInfo
@@ -671,3 +671,71 @@ def verify_email_by_nonce(tenant_id: str, email_id: str, nonce: int) -> bool:
     )
 
     return True
+
+
+# =============================================================================
+# Bulk Operations Helpers
+# =============================================================================
+
+
+def list_users_by_ids_with_emails(
+    tenant_id: str,
+    user_ids: list[str],
+) -> tuple[list[dict], dict[str, list[str]]]:
+    """Fetch users by IDs and their secondary emails for bulk operations.
+
+    Args:
+        tenant_id: Tenant ID
+        user_ids: List of user UUIDs
+
+    Returns:
+        Tuple of (users_list, secondary_emails_by_user_id).
+        users_list: dicts with id, first_name, last_name, email.
+        secondary_emails_by_user_id: dict mapping user_id to list of email strings.
+    """
+    from collections import defaultdict
+
+    users = database.users.list_users_by_ids(tenant_id, user_ids)
+
+    uid_list = [str(u["id"]) for u in users]
+    rows = database.user_emails.list_emails_for_users(tenant_id, uid_list)
+
+    secondaries: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        secondaries[str(row["user_id"])].append(row["email"])
+
+    return users, secondaries
+
+
+def resolve_users_from_filter(
+    tenant_id: str,
+    search: str | None = None,
+    roles: list[str] | None = None,
+    statuses: list[str] | None = None,
+    auth_methods: list[str] | None = None,
+    domain: str | None = None,
+    group_id: str | None = None,
+    has_secondary_email: bool | None = None,
+    activity_start: date | None = None,
+    activity_end: date | None = None,
+) -> list[str]:
+    """Resolve filter criteria into a list of user IDs.
+
+    Queries the database with the same filters as the user list page,
+    without pagination, and returns all matching user IDs.
+    """
+    rows = database.users.list_users(
+        tenant_id,
+        search=search,
+        page=1,
+        page_size=10000,
+        roles=roles,
+        statuses=statuses,
+        auth_methods=auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
+    )
+    return [str(r["id"]) for r in rows]

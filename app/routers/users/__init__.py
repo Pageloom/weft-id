@@ -1,6 +1,7 @@
 """User management router package."""
 
 from fastapi import APIRouter
+from routers.users.bulk_ops import router as bulk_ops_router
 from routers.users.creation import router as creation_router
 from routers.users.detail import router as detail_router
 from routers.users.emails import router as emails_router
@@ -16,3 +17,4 @@ router.include_router(detail_router)
 router.include_router(emails_router)
 router.include_router(groups_router)
 router.include_router(lifecycle_router)
+router.include_router(bulk_ops_router)

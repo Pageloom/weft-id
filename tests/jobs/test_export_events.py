@@ -118,7 +118,7 @@ def test_export_produces_encrypted_xlsx(test_tenant, test_admin_user):
     assert headers[1] == "Event Type"
     assert headers[2] == "Description"
     assert headers[3] == "Actor Email"
-    assert headers[11] == "Additional Metadata"
+    assert headers[11] == "Metadata"
 
     # Verify data rows
     assert ws.max_row == 4  # 1 header + 3 data rows
@@ -510,38 +510,12 @@ def test_export_content_type(test_tenant, test_admin_user):
         assert export_file["content_type"] == XLSX_CONTENT_TYPE
 
 
-def test_additional_metadata_strips_standard_keys():
-    """Test that standard metadata keys are excluded from Additional Metadata."""
-    from jobs.export_events import _get_additional_metadata
+def test_export_filename_has_timestamp():
+    """Test filename includes a YYYYMMDD-HHMMSS timestamp."""
+    from jobs.export_events import _build_filename
 
-    metadata = {
-        "remote_address": "127.0.0.1",
-        "user_agent": "Mozilla/5.0",
-        "device": "desktop",
-        "session_id_hash": "abc123",
-        "api_client_id": None,
-        "api_client_name": None,
-        "api_client_type": None,
-        "custom_field": "value",
-        "role": "admin",
-    }
-
-    result = _get_additional_metadata(metadata)
-    import json
-
-    parsed = json.loads(result)
-    assert "custom_field" in parsed
-    assert "role" in parsed
-    assert "remote_address" not in parsed
-    assert "user_agent" not in parsed
-    assert "device" not in parsed
-
-
-def test_additional_metadata_empty():
-    """Test that empty or None metadata returns empty string."""
-    from jobs.export_events import _get_additional_metadata
-
-    assert _get_additional_metadata(None) == ""
-    assert _get_additional_metadata({}) == ""
-    # Only standard keys = empty
-    assert _get_additional_metadata({"remote_address": "127.0.0.1"}) == ""
+    filename = _build_filename(None, None)
+    # audit-log_all_YYYYMMDD-HHMMSS_xxxxxxxx.xlsx
+    parts = filename.replace("audit-log_all_", "").replace(".xlsx", "").split("_")
+    assert len(parts) == 2  # timestamp + hex suffix
+    assert len(parts[0]) == 15  # YYYYMMDD-HHMMSS

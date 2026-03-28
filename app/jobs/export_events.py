@@ -24,19 +24,6 @@ logger = logging.getLogger(__name__)
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-# Metadata keys that get their own columns (excluded from Additional Metadata)
-_STANDARD_METADATA_KEYS = frozenset(
-    {
-        "remote_address",
-        "user_agent",
-        "device",
-        "session_id_hash",
-        "api_client_id",
-        "api_client_name",
-        "api_client_type",
-    }
-)
-
 MAX_EXPORT_ROWS = 1_000_000
 
 
@@ -123,26 +110,17 @@ def _get_actor_email(event: dict, actor_emails: dict[str, str]) -> str:
     return actor_emails.get(actor_id, "")
 
 
-def _get_additional_metadata(metadata: dict[str, Any] | None) -> str:
-    """Return non-standard metadata fields as a JSON string."""
-    if not metadata:
-        return ""
-    custom = {k: v for k, v in metadata.items() if k not in _STANDARD_METADATA_KEYS}
-    if not custom:
-        return ""
-    return json.dumps(custom, default=str, ensure_ascii=False)
-
-
 def _build_filename(start_date: date | None, end_date: date | None) -> str:
-    """Generate export filename with date range and uniqueness suffix."""
+    """Generate export filename with date range, timestamp, and uniqueness suffix."""
+    ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     suffix = uuid4().hex[:8]
     if start_date and end_date:
-        return f"audit-log_{start_date.isoformat()}_to_{end_date.isoformat()}_{suffix}.xlsx"
+        return f"audit-log_{start_date.isoformat()}_to_{end_date.isoformat()}_{ts}_{suffix}.xlsx"
     if start_date:
-        return f"audit-log_{start_date.isoformat()}_to_present_{suffix}.xlsx"
+        return f"audit-log_{start_date.isoformat()}_to_present_{ts}_{suffix}.xlsx"
     if end_date:
-        return f"audit-log_up-to_{end_date.isoformat()}_{suffix}.xlsx"
-    return f"audit-log_all_{suffix}.xlsx"
+        return f"audit-log_up-to_{end_date.isoformat()}_{ts}_{suffix}.xlsx"
+    return f"audit-log_all_{ts}_{suffix}.xlsx"
 
 
 @register_handler("export_events")
@@ -207,6 +185,10 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     ws = wb.active
     ws.title = "Audit Log"
 
+    # Default font size 14 for all cells
+    default_font = Font(size=14)
+    ws.sheet_format.defaultRowHeight = 18
+
     headers = [
         "Timestamp",
         "Event Type",
@@ -219,13 +201,13 @@ def handle_export_events(task: dict) -> dict[str, Any]:
         "User Agent",
         "Device",
         "API Client",
-        "Additional Metadata",
+        "Metadata",
     ]
     ws.append(headers)
 
-    bold = Font(bold=True)
+    header_font = Font(bold=True, size=14)
     for cell in ws[1]:
-        cell.font = bold
+        cell.font = header_font
 
     for event in all_events:
         metadata = event.get("metadata") or {}
@@ -233,22 +215,25 @@ def handle_export_events(task: dict) -> dict[str, Any]:
         if api_client and metadata.get("api_client_type"):
             api_client = f"{api_client} ({metadata['api_client_type']})"
 
-        ws.append(
-            [
-                event["created_at"].strftime("%Y-%m-%d %H:%M:%S UTC"),
-                event["event_type"],
-                get_event_description(event["event_type"]) or event["event_type"],
-                _get_actor_email(event, actor_emails),
-                event["artifact_type"],
-                str(event["artifact_id"]),
-                _get_artifact_name(event, artifact_names),
-                metadata.get("remote_address", ""),
-                metadata.get("user_agent", ""),
-                metadata.get("device", ""),
-                api_client,
-                _get_additional_metadata(metadata),
-            ]
-        )
+        row = [
+            event["created_at"].strftime("%Y-%m-%d %H:%M:%S UTC"),
+            event["event_type"],
+            get_event_description(event["event_type"]) or event["event_type"],
+            _get_actor_email(event, actor_emails),
+            event["artifact_type"],
+            str(event["artifact_id"]),
+            _get_artifact_name(event, artifact_names),
+            metadata.get("remote_address", ""),
+            metadata.get("user_agent", ""),
+            metadata.get("device", ""),
+            api_client,
+            json.dumps(metadata, default=str, ensure_ascii=False) if metadata else "",
+        ]
+        ws.append(row)
+
+        # Apply default font to data cells
+        for cell in ws[ws.max_row]:
+            cell.font = default_font
 
     # Enable auto-filter on the header row
     ws.auto_filter.ref = ws.dimensions

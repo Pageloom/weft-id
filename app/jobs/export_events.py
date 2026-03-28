@@ -180,14 +180,11 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     artifact_names = _resolve_artifact_names(tenant_id, all_events)
     actor_emails = _resolve_actor_emails(tenant_id, all_events)
 
-    # Build workbook
+    # Build workbook with font size 14 as default
     wb = Workbook()
+    default_font = Font(name="Calibri", size=14)
     ws = wb.active
     ws.title = "Audit Log"
-
-    # Default font size 14 for all cells
-    default_font = Font(size=14)
-    ws.sheet_format.defaultRowHeight = 18
 
     headers = [
         "Timestamp",
@@ -231,8 +228,9 @@ def handle_export_events(task: dict) -> dict[str, Any]:
         ]
         ws.append(row)
 
-        # Apply default font to data cells
-        for cell in ws[ws.max_row]:
+    # Apply font size 14 to all data rows
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        for cell in row:
             cell.font = default_font
 
     # Enable auto-filter on the header row

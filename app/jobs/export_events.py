@@ -180,9 +180,10 @@ def handle_export_events(task: dict) -> dict[str, Any]:
     artifact_names = _resolve_artifact_names(tenant_id, all_events)
     actor_emails = _resolve_actor_emails(tenant_id, all_events)
 
-    # Build workbook with font size 14 as default
+    # Build workbook with font size 14 as the Normal style default.
+    # This makes all cells inherit size 14 without per-cell assignment.
     wb = Workbook()
-    default_font = Font(name="Calibri", size=14)
+    wb._named_styles["Normal"].font = Font(name="Calibri", size=14)
     ws = wb.active
     ws.title = "Audit Log"
 
@@ -227,11 +228,6 @@ def handle_export_events(task: dict) -> dict[str, Any]:
             json.dumps(metadata, default=str, ensure_ascii=False) if metadata else "",
         ]
         ws.append(row)
-
-    # Apply font size 14 to all data rows
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
-        for cell in row:
-            cell.font = default_font
 
     # Enable auto-filter on the header row
     ws.auto_filter.ref = ws.dimensions

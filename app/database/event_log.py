@@ -4,6 +4,7 @@ This module provides database-level operations for the event_logs table.
 It is used by the service layer to persist audit log entries.
 """
 
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from psycopg.types.json import Json
@@ -82,6 +83,8 @@ def list_events(
     artifact_id: str | None = None,
     actor_user_id: str | None = None,
     event_type: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict]:
     """
     List event logs with optional filtering.
@@ -94,6 +97,8 @@ def list_events(
         artifact_id: Filter by artifact ID
         actor_user_id: Filter by actor
         event_type: Filter by event type
+        start_date: Filter events on or after this date (inclusive)
+        end_date: Filter events on or before this date (inclusive)
 
     Returns:
         List of event log dicts
@@ -113,6 +118,14 @@ def list_events(
     if event_type:
         where_clauses.append("event_type = :event_type")
         params["event_type"] = event_type
+    if start_date:
+        where_clauses.append("e.created_at >= :start_date")
+        params["start_date"] = datetime.combine(start_date, time.min, tzinfo=UTC)
+    if end_date:
+        where_clauses.append("e.created_at < :end_date_exclusive")
+        params["end_date_exclusive"] = datetime.combine(
+            end_date + timedelta(days=1), time.min, tzinfo=UTC
+        )
 
     where_clause = ""
     if where_clauses:
@@ -147,6 +160,8 @@ def count_events(
     tenant_id: TenantArg,
     artifact_type: str | None = None,
     artifact_id: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> int:
     """
     Count event logs with optional filtering.
@@ -155,6 +170,8 @@ def count_events(
         tenant_id: Tenant ID for RLS scoping
         artifact_type: Filter by artifact type
         artifact_id: Filter by artifact ID
+        start_date: Filter events on or after this date (inclusive)
+        end_date: Filter events on or before this date (inclusive)
 
     Returns:
         Total count of matching events
@@ -168,6 +185,14 @@ def count_events(
     if artifact_id:
         where_clauses.append("artifact_id = :artifact_id")
         params["artifact_id"] = artifact_id
+    if start_date:
+        where_clauses.append("created_at >= :start_date")
+        params["start_date"] = datetime.combine(start_date, time.min, tzinfo=UTC)
+    if end_date:
+        where_clauses.append("created_at < :end_date_exclusive")
+        params["end_date_exclusive"] = datetime.combine(
+            end_date + timedelta(days=1), time.min, tzinfo=UTC
+        )
 
     where_clause = ""
     if where_clauses:

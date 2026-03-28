@@ -1,58 +1,179 @@
-"""Event log export job handler."""
+"""Event log export job handler.
 
-import gzip
+Exports audit log events as a password-encrypted XLSX file with
+human-readable descriptions and resolved artifact/actor names.
+"""
+
 import json
 import logging
-from datetime import UTC, datetime, timedelta
-from io import BytesIO
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 import database
 import settings
-from constants.event_types import EVENT_TYPE_DESCRIPTIONS
+from constants.event_types import get_event_description
 from jobs.registry import register_handler
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from services.event_log import SYSTEM_ACTOR_ID
 from utils import storage
-from utils.email import send_email
+from utils.xlsx_encryption import encrypt_workbook
 
 logger = logging.getLogger(__name__)
 
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-def _json_serializer(obj: Any) -> str:
-    """Custom JSON serializer for datetime and UUID objects."""
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if hasattr(obj, "hex"):  # UUID objects
-        return str(obj)
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+# Metadata keys that get their own columns (excluded from Additional Metadata)
+_STANDARD_METADATA_KEYS = frozenset(
+    {
+        "remote_address",
+        "user_agent",
+        "device",
+        "session_id_hash",
+        "api_client_id",
+        "api_client_name",
+        "api_client_type",
+    }
+)
+
+MAX_EXPORT_ROWS = 1_000_000
+
+
+def _resolve_artifact_names(tenant_id: str, events: list[dict]) -> dict[tuple[str, str], str]:
+    """Resolve artifact IDs to human-readable names.
+
+    Collects unique (artifact_type, artifact_id) pairs and batch-looks up
+    names from the appropriate tables. User artifacts are already resolved
+    via the LEFT JOIN in list_events (artifact_first_name/last_name/email),
+    so they are handled inline during row writing.
+    """
+    # Collect unique IDs by type (skip users, handled inline)
+    by_type: dict[str, set[str]] = {}
+    for e in events:
+        atype = e["artifact_type"]
+        if atype == "user":
+            continue
+        aid = str(e["artifact_id"])
+        by_type.setdefault(atype, set()).add(aid)
+
+    names: dict[tuple[str, str], str] = {}
+
+    for group_id in by_type.get("group", []):
+        g = database.groups.get_group_by_id(tenant_id, group_id)
+        if g:
+            names[("group", group_id)] = g["name"]
+
+    for sp_id in by_type.get("service_provider", []):
+        sp = database.service_providers.get_service_provider(tenant_id, sp_id)
+        if sp:
+            names[("service_provider", sp_id)] = sp["name"]
+
+    for idp_id in by_type.get("saml_identity_provider", []):
+        idp = database.saml.get_identity_provider(tenant_id, idp_id)
+        if idp:
+            names[("saml_identity_provider", idp_id)] = idp["name"]
+
+    for client_id in by_type.get("oauth2_client", []):
+        client = database.oauth2.get_client_by_id(tenant_id, client_id)
+        if client:
+            names[("oauth2_client", client_id)] = client["name"]
+
+    return names
+
+
+def _resolve_actor_emails(tenant_id: str, events: list[dict]) -> dict[str, str]:
+    """Resolve actor user IDs to primary email addresses."""
+    unique_ids = {str(e["actor_user_id"]) for e in events}
+    emails: dict[str, str] = {}
+
+    for user_id in unique_ids:
+        if user_id == SYSTEM_ACTOR_ID:
+            emails[user_id] = "system"
+            continue
+        primary = database.user_emails.get_primary_email(tenant_id, user_id)
+        if primary:
+            emails[user_id] = primary["email"]
+
+    return emails
+
+
+def _get_artifact_name(event: dict, artifact_names: dict[tuple[str, str], str]) -> str:
+    """Get artifact display name for a single event row."""
+    atype = event["artifact_type"]
+    if atype == "user":
+        first = event.get("artifact_first_name") or ""
+        last = event.get("artifact_last_name") or ""
+        email = event.get("artifact_email") or ""
+        name = f"{first} {last}".strip()
+        if name and email:
+            return f"{name} ({email})"
+        return name or email or ""
+    return artifact_names.get((atype, str(event["artifact_id"])), "")
+
+
+def _get_actor_email(event: dict, actor_emails: dict[str, str]) -> str:
+    """Get actor email, with IdP attribution for system actions."""
+    actor_id = str(event["actor_user_id"])
+    if actor_id == SYSTEM_ACTOR_ID:
+        metadata = event.get("metadata") or {}
+        if metadata.get("idp_name"):
+            return f"IdP: {metadata['idp_name']}"
+        return "System"
+    return actor_emails.get(actor_id, "")
+
+
+def _get_additional_metadata(metadata: dict[str, Any] | None) -> str:
+    """Return non-standard metadata fields as a JSON string."""
+    if not metadata:
+        return ""
+    custom = {k: v for k, v in metadata.items() if k not in _STANDARD_METADATA_KEYS}
+    if not custom:
+        return ""
+    return json.dumps(custom, default=str, ensure_ascii=False)
+
+
+def _build_filename(start_date: date | None, end_date: date | None) -> str:
+    """Generate export filename with date range and uniqueness suffix."""
+    suffix = uuid4().hex[:8]
+    if start_date and end_date:
+        return f"audit-log_{start_date.isoformat()}_to_{end_date.isoformat()}_{suffix}.xlsx"
+    if start_date:
+        return f"audit-log_{start_date.isoformat()}_to_present_{suffix}.xlsx"
+    if end_date:
+        return f"audit-log_up-to_{end_date.isoformat()}_{suffix}.xlsx"
+    return f"audit-log_all_{suffix}.xlsx"
 
 
 @register_handler("export_events")
 def handle_export_events(task: dict) -> dict[str, Any]:
-    """
-    Export all event logs for a tenant as a gzipped JSON file.
-
-    Sends email notification when complete.
+    """Export event logs as a password-encrypted XLSX file.
 
     Args:
-        task: The task dict with id, tenant_id, job_type, payload, created_by
+        task: Dict with id, tenant_id, job_type, payload, created_by.
+              payload may contain start_date and end_date (ISO 8601 strings).
 
     Returns:
-        Dict with export_file_id, event_count, filename
+        Dict with output, file_id, password, records_processed, filename, file_size.
     """
     tenant_id = str(task["tenant_id"])
     created_by = str(task["created_by"])
     task_id = str(task["id"])
 
-    logger.info("Starting event log export for tenant %s", tenant_id)
+    logger.info("Starting event log XLSX export for tenant %s", tenant_id)
 
-    # Validate tenant exists before doing any work (avoids orphaned storage files)
+    # Validate tenant
     tenant = database.tenants.get_tenant_by_id(tenant_id)
     if not tenant:
         raise ValueError(f"Tenant {tenant_id} does not exist")
 
-    # Get all events (paginated to avoid memory issues)
-    all_events = []
+    # Parse date range from payload
+    payload = task.get("payload") or {}
+    start_date = date.fromisoformat(payload["start_date"]) if payload.get("start_date") else None
+    end_date = date.fromisoformat(payload["end_date"]) if payload.get("end_date") else None
+
+    # Fetch events in batches
+    all_events: list[dict] = []
     offset = 0
     batch_size = 1000
 
@@ -61,6 +182,8 @@ def handle_export_events(task: dict) -> dict[str, Any]:
             tenant_id,
             limit=batch_size,
             offset=offset,
+            start_date=start_date,
+            end_date=end_date,
         )
         if not events:
             break
@@ -68,143 +191,110 @@ def handle_export_events(task: dict) -> dict[str, Any]:
         offset += batch_size
         logger.info("Fetched %d events so far...", len(all_events))
 
+        if len(all_events) > MAX_EXPORT_ROWS:
+            raise ValueError(
+                f"Export exceeds {MAX_EXPORT_ROWS:,} rows. Please use a narrower date range."
+            )
+
     logger.info("Total events to export: %d", len(all_events))
 
-    # Convert to JSON
-    export_data = {
-        "events": all_events,
-        "event_type_descriptions": EVENT_TYPE_DESCRIPTIONS,
-        "exported_at": datetime.now(UTC).isoformat(),
-        "count": len(all_events),
-        "tenant_id": tenant_id,
-    }
-    json_data = json.dumps(export_data, default=_json_serializer, indent=2)
+    # Resolve names
+    artifact_names = _resolve_artifact_names(tenant_id, all_events)
+    actor_emails = _resolve_actor_emails(tenant_id, all_events)
 
-    # Compress
-    compressed = BytesIO()
-    with gzip.GzipFile(fileobj=compressed, mode="wb") as gz:
-        gz.write(json_data.encode("utf-8"))
-    compressed.seek(0)
-    file_size = compressed.getbuffer().nbytes
+    # Build workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Audit Log"
 
-    # Generate unique filename and storage key
-    timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    filename = f"event-export-{timestamp}-{uuid4().hex[:8]}.json.gz"
+    headers = [
+        "Timestamp",
+        "Event Type",
+        "Description",
+        "Actor Email",
+        "Artifact Type",
+        "Artifact ID",
+        "Artifact Name",
+        "IP Address",
+        "User Agent",
+        "Device",
+        "API Client",
+        "Additional Metadata",
+    ]
+    ws.append(headers)
+
+    bold = Font(bold=True)
+    for cell in ws[1]:
+        cell.font = bold
+
+    for event in all_events:
+        metadata = event.get("metadata") or {}
+        api_client = metadata.get("api_client_name", "")
+        if api_client and metadata.get("api_client_type"):
+            api_client = f"{api_client} ({metadata['api_client_type']})"
+
+        ws.append(
+            [
+                event["created_at"].strftime("%Y-%m-%d %H:%M:%S UTC"),
+                event["event_type"],
+                get_event_description(event["event_type"]) or event["event_type"],
+                _get_actor_email(event, actor_emails),
+                event["artifact_type"],
+                str(event["artifact_id"]),
+                _get_artifact_name(event, artifact_names),
+                metadata.get("remote_address", ""),
+                metadata.get("user_agent", ""),
+                metadata.get("device", ""),
+                api_client,
+                _get_additional_metadata(metadata),
+            ]
+        )
+
+    # Enable auto-filter on the header row
+    ws.auto_filter.ref = ws.dimensions
+
+    # Encrypt
+    encrypted = encrypt_workbook(wb)
+
+    # Generate filename and save
+    filename = _build_filename(start_date, end_date)
     storage_key = f"exports/{tenant_id}/{filename}"
 
-    # Save to storage
     backend = storage.get_backend()
-    storage_path = backend.save(storage_key, compressed, "application/gzip")
+    backend.save(storage_key, encrypted.data, XLSX_CONTENT_TYPE)
     storage_type = settings.STORAGE_BACKEND.lower()
     if storage_type != "spaces" or not settings.SPACES_BUCKET:
         storage_type = "local"
 
-    logger.info("Saved export to: %s", storage_path)
+    logger.info("Saved XLSX export: %s", storage_key)
 
-    # Calculate expiry
+    # Calculate expiry and record in database
     expires_at = datetime.now(UTC) + timedelta(hours=settings.EXPORT_FILE_EXPIRY_HOURS)
 
-    # Record in database
     export_file = database.export_files.create_export_file(
         tenant_id=tenant_id,
         bg_task_id=task_id,
         filename=filename,
         storage_type=storage_type,
-        storage_path=storage_key,  # Store the key, not the full path
-        file_size=file_size,
+        storage_path=storage_key,
+        file_size=encrypted.file_size,
+        content_type=XLSX_CONTENT_TYPE,
         expires_at=expires_at,
         created_by=created_by,
     )
 
-    logger.info("Created export file record: %s", export_file["id"] if export_file else "None")
+    logger.info(
+        "Created export file record: %s",
+        export_file["id"] if export_file else "None",
+    )
 
-    # Note: Email notifications removed per requirements - users check Background Jobs page instead
-
-    # Return structured result with output for UI display
-    size_kb = file_size // 1024
-    output_msg = f"Exported {len(all_events):,} events to {filename} ({size_kb:,} KB compressed)"
+    size_kb = encrypted.file_size // 1024
+    output_msg = f"Exported {len(all_events):,} events to {filename} ({size_kb:,} KB encrypted)"
     return {
         "output": output_msg,
         "file_id": str(export_file["id"]) if export_file else None,
         "records_processed": len(all_events),
         "filename": filename,
-        "file_size": file_size,
+        "file_size": encrypted.file_size,
+        "password": encrypted.password,
     }
-
-
-def _send_export_notification(
-    tenant_id: str,
-    user_id: str,
-    filename: str,
-    event_count: int,
-    expires_at: datetime,
-) -> None:
-    """Send email notification when export is ready."""
-    user = database.users.get_user_by_id(tenant_id, user_id)
-    if not user:
-        logger.warning("Could not find user %s for export notification", user_id)
-        return
-
-    primary_email = database.user_emails.get_primary_email(tenant_id, user_id)
-    if not primary_email:
-        logger.warning("Could not find primary email for user %s", user_id)
-        return
-
-    user_name = user.get("first_name", "User")
-    to_email = primary_email["email"]
-
-    subject = "Your Event Log Export is Ready"
-
-    text_body = f"""
-Hi {user_name},
-
-Your event log export is ready for download.
-
-File: {filename}
-Events: {event_count:,}
-Expires: {expires_at.strftime("%Y-%m-%d %H:%M UTC")}
-
-Please download your export from the Event Log Exports page before it expires.
-"""
-
-    html_body = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.5;
-            color: #333;
-        }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        h1 {{ color: #1a1a1a; font-size: 24px; margin-bottom: 20px; }}
-        .info-box {{ background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0; }}
-        .info-box p {{ margin: 5px 0; }}
-        .footer {{ margin-top: 30px; font-size: 14px; color: #666; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Your Event Log Export is Ready</h1>
-        <p>Hi {user_name},</p>
-        <p>Your event log export has been generated and is ready for download.</p>
-        <div class="info-box">
-            <p><strong>File:</strong> {filename}</p>
-            <p><strong>Events:</strong> {event_count:,}</p>
-            <p><strong>Expires:</strong> {expires_at.strftime("%Y-%m-%d %H:%M UTC")}</p>
-        </div>
-        <p>Please download your export from the Event Log Exports page before it expires.</p>
-        <div class="footer">
-            <p>This is an automated message.</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
-    try:
-        send_email(to_email, subject, html_body, text_body)
-        logger.info("Sent export notification email to %s", to_email)
-    except Exception as e:
-        logger.error("Failed to send export notification: %s", e)

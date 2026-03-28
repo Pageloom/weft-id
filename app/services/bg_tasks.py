@@ -5,26 +5,33 @@ background tasks.
 """
 
 import logging
+from datetime import UTC, date, datetime
 
 import database
 from schemas.bg_tasks import JobDetail, JobListItem, JobListResponse, JobStatus
 from services.activity import track_activity
 from services.auth import require_admin
 from services.event_log import log_event
-from services.exceptions import NotFoundError
+from services.exceptions import NotFoundError, ValidationError
 from services.types import RequestingUser
 
 logger = logging.getLogger(__name__)
 
 
-def create_export_task(requesting_user: RequestingUser) -> dict | None:
+def create_export_task(
+    requesting_user: RequestingUser,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict | None:
     """
-    Create a background task to export all event logs.
+    Create a background task to export event logs as encrypted XLSX.
 
     Authorization: Requires admin or super_admin role.
 
     Args:
         requesting_user: The user making the request
+        start_date: Optional start date filter (inclusive)
+        end_date: Optional end date filter (inclusive)
 
     Returns:
         Dict with task_id and created_at, or None if creation failed
@@ -32,11 +39,36 @@ def create_export_task(requesting_user: RequestingUser) -> dict | None:
     require_admin(requesting_user)
     track_activity(requesting_user["tenant_id"], requesting_user["id"])
 
+    today = datetime.now(UTC).date()
+    if start_date and end_date and start_date > end_date:
+        raise ValidationError(
+            message="Start date must be before end date",
+            code="invalid_date_range",
+        )
+    if start_date and start_date > today:
+        raise ValidationError(
+            message="Start date cannot be in the future",
+            code="future_date",
+        )
+    if end_date and end_date > today:
+        raise ValidationError(
+            message="End date cannot be in the future",
+            code="future_date",
+        )
+
+    payload: dict | None = None
+    if start_date or end_date:
+        payload = {}
+        if start_date:
+            payload["start_date"] = start_date.isoformat()
+        if end_date:
+            payload["end_date"] = end_date.isoformat()
+
     result = database.bg_tasks.create_task(
         tenant_id=requesting_user["tenant_id"],
         job_type="export_events",
         created_by=requesting_user["id"],
-        payload=None,  # No payload needed for full export
+        payload=payload,
     )
 
     if result:
@@ -46,7 +78,11 @@ def create_export_task(requesting_user: RequestingUser) -> dict | None:
             artifact_type="bg_task",
             artifact_id=str(result["id"]),
             event_type="export_task_created",
-            metadata={"job_type": "export_events"},
+            metadata={
+                "job_type": "export_events",
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+            },
         )
 
     return result

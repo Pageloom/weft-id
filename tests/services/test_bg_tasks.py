@@ -1,5 +1,6 @@
 """Tests for background tasks service layer."""
 
+from datetime import date
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -103,6 +104,94 @@ def test_create_export_task_logs_event(make_requesting_user, make_bg_task_dict):
         assert call_kwargs["artifact_type"] == "bg_task"
         assert call_kwargs["event_type"] == "export_task_created"
         assert call_kwargs["metadata"]["job_type"] == "export_events"
+
+
+def test_create_export_task_with_date_range(make_requesting_user, make_bg_task_dict):
+    """Test export task passes date range as payload."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id,
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    task = make_bg_task_dict(tenant_id=tenant_id, created_by=admin_id)
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+        patch("services.bg_tasks.log_event"),
+    ):
+        mock_db.bg_tasks.create_task.return_value = task
+
+        bg_tasks.create_export_task(
+            requesting_user,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 15),
+        )
+
+        call_kwargs = mock_db.bg_tasks.create_task.call_args.kwargs
+        assert call_kwargs["payload"]["start_date"] == "2026-01-01"
+        assert call_kwargs["payload"]["end_date"] == "2026-03-15"
+
+
+def test_create_export_task_invalid_date_range(make_requesting_user):
+    """Test export task rejects start_date after end_date."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError, match="Start date must be before"):
+        bg_tasks.create_export_task(
+            requesting_user,
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 1, 1),
+        )
+
+
+def test_create_export_task_future_date(make_requesting_user):
+    """Test export task rejects future dates."""
+    from services import bg_tasks
+    from services.exceptions import ValidationError
+
+    requesting_user = make_requesting_user(tenant_id=str(uuid4()), role="admin")
+
+    with pytest.raises(ValidationError, match="future"):
+        bg_tasks.create_export_task(
+            requesting_user,
+            start_date=date(2099, 1, 1),
+        )
+
+
+def test_create_export_task_no_dates_sends_null_payload(make_requesting_user, make_bg_task_dict):
+    """Test export task with no dates sends null payload."""
+    from services import bg_tasks
+
+    tenant_id = str(uuid4())
+    admin_id = str(uuid4())
+    requesting_user = make_requesting_user(
+        user_id=admin_id,
+        tenant_id=tenant_id,
+        role="admin",
+    )
+
+    task = make_bg_task_dict(tenant_id=tenant_id, created_by=admin_id)
+
+    with (
+        patch("services.bg_tasks.database") as mock_db,
+        patch("services.bg_tasks.track_activity"),
+        patch("services.bg_tasks.log_event"),
+    ):
+        mock_db.bg_tasks.create_task.return_value = task
+
+        bg_tasks.create_export_task(requesting_user)
+
+        call_kwargs = mock_db.bg_tasks.create_task.call_args.kwargs
+        assert call_kwargs["payload"] is None
 
 
 # =============================================================================

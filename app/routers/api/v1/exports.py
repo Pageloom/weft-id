@@ -7,7 +7,7 @@ from dependencies import build_requesting_user, get_tenant_id_from_request
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from schemas.bg_tasks import JobListItem, JobStatus
-from schemas.event_log import ExportListResponse
+from schemas.event_log import ExportListResponse, ExportRequest
 from services import bg_tasks as bg_tasks_service
 from services import exports as exports_service
 from services.exceptions import ServiceError
@@ -40,18 +40,28 @@ def list_exports(
 def create_export(
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     admin: Annotated[dict, Depends(require_admin_api)],
+    body: ExportRequest | None = None,
 ):
     """
-    Create a new export task.
+    Create a new audit log export task.
 
     Requires admin role.
 
-    Creates a background task to export all event logs.
-    Returns the created job information.
+    Creates a background task to export event logs as encrypted XLSX.
+
+    Accepted fields:
+    - start_date: Optional start date filter (inclusive), ISO 8601 (YYYY-MM-DD)
+    - end_date: Optional end date filter (inclusive), ISO 8601 (YYYY-MM-DD)
+
+    Omit both dates or send an empty body to export all events.
     """
     requesting_user = build_requesting_user(admin, tenant_id, None)
     try:
-        result = bg_tasks_service.create_export_task(requesting_user)
+        start_date = body.start_date if body else None
+        end_date = body.end_date if body else None
+        result = bg_tasks_service.create_export_task(
+            requesting_user, start_date=start_date, end_date=end_date
+        )
         if not result:
             raise ServiceError(
                 message="Failed to create export task",

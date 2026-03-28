@@ -1,6 +1,6 @@
 """Pydantic schemas for event log API."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -75,3 +75,10 @@ class ExportListResponse(BaseModel):
 
     items: list[ExportFileItem]
     total: int
+
+
+class ExportRequest(BaseModel):
+    """Request body for creating an audit log export."""
+
+    start_date: date | None = Field(None, description="Start date (inclusive), ISO 8601")
+    end_date: date | None = Field(None, description="End date (inclusive), ISO 8601")

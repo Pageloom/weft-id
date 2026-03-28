@@ -1,5 +1,6 @@
 """Admin routes for event log viewer."""
 
+from datetime import date
 from typing import Annotated
 
 from dependencies import (
@@ -8,7 +9,7 @@ from dependencies import (
     get_tenant_id_from_request,
     require_admin,
 )
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pages import get_first_accessible_child
 from services import bg_tasks as bg_tasks_service
@@ -126,6 +127,7 @@ def event_log_list(
     }
 
     success = request.query_params.get("success")
+    error = request.query_params.get("error")
 
     return templates.TemplateResponse(
         request,
@@ -136,6 +138,7 @@ def event_log_list(
             events=result.items,
             pagination=pagination,
             success=success,
+            error=error,
         ),
     )
 
@@ -173,12 +176,24 @@ def trigger_export(
     request: Request,
     tenant_id: Annotated[str, Depends(get_tenant_id_from_request)],
     user: Annotated[dict, Depends(get_current_user)],
+    start_date: Annotated[str, Form()] = "",
+    end_date: Annotated[str, Form()] = "",
 ):
-    """Trigger event log export job."""
+    """Trigger event log XLSX export job with optional date range."""
     requesting_user = build_requesting_user(user, tenant_id, request)
 
     try:
-        bg_tasks_service.create_export_task(requesting_user)
+        parsed_start = date.fromisoformat(start_date) if start_date else None
+        parsed_end = date.fromisoformat(end_date) if end_date else None
+    except ValueError:
+        return RedirectResponse(url="/admin/audit/events?error=invalid_date", status_code=303)
+
+    try:
+        bg_tasks_service.create_export_task(
+            requesting_user, start_date=parsed_start, end_date=parsed_end
+        )
+    except ValidationError:
+        return RedirectResponse(url="/admin/audit/events?error=invalid_date_range", status_code=303)
     except ServiceError as exc:
         return render_error_page(request, tenant_id, exc)
 

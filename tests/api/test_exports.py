@@ -65,6 +65,53 @@ def test_create_export_as_admin(client, test_tenant_host, oauth2_admin_authoriza
     assert data["status"] == "pending"
 
 
+def test_create_export_with_date_range(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can create export with date range."""
+    response = client.post(
+        "/api/v1/exports",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={"start_date": "2026-01-01", "end_date": "2026-03-15"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["job_type"] == "export_events"
+    assert data["status"] == "pending"
+
+
+def test_create_export_with_empty_body(client, test_tenant_host, oauth2_admin_authorization_header):
+    """Admin can create export with empty body (all events)."""
+    response = client.post(
+        "/api/v1/exports",
+        headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+        json={},
+    )
+
+    assert response.status_code == 201
+
+
+def test_create_export_invalid_date_range(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Export with start_date after end_date returns 400."""
+    from services.exceptions import ValidationError
+
+    with patch(
+        "routers.api.v1.exports.bg_tasks_service.create_export_task",
+        side_effect=ValidationError(
+            message="Start date must be before end date",
+            code="invalid_date_range",
+        ),
+    ):
+        response = client.post(
+            "/api/v1/exports",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"start_date": "2026-06-01", "end_date": "2026-01-01"},
+        )
+
+    assert response.status_code == 400
+
+
 def test_create_export_unauthorized_member(client, test_tenant_host, oauth2_authorization_header):
     """Regular member cannot create exports."""
     response = client.post(

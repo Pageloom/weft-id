@@ -1,5 +1,7 @@
 """User listing routes."""
 
+import json
+from datetime import date
 from typing import Annotated
 
 from dependencies import get_current_user, get_tenant_id_from_request, require_current_user
@@ -90,6 +92,36 @@ def users_list(
         if not auth_methods:
             auth_methods = None
 
+    # Parse domain filter
+    domain = request.query_params.get("domain", "").strip() or None
+
+    # Parse group filter
+    group_id = request.query_params.get("group_id", "").strip() or None
+
+    # Parse secondary email filter
+    secondary_param = request.query_params.get("has_secondary_email", "").strip()
+    has_secondary_email: bool | None = None
+    if secondary_param == "yes":
+        has_secondary_email = True
+    elif secondary_param == "no":
+        has_secondary_email = False
+
+    # Parse activity date range
+    activity_start: date | None = None
+    activity_end: date | None = None
+    try:
+        activity_start_str = request.query_params.get("activity_start", "").strip()
+        if activity_start_str:
+            activity_start = date.fromisoformat(activity_start_str)
+    except ValueError:
+        pass
+    try:
+        activity_end_str = request.query_params.get("activity_end", "").strip()
+        if activity_end_str:
+            activity_end = date.fromisoformat(activity_end_str)
+    except ValueError:
+        pass
+
     try:
         page = max(1, int(request.query_params.get("page", "1")))
     except ValueError:
@@ -97,7 +129,7 @@ def users_list(
 
     try:
         page_size = int(request.query_params.get("size", "25"))
-        if page_size not in [10, 25, 50, 100]:
+        if page_size not in [25, 50, 100, 250]:
             page_size = 25
     except ValueError:
         page_size = 25
@@ -111,12 +143,23 @@ def users_list(
     if sort_order not in ["asc", "desc"]:
         sort_order = "desc"
 
-    # Get auth method filter options
+    # Get filter options
     auth_method_options = users_service.get_auth_method_options(tenant_id)
+    domain_options = users_service.get_domain_filter_options(tenant_id)
+    group_options = users_service.get_group_filter_options(tenant_id)
 
     # Get total count for pagination
     total_count = users_service.count_users(
-        tenant_id, search if search else None, roles, statuses, auth_methods
+        tenant_id,
+        search if search else None,
+        roles,
+        statuses,
+        auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
     )
     total_pages = max(1, (total_count + page_size - 1) // page_size)
 
@@ -135,6 +178,11 @@ def users_list(
         roles,
         statuses,
         auth_methods,
+        domain=domain,
+        group_id=group_id,
+        has_secondary_email=has_secondary_email,
+        activity_start=activity_start,
+        activity_end=activity_end,
     )
 
     # Calculate offset for pagination metadata
@@ -152,6 +200,27 @@ def users_list(
         "end_index": min(offset + page_size, total_count),
     }
 
+    # Build filter criteria for "select all matching"
+    filter_criteria: dict = {}
+    if search:
+        filter_criteria["search"] = search
+    if roles:
+        filter_criteria["roles"] = ",".join(roles)
+    if statuses:
+        filter_criteria["statuses"] = ",".join(statuses)
+    if auth_methods:
+        filter_criteria["auth_methods"] = ",".join(auth_methods)
+    if domain:
+        filter_criteria["domain"] = domain
+    if group_id:
+        filter_criteria["group_id"] = group_id
+    if has_secondary_email is not None:
+        filter_criteria["has_secondary_email"] = "yes" if has_secondary_email else "no"
+    if activity_start:
+        filter_criteria["activity_start"] = activity_start.isoformat()
+    if activity_end:
+        filter_criteria["activity_end"] = activity_end.isoformat()
+
     return templates.TemplateResponse(
         request,
         "users_list.html",
@@ -167,5 +236,13 @@ def users_list(
             statuses=statuses or [],
             auth_methods=auth_methods or [],
             auth_method_options=auth_method_options,
+            domain=domain,
+            domain_options=domain_options,
+            group_id=group_id,
+            group_options=group_options,
+            has_secondary_email=has_secondary_email,
+            activity_start=activity_start.isoformat() if activity_start else "",
+            activity_end=activity_end.isoformat() if activity_end else "",
+            filter_criteria_json=json.dumps(filter_criteria),
         ),
     )

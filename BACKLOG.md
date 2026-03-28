@@ -135,45 +135,334 @@ the User-App Access Query item, which answers "does this user have access?".
 
 ---
 
-## Password-Encrypted XLSX Export Capability
+## Remove Bulk Update Spreadsheet Feature
 
 **User Story:**
-As an admin,
-I want all XLSX exports to be password-encrypted,
-So that exported files containing PII are protected at rest and cannot be opened if a device is lost or the file is shared accidentally.
+As a developer,
+I want to remove the spreadsheet-based bulk update feature,
+So that the codebase is clean before building browser-native bulk operations.
 
 **Context:**
 
-Any XLSX export from WeftID (user data, audit logs) contains PII: email addresses, IP addresses,
-authentication events, session metadata. These files end up on admin laptops and in email attachments.
-Encryption is always on. There is no unencrypted XLSX option. Programmatic consumers who need raw
-data should use the API.
-
-The worker generates a random one-time password per export, encrypts the file with `msoffcrypto-tool`
-(AES, natively supported by Excel, LibreOffice, and Google Sheets), and stores the password only in
-the background task's result payload. The admin page displays the password once alongside the download
-link. If the admin navigates away, they re-export. The password is cleaned up with the task on the
-standard expiry cycle. The file is never stored unencrypted.
-
-This is a shared capability used by all XLSX exports (bulk user update template, audit log export,
-and any future exports).
+The spreadsheet upload/download approach for bulk user updates has been superseded by a
+browser-native direction. The encrypted XLSX utility (`app/utils/xlsx_encryption.py`,
+`app/utils/wordlist.py`, `msoffcrypto-tool` dependency) must be retained for future
+audit export features. Only the bulk update-specific code is removed.
 
 **Acceptance Criteria:**
 
-- [ ] New utility function that takes an `openpyxl` Workbook and returns an encrypted bytes buffer with a generated password
-- [ ] Uses `msoffcrypto-tool` for AES encryption (compatible with Excel, LibreOffice, Google Sheets)
-- [ ] Password is a passphrase of six random lowercase words joined by dashes (e.g. `velvet-morning-copper-bridge-eastern-lamp`). Words are drawn from a curated wordlist of ~2048 common English words (short, unambiguous, easy to type). Six words gives ~66 bits of entropy, which is infeasible to brute-force offline even if an attacker knows the format. No digits or special characters beyond the dashes.
-- [ ] The encrypted file is what gets stored (local or Spaces). The plaintext XLSX is never written to storage.
-- [ ] Password is stored in the background task result payload (JSON field), not in the file or a separate table
-- [ ] Password is displayed once on the admin page alongside the download link
-- [ ] Password is cleaned up when the background task expires (standard expiry cycle)
-- [ ] Existing bulk user update export uses this capability
-- [ ] Dependency `msoffcrypto-tool` added to `pyproject.toml`
-- [ ] Tests verify encryption produces a file that requires a password to open, and that the correct password works
+- [ ] Remove `app/jobs/export_users_template.py` (template export job handler)
+- [ ] Remove `app/jobs/bulk_update_users.py` (upload processing job handler)
+- [ ] Remove `app/services/bulk_update.py` (service layer)
+- [ ] Remove `app/routers/api/v1/bulk_update.py` (API endpoints)
+- [ ] Remove `app/routers/users/bulk_update.py` (web route)
+- [ ] Remove `app/templates/users_bulk_update.html` (template)
+- [ ] Remove page registration from `pages.py`
+- [ ] Remove job handler imports from `app/jobs/__init__.py`
+- [ ] Remove all related tests
+- [ ] Keep `app/utils/xlsx_encryption.py`, `app/utils/wordlist.py`, and their tests
+- [ ] Keep `msoffcrypto-tool` and `openpyxl` dependencies
+- [ ] Keep background job infrastructure (used by other features)
+- [ ] Verify no broken imports or dead references
 
 **Effort:** S
+**Value:** High (removes dead code before rebuilding)
+**Version impact:** Minor (removes feature)
+
+---
+
+## Enhanced User List Filtering and Bulk Selection
+
+**User Story:**
+As an admin,
+I want to filter the user list by multiple criteria and select users across pages,
+So that I can efficiently identify and act on specific cohorts of users.
+
+**Context:**
+
+This is the foundational infrastructure for all browser-native bulk operations. The current
+user list has basic search and pagination. This item adds richer filtering, longer page size
+options, and cross-page bulk selection with a "select all matching filter" capability.
+
+The filter criteria and bulk selection mechanism are reusable. Each bulk operation (secondary
+emails, primary emails, inactivation) adds its own action button that appears when users are
+selected.
+
+**Acceptance Criteria:**
+
+- [ ] Filter panel on user list with criteria: domain, status (active/inactive), role, auth method (password/IdP, which IdP), group membership, has secondary email (yes/no), last activity date range
+- [ ] Filters are combinable (AND logic)
+- [ ] Filter state persisted in URL query params (shareable, bookmarkable)
+- [ ] Page size options: 25, 50, 100, 250
+- [ ] "Select all on this page" checkbox (existing pattern)
+- [ ] "Select all N matching this filter" option when any filter is active. Sends filter criteria to the backend, not individual IDs.
+- [ ] Selected count shown in sticky action bar
+- [ ] API: `GET /api/v1/users` accepts all filter params, returns paginated results with total count
+- [ ] API: bulk action endpoints accept either a list of user IDs or a filter object (for "select all matching")
+
+**Effort:** L
 **Value:** High
-**Version impact:** Minor (new capability, no breaking changes)
+**Version impact:** Minor (enhancement to existing feature)
+
+---
+
+## Bulk Add Secondary Emails (Browser-Native)
+
+**User Story:**
+As an admin,
+I want to select users from the filtered user list and add secondary email addresses in the browser,
+So that I can prepare for domain migrations without downloading and re-uploading spreadsheets.
+
+**Context:**
+
+The flow: filter users on the user list (e.g. by domain), select them, click "Manage Secondary
+Emails (N)". This navigates to an action page showing a grid of the selected users with their
+current emails and an input field for a new secondary address per user. On submit, the additions
+are processed as a deferred background job.
+
+Current secondary addresses are shown as read-only reference so the admin can see the full
+picture before adding.
+
+**Acceptance Criteria:**
+
+- [ ] "Manage Secondary Emails" button appears in user list action bar when users are selected
+- [ ] Action page at `/users/bulk-ops/secondary-emails` shows selected users in a grid
+- [ ] Grid columns: name, primary email, current secondary emails (read-only), new secondary email (text input)
+- [ ] Admin enters a new secondary address per user (or leaves blank to skip)
+- [ ] On submit, creates a deferred background job to process additions
+- [ ] Each addition: add as verified secondary email (admin-added), skip if address already exists in tenant
+- [ ] Job result: N emails added, N skipped, N errors (with per-user error details)
+- [ ] Results displayed on the page when job completes (poll job status)
+- [ ] Each addition emits `email_added` audit event
+- [ ] API: `POST /api/v1/users/bulk-ops/secondary-emails` accepts list of `{user_id, email}` pairs or filter + email rule
+- [ ] Selected users passed via session or URL state (not lost on navigation)
+
+**Effort:** M
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
+## Bulk Change Primary Email (Browser-Native)
+
+**User Story:**
+As an admin,
+I want to select users and promote one of their secondary emails to primary in the browser,
+So that I can complete domain migrations without spreadsheet round-trips.
+
+**Context:**
+
+The flow: filter users who have secondary emails, select them, click "Change Primary Email (N)".
+Action page shows each user with their primary and secondary addresses. A dropdown per user lets
+the admin pick which secondary to promote. The old primary becomes a secondary.
+
+Only users with at least one secondary email should be selectable for this action (the filter
+"has secondary email: yes" supports this).
+
+**Acceptance Criteria:**
+
+- [ ] "Change Primary Email" button in user list action bar (only enabled when all selected users have secondaries)
+- [ ] Action page at `/users/bulk-ops/primary-emails` shows selected users in a grid
+- [ ] Grid columns: name, current primary email, dropdown of secondary emails (select one to promote, or leave as "No change")
+- [ ] On submit, creates a deferred background job
+- [ ] Each promotion: secondary becomes primary, old primary becomes secondary
+- [ ] Job result: N promoted, N skipped, N errors
+- [ ] Each promotion emits `email_promoted_to_primary` audit event with old and new primary
+- [ ] API: `POST /api/v1/users/bulk-ops/primary-emails` accepts list of `{user_id, new_primary_email}` pairs
+
+**Effort:** M
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
+## Bulk Inactivation and Reactivation (Browser-Native)
+
+**User Story:**
+As an admin,
+I want to select users from the filtered list and inactivate or reactivate them in bulk,
+So that I can handle department offboarding, seasonal staff changes, or post-migration cleanup efficiently.
+
+**Context:**
+
+The flow: filter users (e.g. by status, last activity, group), select them, click "Inactivate"
+or "Reactivate" in the action bar. A confirmation dialog shows the count and warns about
+consequences. On confirm, a deferred job processes each user.
+
+The same guardrails from single-user inactivation apply: cannot inactivate the last super admin,
+cannot inactivate service users.
+
+**Acceptance Criteria:**
+
+- [ ] "Inactivate" and "Reactivate" buttons in user list action bar when users are selected
+- [ ] Buttons contextually enabled: "Inactivate" only if selection contains active users, "Reactivate" only if selection contains inactive users
+- [ ] Confirmation modal: shows count, lists consequences (token revocation for inactivation)
+- [ ] Deferred background job processes each user in turn
+- [ ] Guardrails: last super admin protection, service user protection (per-user errors, not job failure)
+- [ ] Job result: N inactivated/reactivated, N skipped, N errors
+- [ ] Each state change emits `user_inactivated` or `user_reactivated` audit event
+- [ ] API: `POST /api/v1/users/bulk-ops/inactivate` and `POST /api/v1/users/bulk-ops/reactivate` accept user IDs or filter
+
+**Effort:** M
+**Value:** Medium
+**Version impact:** Minor (new feature)
+
+---
+
+## Bulk Group Assignment (Browser-Native)
+
+**User Story:**
+As an admin,
+I want to add or remove users from a group in bulk from within the browser,
+So that I can handle org restructures and team changes without tedious one-at-a-time clicking.
+
+**Context:**
+
+Two entry points:
+1. From the group members page: "Bulk Add Members" opens the user list with multi-select,
+   filtered to non-members. Select users, confirm, done.
+2. From the user list: select users, click "Add to Group", pick a group from a dropdown, confirm.
+
+Removal works from the group members page: select current members, click "Remove Selected"
+(this already exists via the multiselect action bar).
+
+IdP-synced groups reject bulk changes with a clear error.
+
+**Acceptance Criteria:**
+
+- [ ] Group members page: "Bulk Add" button opens user selection view (filtered to non-members of this group)
+- [ ] User list: "Add to Group" button in action bar when users are selected, with group picker dropdown
+- [ ] Both flows create a deferred job for the additions
+- [ ] IdP-synced groups (`group_type = idp`) reject all changes with clear error
+- [ ] Job result: N added, N skipped (already member), N errors
+- [ ] Each addition emits `group_member_added` audit event
+- [ ] Removal: existing multiselect on group members page already handles this (no new work needed)
+- [ ] API: `POST /api/v1/groups/{group_id}/bulk-members` accepts list of user IDs or filter
+
+**Effort:** M
+**Value:** Medium
+**Version impact:** Minor (new feature)
+
+---
+
+## User Audit Export
+
+**User Story:**
+As an admin,
+I want to download a comprehensive spreadsheet of all users with their authentication history, group memberships, and app access,
+So that I can produce audit evidence, review access patterns, and answer compliance questions without writing API queries.
+
+**Context:**
+
+This is a read-only XLSX export (no upload/re-import). It produces a multi-sheet workbook
+covering three dimensions of user data: the users themselves, their group memberships, and
+their app (SP) access. Each sheet is designed so that an auditor can filter on any column
+in Excel to answer common questions ("which users haven't logged in for 90 days?", "who
+has access to app X?", "which users were provisioned via JIT?").
+
+All users are included (active, inactive, anonymized). The status column allows filtering.
+Event-log-derived fields (last login, creation method, etc.) are computed at export time.
+
+Accessible from the admin section (not under Bulk Ops, since it's a read-only export).
+
+**Acceptance Criteria:**
+
+- [ ] Page at `/admin/exports/users` (or similar admin export location)
+- [ ] Download-only (no upload flow). Single "Export Users" button that enqueues a background job.
+- [ ] Produces a multi-sheet XLSX workbook with three sheets:
+
+**Sheet 1: Users** (one row per user)
+- [ ] Columns: `user_id`, `first_name`, `last_name`, `primary_email`, `domain`, `secondary_emails` (comma-separated), `role`, `status` (active/inactive/anonymized), `created_at`, `creation_method` (invited, jit, cli), `auth_method` (password, IdP name), `last_login_at`, `last_login_ip`, `last_activity_at`, `password_last_changed_at`, `mfa_enabled` (yes/no), `app_count` (number of SPs accessible)
+- [ ] Auto-filter enabled on header row
+
+**Sheet 2: Group Memberships** (one row per user-group pair)
+- [ ] Columns: `user_id`, `email`, `group_name`, `group_type` (weftid/idp), `membership_since`
+- [ ] A user with 3 group memberships appears in 3 rows
+- [ ] Auto-filter enabled on header row
+
+**Sheet 3: App Access** (one row per user-SP pair)
+- [ ] Columns: `user_id`, `email`, `app_name`, `last_auth_at` (last SAML assertion for this user+SP), `access_via` (comma-separated group names, or "All users" if SP is not group-restricted)
+- [ ] A user with access to 5 SPs appears in 5 rows
+- [ ] Auto-filter enabled on header row
+
+**General:**
+- [ ] Download is password-encrypted (uses shared encrypted XLSX capability)
+- [ ] Background job fetches event log data in batches to control memory
+- [ ] API endpoint: `POST /api/v1/exports/users`, `GET /api/v1/exports/users/download/{job_id}`
+- [ ] Audit event logged: `user_export_task_created`
+- [ ] Admin page shows password alongside download link when ready
+
+**Effort:** L
+**Value:** High
+**Version impact:** Minor (new feature)
+
+---
+
+## Admin Notification on Auto-Inactivation
+
+**User Story:**
+As an admin,
+I want to receive an email summary when the system auto-inactivates users due to inactivity,
+So that I'm aware of account changes happening automatically and can intervene if needed.
+
+**Context:**
+
+The daily inactivation job (`inactivate_idle_users`) currently runs silently. When it
+inactivates users, the only record is in the audit log. Admins may not check the audit
+log daily. A summary email after each run that actually inactivated someone keeps admins
+informed without requiring them to monitor logs.
+
+**Acceptance Criteria:**
+
+- [ ] After the daily inactivation job completes, if any users were inactivated, send an email to all admins and super admins in the tenant
+- [ ] Email subject: "WeftID: N user(s) inactivated due to inactivity"
+- [ ] Email body includes: count, list of affected users (name, email, last activity date), the tenant's configured threshold
+- [ ] No email sent if zero users were inactivated (avoid noise)
+- [ ] Uses the shared email layout with tenant branding
+- [ ] Email function added to `app/utils/email.py` following existing patterns
+
+**Effort:** S
+**Value:** Medium
+**Version impact:** Patch (enhancement to existing feature)
+
+---
+
+## Audit Log XLSX: Access Change Coverage
+
+**User Story:**
+As an admin producing a compliance report,
+I want the audit log XLSX export to include all access-related events with clear descriptions,
+So that I can filter for "all access grants and revocations in Q1" without gaps.
+
+**Context:**
+
+The audit log XLSX export item (already in the backlog) will produce a date-ranged export.
+This item ensures the event types and descriptions are complete enough for access change
+reporting. The event log already captures group membership changes, SP access changes, and
+role changes, but the descriptions should be auditor-friendly and the export should include
+resolved names (not just UUIDs) where possible.
+
+This is a quality checklist for the audit log XLSX implementation, not a separate feature.
+
+**Acceptance Criteria:**
+
+- [ ] These event types are included with human-readable descriptions in the export:
+  - `group_member_added`, `group_member_removed` (who was added/removed, which group)
+  - `user_created`, `user_inactivated`, `user_reactivated`, `user_auto_inactivated`, `user_anonymized`
+  - `user_role_changed` (old role, new role)
+  - `sp_group_added`, `sp_group_removed` (which SP, which group)
+  - `email_added`, `email_removed`, `email_promoted_to_primary` (once implemented)
+- [ ] The "Artifact Name" column resolves artifact IDs to human-readable names where possible (user email, group name, SP name)
+- [ ] The "Description" column provides a sentence summarizing the event (e.g. "User john@example.com added to group Engineering")
+- [ ] Verified by filtering the export for access-related events and confirming no gaps in coverage
+
+**Effort:** S (additive to the audit log XLSX item)
+**Value:** High
+**Version impact:** N/A (quality criteria for another item)
+
+---
+
+## ~~Password-Encrypted XLSX Export Capability~~ (Complete)
 
 ---
 

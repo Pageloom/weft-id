@@ -84,7 +84,7 @@ class TestUnauthorizedUserAccess:
         # Should see the Access Denied error page
         page.wait_for_load_state("networkidle")
         assert "Access Denied" in page.content()
-        assert "group membership" in page.content()
+        assert "Group membership required" in page.content()
 
         # Click "Return to Dashboard" link
         page.locator("a", has_text="Return to Dashboard").click()

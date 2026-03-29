@@ -461,3 +461,175 @@ def test_apply_sends_notification():
         "System (bulk operation)",
         tenant_id=tenant_id,
     )
+
+
+# =============================================================================
+# Exception Handlers and Edge Cases
+# =============================================================================
+
+
+def test_preview_unexpected_exception():
+    """Preview catches unexpected exceptions per user."""
+    from jobs.bulk_change_primary_email import handle_bulk_primary_email_preview
+
+    user_id = str(uuid4())
+    task = {
+        "id": str(uuid4()),
+        "tenant_id": str(uuid4()),
+        "created_by": str(uuid4()),
+        "payload": {
+            "items": [{"user_id": user_id, "new_primary_email": "new@example.com"}],
+        },
+    }
+
+    with patch("jobs.bulk_change_primary_email.database") as mock_db:
+        mock_db.users.get_user_by_id.side_effect = RuntimeError("DB down")
+
+        result = handle_bulk_primary_email_preview(task)
+
+    assert result["totals"]["errors"] == 1
+    assert result["user_results"][0]["status"] == "error"
+    assert result["user_results"][0]["error_reason"] == "Unexpected error during preview"
+
+
+def test_apply_errors_on_unverified_target_email():
+    """Apply reports error when target email is not a verified secondary."""
+    from jobs.bulk_change_primary_email import handle_bulk_primary_email_apply
+
+    user_id = str(uuid4())
+    task = {
+        "id": str(uuid4()),
+        "tenant_id": str(uuid4()),
+        "created_by": str(uuid4()),
+        "payload": {
+            "items": [
+                {
+                    "user_id": user_id,
+                    "new_primary_email": "unverified@example.com",
+                    "idp_disposition": "keep",
+                }
+            ],
+        },
+    }
+
+    with (
+        patch("jobs.bulk_change_primary_email.database") as mock_db,
+        patch("jobs.bulk_change_primary_email.log_event"),
+        patch("jobs.bulk_change_primary_email.send_primary_email_changed_notification"),
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": user_id,
+            "email": "old@example.com",
+            "saml_idp_id": None,
+        }
+        mock_db.user_emails.list_user_emails.return_value = [
+            {
+                "id": str(uuid4()),
+                "email": "old@example.com",
+                "is_primary": True,
+                "verified_at": "2025-01-01",
+            },
+            {
+                "id": str(uuid4()),
+                "email": "unverified@example.com",
+                "is_primary": False,
+                "verified_at": None,
+            },
+        ]
+
+        result = handle_bulk_primary_email_apply(task)
+
+    assert result["errors"] == 1
+    assert "not a verified secondary" in result["details"][0]["reason"]
+
+
+def test_apply_notification_failure_does_not_block():
+    """Notification failure is logged but doesn't prevent promotion."""
+    from jobs.bulk_change_primary_email import handle_bulk_primary_email_apply
+
+    tenant_id = str(uuid4())
+    user_id = str(uuid4())
+    email_id = str(uuid4())
+
+    task = {
+        "id": str(uuid4()),
+        "tenant_id": tenant_id,
+        "created_by": str(uuid4()),
+        "payload": {
+            "items": [
+                {
+                    "user_id": user_id,
+                    "new_primary_email": "new@example.com",
+                    "idp_disposition": "keep",
+                }
+            ],
+        },
+    }
+
+    with (
+        patch("jobs.bulk_change_primary_email.database") as mock_db,
+        patch("jobs.bulk_change_primary_email.log_event"),
+        patch(
+            "jobs.bulk_change_primary_email.send_primary_email_changed_notification"
+        ) as mock_send,
+    ):
+        mock_db.users.get_user_by_id.return_value = {
+            "id": user_id,
+            "email": "old@example.com",
+            "saml_idp_id": None,
+        }
+        mock_db.user_emails.list_user_emails.return_value = [
+            {
+                "id": "primary-id",
+                "email": "old@example.com",
+                "is_primary": True,
+                "verified_at": "2025-01-01",
+            },
+            {
+                "id": email_id,
+                "email": "new@example.com",
+                "is_primary": False,
+                "verified_at": "2025-01-01",
+            },
+        ]
+        mock_send.side_effect = RuntimeError("SMTP down")
+
+        result = handle_bulk_primary_email_apply(task)
+
+    # Promotion still succeeds despite notification failure
+    assert result["promoted"] == 1
+    assert result["errors"] == 0
+
+
+def test_apply_unexpected_exception():
+    """Apply catches unexpected exception per user."""
+    from jobs.bulk_change_primary_email import handle_bulk_primary_email_apply
+
+    user_id = str(uuid4())
+    task = {
+        "id": str(uuid4()),
+        "tenant_id": str(uuid4()),
+        "created_by": str(uuid4()),
+        "payload": {
+            "items": [
+                {
+                    "user_id": user_id,
+                    "new_primary_email": "new@example.com",
+                    "idp_disposition": "keep",
+                }
+            ],
+        },
+    }
+
+    with (
+        patch("jobs.bulk_change_primary_email.database") as mock_db,
+        patch("jobs.bulk_change_primary_email.log_event"),
+        patch("jobs.bulk_change_primary_email.send_primary_email_changed_notification"),
+    ):
+        mock_db.users.get_user_by_id.side_effect = RuntimeError("DB down")
+
+        result = handle_bulk_primary_email_apply(task)
+
+    assert result["errors"] == 1
+    assert result["details"][0]["status"] == "error"
+    assert result["details"][0]["reason"] == "Unexpected error"

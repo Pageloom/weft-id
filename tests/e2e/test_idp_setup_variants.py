@@ -65,7 +65,7 @@ class TestIdpRegistrationViaUrl:
             "**/admin/settings/identity-providers/*/details**",
             timeout=10000,
         )
-        page.locator("text=Trust established successfully").wait_for(timeout=5000)
+        page.locator("text=Trust established").wait_for(timeout=5000)
 
         # Verify IdP appears in the list
         page.goto(f"{sp_base}/admin/settings/identity-providers")

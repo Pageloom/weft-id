@@ -226,3 +226,144 @@ def test_bulk_primary_email_apply_invalid_disposition(
     )
 
     assert response.status_code == 422
+
+
+# =============================================================================
+# ServiceError paths
+# =============================================================================
+
+
+def test_bulk_add_secondary_emails_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from bg_tasks is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_add_emails_task") as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/secondary-emails",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"items": [{"user_id": str(uuid4()), "email": "new@example.com"}]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_bulk_primary_email_preview_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from preview task is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Preview failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"items": [{"user_id": str(uuid4()), "new_primary_email": "new@example.com"}]},
+        )
+
+    assert response.status_code >= 400
+
+
+def test_bulk_primary_email_apply_service_error(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """ServiceError from apply task is translated to HTTP exception."""
+    from services.exceptions import ServiceError
+
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Apply failed", code="fail")
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/apply",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={
+                "items": [
+                    {
+                        "user_id": str(uuid4()),
+                        "new_primary_email": "new@example.com",
+                        "idp_disposition": "keep",
+                    }
+                ],
+                "preview_job_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code >= 400
+
+
+# =============================================================================
+# Null result (failed to create task)
+# =============================================================================
+
+
+def test_bulk_add_secondary_emails_null_result(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Null result from service returns error body."""
+    with patch("routers.api.v1.users.bg_tasks_service.create_bulk_add_emails_task") as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/secondary-emails",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"items": [{"user_id": str(uuid4()), "email": "new@example.com"}]},
+        )
+
+    assert response.status_code == 202  # returns 202 but with error body
+    assert "error" in response.json()
+
+
+def test_bulk_primary_email_preview_null_result(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Null result from preview returns error body."""
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/preview",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={"items": [{"user_id": str(uuid4()), "new_primary_email": "new@example.com"}]},
+        )
+
+    assert response.status_code == 202
+    assert "error" in response.json()
+
+
+def test_bulk_primary_email_apply_null_result(
+    client, test_tenant_host, oauth2_admin_authorization_header
+):
+    """Null result from apply returns error body."""
+    with patch(
+        "routers.api.v1.users.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.return_value = None
+
+        response = client.post(
+            "/api/v1/users/bulk-ops/primary-emails/apply",
+            headers={"Host": test_tenant_host, **oauth2_admin_authorization_header},
+            json={
+                "items": [
+                    {
+                        "user_id": str(uuid4()),
+                        "new_primary_email": "new@example.com",
+                        "idp_disposition": "keep",
+                    }
+                ],
+                "preview_job_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 202
+    assert "error" in response.json()

@@ -1,12 +1,13 @@
 """Tests for bulk operations web routes."""
 
-from datetime import UTC
+from datetime import UTC, date
 from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 from main import app
+from services.exceptions import ServiceError
 
 # =============================================================================
 # POST /users/bulk-ops/secondary-emails/prepare
@@ -346,3 +347,321 @@ def test_apply_creates_background_job(test_admin_user, override_auth):
     data = response.json()
     assert data["task_id"] == task_id
     mock_create.assert_called_once()
+
+
+# =============================================================================
+# _parse_filter_criteria
+# =============================================================================
+
+
+class TestParseFilterCriteria:
+    """Tests for the _parse_filter_criteria helper."""
+
+    def test_invalid_json(self):
+        """Returns empty dict on invalid JSON."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        assert _parse_filter_criteria("not-json") == {}
+
+    def test_none_input(self):
+        """Returns empty dict on None input."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        assert _parse_filter_criteria(None) == {}
+
+    def test_roles_with_negation(self):
+        """Parses negated role filter."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"roles": "!admin,member"}')
+        assert result["roles"] == ["admin", "member"]
+        assert result["role_negate"] is True
+
+    def test_roles_without_negation(self):
+        """Parses role filter without negation."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"roles": "admin"}')
+        assert result["roles"] == ["admin"]
+        assert "role_negate" not in result
+
+    def test_statuses_with_negation(self):
+        """Parses negated status filter."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"statuses": "!active"}')
+        assert result["statuses"] == ["active"]
+        assert result["status_negate"] is True
+
+    def test_auth_methods_with_negation(self):
+        """Parses negated auth method filter."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"auth_methods": "!password_email,password_totp"}')
+        assert result["auth_methods"] == ["password_email", "password_totp"]
+        assert result["auth_method_negate"] is True
+
+    def test_domain_with_negation(self):
+        """Parses negated domain filter."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"domain": "!example.com"}')
+        assert result["domain"] == "example.com"
+        assert result["domain_negate"] is True
+
+    def test_domain_without_negation(self):
+        """Parses domain filter without negation."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"domain": "example.com"}')
+        assert result["domain"] == "example.com"
+        assert "domain_negate" not in result
+
+    def test_group_id_with_negation(self):
+        """Parses negated group filter."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        gid = str(uuid4())
+        result = _parse_filter_criteria(f'{{"group_id": "!{gid}"}}')
+        assert result["group_id"] == gid
+        assert result["group_negate"] is True
+
+    def test_group_children_disabled(self):
+        """Parses group_children=0 flag."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        gid = str(uuid4())
+        result = _parse_filter_criteria(f'{{"group_id": "{gid}", "group_children": "0"}}')
+        assert result["group_include_children"] is False
+
+    def test_has_secondary_email_yes(self):
+        """Parses has_secondary_email=yes."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"has_secondary_email": "yes"}')
+        assert result["has_secondary_email"] is True
+
+    def test_has_secondary_email_no(self):
+        """Parses has_secondary_email=no."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"has_secondary_email": "no"}')
+        assert result["has_secondary_email"] is False
+
+    def test_activity_date_range(self):
+        """Parses activity date range."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria(
+            '{"activity_start": "2026-01-01", "activity_end": "2026-03-31"}'
+        )
+        assert result["activity_start"] == date(2026, 1, 1)
+        assert result["activity_end"] == date(2026, 3, 31)
+
+    def test_activity_date_invalid_ignored(self):
+        """Invalid activity dates are silently ignored."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"activity_start": "not-a-date"}')
+        assert "activity_start" not in result
+
+    def test_invalid_roles_filtered(self):
+        """Invalid role values are filtered out."""
+        from routers.users.bulk_ops import _parse_filter_criteria
+
+        result = _parse_filter_criteria('{"roles": "invalid,admin"}')
+        assert result["roles"] == ["admin"]
+
+
+# =============================================================================
+# Error Paths: no_users_found redirect, ServiceError, invalid JSON
+# =============================================================================
+
+
+def test_prepare_secondary_redirects_no_users_found(test_admin_user, override_auth):
+    """Prepare redirects when service returns empty user list."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch("routers.users.bulk_ops.emails_service.list_users_by_ids_with_emails") as mock_fetch:
+        mock_fetch.return_value = ([], {})
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/secondary-emails/prepare",
+            data={"selection_mode": "ids", "user_ids": [str(uuid4())]},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "no_users_found" in response.headers["location"]
+
+
+def test_submit_secondary_service_error(test_admin_user, override_auth):
+    """Submit renders error page on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_add_emails_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/secondary-emails",
+            data={
+                "user_ids": [str(uuid4())],
+                "emails": ["test@example.com"],
+            },
+            follow_redirects=False,
+        )
+
+    # ServiceError returns an error page (not a redirect)
+    assert response.status_code == 400 or response.status_code == 500
+
+
+def test_prepare_primary_redirects_no_users_found(test_admin_user, override_auth):
+    """Prepare primary redirects when service returns empty user list."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch("routers.users.bulk_ops.emails_service.list_users_by_ids_with_emails") as mock_fetch:
+        mock_fetch.return_value = ([], {})
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/prepare",
+            data={"selection_mode": "ids", "user_ids": [str(uuid4())]},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert "no_users_found" in response.headers["location"]
+
+
+def test_preview_primary_service_error(test_admin_user, override_auth):
+    """Preview returns error JSON on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Task failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/preview",
+            data={
+                "user_ids": [str(uuid4())],
+                "new_emails": ["new@example.com"],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "Task failed" in response.json()["error"]
+
+
+def test_preview_primary_null_result(test_admin_user, override_auth):
+    """Preview returns 500 when service returns None."""
+    override_auth(test_admin_user, level="admin")
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_preview_task"
+    ) as mock_create:
+        mock_create.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/preview",
+            data={
+                "user_ids": [str(uuid4())],
+                "new_emails": ["new@example.com"],
+            },
+        )
+
+    assert response.status_code == 500
+    assert "Failed" in response.json()["error"]
+
+
+def test_apply_primary_invalid_json(test_admin_user, override_auth):
+    """Apply returns error on invalid JSON in items_json."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/apply",
+        data={
+            "items_json": "not-json",
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Invalid" in response.json()["error"]
+
+
+def test_apply_primary_empty_items(test_admin_user, override_auth):
+    """Apply returns error when items list is empty."""
+    override_auth(test_admin_user, level="admin")
+
+    client = TestClient(app)
+    response = client.post(
+        "/users/bulk-ops/primary-emails/apply",
+        data={
+            "items_json": "[]",
+            "preview_job_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "No items" in response.json()["error"]
+
+
+def test_apply_primary_service_error(test_admin_user, override_auth):
+    """Apply returns error JSON on ServiceError."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+
+    items = [{"user_id": str(uuid4()), "new_primary_email": "x@y.com", "idp_disposition": "keep"}]
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.side_effect = ServiceError(message="Apply failed", code="fail")
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/apply",
+            data={
+                "items_json": json.dumps(items),
+                "preview_job_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 400
+    assert "Apply failed" in response.json()["error"]
+
+
+def test_apply_primary_null_result(test_admin_user, override_auth):
+    """Apply returns 500 when service returns None."""
+    override_auth(test_admin_user, level="admin")
+
+    import json
+
+    items = [{"user_id": str(uuid4()), "new_primary_email": "x@y.com", "idp_disposition": "keep"}]
+
+    with patch(
+        "routers.users.bulk_ops.bg_tasks_service.create_bulk_primary_email_apply_task"
+    ) as mock_create:
+        mock_create.return_value = None
+
+        client = TestClient(app)
+        response = client.post(
+            "/users/bulk-ops/primary-emails/apply",
+            data={
+                "items_json": json.dumps(items),
+                "preview_job_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 500
+    assert "Failed" in response.json()["error"]

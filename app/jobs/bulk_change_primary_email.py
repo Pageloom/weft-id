@@ -70,11 +70,7 @@ def handle_bulk_primary_email_preview(task: dict) -> dict[str, Any]:
             for e in all_emails:
                 if e["is_primary"]:
                     current_primary = e["email"]
-                if (
-                    e["email"].lower() == new_email
-                    and not e["is_primary"]
-                    and e["verified_at"]
-                ):
+                if e["email"].lower() == new_email and not e["is_primary"] and e["verified_at"]:
                     target_email = e
 
             if not target_email:
@@ -198,11 +194,7 @@ def handle_bulk_primary_email_apply(task: dict) -> dict[str, Any]:
                 for e in all_emails:
                     if e["is_primary"]:
                         old_primary = e["email"]
-                    if (
-                        e["email"].lower() == new_email
-                        and not e["is_primary"]
-                        and e["verified_at"]
-                    ):
+                    if e["email"].lower() == new_email and not e["is_primary"] and e["verified_at"]:
                         target_email = e
 
                 if not target_email:

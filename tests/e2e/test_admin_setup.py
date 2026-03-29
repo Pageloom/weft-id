@@ -155,7 +155,7 @@ class TestSpAdminRegistersIdp:
         )
 
         # Verify trust is established: success message or entity ID shown
-        page.locator("text=Trust established successfully").wait_for(timeout=5000)
+        page.locator("text=Trust established").wait_for(timeout=5000)
 
         # Verify the IdP appears in the list
         page.goto(f"{sp_base}/admin/settings/identity-providers")

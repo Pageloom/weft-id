@@ -813,3 +813,89 @@ def test_check_routing_change_no_change_same_idp(test_tenant, test_user, mocker)
     )
 
     assert result is None
+
+
+# =============================================================================
+# increment_set_password_nonce
+# =============================================================================
+
+
+def test_increment_set_password_nonce(test_tenant, test_user):
+    """increment_set_password_nonce delegates to database layer."""
+    import database
+
+    tenant_id = test_tenant["id"]
+    user_id = str(test_user["id"])
+
+    # Get user's emails to find the primary email_id
+    all_emails = database.user_emails.list_user_emails(tenant_id, user_id)
+    primary = next(e for e in all_emails if e["is_primary"])
+    email_id = str(primary["id"])
+
+    # Should not raise
+    emails_service.increment_set_password_nonce(tenant_id, email_id)
+
+
+# =============================================================================
+# list_users_by_ids_with_emails
+# =============================================================================
+
+
+def test_list_users_by_ids_with_emails(test_tenant, test_user):
+    """Returns user list and secondary emails dict."""
+    tenant_id = test_tenant["id"]
+    user_id = str(test_user["id"])
+
+    users, secondaries = emails_service.list_users_by_ids_with_emails(tenant_id, [user_id])
+
+    assert len(users) >= 1
+    found = any(str(u["id"]) == user_id for u in users)
+    assert found
+    # secondaries is a dict keyed by user_id
+    assert isinstance(secondaries, dict)
+
+
+def test_list_users_by_ids_with_emails_empty():
+    """Empty user IDs returns empty results."""
+    users, secondaries = emails_service.list_users_by_ids_with_emails("any-tenant", [])
+    assert users == []
+    assert secondaries == {}
+
+
+# =============================================================================
+# resolve_users_from_filter
+# =============================================================================
+
+
+def test_resolve_users_from_filter(test_tenant, test_user, mocker):
+    """Resolves filter criteria into user IDs via the database."""
+    tenant_id = test_tenant["id"]
+    user_id = str(test_user["id"])
+
+    mocker.patch(
+        "services.emails.database.users.list_users",
+        return_value=[{"id": user_id}],
+    )
+
+    result = emails_service.resolve_users_from_filter(
+        tenant_id,
+        roles=["member"],
+    )
+
+    assert user_id in result
+
+
+def test_resolve_users_from_filter_empty(test_tenant, mocker):
+    """Returns empty list when no users match."""
+    mocker.patch(
+        "services.emails.database.users.list_users",
+        return_value=[],
+    )
+
+    result = emails_service.resolve_users_from_filter(
+        test_tenant["id"],
+        roles=["super_admin"],
+        statuses=["anonymized"],
+    )
+
+    assert result == []

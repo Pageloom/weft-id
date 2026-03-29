@@ -32,20 +32,19 @@
 
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
                 {% if error_type == 'invalid_response' %}
-                    The SSO response from your identity provider was invalid or could not be processed.
+                    Invalid SSO response from your identity provider.
                 {% elif error_type == 'user_not_found' %}
-                    No account exists for the email address provided by your identity provider.
-                    Please contact your administrator.
+                    No account found for the email provided by your identity provider. Contact your administrator.
                 {% elif error_type == 'idp_not_found' %}
-                    The identity provider could not be found. It may have been removed.
+                    Identity provider not found. It may have been removed.
                 {% elif error_type == 'idp_disabled' %}
-                    This identity provider is currently disabled. Please contact your administrator.
+                    Identity provider disabled. Contact your administrator.
                 {% elif error_type == 'configuration_error' %}
-                    There is a configuration issue with the identity provider. Please contact your administrator.
+                    Identity provider configuration error. Contact your administrator.
                 {% elif error_type == 'signature_error' %}
-                    The SSO response signature could not be verified. This may indicate a configuration issue.
+                    SSO response signature could not be verified. Check IdP certificate configuration.
                 {% elif error_type == 'expired' %}
-                    The SSO response has expired. Please try signing in again.
+                    SSO response expired. Try signing in again.
                 {% else %}
                     An error occurred during SSO authentication.
                 {% endif %}
@@ -77,7 +76,7 @@
 
                 {% if error_type == 'user_not_found' %}
                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                    If you believe you should have access, please contact your organization administrator
+                    If you believe you should have access, contact your organization administrator
                     or <a href="mailto:support@pageloom.com" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">support</a>.
                 </p>
                 {% endif %}

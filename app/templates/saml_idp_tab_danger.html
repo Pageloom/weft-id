@@ -14,18 +14,18 @@
     </button>
     {% else %}
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
-        Removes all configuration, certificates, attribute mappings, and domain bindings. This cannot be undone.
+        Removes configuration, certificates, mappings, and domain bindings. Cannot be undone.
     </p>
     {% if user_count and user_count > 0 %}
     <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
         {{ icon("exclamation-triangle", class="w-4 h-4 inline-block mr-1 -mt-0.5") }}
-        {{ user_count }} user(s) assigned. Migrate them first or they lose SSO access.
+        {{ user_count }} user{{ 's' if user_count != 1 else '' }} assigned. Migrate them first or they lose SSO access.
     </p>
     {% endif %}
     {% if domain_count and domain_count > 0 %}
     <p class="text-sm text-amber-600 dark:text-amber-400 mb-2">
         {{ icon("exclamation-triangle", class="w-4 h-4 inline-block mr-1 -mt-0.5") }}
-        {{ domain_count }} domain(s) bound. Unbind them first.
+        {{ domain_count }} domain{{ 's' if domain_count != 1 else '' }} bound. Unbind them first.
     </p>
     {% endif %}
     <form method="post" action="/admin/settings/identity-providers/{{ idp.id }}/delete" class="inline mt-2">

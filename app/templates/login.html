@@ -11,17 +11,17 @@
             {% if success %}
             <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if success == 'email_verified' %}
-                Email verified successfully! You can now sign in.
+                Email verified. You can now sign in.
                 {% elif success == 'password_set' %}
-                Password set successfully! You can now sign in.
+                Password set. You can now sign in.
                 {% elif success == 'already_verified' %}
-                Your email is already verified. Please sign in.
+                Email already verified. Sign in below.
                 {% elif success == 'account_reactivated' %}
-                Your account has been reactivated! You can now sign in.
+                Account reactivated. You can now sign in.
                 {% elif success == 'password_reset' %}
-                Your password has been reset. You can now sign in.
+                Password reset. You can now sign in.
                 {% elif success == 'account_reactivated_no_password' %}
-                Your account has been reactivated, but you don't have a password set. Please contact an administrator to set a password or assign you to an identity provider.
+                Account reactivated, but no password set. Contact an administrator to set one or assign you to an identity provider.
                 {% else %}
                 {{ success }}
                 {% endif %}
@@ -31,27 +31,27 @@
             {% if error %}
             <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if error == 'verification_failed' %}
-                Email verification failed. Please contact your administrator.
+                Email verification failed. Contact your administrator.
                 {% elif error == 'invalid_verification_link' %}
-                Invalid verification link. Please contact your administrator.
+                Invalid verification link. Contact your administrator.
                 {% elif error == 'invalid_link' %}
-                Invalid link. Please contact your administrator.
+                Invalid link. Contact your administrator.
                 {% elif error == 'email_not_verified' %}
-                Please verify your email address before setting your password.
+                Verify your email address before setting your password.
                 {% elif error == 'user_not_found' %}
                 No account found with this email address.
                 {% elif error == 'account_inactivated' %}
-                This account has been inactivated. Please contact your administrator.
+                Account inactivated. Contact your administrator.
                 {% elif error == 'reactivation_failed' %}
-                Your account could not be reactivated. Please try again or contact your administrator.
+                Couldn't reactivate account. Try again or contact your administrator.
                 {% elif error == 'no_password_set' %}
-                No password set for this account. Please contact your administrator.
+                No password set for this account. Contact your administrator.
                 {% elif error == 'no_auth_method' %}
-                No authentication method configured for this account. Please contact your administrator.
+                No authentication method configured for this account. Contact your administrator.
                 {% elif error == 'idp_disabled' %}
-                Your identity provider is currently disabled. Please contact your administrator.
+                Identity provider disabled. Contact your administrator.
                 {% elif error == 'invalid_email' %}
-                Please enter a valid email address.
+                Enter a valid email address.
                 {% else %}
                 {{ error }}
                 {% endif %}

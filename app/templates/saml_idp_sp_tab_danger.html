@@ -57,12 +57,12 @@
         Delete Service Provider
     </button>
     {% else %}
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Removes all configuration, certificates, and group assignments. This cannot be undone.</p>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Removes configuration, certificates, and group assignments. Cannot be undone.</p>
     <form method="post" action="/admin/settings/service-providers/{{ sp.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="confirm-btn px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                data-confirm="Delete {{ sp.name }}?&#10;&#10;This will remove all configuration, certificates, and {{ assigned_group_count }} group assignment(s). This cannot be undone."
+                data-confirm="Delete {{ sp.name }}?&#10;&#10;This will remove all configuration, certificates, and {{ assigned_group_count }} group assignment{{ 's' if assigned_group_count != 1 else '' }}. This cannot be undone."
                 data-destructive="true">
             Delete Service Provider
         </button>

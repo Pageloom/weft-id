@@ -14,11 +14,11 @@
             {% if error %}
             <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if error == 'invalid_code' %}
-                Invalid code. Please try again.
+                Invalid code. Try again.
                 {% elif error == 'expired' %}
-                Code expired. Please request a new code.
+                Code expired. Request a new code.
                 {% elif error == 'missing_cookie' %}
-                Session expired. Please start over.
+                Session expired. Start over.
                 {% else %}
                 {{ error }}
                 {% endif %}
@@ -28,7 +28,7 @@
             {% if success %}
             <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 px-4 py-3 rounded mb-6" role="alert">
                 {% if success == 'code_sent' %}
-                A new code has been sent to your email.
+                New code sent to your email.
                 {% else %}
                 {{ success }}
                 {% endif %}

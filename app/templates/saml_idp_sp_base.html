@@ -13,33 +13,33 @@
     <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
         <p class="text-sm text-green-800 dark:text-green-300">
             {% if success == 'created' %}
-            Service provider created. Complete setup by sharing the IdP metadata URL below, then import the SP's metadata.
+            Service provider created. Share the IdP metadata URL below, then import the SP's metadata.
             {% elif success == 'trust_established' %}
-            Trust established successfully. The service provider is ready for SSO.
+            Trust established. The service provider is ready for SSO.
             {% elif success == 'certificate_rotated' %}
-            Signing certificate rotated successfully. The previous certificate remains valid during the grace period.
+            Signing certificate rotated. The previous certificate remains valid during the grace period.
             {% elif success == 'group_assigned' %}
-            Group assigned successfully.
+            Group assigned.
             {% elif success == 'groups_assigned' %}
-            Groups assigned successfully.
+            Groups assigned.
             {% elif success == 'group_removed' %}
-            Group removed successfully.
+            Group removed.
             {% elif success == 'updated' %}
-            Service provider updated successfully.
+            Service provider updated.
             {% elif success == 'enabled' %}
             Service provider enabled. SSO is now active.
             {% elif success == 'disabled' %}
             Service provider disabled. SSO requests will be rejected.
             {% elif success == 'metadata_refreshed' %}
-            Metadata refreshed successfully from URL.
+            Metadata refreshed from URL.
             {% elif success == 'metadata_reimported' %}
-            Metadata re-imported successfully from XML.
+            Metadata re-imported from XML.
             {% elif success == 'attributes_updated' %}
-            Attribute mapping updated successfully.
+            Attribute mapping updated.
             {% elif success == 'logo_uploaded' %}
-            Logo uploaded successfully.
+            Logo uploaded.
             {% elif success == 'logo_deleted' %}
-            Logo removed successfully.
+            Logo removed.
             {% endif %}
         </p>
     </div>

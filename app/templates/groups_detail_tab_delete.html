@@ -8,7 +8,7 @@
 
 {% if has_relationships %}
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-amber-200 dark:border-amber-700 mb-4">
-    <h2 class="text-base font-semibold text-amber-700 dark:text-amber-400 mb-2">Relationships must be removed first</h2>
+    <h2 class="text-base font-semibold text-amber-700 dark:text-amber-400 mb-2">Remove relationships first</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
         This group has {{ parents|length }} parent{{ 's' if parents|length != 1 else '' }}
         and {{ children|length }} child group{{ 's' if children|length != 1 else '' }}.
@@ -46,7 +46,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-red-200 dark:border-red-800">
     <h2 class="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">Delete Group</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Permanently deletes this group and all memberships. Members themselves are not affected. This cannot be undone.
+        Permanently deletes this group and all memberships. Members are not affected. Cannot be undone.
     </p>
     <form method="post" action="/admin/groups/{{ group.id }}/delete" class="inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

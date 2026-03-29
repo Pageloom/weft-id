@@ -10,7 +10,7 @@
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Identity Providers</h1>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Configure SAML SSO providers for your organization</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage SAML identity providers for your organization</p>
             </div>
             <div class="flex gap-2">
                 <a href="/admin/settings/identity-providers/debug"
@@ -27,19 +27,19 @@
         {% if success == 'created' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
-                Identity provider created successfully.
+                Identity provider created.
             </p>
         </div>
         {% elif success == 'updated' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
-                Identity provider updated successfully.
+                Identity provider updated.
             </p>
         </div>
         {% elif success == 'deleted' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
-                Identity provider deleted successfully.
+                Identity provider deleted.
             </p>
         </div>
         {% elif success == 'enabled' %}
@@ -63,7 +63,7 @@
         {% elif success == 'refreshed' %}
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
-                Metadata refreshed successfully.
+                Metadata refreshed.
             </p>
         </div>
         {% endif %}

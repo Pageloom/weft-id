@@ -10,7 +10,7 @@
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Service Providers (apps)</h1>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Downstream applications that authenticate users via SAML SSO</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Applications that authenticate users via SAML SSO</p>
             </div>
             <a href="/admin/settings/service-providers/new"
                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
@@ -22,9 +22,9 @@
         <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
             <p class="text-sm text-green-800 dark:text-green-300">
                 {% if success == 'created' %}
-                Service provider registered successfully.
+                Service provider registered.
                 {% elif success == 'deleted' %}
-                Service provider deleted successfully.
+                Service provider deleted.
                 {% elif success == 'enabled' %}
                 Service provider enabled.
                 {% elif success == 'disabled' %}

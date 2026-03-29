@@ -28,7 +28,7 @@ class TestForgotPassword:
         client = TestClient(app)
         response = client.get("/forgot-password")
         assert response.status_code == 200
-        assert "Reset Your Password" in response.text
+        assert "Forgot Password" in response.text
 
     def test_post_redirects_success(self, mocker):
         _setup(mocker)

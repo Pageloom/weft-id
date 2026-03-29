@@ -13,37 +13,37 @@
     <div class="mb-6 p-4 border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-md">
         <p class="text-sm text-green-800 dark:text-green-300">
             {% if success == 'name_updated' %}
-            User name updated successfully.
+            User name updated.
             {% elif success == 'role_updated' %}
-            User role updated successfully.
+            User role updated.
             {% elif success == 'email_added' %}
-            Email address added successfully.
+            Email address added.
             {% elif success == 'email_removed' %}
-            Email address removed successfully.
+            Email address removed.
             {% elif success == 'email_promoted' %}
-            Email promoted to primary successfully.
+            Email promoted to primary.
             {% elif success == 'user_created' %}
-            User created successfully. An invitation email has been sent to the user.
+            User created. Invitation sent.
             {% elif success == 'user_inactivated' %}
-            User has been inactivated and can no longer sign in.
+            User inactivated. Can no longer sign in.
             {% elif success == 'user_reactivated' %}
-            User has been reactivated and can now sign in.
+            User reactivated. Can now sign in.
             {% elif success == 'user_anonymized' %}
-            User has been anonymized. Personal data has been permanently removed.
+            User anonymized. Personal data permanently removed.
             {% elif success == 'idp_updated' %}
-            User's IdP assignment updated successfully.
+            User's IdP assignment updated.
             {% elif success == 'mfa_reset' %}
             User's two-step verification has been reset. They will use email codes on next sign-in.
             {% elif success == 'group_added' %}
-            User added to group successfully.
+            User added to group.
             {% elif success == 'groups_bulk_added' %}
-            User added to {{ request.query_params.get('count', '') }} group(s) successfully.
+            User added to {{ request.query_params.get('count', '') }} group{{ 's' if request.query_params.get('count', '1') != '1' else '' }}.
             {% elif success == 'group_removed' %}
-            User removed from group successfully.
+            User removed from group.
             {% elif success == 'invitation_resent' %}
-            Invitation email resent successfully.
+            Invitation resent.
             {% else %}
-            Operation completed successfully.
+            Operation completed.
             {% endif %}
         </p>
     </div>
@@ -111,7 +111,7 @@
             {% elif error == 'no_primary_email' %}
             This user has no primary email address.
             {% else %}
-            An error occurred. Please try again.
+            An error occurred. Try again.
             {% endif %}
         </p>
     </div>
@@ -122,7 +122,7 @@
     <div class="mb-6 p-4 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md">
         <p class="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">
             {{ icon("exclamation-triangle", class="w-4 h-4 inline -mt-0.5 mr-1") }}
-            Promoting this email has downstream impact. Please review before confirming.
+            Promoting this email has downstream impact. Review before confirming.
         </p>
 
         {% if email_impact.summary.affected_sp_count > 0 %}
